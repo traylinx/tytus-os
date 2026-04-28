@@ -288,6 +288,21 @@ export interface DaemonClient {
     podId: string,
     signal?: AbortSignal,
   ): Promise<DaemonResult<null>>;
+  postPodRestart(
+    podId: string,
+    signal?: AbortSignal,
+  ): Promise<DaemonResult<null>>;
+  /**
+   * Per-pod streamed action. The daemon's allowlist (Phase 2 spike,
+   * web_server.rs::pod_action_argv) currently accepts: restart, revoke,
+   * uninstall, stop-forwarder, channels-list, ls-inbox. Returns a
+   * job_id; consumer attaches via jobStreamUrl.
+   */
+  postPodRunStreamed(
+    podId: string,
+    action: string,
+    signal?: AbortSignal,
+  ): Promise<DaemonResult<JobResponse>>;
   postSettingsAutostartTray(
     enabled: boolean,
     signal?: AbortSignal,
@@ -454,6 +469,22 @@ export const createDaemonClient = (
         `/api/pod/open?pod=${encodeURIComponent(podId)}`,
         { method: "POST", signal },
         noBody,
+      ),
+
+    postPodRestart: (podId, signal) =>
+      runRequest(
+        deps,
+        `/api/pod/restart?pod=${encodeURIComponent(podId)}`,
+        { method: "POST", signal },
+        noBody,
+      ),
+
+    postPodRunStreamed: (podId, action, signal) =>
+      runRequest(
+        deps,
+        `/api/pod/${encodeURIComponent(podId)}/run-streamed`,
+        { method: "POST", body: { action }, signal },
+        (b) => expectShape(b, isJobResponse, "malformed /api/pod/run-streamed"),
       ),
 
     postSettingsAutostartTray: (enabled, signal) =>

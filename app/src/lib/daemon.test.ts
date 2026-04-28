@@ -312,6 +312,56 @@ describe("daemon client — POSTs", () => {
     expect(observed).toEqual({ name: "doctor" });
   });
 
+  it("postPodRestart targets /api/pod/restart?pod=NN", async () => {
+    const { fetch, calls } = makeFakeFetch([
+      { method: "POST", path: "/api/pod/restart?pod=02", body: null },
+    ]);
+    const r = await createDaemonClient({ fetch }).postPodRestart("02");
+    expect(r.ok).toBe(true);
+    expect(calls[0]?.url).toBe("/api/pod/restart?pod=02");
+  });
+
+  it("postPodRunStreamed posts {action} and returns job_id", async () => {
+    let observed: unknown = undefined;
+    const { fetch, calls } = makeFakeFetch([
+      {
+        method: "POST",
+        path: "/api/pod/02/run-streamed",
+        body: { job_id: "job-restart-1" },
+        expect: (init) => {
+          observed = init?.body ? JSON.parse(init.body as string) : null;
+        },
+      },
+    ]);
+    const r = await createDaemonClient({ fetch }).postPodRunStreamed(
+      "02",
+      "restart",
+    );
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.value.job_id).toBe("job-restart-1");
+    expect(observed).toEqual({ action: "restart" });
+    expect(calls[0]?.url).toBe("/api/pod/02/run-streamed");
+  });
+
+  it("postPodRunStreamed surfaces 400 'unknown action' as validation", async () => {
+    const { fetch } = makeFakeFetch([
+      {
+        method: "POST",
+        path: "/api/pod/02/run-streamed",
+        status: 400,
+        body: { error: "unknown action bogus" },
+      },
+    ]);
+    const r = await createDaemonClient({ fetch }).postPodRunStreamed(
+      "02",
+      "bogus",
+    );
+    expect(r.ok).toBe(false);
+    if (r.ok) return;
+    expect(r.error.code).toBe("validation");
+  });
+
   it("postPodOpen targets /api/pod/open?pod=NN", async () => {
     const { fetch, calls } = makeFakeFetch([
       {
