@@ -312,6 +312,63 @@ describe("daemon client — POSTs", () => {
     expect(observed).toEqual({ name: "doctor" });
   });
 
+  it("postChannelsAdd sends {pod, channel, token} in body, not URL", async () => {
+    let observedBody: unknown = undefined;
+    const { fetch, calls } = makeFakeFetch([
+      {
+        method: "POST",
+        path: "/api/channels/add",
+        body: null,
+        expect: (init) => {
+          observedBody = init?.body ? JSON.parse(init.body as string) : null;
+        },
+      },
+    ]);
+    const r = await createDaemonClient({ fetch }).postChannelsAdd(
+      "02",
+      "telegram",
+      "secret-bot-token-7777",
+    );
+    expect(r.ok).toBe(true);
+    expect(observedBody).toEqual({
+      pod: "02",
+      channel: "telegram",
+      token: "secret-bot-token-7777",
+    });
+    // Token must NEVER appear in the URL.
+    expect(calls[0]?.url).toBe("/api/channels/add");
+    expect(calls[0]?.url).not.toContain("secret-bot-token-7777");
+  });
+
+  it("postChannelsRemove targets /api/channels/remove?pod=NN&name=...", async () => {
+    const { fetch, calls } = makeFakeFetch([
+      {
+        method: "POST",
+        path: "/api/channels/remove?pod=02&name=telegram",
+        body: null,
+      },
+    ]);
+    const r = await createDaemonClient({ fetch }).postChannelsRemove(
+      "02",
+      "telegram",
+    );
+    expect(r.ok).toBe(true);
+    expect(calls[0]?.url).toBe("/api/channels/remove?pod=02&name=telegram");
+  });
+
+  it("postFilesOpenDownloads targets /api/files/open-downloads?pod=NN", async () => {
+    const { fetch, calls } = makeFakeFetch([
+      {
+        method: "POST",
+        path: "/api/files/open-downloads?pod=02",
+        body: { ok: true, path: "/tmp/x" },
+      },
+    ]);
+    const r = await createDaemonClient({ fetch }).postFilesOpenDownloads("02");
+    expect(r.ok).toBe(true);
+    expect(calls[0]?.url).toBe("/api/files/open-downloads?pod=02");
+  });
+
   it("postPodRefreshCreds returns job_id", async () => {
     const { fetch, calls } = makeFakeFetch([
       {

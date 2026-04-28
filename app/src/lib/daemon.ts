@@ -297,6 +297,25 @@ export interface DaemonClient {
     signal?: AbortSignal,
   ): Promise<DaemonResult<JobResponse>>;
   /**
+   * Add a messenger channel binding to a pod. Token is sent in the
+   * body — never the URL. Daemon takes ~10–15s to redeploy the agent.
+   */
+  postChannelsAdd(
+    podId: string,
+    channel: string,
+    token: string,
+    signal?: AbortSignal,
+  ): Promise<DaemonResult<null>>;
+  postChannelsRemove(
+    podId: string,
+    channel: string,
+    signal?: AbortSignal,
+  ): Promise<DaemonResult<null>>;
+  postFilesOpenDownloads(
+    podId: string,
+    signal?: AbortSignal,
+  ): Promise<DaemonResult<null>>;
+  /**
    * Per-pod streamed action. The daemon's allowlist (Phase 2 spike,
    * web_server.rs::pod_action_argv) currently accepts: restart, revoke,
    * uninstall, stop-forwarder, channels-list, ls-inbox. Returns a
@@ -489,6 +508,38 @@ export const createDaemonClient = (
         `/api/pod/refresh-creds?pod=${encodeURIComponent(podId)}`,
         { method: "POST", signal },
         (b) => expectShape(b, isJobResponse, "malformed /api/pod/refresh-creds"),
+      ),
+
+    postChannelsAdd: (podId, channel, token, signal) =>
+      runRequest(
+        deps,
+        "/api/channels/add",
+        {
+          method: "POST",
+          // Token MUST live in the body, never the query string.
+          // Daemon source enforces same invariant (web_server.rs Body
+          // shape; bad-json error path explicitly does not echo the
+          // raw payload).
+          body: { pod: podId, channel, token },
+          signal,
+        },
+        noBody,
+      ),
+
+    postChannelsRemove: (podId, channel, signal) =>
+      runRequest(
+        deps,
+        `/api/channels/remove?pod=${encodeURIComponent(podId)}&name=${encodeURIComponent(channel)}`,
+        { method: "POST", signal },
+        noBody,
+      ),
+
+    postFilesOpenDownloads: (podId, signal) =>
+      runRequest(
+        deps,
+        `/api/files/open-downloads?pod=${encodeURIComponent(podId)}`,
+        { method: "POST", signal },
+        noBody,
       ),
 
     postPodRunStreamed: (podId, action, signal) =>

@@ -4,6 +4,7 @@ import AppPlaceholder from './AppPlaceholder';
 // Tytus product surfaces
 import PodInspector from './PodInspector';
 import Help from './Help';
+import Channels from './Channels';
 
 // System
 import Settings from './Settings';
@@ -80,7 +81,7 @@ const AppRouter: FC<AppRouterProps> = ({ appId }) => {
 
     // Tytus product surfaces — placeholder until their phase wires them up
     case 'channels':
-      return <AppPlaceholder appId={appId} />;
+      return <Channels />;
 
     // System
     case 'settings': return <Settings />;
