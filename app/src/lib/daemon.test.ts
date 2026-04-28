@@ -139,6 +139,59 @@ describe("daemon client — other GETs", () => {
     expect(r.value.running).toBe(true);
   });
 
+  it("getStateConditional sends If-None-Match and parses ETag from 200", async () => {
+    let capturedHeader: string | undefined;
+    const wrap: typeof fetch = async (input, init) => {
+      capturedHeader = (init?.headers as Record<string, string>)?.[
+        "If-None-Match"
+      ];
+      return new Response(JSON.stringify(stateFixture), {
+        status: 200,
+        headers: {
+          "Content-Type": "application/json",
+          ETag: '"abc123"',
+        },
+      });
+    };
+    const client = createDaemonClient({ fetch: wrap });
+    const r = await client.getStateConditional('"prev-etag"');
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(capturedHeader).toBe('"prev-etag"');
+    expect(r.value.notModified).toBe(false);
+    expect(r.value.etag).toBe('"abc123"');
+    expect(r.value.snapshot?.tier).toBe("operator");
+  });
+
+  it("getStateConditional surfaces 304 as notModified=true with no body", async () => {
+    const wrap: typeof fetch = async () =>
+      new Response(null, { status: 304, headers: { ETag: '"abc123"' } });
+    const client = createDaemonClient({ fetch: wrap });
+    const r = await client.getStateConditional('"abc123"');
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.value.notModified).toBe(true);
+    expect(r.value.snapshot).toBeNull();
+    expect(r.value.etag).toBe('"abc123"');
+  });
+
+  it("getStateConditional with no prior etag omits If-None-Match", async () => {
+    let capturedHeader: string | undefined = "set-by-default";
+    const wrap: typeof fetch = async (_input, init) => {
+      capturedHeader = (init?.headers as Record<string, string>)?.[
+        "If-None-Match"
+      ];
+      return new Response(JSON.stringify(stateFixture), {
+        status: 200,
+        headers: { "Content-Type": "application/json", ETag: '"first"' },
+      });
+    };
+    const client = createDaemonClient({ fetch: wrap });
+    const r = await client.getStateConditional(null);
+    expect(r.ok).toBe(true);
+    expect(capturedHeader).toBeUndefined();
+  });
+
   it("getVersion parses populated body", async () => {
     const { fetch, calls } = makeFakeFetch([
       {

@@ -251,11 +251,38 @@ const isPodReady = (v: unknown): v is PodReady =>
 const isSharedFolders = (v: unknown): v is SharedFoldersList =>
   isObject(v) && Array.isArray(v.bindings);
 
+// ---- conditional state result -------------------------------------------
+
+/**
+ * Returned by `getStateConditional`. Carries either a fresh snapshot +
+ * its ETag (200) or a `notModified: true` marker (304). The caller
+ * keeps its cached snapshot in the 304 case.
+ */
+export interface ConditionalStateResult {
+  snapshot: StateSnapshot | null;
+  etag: string | null;
+  notModified: boolean;
+}
+
 // ---- client -------------------------------------------------------------
 
 export interface DaemonClient {
   // GET
   getState(signal?: AbortSignal): Promise<DaemonResult<StateSnapshot>>;
+  /**
+   * Conditional GET on /api/state. Sends `If-None-Match: <ifNoneMatch>`
+   * when supplied; daemon responds 304 with no body when the snapshot
+   * hash matches, saving the JSON.parse + setState round on every
+   * no-change poll tick.
+   *
+   * Returns `notModified: true` for 304 (caller keeps cached snapshot)
+   * or `snapshot + etag` for 200. Errors propagate as DaemonResult.err
+   * the same way getState() does.
+   */
+  getStateConditional(
+    ifNoneMatch: string | null,
+    signal?: AbortSignal,
+  ): Promise<DaemonResult<ConditionalStateResult>>;
   getDaemonStatus(signal?: AbortSignal): Promise<DaemonResult<DaemonStatus>>;
   /**
    * Daemon identity + boot timestamp.
@@ -440,6 +467,79 @@ export const createDaemonClient = (
         const r = expectShape(b, isStateLike, "malformed /api/state");
         return r.ok ? ok(materializeState(r.value)) : r;
       }),
+
+    getStateConditional: async (ifNoneMatch, signal) => {
+      // Inline fetch path because runRequest doesn't expose response
+      // headers and 304 has no body to parse — we need both. Behavior
+      // otherwise mirrors runRequest (same error envelope, same
+      // classifyNetworkError, same auth_required handling).
+      const url = `${baseUrl}/api/state`;
+      const headers: Record<string, string> = { Accept: "application/json" };
+      if (ifNoneMatch) headers["If-None-Match"] = ifNoneMatch;
+      let res: Response;
+      try {
+        res = await f(url, {
+          method: "GET",
+          headers,
+          signal,
+          credentials: "same-origin",
+        });
+      } catch (cause) {
+        return err<ConditionalStateResult>(classifyNetworkError(cause));
+      }
+      if (res.status === 304) {
+        // Cached body still valid — caller keeps its last snapshot.
+        // Echo the etag if the daemon sent one back so a future
+        // refactor that wants to verify can still see it.
+        return ok({
+          snapshot: null,
+          etag: res.headers.get("ETag"),
+          notModified: true,
+        });
+      }
+      if (res.status === 404) {
+        return err<ConditionalStateResult>(errorOf("not_found", "not found", 404));
+      }
+      if (res.status === 401 || res.status === 403) {
+        return err<ConditionalStateResult>(
+          errorOf("auth_required", "auth required", res.status),
+        );
+      }
+      const body = await tryJson(res);
+      if (res.status >= 500) {
+        const message = isErrorEnvelope(body) ? body.error : `daemon ${res.status}`;
+        return err<ConditionalStateResult>(
+          errorOf("internal_error", message, res.status),
+        );
+      }
+      if (res.status === 400) {
+        const message = isErrorEnvelope(body) ? body.error : "bad request";
+        return err<ConditionalStateResult>(errorOf("validation", message, 400));
+      }
+      if (!res.ok) {
+        return err<ConditionalStateResult>(
+          errorOf(
+            "internal_error",
+            `unexpected status ${res.status}`,
+            res.status,
+          ),
+        );
+      }
+      if (isErrorEnvelope(body)) {
+        return err<ConditionalStateResult>(
+          errorOf("logical_error", body.error, res.status),
+        );
+      }
+      const parsed = expectShape(body, isStateLike, "malformed /api/state");
+      if (!parsed.ok) {
+        return err<ConditionalStateResult>(parsed.error);
+      }
+      return ok({
+        snapshot: materializeState(parsed.value),
+        etag: res.headers.get("ETag"),
+        notModified: false,
+      });
+    },
 
     getVersion: (signal) =>
       runRequest(deps, "/api/version", { signal }, (b) =>

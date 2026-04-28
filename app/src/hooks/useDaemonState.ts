@@ -82,6 +82,11 @@ export const useDaemonState = (
   const [version, setVersion] = useState<DaemonVersion | null>(null);
   const [tick, setTick] = useState(0);
   const cancelledRef = useRef(false);
+  // Last-seen ETag from /api/state. Sent as If-None-Match on the next
+  // conditional GET so the daemon can short-circuit unchanged polls
+  // to 304. Reset on `refresh()` (the useEffect re-mount via tick
+  // re-creates this ref).
+  const etagRef = useRef<string | null>(null);
 
   useEffect(() => {
     cancelledRef.current = false;
@@ -96,18 +101,35 @@ export const useDaemonState = (
 
     const run = async () => {
       abort = new AbortController();
-      const stateR = await client.getState(abort.signal);
+      // Conditional GET on /api/state. The daemon's ETag is process-
+      // stable; if the snapshot hash matches `etagRef.current` we get
+      // 304 + no body and skip the JSON.parse + setState round.
+      const stateR = await client.getStateConditional(
+        etagRef.current,
+        abort.signal,
+      );
       if (cancelledRef.current) return;
       if (stateR.ok) {
-        setState(stateR.value);
         setError(null);
         setFailureCount(0);
-        setStatus(stateR.value.logged_in ? "online" : "auth_required");
-        // Version derives from the same response — last-known wins
-        // across transient blips (we only update when stateR.ok, so
-        // a failed poll never wipes the cached value).
-        const v = versionFromState(stateR.value);
-        if (v) setVersion(v);
+        if (stateR.value.notModified) {
+          // 304 — keep the cached snapshot. Status flip is still
+          // driven by the cached `state` value (its `logged_in` is
+          // already in our React state). No status change needed.
+        } else if (stateR.value.snapshot) {
+          const snap = stateR.value.snapshot;
+          setState(snap);
+          setStatus(snap.logged_in ? "online" : "auth_required");
+          // Version derives from the same response — last-known wins
+          // across transient blips (we only update when stateR.ok, so
+          // a failed poll never wipes the cached value).
+          const v = versionFromState(snap);
+          if (v) setVersion(v);
+          // Cache the new ETag for the next conditional GET. Daemons
+          // that don't send one (older builds) leave etagRef null,
+          // which simply means the next request omits If-None-Match.
+          if (stateR.value.etag) etagRef.current = stateR.value.etag;
+        }
       } else {
         setError(stateR.error);
         if (stateR.error.code === "daemon_offline") {

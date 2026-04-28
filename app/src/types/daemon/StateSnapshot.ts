@@ -34,6 +34,8 @@ export interface StateSnapshot {
    * call a route that requires N when daemon_version < N.
    */
   daemon_version?: string;
+  // (note: ETag for /api/state is delivered via HTTP header, not on
+  // the body — see ConditionalStateResult in lib/daemon.ts.)
   /**
    * Daemon boot time, Unix seconds. Stable across the daemon's
    * lifetime. Diff between polls to detect a restart and clear stale

@@ -142,6 +142,71 @@ describe("useDaemonState", () => {
     expect(result.current.version?.daemon_started_at).toBe(1714325847);
   });
 
+  it("sends If-None-Match on the second poll using the ETag from the first", async () => {
+    // End-to-end conditional GET: first poll has no ETag, daemon
+    // sends one back, second poll echoes it. This is the "happy path"
+    // that saves a parse + setState round on every no-change tick.
+    const observed: Array<string | undefined> = [];
+    let pollCount = 0;
+    const wrap: typeof fetch = async (_input, init) => {
+      pollCount++;
+      observed.push(
+        (init?.headers as Record<string, string>)?.["If-None-Match"],
+      );
+      // First call: 200 + ETag. Subsequent calls: 304 if matches.
+      if (pollCount === 1) {
+        return new Response(JSON.stringify(stateFixture), {
+          status: 200,
+          headers: { "Content-Type": "application/json", ETag: '"v1"' },
+        });
+      }
+      // 304 path
+      return new Response(null, {
+        status: 304,
+        headers: { ETag: '"v1"' },
+      });
+    };
+    const client = createDaemonClient({ fetch: wrap });
+    const { result } = renderHook(() =>
+      useDaemonState({ client, intervalMs: 10 }),
+    );
+    await waitFor(() => expect(result.current.status).toBe("online"));
+    // Let one or two more ticks fire so we observe the second header.
+    await new Promise((r) => setTimeout(r, 80));
+    expect(observed[0]).toBeUndefined(); // first poll has no etag yet
+    expect(observed.slice(1).every((h) => h === '"v1"')).toBe(true);
+  });
+
+  it("304 keeps the cached snapshot (no setState on no-change)", async () => {
+    // Critical invariant: when the daemon returns 304, the hook must
+    // hold its previously-set state and *not* regress to null. A
+    // regression here would cause a flicker every poll tick.
+    let pollCount = 0;
+    const wrap: typeof fetch = async () => {
+      pollCount++;
+      if (pollCount === 1) {
+        return new Response(JSON.stringify(stateFixture), {
+          status: 200,
+          headers: { "Content-Type": "application/json", ETag: '"v1"' },
+        });
+      }
+      return new Response(null, {
+        status: 304,
+        headers: { ETag: '"v1"' },
+      });
+    };
+    const client = createDaemonClient({ fetch: wrap });
+    const { result } = renderHook(() =>
+      useDaemonState({ client, intervalMs: 10 }),
+    );
+    await waitFor(() => expect(result.current.state?.tier).toBe("operator"));
+    // After several 304s, state must still be populated.
+    await new Promise((r) => setTimeout(r, 80));
+    expect(result.current.state?.tier).toBe("operator");
+    expect(result.current.status).toBe("online");
+    expect(pollCount).toBeGreaterThan(2); // confirm we actually polled
+  });
+
   it("never fires /api/version (piggyback architecture invariant)", async () => {
     // Pin the architecture: useDaemonState reads version off
     // /api/state and must never fire a separate /api/version request.
