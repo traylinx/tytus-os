@@ -4,8 +4,8 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { OSProvider, useOS } from '@/hooks/useOSStore';
-import { DaemonClientProvider, useDaemonClient } from '@/hooks/useDaemonClient';
-import { useDaemonState } from '@/hooks/useDaemonState';
+import { DaemonClientProvider } from '@/hooks/useDaemonClient';
+import { DaemonStateProvider, useDaemonStateContext } from '@/hooks/useDaemonStateContext';
 import DaemonOfflineBanner from '@/components/DaemonOfflineBanner';
 import BootSequence from '@/components/BootSequence';
 import LoginScreen from '@/components/LoginScreen';
@@ -24,11 +24,9 @@ function AppShell() {
   const [bootComplete, setBootComplete] = useState(false);
   const altTabRef = useRef<{ holding: boolean }>({ holding: false });
 
-  // Shell-level daemon polling — shared with LoginScreen via context-less
-  // refetch. The login screen runs its own poll for snappier UX while the
-  // user is still on the auth gate; once authenticated the shell takes over.
-  const client = useDaemonClient();
-  const daemon = useDaemonState({ client, intervalMs: 4000 });
+  // Shell-level daemon state shared via DaemonStateProvider context so
+  // TopPanel, DaemonOfflineBanner, and LoginScreen all read the same poll.
+  const daemon = useDaemonStateContext();
 
   // Boot sequence
   useEffect(() => {
@@ -234,9 +232,11 @@ function AppShell() {
 export default function App() {
   return (
     <DaemonClientProvider>
-      <OSProvider>
-        <AppShell />
-      </OSProvider>
+      <DaemonStateProvider>
+        <OSProvider>
+          <AppShell />
+        </OSProvider>
+      </DaemonStateProvider>
     </DaemonClientProvider>
   );
 }

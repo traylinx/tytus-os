@@ -11,15 +11,12 @@ import { memo, useCallback, useEffect, useState } from "react";
 import { LogIn, Loader2, AlertCircle, RefreshCw } from "lucide-react";
 import { useOS } from "@/hooks/useOSStore";
 import { useDaemonClient } from "@/hooks/useDaemonClient";
-import { useDaemonState } from "@/hooks/useDaemonState";
+import { useDaemonStateContext } from "@/hooks/useDaemonStateContext";
 
 const LoginScreen = memo(function LoginScreen() {
   const client = useDaemonClient();
   const { dispatch } = useOS();
-  const { status, state, refresh } = useDaemonState({
-    client,
-    intervalMs: 2000,
-  });
+  const { status, state, refresh } = useDaemonStateContext();
   const [opening, setOpening] = useState(false);
   const [openError, setOpenError] = useState<string | null>(null);
 
