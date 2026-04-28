@@ -538,6 +538,41 @@ describe("daemon client — POSTs", () => {
     expect(calls[0]?.url).toBe("/api/pod/02/run-streamed");
   });
 
+  it("postJobCancel POSTs to /api/jobs/<id>/cancel and parses body", async () => {
+    const { fetch, calls } = makeFakeFetch([
+      {
+        method: "POST",
+        path: "/api/jobs/job-abc/cancel",
+        body: { cancelled: true, pid: 12345 },
+      },
+    ]);
+    const r = await createDaemonClient({ fetch }).postJobCancel("job-abc");
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.value.cancelled).toBe(true);
+    expect(r.value.pid).toBe(12345);
+    expect(calls[0]?.url).toBe("/api/jobs/job-abc/cancel");
+  });
+
+  it("postJobCancel handles already-finished response", async () => {
+    // Important UX path: the user can click Cancel after the SSE
+    // already delivered an `exit` event. Daemon returns 200 with
+    // cancelled:false; we surface that intact so the UI can pick a
+    // friendlier toast.
+    const { fetch } = makeFakeFetch([
+      {
+        method: "POST",
+        path: "/api/jobs/job-abc/cancel",
+        body: { cancelled: false, reason: "already finished" },
+      },
+    ]);
+    const r = await createDaemonClient({ fetch }).postJobCancel("job-abc");
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.value.cancelled).toBe(false);
+    expect(r.value.reason).toBe("already finished");
+  });
+
   it("postPodRunStreamed surfaces 400 'unknown action' as validation", async () => {
     const { fetch } = makeFakeFetch([
       {

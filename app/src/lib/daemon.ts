@@ -16,6 +16,7 @@ import type {
   DaemonStatus,
   ErrorEnvelope,
   IncludedPod,
+  JobCancelResult,
   JobResponse,
   Launchers,
   LogChunk,
@@ -203,6 +204,9 @@ const isSettings = (v: unknown): v is DaemonSettings =>
 const isJobResponse = (v: unknown): v is JobResponse =>
   isObject(v) && typeof v.job_id === "string";
 
+const isJobCancelResult = (v: unknown): v is JobCancelResult =>
+  isObject(v) && typeof v.cancelled === "boolean";
+
 const isCatalog = (v: unknown): v is Catalog =>
   isObject(v) && typeof v.version === "string" && Array.isArray(v.agents);
 
@@ -365,6 +369,21 @@ export interface DaemonClient {
     action: string,
     signal?: AbortSignal,
   ): Promise<DaemonResult<JobResponse>>;
+  /**
+   * SIGTERM the child process behind a running job.
+   *
+   * The body distinguishes three outcomes — the consumer typically
+   * doesn't have to act on `reason`, but it's useful for toast
+   * wording: "Cancelled" vs "Already finished" vs "Couldn't cancel
+   * (no process yet)".
+   *
+   * The SSE stream closes naturally when the SIGTERM'd child dies —
+   * caller doesn't need to tear down its EventSource manually.
+   */
+  postJobCancel(
+    jobId: string,
+    signal?: AbortSignal,
+  ): Promise<DaemonResult<JobCancelResult>>;
   postSettingsAutostartTray(
     enabled: boolean,
     signal?: AbortSignal,
@@ -648,6 +667,14 @@ export const createDaemonClient = (
         `/api/pod/${encodeURIComponent(podId)}/run-streamed`,
         { method: "POST", body: { action }, signal },
         (b) => expectShape(b, isJobResponse, "malformed /api/pod/run-streamed"),
+      ),
+
+    postJobCancel: (jobId, signal) =>
+      runRequest(
+        deps,
+        `/api/jobs/${encodeURIComponent(jobId)}/cancel`,
+        { method: "POST", signal },
+        (b) => expectShape(b, isJobCancelResult, "malformed /api/jobs/.../cancel"),
       ),
 
     postSettingsAutostartTray: (enabled, signal) =>

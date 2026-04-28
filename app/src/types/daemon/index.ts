@@ -11,7 +11,7 @@ export type {
   ChannelOption,
   ConfiguredChannel,
 } from "./Channels";
-export type { JobResponse } from "./JobResponse";
+export type { JobResponse, JobCancelResult } from "./JobResponse";
 export type { ErrorEnvelope } from "./ErrorEnvelope";
 export type { Launchers } from "./Launchers";
 export type { LogChunk } from "./Logs";

@@ -971,6 +971,28 @@ const PodTab: FC<PodTabProps> = ({ agent, ready, client, onError, isPinned, onTo
     stream.status === 'failed' ||
     stream.status === 'lost';
 
+  // Cancel — SIGTERMs the daemon child running this job. The SSE
+  // stream closes naturally once the child dies; we just fire-and-
+  // forget here. State stays in flight (button shows "Cancelling…")
+  // until the natural Exit event flips streamDone.
+  const [cancelling, setCancelling] = useState(false);
+  const onCancelJob = useCallback(async () => {
+    if (!activeJob || streamDone) return;
+    setCancelling(true);
+    const r = await client.postJobCancel(activeJob.id);
+    setCancelling(false);
+    if (!r.ok) {
+      onError(`Couldn't cancel: ${r.error.message}`);
+      return;
+    }
+    if (!r.value.cancelled && r.value.reason) {
+      // Daemon said "already finished" or "no live process" — surface
+      // it as a non-fatal hint via onError so the user knows the
+      // request landed but didn't do anything.
+      onError(`Cancel: ${r.value.reason}`);
+    }
+  }, [activeJob, streamDone, client, onError]);
+
   // Toast on restart success — phase 8.3 notification wiring. Other
   // streamed actions (doctor / stop-forwarder / uninstall / revoke /
   // refresh-creds) all show their state inside the per-pod log pane,
@@ -1283,6 +1305,22 @@ const PodTab: FC<PodTabProps> = ({ agent, ready, client, onError, isPinned, onTo
                 {stream.exitCode !== null && ` (exit ${stream.exitCode})`}
               </span>
             </div>
+            {!streamDone && (
+              <button
+                onClick={onCancelJob}
+                disabled={cancelling}
+                className="px-2 py-0.5 rounded text-[10px] transition-colors flex items-center gap-1 disabled:opacity-60"
+                style={{
+                  background: 'rgba(244,67,54,0.10)',
+                  color: '#FFCDD2',
+                  border: '1px solid rgba(244,67,54,0.30)',
+                }}
+                title="Send SIGTERM to the running command"
+              >
+                <X size={10} />
+                {cancelling ? 'Cancelling…' : 'Cancel'}
+              </button>
+            )}
             {streamDone && (
               <div className="flex items-center gap-1.5">
                 {activeJob.action === 'logs' && (
