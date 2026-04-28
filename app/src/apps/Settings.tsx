@@ -9,6 +9,7 @@ import {
   Star, Eye, Info, Search, Check,
   Server, LogOut, Power, Loader2,
   CreditCard, Box, Sparkles, ExternalLink, AlertTriangle, X,
+  Copy, EyeOff, RefreshCw,
 } from 'lucide-react';
 import { useOS } from '@/hooks/useOSStore';
 import { useDaemonClient } from '@/hooks/useDaemonClient';
@@ -16,7 +17,7 @@ import { useDaemonStateContext } from '@/hooks/useDaemonStateContext';
 import { useHashRoute } from '@/hooks/useHashRoute';
 import { useJobStream } from '@/hooks/useJobStream';
 import { computePill } from '@/lib/statusPill';
-import { maskSecret } from '@/lib/secrets';
+import { maskSecret, maskTokenUrl, revealSecret, revealTokenUrl } from '@/lib/secrets';
 import type {
   Catalog,
   CatalogAgent,
@@ -166,6 +167,7 @@ const Settings: React.FC = () => {
   const [lifecycleErr, setLifecycleErr] = useState<string | null>(null);
   const [signingOut, setSigningOut] = useState(false);
   const [signOutErr, setSignOutErr] = useState<string | null>(null);
+  const [signOutConfirmOpen, setSignOutConfirmOpen] = useState(false);
 
   // Catalog state — loaded on demand when the user opens the Agents tab.
   const [catalog, setCatalog] = useState<Catalog | null>(null);
@@ -341,6 +343,7 @@ const Settings: React.FC = () => {
       setSignOutErr(r.error.message);
       return;
     }
+    setSignOutConfirmOpen(false);
     dispatch({ type: 'LOGOUT' });
     daemon.refresh();
   }, [client, dispatch, daemon]);
@@ -409,7 +412,7 @@ const Settings: React.FC = () => {
 
             <div className="space-y-2">
               <button
-                onClick={signOut}
+                onClick={() => setSignOutConfirmOpen(true)}
                 disabled={signingOut || !daemon.state?.logged_in}
                 className="flex items-center gap-2 px-4 py-2 rounded-md text-sm transition-colors disabled:opacity-50"
                 style={{
@@ -418,11 +421,7 @@ const Settings: React.FC = () => {
                   color: '#FFCDD2',
                 }}
               >
-                {signingOut ? (
-                  <Loader2 size={14} className="animate-spin" />
-                ) : (
-                  <LogOut size={14} />
-                )}
+                <LogOut size={14} />
                 Sign out
               </button>
               {signOutErr && (
@@ -552,12 +551,14 @@ const Settings: React.FC = () => {
         return <PlanPanel
           state={daemon.state}
           onUpgrade={() => client.postOpenExternal(PROVIDER_BILLING_URL)}
+          onRefresh={daemon.refresh}
         />;
 
       case 'pods':
         return <PodsPanel
           state={daemon.state}
           onAllocate={() => setActiveCategory('agents')}
+          onRefresh={daemon.refresh}
         />;
 
       case 'agents':
@@ -964,6 +965,17 @@ const Settings: React.FC = () => {
           onClose={closeInstallWizard}
         />
       )}
+
+      {/* Sign-out confirmation. /api/logout revokes ALL pod allocations
+          server-side; never call it without a confirmation step. */}
+      {signOutConfirmOpen && (
+        <SignOutConfirm
+          podCount={daemon.state?.agents.length ?? 0}
+          submitting={signingOut}
+          onConfirm={signOut}
+          onCancel={() => setSignOutConfirmOpen(false)}
+        />
+      )}
     </div>
   );
 };
@@ -975,9 +987,10 @@ const Settings: React.FC = () => {
 interface PlanPanelProps {
   state: import('@/types/daemon').StateSnapshot | null;
   onUpgrade: () => void;
+  onRefresh: () => void;
 }
 
-const PlanPanel: React.FC<PlanPanelProps> = ({ state, onUpgrade }) => {
+const PlanPanel: React.FC<PlanPanelProps> = ({ state, onUpgrade, onRefresh }) => {
   if (!state) {
     return (
       <div className="space-y-4">
@@ -996,7 +1009,10 @@ const PlanPanel: React.FC<PlanPanelProps> = ({ state, onUpgrade }) => {
 
   return (
     <div className="space-y-6">
-      <h2 className="text-2xl font-semibold text-[var(--text-primary)]">Plan & Units</h2>
+      <div className="flex items-center justify-between">
+        <h2 className="text-2xl font-semibold text-[var(--text-primary)]">Plan & Units</h2>
+        <RefreshButton onClick={onRefresh} />
+      </div>
 
       <div
         className="p-5 rounded-lg"
@@ -1061,9 +1077,10 @@ const PlanPanel: React.FC<PlanPanelProps> = ({ state, onUpgrade }) => {
 interface PodsPanelProps {
   state: import('@/types/daemon').StateSnapshot | null;
   onAllocate: () => void;
+  onRefresh: () => void;
 }
 
-const PodsPanel: React.FC<PodsPanelProps> = ({ state, onAllocate }) => {
+const PodsPanel: React.FC<PodsPanelProps> = ({ state, onAllocate, onRefresh }) => {
   if (!state) {
     return (
       <div className="space-y-4">
@@ -1079,13 +1096,16 @@ const PodsPanel: React.FC<PodsPanelProps> = ({ state, onAllocate }) => {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-semibold text-[var(--text-primary)]">Pods</h2>
-        <button
-          onClick={onAllocate}
-          className="px-3 py-1.5 rounded-md text-xs font-medium text-white transition-colors"
-          style={{ background: 'var(--accent-primary)' }}
-        >
-          + Allocate pod
-        </button>
+        <div className="flex items-center gap-2">
+          <RefreshButton onClick={onRefresh} />
+          <button
+            onClick={onAllocate}
+            className="px-3 py-1.5 rounded-md text-xs font-medium text-white transition-colors"
+            style={{ background: 'var(--accent-primary)' }}
+          >
+            + Allocate pod
+          </button>
+        </div>
       </div>
 
       {state.agents.length === 0 && state.included.length === 0 && (
@@ -1131,21 +1151,7 @@ const PodsPanel: React.FC<PodsPanelProps> = ({ state, onAllocate }) => {
           </div>
           <div className="space-y-2">
             {state.agents.map((a) => (
-              <div
-                key={a.pod_id}
-                className="p-3 rounded-lg flex items-center gap-3"
-                style={{ background: 'var(--bg-card, rgba(255,255,255,0.03))', border: '1px solid var(--border-subtle)' }}
-              >
-                <Box size={20} className="text-[var(--accent-primary)] flex-shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium text-[var(--text-primary)] truncate">
-                    Pod {a.pod_id} · {a.agent_type}
-                  </div>
-                  <div className="text-[11px] text-[var(--text-secondary)] mt-0.5">
-                    {a.units} unit{a.units === 1 ? '' : 's'} · key {maskSecret(a.user_key)}
-                  </div>
-                </div>
-              </div>
+              <PodCard key={a.pod_id} agent={a} />
             ))}
           </div>
         </div>
@@ -1180,6 +1186,190 @@ const PodsPanel: React.FC<PodsPanelProps> = ({ state, onAllocate }) => {
     </div>
   );
 };
+
+// ============================================================
+// Pod card — connection details with copy + reveal
+// ============================================================
+
+interface PodCardProps {
+  agent: import('@/types/daemon').Agent;
+}
+
+const PodCard: React.FC<PodCardProps> = ({ agent }) => {
+  const [keyRevealed, setKeyRevealed] = useState(false);
+  const [uiRevealed, setUiRevealed] = useState(false);
+  const [copied, setCopied] = useState<string | null>(null);
+
+  const copyToClipboard = useCallback(async (label: string, value: string) => {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopied(label);
+      setTimeout(() => setCopied((c) => (c === label ? null : c)), 1200);
+    } catch {
+      // Clipboard API can reject in non-secure contexts; ignore — the
+      // user can still select+copy from the displayed value.
+    }
+  }, []);
+
+  return (
+    <div
+      className="p-3 rounded-lg flex flex-col gap-2"
+      style={{
+        background: 'var(--bg-card, rgba(255,255,255,0.03))',
+        border: '1px solid var(--border-subtle)',
+      }}
+    >
+      <div className="flex items-center gap-3">
+        <Box size={20} className="text-[var(--accent-primary)] flex-shrink-0" />
+        <div className="flex-1 min-w-0">
+          <div className="text-sm font-medium text-[var(--text-primary)] truncate">
+            Pod {agent.pod_id} · {agent.agent_type}
+          </div>
+          <div className="text-[11px] text-[var(--text-secondary)] mt-0.5">
+            {agent.units} unit{agent.units === 1 ? '' : 's'} ·{' '}
+            api port {agent.api_url.split(':').pop()}
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-[80px_1fr_auto] gap-x-2 gap-y-1.5 text-[11px] items-center mt-1">
+        <span className="text-[var(--text-secondary)]">API URL</span>
+        <code
+          className="font-mono text-[var(--text-primary)] truncate"
+          style={{ background: 'rgba(255,255,255,0.03)', padding: '2px 6px', borderRadius: 3 }}
+          title={agent.api_url}
+        >
+          {agent.api_url}
+        </code>
+        <CopyBtn
+          label="api"
+          isCopied={copied === 'api'}
+          onClick={() => copyToClipboard('api', agent.api_url)}
+        />
+
+        <span className="text-[var(--text-secondary)]">Public</span>
+        <code
+          className="font-mono text-[var(--text-primary)] truncate"
+          style={{ background: 'rgba(255,255,255,0.03)', padding: '2px 6px', borderRadius: 3 }}
+          title={agent.public_url}
+        >
+          {agent.public_url}
+        </code>
+        <CopyBtn
+          label="public"
+          isCopied={copied === 'public'}
+          onClick={() => copyToClipboard('public', agent.public_url)}
+        />
+
+        <span className="text-[var(--text-secondary)]">UI URL</span>
+        <code
+          className="font-mono text-[var(--text-primary)] truncate"
+          style={{ background: 'rgba(255,255,255,0.03)', padding: '2px 6px', borderRadius: 3 }}
+        >
+          {uiRevealed
+            ? revealTokenUrl(agent.ui_url, 'user_gesture')
+            : maskTokenUrl(agent.ui_url)}
+        </code>
+        <div className="flex items-center gap-1">
+          <RevealBtn
+            revealed={uiRevealed}
+            onToggle={() => setUiRevealed((v) => !v)}
+          />
+          <CopyBtn
+            label="ui"
+            isCopied={copied === 'ui'}
+            onClick={() =>
+              copyToClipboard('ui', revealTokenUrl(agent.ui_url, 'user_gesture'))
+            }
+          />
+        </div>
+
+        <span className="text-[var(--text-secondary)]">Key</span>
+        <code
+          className="font-mono text-[var(--text-primary)] truncate"
+          style={{ background: 'rgba(255,255,255,0.03)', padding: '2px 6px', borderRadius: 3 }}
+        >
+          {keyRevealed
+            ? revealSecret(agent.user_key, 'user_gesture')
+            : maskSecret(agent.user_key)}
+        </code>
+        <div className="flex items-center gap-1">
+          <RevealBtn
+            revealed={keyRevealed}
+            onToggle={() => setKeyRevealed((v) => !v)}
+          />
+          <CopyBtn
+            label="key"
+            isCopied={copied === 'key'}
+            onClick={() =>
+              copyToClipboard('key', revealSecret(agent.user_key, 'user_gesture'))
+            }
+          />
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const RefreshButton: React.FC<{ onClick: () => void }> = ({ onClick }) => {
+  // Local "spinning" flag — useDaemonState.refresh() is fire-and-forget,
+  // so we just animate for a fixed window to give the click visible
+  // feedback. Default poll is 2s, so 800ms is comfortably under the
+  // next natural state update.
+  const [spinning, setSpinning] = useState(false);
+  const spin = useCallback(() => {
+    setSpinning(true);
+    onClick();
+    setTimeout(() => setSpinning(false), 800);
+  }, [onClick]);
+  return (
+    <button
+      onClick={spin}
+      aria-label="Refresh"
+      className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[11px] transition-colors"
+      style={{
+        background: 'var(--bg-hover, rgba(255,255,255,0.04))',
+        border: '1px solid var(--border-default)',
+        color: 'var(--text-secondary)',
+      }}
+    >
+      <RefreshCw size={11} className={spinning ? 'animate-spin' : undefined} />
+      Refresh
+    </button>
+  );
+};
+
+const CopyBtn: React.FC<{
+  label: string;
+  isCopied: boolean;
+  onClick: () => void;
+}> = ({ label, isCopied, onClick }) => (
+  <button
+    onClick={onClick}
+    aria-label={`Copy ${label}`}
+    className="p-1 rounded transition-colors"
+    style={{
+      background: isCopied ? 'rgba(76,175,80,0.18)' : 'transparent',
+      color: isCopied ? '#A5D6A7' : 'var(--text-secondary)',
+    }}
+  >
+    {isCopied ? <Check size={12} /> : <Copy size={12} />}
+  </button>
+);
+
+const RevealBtn: React.FC<{
+  revealed: boolean;
+  onToggle: () => void;
+}> = ({ revealed, onToggle }) => (
+  <button
+    onClick={onToggle}
+    aria-label={revealed ? 'Hide value' : 'Show value'}
+    className="p-1 rounded transition-colors"
+    style={{ background: 'transparent', color: 'var(--text-secondary)' }}
+  >
+    {revealed ? <EyeOff size={12} /> : <Eye size={12} />}
+  </button>
+);
 
 // ============================================================
 // Agents catalog panel
@@ -1548,5 +1738,102 @@ const InstallWizard: React.FC<InstallWizardProps> = ({
     </div>
   );
 };
+
+// ============================================================
+// Sign-out confirmation modal
+// ============================================================
+
+interface SignOutConfirmProps {
+  podCount: number;
+  submitting: boolean;
+  onConfirm: () => void;
+  onCancel: () => void;
+}
+
+const SignOutConfirm: React.FC<SignOutConfirmProps> = ({
+  podCount,
+  submitting,
+  onConfirm,
+  onCancel,
+}) => (
+  <div
+    className="fixed inset-0 z-[6000] flex items-center justify-center"
+    style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(6px)' }}
+  >
+    <div
+      className="w-[440px] rounded-xl flex flex-col overflow-hidden"
+      style={{
+        background: 'var(--bg-window, #1E1E1E)',
+        border: '1px solid var(--border-subtle)',
+        boxShadow: '0 24px 64px rgba(0,0,0,0.55)',
+      }}
+    >
+      <div className="px-5 pt-5 pb-3 flex items-start gap-3">
+        <div
+          className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0"
+          style={{
+            background: 'rgba(244,67,54,0.12)',
+            border: '1px solid rgba(244,67,54,0.30)',
+          }}
+        >
+          <AlertTriangle size={18} style={{ color: '#F44336' }} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="text-sm font-semibold text-[var(--text-primary)]">
+            Sign out of Tytus?
+          </div>
+          <div className="text-[12px] text-[var(--text-secondary)] mt-1.5 leading-relaxed">
+            Signing out{' '}
+            <strong style={{ color: '#FFCDD2' }}>
+              revokes all pod allocations
+            </strong>
+            {podCount > 0 ? (
+              <>
+                {' '}— including {podCount} pod{podCount === 1 ? '' : 's'}{' '}
+                you have running. Workspace data on those pods will be
+                permanently lost.
+              </>
+            ) : (
+              <> on this account.</>
+            )}
+          </div>
+          <div className="text-[11px] text-[var(--text-secondary)] mt-2">
+            You can always sign in again from the Tytus tray menu.
+          </div>
+        </div>
+      </div>
+
+      <div
+        className="px-5 py-3 flex items-center justify-end gap-2"
+        style={{ borderTop: '1px solid var(--border-subtle)' }}
+      >
+        <button
+          onClick={onCancel}
+          disabled={submitting}
+          className="px-3 py-1.5 rounded-md text-xs font-medium transition-colors"
+          style={{
+            background: 'transparent',
+            color: 'var(--text-primary)',
+            border: '1px solid var(--border-default)',
+          }}
+        >
+          Cancel
+        </button>
+        <button
+          onClick={onConfirm}
+          disabled={submitting}
+          className="flex items-center gap-1.5 px-4 py-1.5 rounded-md text-xs font-semibold transition-colors disabled:opacity-60"
+          style={{
+            background: '#D32F2F',
+            color: 'white',
+          }}
+        >
+          {submitting && <Loader2 size={12} className="animate-spin" />}
+          Sign out and revoke pods
+        </button>
+      </div>
+    </div>
+  </div>
+);
 
 export default Settings;
