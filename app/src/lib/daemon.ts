@@ -275,6 +275,11 @@ export interface DaemonClient {
     name: string,
     signal?: AbortSignal,
   ): Promise<DaemonResult<null>>;
+  postInstall(
+    agent_type: string,
+    pod_id?: string,
+    signal?: AbortSignal,
+  ): Promise<DaemonResult<JobResponse>>;
   postOpenExternal(
     url: string,
     signal?: AbortSignal,
@@ -419,6 +424,17 @@ export const createDaemonClient = (
         { method: "POST", body: { name }, signal },
         noBody,
       ),
+
+    postInstall: (agent_type, pod_id, signal) => {
+      const body: { agent_type: string; pod_id?: string } = { agent_type };
+      if (pod_id !== undefined) body.pod_id = pod_id;
+      return runRequest(
+        deps,
+        "/api/install",
+        { method: "POST", body, signal },
+        (b) => expectShape(b, isJobResponse, "malformed /api/install"),
+      );
+    },
 
     postOpenExternal: (url, signal) =>
       runRequest(

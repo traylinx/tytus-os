@@ -2,18 +2,27 @@
 // System Settings — Full system preferences panel
 // ============================================================
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Wifi, Bluetooth, Image, Palette, Bell, Volume2, Battery,
   Monitor, Mouse, Keyboard, Printer, Disc, Clock, User,
   Star, Eye, Info, Search, Check,
   Server, LogOut, Power, Loader2,
+  CreditCard, Box, Sparkles, ExternalLink, AlertTriangle, X,
 } from 'lucide-react';
 import { useOS } from '@/hooks/useOSStore';
 import { useDaemonClient } from '@/hooks/useDaemonClient';
 import { useDaemonStateContext } from '@/hooks/useDaemonStateContext';
+import { useHashRoute } from '@/hooks/useHashRoute';
+import { useJobStream } from '@/hooks/useJobStream';
 import { computePill } from '@/lib/statusPill';
-import type { DaemonSettings } from '@/types/daemon';
+import { maskSecret } from '@/lib/secrets';
+import type {
+  Catalog,
+  CatalogAgent,
+  DaemonSettings,
+  Tier,
+} from '@/types/daemon';
 
 interface SettingCategory {
   id: string;
@@ -23,6 +32,9 @@ interface SettingCategory {
 
 const CATEGORIES: SettingCategory[] = [
   { id: 'account', label: 'Account', icon: <User size={18} /> },
+  { id: 'plan', label: 'Plan & Units', icon: <CreditCard size={18} /> },
+  { id: 'pods', label: 'Pods', icon: <Box size={18} /> },
+  { id: 'agents', label: 'Agents', icon: <Sparkles size={18} /> },
   { id: 'daemon', label: 'Daemon', icon: <Server size={18} /> },
   { id: 'wifi', label: 'Wi-Fi', icon: <Wifi size={18} /> },
   { id: 'bluetooth', label: 'Bluetooth', icon: <Bluetooth size={18} /> },
@@ -91,13 +103,34 @@ const Slider: React.FC<{ value: number; min?: number; max?: number; onChange: (v
   />
 );
 
+const TIER_RANK: Record<Tier, number> = {
+  explorer: 0,
+  creator: 1,
+  operator: 2,
+};
+
+const PROVIDER_BILLING_URL = 'https://tytus.traylinx.com/account/plan';
+
 const Settings: React.FC = () => {
   const { state, dispatch } = useOS();
-  const [activeCategory, setActiveCategory] = useState('account');
+  const route = useHashRoute();
+  const [activeCategory, setActiveCategory] = useState<string>(() =>
+    route.kind === 'settings' && route.section ? route.section : 'account',
+  );
   const [search, setSearch] = useState('');
   const client = useDaemonClient();
   const daemon = useDaemonStateContext();
   const pill = computePill(daemon.status, daemon.state, daemon.error);
+
+  // Deep-link: navigate(#/settings/agents) flips the active panel.
+  // Deliberate setState-in-effect — we're syncing UI state from a URL
+  // hash (an external store), not deriving state from props.
+  useEffect(() => {
+    if (route.kind !== 'settings') return;
+    if (!route.section) return;
+    /* eslint-disable-next-line react-hooks/set-state-in-effect */
+    setActiveCategory(route.section);
+  }, [route]);
 
   const [daemonSettings, setDaemonSettings] = useState<DaemonSettings | null>(null);
   const [daemonSettingsErr, setDaemonSettingsErr] = useState<string | null>(null);
@@ -106,6 +139,19 @@ const Settings: React.FC = () => {
   const [lifecycleErr, setLifecycleErr] = useState<string | null>(null);
   const [signingOut, setSigningOut] = useState(false);
   const [signOutErr, setSignOutErr] = useState<string | null>(null);
+
+  // Catalog state — loaded on demand when the user opens the Agents tab.
+  const [catalog, setCatalog] = useState<Catalog | null>(null);
+  const [catalogLoading, setCatalogLoading] = useState(false);
+  const [catalogErr, setCatalogErr] = useState<string | null>(null);
+
+  // Install wizard state. `pendingAgent` is the chosen card before install
+  // fires; once we have a job_id, `installJob` is set and the modal swaps
+  // to the streaming pane.
+  const [pendingAgent, setPendingAgent] = useState<CatalogAgent | null>(null);
+  const [installJob, setInstallJob] = useState<{ id: string; agent: CatalogAgent } | null>(null);
+  const [installSubmitting, setInstallSubmitting] = useState(false);
+  const [installSubmitErr, setInstallSubmitErr] = useState<string | null>(null);
 
   // Load daemon settings on mount + when daemon comes online.
   useEffect(() => {
@@ -164,6 +210,53 @@ const Settings: React.FC = () => {
     },
     [client, daemon],
   );
+
+  // Load catalog when Agents tab opens (and re-load after a successful
+  // install so newly available units are reflected if the catalog ever
+  // gates them). The lint rule warns about setState-in-effect, but
+  // we're syncing local UI state with the result of a network fetch —
+  // there's no other place this initialisation can live.
+  useEffect(() => {
+    if (activeCategory !== 'agents') return;
+    if (daemon.status !== 'online') return;
+    let cancelled = false;
+    /* eslint-disable react-hooks/set-state-in-effect */
+    setCatalogLoading(true);
+    setCatalogErr(null);
+    /* eslint-enable react-hooks/set-state-in-effect */
+    client.getCatalog().then((r) => {
+      if (cancelled) return;
+      setCatalogLoading(false);
+      if (r.ok) {
+        setCatalog(r.value);
+      } else if (r.error.code !== 'daemon_offline') {
+        setCatalogErr(r.error.message);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeCategory, client, daemon.status]);
+
+  const startInstall = useCallback(async () => {
+    if (!pendingAgent) return;
+    setInstallSubmitting(true);
+    setInstallSubmitErr(null);
+    const r = await client.postInstall(pendingAgent.id);
+    setInstallSubmitting(false);
+    if (!r.ok) {
+      setInstallSubmitErr(r.error.message);
+      return;
+    }
+    setInstallJob({ id: r.value.job_id, agent: pendingAgent });
+  }, [client, pendingAgent]);
+
+  const closeInstallWizard = useCallback(() => {
+    setPendingAgent(null);
+    setInstallJob(null);
+    setInstallSubmitErr(null);
+    daemon.refresh();
+  }, [daemon]);
 
   const signOut = useCallback(async () => {
     setSigningOut(true);
@@ -372,6 +465,27 @@ const Settings: React.FC = () => {
             </div>
           </div>
         );
+
+      case 'plan':
+        return <PlanPanel
+          state={daemon.state}
+          onUpgrade={() => client.postOpenExternal(PROVIDER_BILLING_URL)}
+        />;
+
+      case 'pods':
+        return <PodsPanel
+          state={daemon.state}
+          onAllocate={() => setActiveCategory('agents')}
+        />;
+
+      case 'agents':
+        return <AgentsPanel
+          state={daemon.state}
+          catalog={catalog}
+          loading={catalogLoading}
+          error={catalogErr}
+          onPick={(a) => setPendingAgent(a)}
+        />;
 
       case 'wifi':
         return (
@@ -728,6 +842,512 @@ const Settings: React.FC = () => {
       {/* Content */}
       <div className="flex-1 overflow-y-auto custom-scrollbar p-8">
         {renderPanel()}
+      </div>
+
+      {/* Install wizard modal */}
+      {(pendingAgent || installJob) && (
+        <InstallWizard
+          agent={(installJob?.agent ?? pendingAgent) as CatalogAgent}
+          jobId={installJob?.id ?? null}
+          submitting={installSubmitting}
+          submitErr={installSubmitErr}
+          jobStreamUrl={installJob ? client.jobStreamUrl(installJob.id) : null}
+          onConfirm={startInstall}
+          onClose={closeInstallWizard}
+        />
+      )}
+    </div>
+  );
+};
+
+// ============================================================
+// Plan & Units panel
+// ============================================================
+
+interface PlanPanelProps {
+  state: import('@/types/daemon').StateSnapshot | null;
+  onUpgrade: () => void;
+}
+
+const PlanPanel: React.FC<PlanPanelProps> = ({ state, onUpgrade }) => {
+  if (!state) {
+    return (
+      <div className="space-y-4">
+        <h2 className="text-2xl font-semibold text-[var(--text-primary)]">Plan & Units</h2>
+        <div className="flex items-center gap-2 text-xs text-[var(--text-secondary)]">
+          <Loader2 size={12} className="animate-spin" /> Loading plan…
+        </div>
+      </div>
+    );
+  }
+
+  const pct = state.units_limit > 0
+    ? Math.min(100, Math.round((state.units_used / state.units_limit) * 100))
+    : 0;
+  const remaining = Math.max(0, state.units_limit - state.units_used);
+
+  return (
+    <div className="space-y-6">
+      <h2 className="text-2xl font-semibold text-[var(--text-primary)]">Plan & Units</h2>
+
+      <div
+        className="p-5 rounded-lg"
+        style={{ background: 'var(--bg-card, rgba(255,255,255,0.03))', border: '1px solid var(--border-subtle)' }}
+      >
+        <div className="flex items-center justify-between mb-3">
+          <div>
+            <div className="text-xs text-[var(--text-secondary)] uppercase tracking-wider">Tier</div>
+            <div className="text-lg font-semibold text-[var(--text-primary)] capitalize">
+              {state.tier}
+            </div>
+          </div>
+          <button
+            onClick={onUpgrade}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors"
+            style={{
+              background: 'rgba(124,77,255,0.12)',
+              border: '1px solid rgba(124,77,255,0.30)',
+              color: '#D6C8FF',
+            }}
+          >
+            Upgrade plan <ExternalLink size={11} />
+          </button>
+        </div>
+
+        <div className="mt-2">
+          <div className="flex items-center justify-between text-xs text-[var(--text-secondary)] mb-1.5">
+            <span>{state.units_used} of {state.units_limit} units used</span>
+            <span>{remaining} available</span>
+          </div>
+          <div
+            className="h-2 rounded-full overflow-hidden"
+            style={{ background: 'var(--border-subtle)' }}
+          >
+            <div
+              className="h-full rounded-full transition-all"
+              style={{
+                width: `${pct}%`,
+                background: pct >= 100
+                  ? '#F44336'
+                  : pct >= 75
+                    ? '#FFC107'
+                    : 'var(--accent-primary)',
+              }}
+            />
+          </div>
+        </div>
+      </div>
+
+      <div className="text-[11px] text-[var(--text-secondary)]">
+        Units are consumed by allocated agents (nemoclaw = 1 unit, hermes = 2 units).
+        Included AIL pods don't count against your unit budget.
+      </div>
+    </div>
+  );
+};
+
+// ============================================================
+// Pods panel
+// ============================================================
+
+interface PodsPanelProps {
+  state: import('@/types/daemon').StateSnapshot | null;
+  onAllocate: () => void;
+}
+
+const PodsPanel: React.FC<PodsPanelProps> = ({ state, onAllocate }) => {
+  if (!state) {
+    return (
+      <div className="space-y-4">
+        <h2 className="text-2xl font-semibold text-[var(--text-primary)]">Pods</h2>
+        <div className="flex items-center gap-2 text-xs text-[var(--text-secondary)]">
+          <Loader2 size={12} className="animate-spin" /> Loading pods…
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h2 className="text-2xl font-semibold text-[var(--text-primary)]">Pods</h2>
+        <button
+          onClick={onAllocate}
+          className="px-3 py-1.5 rounded-md text-xs font-medium text-white transition-colors"
+          style={{ background: 'var(--accent-primary)' }}
+        >
+          + Allocate pod
+        </button>
+      </div>
+
+      {state.agents.length === 0 && state.included.length === 0 && (
+        <div
+          className="p-6 rounded-lg text-center"
+          style={{ background: 'var(--bg-card, rgba(255,255,255,0.03))', border: '1px dashed var(--border-default)' }}
+        >
+          <div className="text-sm text-[var(--text-primary)]">No pods yet</div>
+          <div className="text-xs text-[var(--text-secondary)] mt-1">
+            Allocate your first pod from the Agents tab.
+          </div>
+        </div>
+      )}
+
+      {state.agents.length > 0 && (
+        <div>
+          <div className="text-xs text-[var(--text-secondary)] uppercase tracking-wider mb-2">
+            Allocated ({state.agents.length})
+          </div>
+          <div className="space-y-2">
+            {state.agents.map((a) => (
+              <div
+                key={a.pod_id}
+                className="p-3 rounded-lg flex items-center gap-3"
+                style={{ background: 'var(--bg-card, rgba(255,255,255,0.03))', border: '1px solid var(--border-subtle)' }}
+              >
+                <Box size={20} className="text-[var(--accent-primary)] flex-shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-medium text-[var(--text-primary)] truncate">
+                    Pod {a.pod_id} · {a.agent_type}
+                  </div>
+                  <div className="text-[11px] text-[var(--text-secondary)] mt-0.5">
+                    {a.units} unit{a.units === 1 ? '' : 's'} · key {maskSecret(a.user_key)}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {state.included.length > 0 && (
+        <div>
+          <div className="text-xs text-[var(--text-secondary)] uppercase tracking-wider mb-2">
+            Included ({state.included.length})
+          </div>
+          <div className="space-y-2">
+            {state.included.map((p) => (
+              <div
+                key={p.pod_id}
+                className="p-3 rounded-lg flex items-center gap-3 opacity-80"
+                style={{ background: 'var(--bg-card, rgba(255,255,255,0.03))', border: '1px solid var(--border-subtle)' }}
+              >
+                <Sparkles size={20} className="text-[var(--text-secondary)] flex-shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-medium text-[var(--text-primary)] truncate">
+                    {p.kind.toUpperCase()} · {p.endpoint}
+                  </div>
+                  <div className="text-[11px] text-[var(--text-secondary)] mt-0.5">
+                    Free with your account · doesn't count against units
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ============================================================
+// Agents catalog panel
+// ============================================================
+
+interface AgentsPanelProps {
+  state: import('@/types/daemon').StateSnapshot | null;
+  catalog: Catalog | null;
+  loading: boolean;
+  error: string | null;
+  onPick: (agent: CatalogAgent) => void;
+}
+
+const AgentsPanel: React.FC<AgentsPanelProps> = ({ state, catalog, loading, error, onPick }) => {
+  const tier = state?.tier ?? 'explorer';
+  const unitsRemaining = state ? state.units_limit - state.units_used : 0;
+  const userTierRank = TIER_RANK[tier];
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-2xl font-semibold text-[var(--text-primary)]">Agents</h2>
+        <p className="text-xs text-[var(--text-secondary)] mt-1">
+          Install an agent into a pod. Each install consumes the agent's unit cost.
+        </p>
+      </div>
+
+      {loading && (
+        <div className="flex items-center gap-2 text-xs text-[var(--text-secondary)]">
+          <Loader2 size={12} className="animate-spin" /> Loading catalog…
+        </div>
+      )}
+
+      {error && (
+        <div
+          className="p-3 rounded-lg flex items-start gap-2 text-xs"
+          style={{
+            background: 'rgba(244,67,54,0.10)',
+            border: '1px solid rgba(244,67,54,0.30)',
+            color: '#FFCDD2',
+          }}
+        >
+          <AlertTriangle size={14} className="flex-shrink-0 mt-0.5" />
+          <span>{error}</span>
+        </div>
+      )}
+
+      {catalog && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {catalog.agents.map((a) => {
+            const tierRank = TIER_RANK[a.min_plan];
+            const tierOk = userTierRank >= tierRank;
+            const fits = unitsRemaining >= a.units;
+            const installable = tierOk && fits;
+            const reason = !tierOk
+              ? `Requires ${a.min_plan} plan or higher`
+              : !fits
+                ? `Needs ${a.units} unit${a.units === 1 ? '' : 's'}, only ${unitsRemaining} available`
+                : null;
+            return (
+              <div
+                key={a.id}
+                className="p-4 rounded-lg flex flex-col gap-3"
+                style={{
+                  background: 'var(--bg-card, rgba(255,255,255,0.03))',
+                  border: '1px solid var(--border-subtle)',
+                }}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="text-sm font-semibold text-[var(--text-primary)]">{a.name}</div>
+                    <div className="text-[11px] text-[var(--text-secondary)] mt-0.5">{a.tagline}</div>
+                  </div>
+                  <div
+                    className="text-[10px] px-2 py-0.5 rounded-full flex-shrink-0"
+                    style={{
+                      background: 'rgba(124,77,255,0.12)',
+                      color: '#D6C8FF',
+                    }}
+                  >
+                    {a.units} unit{a.units === 1 ? '' : 's'}
+                  </div>
+                </div>
+                <div className="text-[11px] leading-relaxed text-[var(--text-secondary)]">
+                  {a.description}
+                </div>
+                <div className="flex items-center justify-between mt-1">
+                  <div className="text-[10px] text-[var(--text-secondary)]">
+                    Min plan: <span className="capitalize">{a.min_plan}</span>
+                  </div>
+                  <button
+                    onClick={() => onPick(a)}
+                    disabled={!installable}
+                    title={reason ?? undefined}
+                    className="px-3 py-1.5 rounded-md text-xs font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    style={{
+                      background: installable
+                        ? 'var(--accent-primary)'
+                        : 'var(--bg-hover, rgba(255,255,255,0.04))',
+                      color: installable ? 'white' : 'var(--text-secondary)',
+                      border: installable
+                        ? 'none'
+                        : '1px solid var(--border-default)',
+                    }}
+                  >
+                    {installable ? 'Install' : reason}
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ============================================================
+// Install wizard modal — confirm + stream
+// ============================================================
+
+interface InstallWizardProps {
+  agent: CatalogAgent;
+  jobId: string | null;
+  submitting: boolean;
+  submitErr: string | null;
+  jobStreamUrl: string | null;
+  onConfirm: () => void;
+  onClose: () => void;
+}
+
+const InstallWizard: React.FC<InstallWizardProps> = ({
+  agent,
+  jobId,
+  submitting,
+  submitErr,
+  jobStreamUrl,
+  onConfirm,
+  onClose,
+}) => {
+  const stream = useJobStream({ url: jobStreamUrl });
+  const isStreaming = jobId !== null;
+  const isDone = stream.status === 'success' || stream.status === 'failed' || stream.status === 'lost';
+  const isInstalling = isStreaming && !isDone;
+  const linesRendered = useMemo(
+    () => stream.lines.slice(-200).join('\n'),
+    [stream.lines],
+  );
+
+  return (
+    <div
+      className="fixed inset-0 z-[6000] flex items-center justify-center"
+      style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(6px)' }}
+    >
+      <div
+        className="w-[520px] max-h-[80vh] rounded-xl flex flex-col overflow-hidden"
+        style={{
+          background: 'var(--bg-window, #1E1E1E)',
+          border: '1px solid var(--border-subtle)',
+          boxShadow: '0 24px 64px rgba(0,0,0,0.55)',
+        }}
+      >
+        <div
+          className="px-5 py-3 flex items-center justify-between"
+          style={{ borderBottom: '1px solid var(--border-subtle)' }}
+        >
+          <div>
+            <div className="text-sm font-semibold text-[var(--text-primary)]">
+              {!isStreaming && `Install ${agent.name}`}
+              {isInstalling && `Installing ${agent.name}…`}
+              {stream.status === 'success' && `${agent.name} installed`}
+              {stream.status === 'failed' && `Install failed`}
+              {stream.status === 'lost' && `Stream lost`}
+            </div>
+            <div className="text-[11px] text-[var(--text-secondary)] mt-0.5">
+              {agent.units} unit{agent.units === 1 ? '' : 's'} · min plan {agent.min_plan}
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            disabled={isInstalling}
+            className="p-1 rounded-md transition-colors disabled:opacity-30"
+            style={{ background: 'transparent', color: 'var(--text-secondary)' }}
+            aria-label="Close"
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto custom-scrollbar p-5">
+          {!isStreaming && (
+            <div className="space-y-4">
+              <p className="text-sm text-[var(--text-primary)] leading-relaxed">
+                {agent.description}
+              </p>
+              <div
+                className="p-3 rounded-md text-[11px] flex items-start gap-2"
+                style={{
+                  background: 'rgba(124,77,255,0.08)',
+                  border: '1px solid rgba(124,77,255,0.20)',
+                  color: '#CFCFCF',
+                }}
+              >
+                <Sparkles size={12} className="flex-shrink-0 mt-0.5" />
+                <span>
+                  The daemon will pick a free pod slot automatically. Allocation,
+                  image pull, and container start typically take 30–90 seconds.
+                </span>
+              </div>
+              {submitErr && (
+                <div
+                  className="p-3 rounded-md text-xs flex items-start gap-2"
+                  style={{
+                    background: 'rgba(244,67,54,0.10)',
+                    border: '1px solid rgba(244,67,54,0.30)',
+                    color: '#FFCDD2',
+                  }}
+                >
+                  <AlertTriangle size={14} className="flex-shrink-0 mt-0.5" />
+                  <span>{submitErr}</span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {isStreaming && (
+            <div
+              className="rounded-md p-3 font-mono text-[11px] leading-relaxed whitespace-pre-wrap"
+              style={{
+                background: '#0A0A0A',
+                color: '#A0E0A0',
+                minHeight: 200,
+                maxHeight: 400,
+                overflowY: 'auto',
+              }}
+            >
+              {stream.lines.length === 0 && stream.status === 'subscribing' && (
+                <span className="text-[var(--text-secondary)]">Connecting to install stream…</span>
+              )}
+              {linesRendered}
+              {stream.status === 'success' && (
+                <div className="mt-2 text-[#A0E0A0]">✓ Install complete</div>
+              )}
+              {stream.status === 'failed' && (
+                <div className="mt-2" style={{ color: '#FF8A80' }}>
+                  ✗ Install exited with code {stream.exitCode ?? '?'}
+                </div>
+              )}
+              {stream.status === 'lost' && (
+                <div className="mt-2" style={{ color: '#FFB74D' }}>
+                  Stream disconnected. Check Settings → Pods to verify.
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div
+          className="px-5 py-3 flex items-center justify-end gap-2"
+          style={{ borderTop: '1px solid var(--border-subtle)' }}
+        >
+          {!isStreaming && (
+            <>
+              <button
+                onClick={onClose}
+                className="px-3 py-1.5 rounded-md text-xs transition-colors"
+                style={{
+                  background: 'transparent',
+                  color: 'var(--text-primary)',
+                  border: '1px solid var(--border-default)',
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={onConfirm}
+                disabled={submitting}
+                className="flex items-center gap-1.5 px-4 py-1.5 rounded-md text-xs font-semibold transition-colors disabled:opacity-60"
+                style={{ background: 'var(--accent-primary)', color: 'white' }}
+              >
+                {submitting && <Loader2 size={12} className="animate-spin" />}
+                Install
+              </button>
+            </>
+          )}
+          {isInstalling && (
+            <span className="text-[11px] text-[var(--text-secondary)]">
+              Cancel disabled while install runs.
+            </span>
+          )}
+          {isDone && (
+            <button
+              onClick={onClose}
+              className="px-4 py-1.5 rounded-md text-xs font-semibold text-white transition-colors"
+              style={{ background: 'var(--accent-primary)' }}
+            >
+              Done
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );

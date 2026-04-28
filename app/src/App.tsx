@@ -7,6 +7,7 @@ import { OSProvider, useOS } from '@/hooks/useOSStore';
 import { DaemonClientProvider } from '@/hooks/useDaemonClient';
 import { DaemonStateProvider, useDaemonStateContext } from '@/hooks/useDaemonStateContext';
 import DaemonOfflineBanner from '@/components/DaemonOfflineBanner';
+import ZeroPodsOverlay from '@/components/ZeroPodsOverlay';
 import BootSequence from '@/components/BootSequence';
 import LoginScreen from '@/components/LoginScreen';
 import Desktop from '@/components/Desktop';
@@ -153,6 +154,9 @@ function AppShell() {
 
           {/* Dock */}
           <Dock />
+
+          {/* Zero-pods overlay (Phase 3a §2.4) */}
+          <ZeroPodsOverlay />
 
           {/* Overlays */}
           <AppLauncher />

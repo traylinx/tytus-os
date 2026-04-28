@@ -344,6 +344,57 @@ describe("daemon client — POSTs", () => {
     if (!r.ok) return;
     expect(r.value.job_id).toBe("abc-123");
   });
+
+  it("postInstall sends {agent_type} and returns job_id", async () => {
+    let observed: unknown = undefined;
+    const { fetch } = makeFakeFetch([
+      {
+        method: "POST",
+        path: "/api/install",
+        body: { job_id: "install-1" },
+        expect: (init) => {
+          observed = init?.body ? JSON.parse(init.body as string) : null;
+        },
+      },
+    ]);
+    const r = await createDaemonClient({ fetch }).postInstall("nemoclaw");
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.value.job_id).toBe("install-1");
+    expect(observed).toEqual({ agent_type: "nemoclaw" });
+  });
+
+  it("postInstall includes pod_id when provided", async () => {
+    let observed: unknown = undefined;
+    const { fetch } = makeFakeFetch([
+      {
+        method: "POST",
+        path: "/api/install",
+        body: { job_id: "install-2" },
+        expect: (init) => {
+          observed = init?.body ? JSON.parse(init.body as string) : null;
+        },
+      },
+    ]);
+    const r = await createDaemonClient({ fetch }).postInstall("hermes", "03");
+    expect(r.ok).toBe(true);
+    expect(observed).toEqual({ agent_type: "hermes", pod_id: "03" });
+  });
+
+  it("postInstall surfaces 400 as validation", async () => {
+    const { fetch } = makeFakeFetch([
+      {
+        method: "POST",
+        path: "/api/install",
+        status: 400,
+        body: { error: "invalid agent_type" },
+      },
+    ]);
+    const r = await createDaemonClient({ fetch }).postInstall("../../etc/passwd");
+    expect(r.ok).toBe(false);
+    if (r.ok) return;
+    expect(r.error.code).toBe("validation");
+  });
 });
 
 describe("daemon client — base URL + SSE URL", () => {
