@@ -265,6 +265,46 @@ const Settings: React.FC = () => {
     };
   }, [activeCategory, client, daemon.status]);
 
+  // Deep-link install: navigate(#/settings/agents?install=<id|auto>)
+  // pre-opens the wizard with the matching (or cheapest installable)
+  // agent. Consumed once — we strip the param to avoid re-firing on
+  // user navigation.
+  const installParamConsumedRef = useRef(false);
+  useEffect(() => {
+    if (route.kind !== 'settings' || route.section !== 'agents') return;
+    if (!catalog || !daemon.state) return;
+    if (installParamConsumedRef.current) return;
+    const want = route.params.get('install');
+    if (!want) return;
+
+    const tier = daemon.state.tier;
+    const remaining = daemon.state.units_limit - daemon.state.units_used;
+    const userRank = TIER_RANK[tier];
+    const installable = catalog.agents.filter(
+      (a) => userRank >= TIER_RANK[a.min_plan] && remaining >= a.units,
+    );
+
+    let pick: CatalogAgent | undefined;
+    if (want === 'auto') {
+      // Cheapest first; nemoclaw at 1u beats hermes at 2u.
+      pick = [...installable].sort((a, b) => a.units - b.units)[0];
+    } else {
+      pick = catalog.agents.find((a) => a.id === want);
+    }
+    if (!pick) return;
+
+    installParamConsumedRef.current = true;
+    /* eslint-disable-next-line react-hooks/set-state-in-effect */
+    setPendingAgent(pick);
+    // Strip ?install so refresh / back-nav doesn't re-trigger.
+    const cleaned = new URLSearchParams(route.params);
+    cleaned.delete('install');
+    if (typeof location !== 'undefined') {
+      const q = cleaned.toString();
+      location.hash = `#/settings/agents${q ? `?${q}` : ''}`;
+    }
+  }, [route, catalog, daemon.state]);
+
   const startInstall = useCallback(async () => {
     if (!pendingAgent) return;
     setInstallSubmitting(true);
@@ -1050,13 +1090,37 @@ const PodsPanel: React.FC<PodsPanelProps> = ({ state, onAllocate }) => {
 
       {state.agents.length === 0 && state.included.length === 0 && (
         <div
-          className="p-6 rounded-lg text-center"
-          style={{ background: 'var(--bg-card, rgba(255,255,255,0.03))', border: '1px dashed var(--border-default)' }}
+          className="p-6 rounded-lg flex flex-col items-center text-center gap-3"
+          style={{
+            background: 'var(--bg-card, rgba(255,255,255,0.03))',
+            border: '1px dashed var(--border-default)',
+          }}
         >
-          <div className="text-sm text-[var(--text-primary)]">No pods yet</div>
-          <div className="text-xs text-[var(--text-secondary)] mt-1">
-            Allocate your first pod from the Agents tab.
+          <div
+            className="w-10 h-10 rounded-full flex items-center justify-center"
+            style={{
+              background: 'rgba(124,77,255,0.12)',
+              border: '1px solid rgba(124,77,255,0.25)',
+            }}
+          >
+            <Box size={18} className="text-[var(--accent-primary)]" />
           </div>
+          <div>
+            <div className="text-sm font-medium text-[var(--text-primary)]">
+              No pods yet
+            </div>
+            <div className="text-xs text-[var(--text-secondary)] mt-1 max-w-[280px]">
+              Allocate your first pod to start using Tytus. The Agents tab
+              has the catalog of available agents.
+            </div>
+          </div>
+          <button
+            onClick={onAllocate}
+            className="mt-1 px-3 py-1.5 rounded-md text-xs font-medium text-white transition-colors"
+            style={{ background: 'var(--accent-primary)' }}
+          >
+            Browse agents →
+          </button>
         </div>
       )}
 
@@ -1134,6 +1198,21 @@ const AgentsPanel: React.FC<AgentsPanelProps> = ({ state, catalog, loading, erro
   const unitsRemaining = state ? state.units_limit - state.units_used : 0;
   const userTierRank = TIER_RANK[tier];
 
+  // Count allocated pods per agent_type so the catalog can show
+  // "1 running on pod 02" — feedback after a successful install and a
+  // hint that the agent can be installed multiple times.
+  const allocatedByType = useMemo(() => {
+    const map = new Map<string, { count: number; pods: string[] }>();
+    if (!state) return map;
+    for (const a of state.agents) {
+      const entry = map.get(a.agent_type) ?? { count: 0, pods: [] };
+      entry.count += 1;
+      entry.pods.push(a.pod_id);
+      map.set(a.agent_type, entry);
+    }
+    return map;
+  }, [state]);
+
   return (
     <div className="space-y-6">
       <div>
@@ -1199,6 +1278,27 @@ const AgentsPanel: React.FC<AgentsPanelProps> = ({ state, catalog, loading, erro
                     {a.units} unit{a.units === 1 ? '' : 's'}
                   </div>
                 </div>
+                {(() => {
+                  const allocated = allocatedByType.get(a.id);
+                  if (!allocated) return null;
+                  return (
+                    <div
+                      className="text-[10px] px-2 py-1 rounded-md flex items-center gap-1.5 self-start"
+                      style={{
+                        background: 'rgba(76,175,80,0.10)',
+                        border: '1px solid rgba(76,175,80,0.25)',
+                        color: '#A5D6A7',
+                      }}
+                    >
+                      <span
+                        className="w-1.5 h-1.5 rounded-full"
+                        style={{ background: '#4CAF50' }}
+                      />
+                      {allocated.count} running on pod
+                      {allocated.count > 1 ? 's' : ''} {allocated.pods.join(', ')}
+                    </div>
+                  );
+                })()}
                 <div className="text-[11px] leading-relaxed text-[var(--text-secondary)]">
                   {a.description}
                 </div>

@@ -23,10 +23,13 @@ const ZeroPodsOverlay = memo(function ZeroPodsOverlay() {
 
   const onAllocate = useCallback(() => {
     dispatch({ type: "OPEN_WINDOW", appId: "settings" });
+    // ?install=auto tells Settings to pre-select the cheapest installable
+    // agent from the catalog and open the wizard. User can still Cancel
+    // to fall back to manual catalog browsing.
     navigate({
       kind: "settings",
       section: "agents",
-      params: new URLSearchParams(),
+      params: new URLSearchParams({ install: "auto" }),
     });
   }, [dispatch]);
 
