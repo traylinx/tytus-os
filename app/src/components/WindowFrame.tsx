@@ -9,12 +9,15 @@ import * as Icons from 'lucide-react';
 import type { LucideProps } from 'lucide-react';
 
 const TOP_PANEL_HEIGHT = 28;
-const RESIZE_HANDLE = 8;
+const HANDLE = 6;
+const CORNER = 14;
 const MIN_W = 320;
 const MIN_H = 200;
 
+type Edge = 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw';
+
 const DynamicIcon = ({ name, ...props }: { name: string } & LucideProps) => {
-  const IconComp = (Icons as unknown as unknown as Record<string, React.ComponentType<LucideProps>>)[name];
+  const IconComp = (Icons as unknown as Record<string, React.ComponentType<LucideProps>>)[name];
   return IconComp ? <IconComp {...props} /> : <Icons.HelpCircle {...props} />;
 };
 
@@ -25,9 +28,8 @@ interface WindowFrameProps {
 
 const WindowFrame = memo(function WindowFrame({ window: win, children }: WindowFrameProps) {
   const { dispatch } = useOS();
-  const frameRef = useRef<HTMLDivElement>(null);
-  const dragRef = useRef<{ isDragging: boolean; startX: number; startY: number; origX: number; origY: number } | null>(null);
-  const resizeRef = useRef<{ isResizing: boolean; edge: string; startX: number; startY: number; origW: number; origH: number; origX: number; origY: number } | null>(null);
+  const dragRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
+  const resizeRef = useRef<{ edge: Edge; startX: number; startY: number; origW: number; origH: number; origX: number; origY: number } | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
 
@@ -36,22 +38,28 @@ const WindowFrame = memo(function WindowFrame({ window: win, children }: WindowF
   const isFocused = win.isFocused;
 
   const focusThis = useCallback(() => {
-    if (!win.isFocused && win.state !== 'minimized') {
+    if (!win.isFocused) {
       dispatch({ type: 'FOCUS_WINDOW', windowId: win.id });
     }
-  }, [dispatch, win.id, win.isFocused, win.state]);
+  }, [dispatch, win.id, win.isFocused]);
 
-  const handleMouseDown = useCallback(() => {
+  // Outer mousedown: focus the window. We intentionally do NOT preventDefault here
+  // so child onMouseDown handlers (title drag, button click, resize edges) still run.
+  const handleFrameMouseDown = useCallback(() => {
     focusThis();
   }, [focusThis]);
 
-  // ---- Drag ----
+  // ---- Drag from title bar ----
   const handleTitleMouseDown = useCallback(
     (e: React.MouseEvent) => {
-      if (isMaximized || e.target !== e.currentTarget) return;
+      if (isMaximized) return;
+      // Only drag with primary button
+      if (e.button !== 0) return;
+      // Don't start drag if a button inside the title bar was the target
+      const target = e.target as HTMLElement;
+      if (target.closest('button')) return;
       e.preventDefault();
       dragRef.current = {
-        isDragging: true,
         startX: e.clientX,
         startY: e.clientY,
         origX: win.position.x,
@@ -62,28 +70,14 @@ const WindowFrame = memo(function WindowFrame({ window: win, children }: WindowF
     [isMaximized, win.position.x, win.position.y]
   );
 
-  // ---- Resize ----
-  const getEdge = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    let edge = '';
-    if (y < RESIZE_HANDLE) edge += 'n';
-    if (y > rect.height - RESIZE_HANDLE) edge += 's';
-    if (x < RESIZE_HANDLE) edge += 'w';
-    if (x > rect.width - RESIZE_HANDLE) edge += 'e';
-    return edge;
-  }, []);
-
-  const handleResizeMouseDown = useCallback(
-    (e: React.MouseEvent<HTMLDivElement>) => {
+  // ---- Resize from edge handles ----
+  const startResize = useCallback(
+    (edge: Edge) => (e: React.MouseEvent) => {
       if (isMaximized) return;
-      const edge = getEdge(e);
-      if (!edge) return;
+      if (e.button !== 0) return;
       e.preventDefault();
       e.stopPropagation();
       resizeRef.current = {
-        isResizing: true,
         edge,
         startX: e.clientX,
         startY: e.clientY,
@@ -94,23 +88,13 @@ const WindowFrame = memo(function WindowFrame({ window: win, children }: WindowF
       };
       setIsResizing(true);
     },
-    [isMaximized, getEdge, win.size, win.position]
+    [isMaximized, win.size.width, win.size.height, win.position.x, win.position.y]
   );
-
-  const getCursor = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    if (isMaximized) return 'default';
-    const edge = getEdge(e);
-    const cursors: Record<string, string> = {
-      n: 'n-resize', s: 's-resize', e: 'e-resize', w: 'w-resize',
-      nw: 'nw-resize', ne: 'ne-resize', sw: 'sw-resize', se: 'se-resize',
-    };
-    return cursors[edge] || 'default';
-  }, [isMaximized, getEdge]);
 
   // ---- Global mouse events for drag/resize ----
   useEffect(() => {
     const onMove = (e: MouseEvent) => {
-      if (dragRef.current?.isDragging) {
+      if (dragRef.current) {
         const dx = e.clientX - dragRef.current.startX;
         const dy = e.clientY - dragRef.current.startY;
         let nx = dragRef.current.origX + dx;
@@ -120,7 +104,7 @@ const WindowFrame = memo(function WindowFrame({ window: win, children }: WindowF
         nx = Math.min(Math.max(nx, -(win.size.width - 100)), vw - 100);
         dispatch({ type: 'MOVE_WINDOW', windowId: win.id, position: { x: nx, y: ny } });
       }
-      if (resizeRef.current?.isResizing) {
+      if (resizeRef.current) {
         const { edge, startX, startY, origW, origH, origX, origY } = resizeRef.current;
         const dx = e.clientX - startX;
         const dy = e.clientY - startY;
@@ -182,19 +166,27 @@ const WindowFrame = memo(function WindowFrame({ window: win, children }: WindowF
     [dispatch, win.id]
   );
 
-  const handleDoubleClickTitle = useCallback(() => {
-    if (isMaximized) {
-      dispatch({ type: 'RESTORE_WINDOW', windowId: win.id });
-    } else {
-      dispatch({ type: 'MAXIMIZE_WINDOW', windowId: win.id });
-    }
-  }, [dispatch, win.id, isMaximized]);
+  const handleDoubleClickTitle = useCallback(
+    (e: React.MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (target.closest('button')) return;
+      if (isMaximized) {
+        dispatch({ type: 'RESTORE_WINDOW', windowId: win.id });
+      } else {
+        dispatch({ type: 'MAXIMIZE_WINDOW', windowId: win.id });
+      }
+    },
+    [dispatch, win.id, isMaximized]
+  );
 
   if (isMinimized) return null;
 
+  // Edge handles: only the actual edges intercept clicks. The center of the
+  // window stays untouched so the title bar / body get their events.
+  const showHandles = !isMaximized;
+
   return (
     <div
-      ref={frameRef}
       className="absolute flex flex-col select-none"
       style={{
         left: win.position.x,
@@ -203,34 +195,15 @@ const WindowFrame = memo(function WindowFrame({ window: win, children }: WindowF
         height: win.size.height,
         zIndex: win.zIndex,
         borderRadius: isMaximized ? 0 : 12,
-        border: `1px solid ${isFocused ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.06)'}`,
+        border: `1px solid ${isFocused ? 'rgba(255,255,255,0.10)' : 'rgba(255,255,255,0.06)'}`,
         boxShadow: isFocused
           ? '0 8px 32px rgba(0,0,0,0.5)'
           : '0 2px 8px rgba(0,0,0,0.3)',
         transition: isDragging || isResizing ? 'none' : 'box-shadow 150ms ease, border-color 150ms ease',
         overflow: 'hidden',
       }}
-      onMouseDown={handleMouseDown}
+      onMouseDown={handleFrameMouseDown}
     >
-      {/* Resize handles wrapper */}
-      <div
-        className="absolute inset-0 z-50"
-        style={{
-          cursor: getCursor as unknown as string,
-          pointerEvents: isDragging ? 'none' : 'auto',
-        }}
-        onMouseDown={handleResizeMouseDown}
-      >
-        <div style={{ position: 'absolute', top: 0, left: RESIZE_HANDLE, right: RESIZE_HANDLE, height: RESIZE_HANDLE, cursor: 'n-resize' }} />
-        <div style={{ position: 'absolute', bottom: 0, left: RESIZE_HANDLE, right: RESIZE_HANDLE, height: RESIZE_HANDLE, cursor: 's-resize' }} />
-        <div style={{ position: 'absolute', left: 0, top: RESIZE_HANDLE, bottom: RESIZE_HANDLE, width: RESIZE_HANDLE, cursor: 'w-resize' }} />
-        <div style={{ position: 'absolute', right: 0, top: RESIZE_HANDLE, bottom: RESIZE_HANDLE, width: RESIZE_HANDLE, cursor: 'e-resize' }} />
-        <div style={{ position: 'absolute', top: 0, left: 0, width: RESIZE_HANDLE * 2, height: RESIZE_HANDLE * 2, cursor: 'nw-resize' }} />
-        <div style={{ position: 'absolute', top: 0, right: 0, width: RESIZE_HANDLE * 2, height: RESIZE_HANDLE * 2, cursor: 'ne-resize' }} />
-        <div style={{ position: 'absolute', bottom: 0, left: 0, width: RESIZE_HANDLE * 2, height: RESIZE_HANDLE * 2, cursor: 'sw-resize' }} />
-        <div style={{ position: 'absolute', bottom: 0, right: 0, width: RESIZE_HANDLE * 2, height: RESIZE_HANDLE * 2, cursor: 'se-resize' }} />
-      </div>
-
       {/* Title bar */}
       <div
         className="relative z-10 flex items-center justify-between shrink-0"
@@ -239,13 +212,14 @@ const WindowFrame = memo(function WindowFrame({ window: win, children }: WindowF
           background: isFocused ? '#1A1A1A' : '#141414',
           borderRadius: isMaximized ? 0 : '12px 12px 0 0',
           transition: 'background 150ms ease',
-          cursor: isMaximized ? 'default' : 'grab',
+          cursor: isMaximized ? 'default' : isDragging ? 'grabbing' : 'grab',
+          userSelect: 'none',
         }}
         onMouseDown={handleTitleMouseDown}
         onDoubleClick={handleDoubleClickTitle}
       >
         {/* Left: icon + title */}
-        <div className="flex items-center gap-2 px-3 overflow-hidden">
+        <div className="flex items-center gap-2 px-3 overflow-hidden pointer-events-none">
           <DynamicIcon name={win.icon} size={16} className="text-[var(--text-secondary)] shrink-0" />
           <span
             className="text-xs font-semibold truncate"
@@ -262,21 +236,25 @@ const WindowFrame = memo(function WindowFrame({ window: win, children }: WindowF
         <div className="flex items-center shrink-0">
           <button
             onClick={handleMinimize}
-            className="w-9 h-9 flex items-center justify-center text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
-            style={{ borderRadius: isMaximized ? 0 : '0 0 0 0' }}
+            onMouseDown={(e) => e.stopPropagation()}
+            className="w-9 h-9 flex items-center justify-center text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-white/[0.06] transition-colors"
             title="Minimize"
+            aria-label="Minimize"
           >
             <Icons.Minus size={14} />
           </button>
           <button
             onClick={handleMaximize}
-            className="w-9 h-9 flex items-center justify-center text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
+            onMouseDown={(e) => e.stopPropagation()}
+            className="w-9 h-9 flex items-center justify-center text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-white/[0.06] transition-colors"
             title={isMaximized ? 'Restore' : 'Maximize'}
+            aria-label={isMaximized ? 'Restore' : 'Maximize'}
           >
             {isMaximized ? <Icons.Copy size={12} /> : <Icons.Square size={12} />}
           </button>
           <button
             onClick={handleClose}
+            onMouseDown={(e) => e.stopPropagation()}
             className="w-9 h-9 flex items-center justify-center text-[var(--text-secondary)] transition-colors"
             style={{ borderRadius: isMaximized ? 0 : '0 12px 0 0' }}
             onMouseEnter={(e) => {
@@ -288,6 +266,7 @@ const WindowFrame = memo(function WindowFrame({ window: win, children }: WindowF
               e.currentTarget.style.color = 'var(--text-secondary)';
             }}
             title="Close"
+            aria-label="Close"
           >
             <Icons.X size={14} />
           </button>
@@ -304,6 +283,31 @@ const WindowFrame = memo(function WindowFrame({ window: win, children }: WindowF
       >
         {children}
       </div>
+
+      {/* Resize handles — only on edges/corners, never the center.
+          z-50 so they sit above everything but their footprint is small. */}
+      {showHandles && (
+        <>
+          {/* Edges */}
+          <div onMouseDown={startResize('n')}
+            style={{ position: 'absolute', top: 0, left: CORNER, right: CORNER, height: HANDLE, cursor: 'n-resize', zIndex: 50 }} />
+          <div onMouseDown={startResize('s')}
+            style={{ position: 'absolute', bottom: 0, left: CORNER, right: CORNER, height: HANDLE, cursor: 's-resize', zIndex: 50 }} />
+          <div onMouseDown={startResize('w')}
+            style={{ position: 'absolute', left: 0, top: CORNER, bottom: CORNER, width: HANDLE, cursor: 'w-resize', zIndex: 50 }} />
+          <div onMouseDown={startResize('e')}
+            style={{ position: 'absolute', right: 0, top: CORNER, bottom: CORNER, width: HANDLE, cursor: 'e-resize', zIndex: 50 }} />
+          {/* Corners */}
+          <div onMouseDown={startResize('nw')}
+            style={{ position: 'absolute', top: 0, left: 0, width: CORNER, height: CORNER, cursor: 'nw-resize', zIndex: 51 }} />
+          <div onMouseDown={startResize('ne')}
+            style={{ position: 'absolute', top: 0, right: 0, width: CORNER, height: CORNER, cursor: 'ne-resize', zIndex: 51 }} />
+          <div onMouseDown={startResize('sw')}
+            style={{ position: 'absolute', bottom: 0, left: 0, width: CORNER, height: CORNER, cursor: 'sw-resize', zIndex: 51 }} />
+          <div onMouseDown={startResize('se')}
+            style={{ position: 'absolute', bottom: 0, right: 0, width: CORNER, height: CORNER, cursor: 'se-resize', zIndex: 51 }} />
+        </>
+      )}
     </div>
   );
 });

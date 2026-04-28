@@ -352,11 +352,12 @@ function osReducer(state: OSState, action: OSAction): OSState {
     }
 
     case 'BOUNCE_DOCK_ITEM': {
+      // Acknowledge the bounce: clear flags. The visual bounce is driven by
+      // the Dock's local state (bouncingItems) for 400ms; this just resets
+      // the global flag so the effect doesn't re-fire forever.
       return {
         ...state,
-        dockItems: state.dockItems.map((d) =>
-          d.appId === action.appId ? { ...d, bounce: true } : { ...d, bounce: false }
-        ),
+        dockItems: state.dockItems.map((d) => (d.bounce ? { ...d, bounce: false } : d)),
       };
     }
 
