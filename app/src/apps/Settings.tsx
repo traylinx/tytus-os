@@ -2,7 +2,7 @@
 // System Settings — Full system preferences panel
 // ============================================================
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Wifi, Bluetooth, Image, Palette, Bell, Volume2, Battery,
   Monitor, Mouse, Keyboard, Printer, Disc, Clock, User,
@@ -30,12 +30,18 @@ interface SettingCategory {
   icon: React.ReactNode;
 }
 
-const CATEGORIES: SettingCategory[] = [
+// Tytus-first ordering: identity + private-AI controls live above the
+// fold; OS-feel preferences (wifi, sound, etc.) follow a divider so
+// they don't bury Pods/Agents on a low monitor.
+const TYTUS_CATEGORIES: SettingCategory[] = [
   { id: 'account', label: 'Account', icon: <User size={18} /> },
   { id: 'plan', label: 'Plan & Units', icon: <CreditCard size={18} /> },
   { id: 'pods', label: 'Pods', icon: <Box size={18} /> },
   { id: 'agents', label: 'Agents', icon: <Sparkles size={18} /> },
   { id: 'daemon', label: 'Daemon', icon: <Server size={18} /> },
+];
+
+const SYSTEM_CATEGORIES: SettingCategory[] = [
   { id: 'wifi', label: 'Wi-Fi', icon: <Wifi size={18} /> },
   { id: 'bluetooth', label: 'Bluetooth', icon: <Bluetooth size={18} /> },
   { id: 'background', label: 'Background', icon: <Image size={18} /> },
@@ -72,6 +78,27 @@ const WALLPAPERS = [
   { id: '/wallpaper-nature.jpg', name: 'Nature' },
   { id: '/wallpaper-tech.jpg', name: 'Tech' },
 ];
+
+const CategoryButton: React.FC<{
+  cat: SettingCategory;
+  active: boolean;
+  onSelect: () => void;
+}> = ({ cat, active, onSelect }) => (
+  <button
+    onClick={onSelect}
+    className="flex items-center gap-3 w-full px-3 py-2.5 text-sm transition-colors"
+    style={{
+      background: active ? 'var(--bg-selected)' : 'transparent',
+      color: active ? 'var(--accent-primary)' : 'var(--text-primary)',
+      borderLeft: active
+        ? '3px solid var(--accent-primary)'
+        : '3px solid transparent',
+    }}
+  >
+    {cat.icon}
+    {cat.label}
+  </button>
+);
 
 const Toggle: React.FC<{ value: boolean; onChange: (v: boolean) => void }> = ({ value, onChange }) => (
   <button
@@ -251,6 +278,13 @@ const Settings: React.FC = () => {
     setInstallJob({ id: r.value.job_id, agent: pendingAgent });
   }, [client, pendingAgent]);
 
+  const retryInstall = useCallback(() => {
+    // Drop the failed/lost job but keep pendingAgent so the wizard
+    // returns to the confirm step with the same selection.
+    setInstallJob(null);
+    setInstallSubmitErr(null);
+  }, []);
+
   const closeInstallWizard = useCallback(() => {
     setPendingAgent(null);
     setInstallJob(null);
@@ -286,9 +320,17 @@ const Settings: React.FC = () => {
 
   const s = (key: string, def: unknown) => settings[key] ?? def;
 
+  // While searching: flatten both groups and filter; sidebar renders a
+  // single list. Otherwise: render the two groups with a divider.
+  const ALL_CATEGORIES = useMemo(
+    () => [...TYTUS_CATEGORIES, ...SYSTEM_CATEGORIES],
+    [],
+  );
   const filteredCategories = search
-    ? CATEGORIES.filter(c => c.label.toLowerCase().includes(search.toLowerCase()))
-    : CATEGORIES;
+    ? ALL_CATEGORIES.filter(c =>
+        c.label.toLowerCase().includes(search.toLowerCase()),
+      )
+    : null;
 
   const renderPanel = () => {
     switch (activeCategory) {
@@ -795,7 +837,7 @@ const Settings: React.FC = () => {
         return (
           <div className="space-y-4">
             <h2 className="text-2xl font-semibold text-[var(--text-primary)]">
-              {CATEGORIES.find(c => c.id === activeCategory)?.label}
+              {ALL_CATEGORIES.find(c => c.id === activeCategory)?.label}
             </h2>
             <div className="flex items-center justify-center h-32">
               <span className="text-sm text-[var(--text-secondary)]">Settings for this category are not yet implemented.</span>
@@ -821,21 +863,45 @@ const Settings: React.FC = () => {
           </div>
         </div>
         <div className="flex-1 overflow-y-auto custom-scrollbar">
-          {filteredCategories.map(cat => (
-            <button
-              key={cat.id}
-              onClick={() => { setActiveCategory(cat.id); setSearch(''); }}
-              className="flex items-center gap-3 w-full px-3 py-2.5 text-sm transition-colors"
-              style={{
-                background: activeCategory === cat.id ? 'var(--bg-selected)' : 'transparent',
-                color: activeCategory === cat.id ? 'var(--accent-primary)' : 'var(--text-primary)',
-                borderLeft: activeCategory === cat.id ? '3px solid var(--accent-primary)' : '3px solid transparent',
-              }}
-            >
-              {cat.icon}
-              {cat.label}
-            </button>
-          ))}
+          {filteredCategories
+            ? filteredCategories.map(cat => (
+                <CategoryButton
+                  key={cat.id}
+                  cat={cat}
+                  active={activeCategory === cat.id}
+                  onSelect={() => { setActiveCategory(cat.id); setSearch(''); }}
+                />
+              ))
+            : (
+              <>
+                <div className="px-3 pt-2 pb-1 text-[10px] uppercase tracking-wider text-[var(--text-secondary)] opacity-70">
+                  Tytus
+                </div>
+                {TYTUS_CATEGORIES.map(cat => (
+                  <CategoryButton
+                    key={cat.id}
+                    cat={cat}
+                    active={activeCategory === cat.id}
+                    onSelect={() => setActiveCategory(cat.id)}
+                  />
+                ))}
+                <div
+                  className="my-2 mx-3"
+                  style={{ borderTop: '1px solid var(--border-subtle)' }}
+                />
+                <div className="px-3 pt-1 pb-1 text-[10px] uppercase tracking-wider text-[var(--text-secondary)] opacity-70">
+                  System
+                </div>
+                {SYSTEM_CATEGORIES.map(cat => (
+                  <CategoryButton
+                    key={cat.id}
+                    cat={cat}
+                    active={activeCategory === cat.id}
+                    onSelect={() => setActiveCategory(cat.id)}
+                  />
+                ))}
+              </>
+            )}
         </div>
       </div>
 
@@ -853,6 +919,8 @@ const Settings: React.FC = () => {
           submitErr={installSubmitErr}
           jobStreamUrl={installJob ? client.jobStreamUrl(installJob.id) : null}
           onConfirm={startInstall}
+          onRetry={retryInstall}
+          onSuccess={daemon.refresh}
           onClose={closeInstallWizard}
         />
       )}
@@ -1176,6 +1244,8 @@ interface InstallWizardProps {
   submitErr: string | null;
   jobStreamUrl: string | null;
   onConfirm: () => void;
+  onRetry: () => void;
+  onSuccess: () => void;
   onClose: () => void;
 }
 
@@ -1186,6 +1256,8 @@ const InstallWizard: React.FC<InstallWizardProps> = ({
   submitErr,
   jobStreamUrl,
   onConfirm,
+  onRetry,
+  onSuccess,
   onClose,
 }) => {
   const stream = useJobStream({ url: jobStreamUrl });
@@ -1196,6 +1268,17 @@ const InstallWizard: React.FC<InstallWizardProps> = ({
     () => stream.lines.slice(-200).join('\n'),
     [stream.lines],
   );
+
+  // Refresh daemon state once when the install completes successfully.
+  // Done lives outside the modal — without this, the new pod wouldn't
+  // appear in the Pods panel until the user closed the modal.
+  const successFiredRef = useRef(false);
+  useEffect(() => {
+    if (stream.status === 'success' && !successFiredRef.current) {
+      successFiredRef.current = true;
+      onSuccess();
+    }
+  }, [stream.status, onSuccess]);
 
   return (
     <div
@@ -1337,6 +1420,19 @@ const InstallWizard: React.FC<InstallWizardProps> = ({
             <span className="text-[11px] text-[var(--text-secondary)]">
               Cancel disabled while install runs.
             </span>
+          )}
+          {isDone && (stream.status === 'failed' || stream.status === 'lost') && (
+            <button
+              onClick={onRetry}
+              className="px-3 py-1.5 rounded-md text-xs font-medium transition-colors"
+              style={{
+                background: 'transparent',
+                color: 'var(--text-primary)',
+                border: '1px solid var(--border-default)',
+              }}
+            >
+              Retry
+            </button>
           )}
           {isDone && (
             <button
