@@ -102,15 +102,25 @@ const MIN_VIEWPORT_W = 320;
 const MIN_VIEWPORT_H = 240;
 
 // ---- Initial State ----
+//
+// Manifest §2.5 — Reserved Pods Zone occupies the top-left 4×2 grid
+// (x ∈ [16, 336), y ∈ [16, 196)) for pinned-pod icons. User icons must
+// not be displaced by pins (and vice versa). Default icons start at
+// y = 196 (just below row 2 of the reserved zone), keeping the
+// existing two-column layout at x = 16 and x = 96.
+//
+// Persisted user-moved icons (loadDesktopIcons → tytus_desktop_icons
+// in localStorage) take precedence over these defaults, so existing
+// users who already arranged their desktop are not relocated.
 const defaultDesktopIcons: DesktopIcon[] = [
-  { id: 'desk-pods', name: 'Pods', icon: 'Box', appId: 'pod-inspector', position: { x: 16, y: 16 }, isSelected: false },
-  { id: 'desk-settings', name: 'Settings', icon: 'Settings', appId: 'settings', position: { x: 16, y: 106 }, isSelected: false },
-  { id: 'desk-chat', name: 'Chat', icon: 'MessageSquare', appId: 'chat', position: { x: 16, y: 196 }, isSelected: false },
-  { id: 'desk-files', name: 'Files', icon: 'Folder', appId: 'filemanager', position: { x: 16, y: 286 }, isSelected: false },
+  { id: 'desk-pods', name: 'Pods', icon: 'Box', appId: 'pod-inspector', position: { x: 16, y: 196 }, isSelected: false },
+  { id: 'desk-settings', name: 'Settings', icon: 'Settings', appId: 'settings', position: { x: 16, y: 286 }, isSelected: false },
+  { id: 'desk-chat', name: 'Chat', icon: 'MessageSquare', appId: 'chat', position: { x: 16, y: 376 }, isSelected: false },
+  { id: 'desk-files', name: 'Files', icon: 'Folder', appId: 'filemanager', position: { x: 16, y: 466 }, isSelected: false },
   { id: 'desk-terminal', name: 'Terminal', icon: 'Terminal', appId: 'terminal', position: { x: 96, y: 196 }, isSelected: false },
   { id: 'desk-browser', name: 'Browser', icon: 'Globe', appId: 'browser', position: { x: 96, y: 286 }, isSelected: false },
-  { id: 'desk-channels', name: 'Channels', icon: 'Send', appId: 'channels', position: { x: 96, y: 16 }, isSelected: false },
-  { id: 'desk-help', name: 'Help', icon: 'LifeBuoy', appId: 'help', position: { x: 96, y: 106 }, isSelected: false },
+  { id: 'desk-channels', name: 'Channels', icon: 'Send', appId: 'channels', position: { x: 96, y: 376 }, isSelected: false },
+  { id: 'desk-help', name: 'Help', icon: 'LifeBuoy', appId: 'help', position: { x: 96, y: 466 }, isSelected: false },
 ];
 
 const createInitialDockItems = (): DockItem[] => {
