@@ -303,11 +303,11 @@ const Browser: FC = () => {
 // LauncherList — informational list of editors / terminal flag
 // ============================================================
 //
-// The daemon's Launchers shape is `{ editors: string[]; terminal_available }`
-// — names only, no URL/path. There's no per-launcher open endpoint, so
-// rows are informational. If the daemon ever adds a structured launcher
-// type with a URL field, switch the rows to `Open ↗` buttons that call
-// postOpenExternal.
+// The daemon emits `editors: { binary, name }[]` (see web_server.rs's
+// handle_launchers_list — each entry pairs the executable name with a
+// human label). There's no per-launcher open endpoint, so rows are
+// informational. If the daemon ever adds a URL field, switch the rows
+// to `Open ↗` buttons that call postOpenExternal.
 
 const LauncherList: FC<{ launchers: Launchers }> = ({ launchers }) => {
   const editors = launchers.editors ?? [];
@@ -329,8 +329,8 @@ const LauncherList: FC<{ launchers: Launchers }> = ({ launchers }) => {
 
   return (
     <div className="flex flex-col gap-2">
-      {editors.map((name) => (
-        <LauncherRow key={`editor:${name}`} name={name} kind="editor" />
+      {editors.map((e) => (
+        <LauncherRow key={`editor:${e.binary}`} name={e.name} kind="editor" />
       ))}
       {launchers.terminal_available && (
         <LauncherRow name="terminal" kind="available" />

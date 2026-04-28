@@ -215,6 +215,10 @@ const isChannels = (v: unknown): v is ChannelsResponse =>
 const isLaunchers = (v: unknown): v is Launchers =>
   isObject(v) &&
   Array.isArray(v.editors) &&
+  v.editors.every(
+    (e) =>
+      isObject(e) && typeof e.binary === "string" && typeof e.name === "string",
+  ) &&
   typeof v.terminal_available === "boolean";
 
 const isLogChunk = (v: unknown): v is LogChunk =>

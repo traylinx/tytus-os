@@ -188,6 +188,37 @@ describe("daemon client — other GETs", () => {
     expect(r.ok).toBe(true);
   });
 
+  it("getLaunchers parses populated editors as {binary, name} objects", async () => {
+    // Reuters: live daemon emits each editor as {binary, name} (see
+    // web_server.rs handle_launchers_list). The fixture happens to be
+    // empty, so this test pins the populated shape so drift back to
+    // string[] (the v1 audit prose) fails fast.
+    const populated = {
+      editors: [
+        { binary: "code", name: "VS Code" },
+        { binary: "cursor", name: "Cursor" },
+      ],
+      terminal_available: true,
+    };
+    const { fetch } = makeFakeFetch([
+      { method: "GET", path: "/api/launchers", body: populated },
+    ]);
+    const r = await createDaemonClient({ fetch }).getLaunchers();
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.value.editors[0]?.name).toBe("VS Code");
+    expect(r.value.editors[1]?.binary).toBe("cursor");
+  });
+
+  it("getLaunchers rejects legacy string[] editors", async () => {
+    const legacy = { editors: ["code", "cursor"], terminal_available: true };
+    const { fetch } = makeFakeFetch([
+      { method: "GET", path: "/api/launchers", body: legacy },
+    ]);
+    const r = await createDaemonClient({ fetch }).getLaunchers();
+    expect(r.ok).toBe(false);
+  });
+
   it("getPodReady parses fixture", async () => {
     const { fetch } = makeFakeFetch([
       { method: "GET", path: "/api/pod/ready?pod=02", body: podReadyFixture },
