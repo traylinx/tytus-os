@@ -7,8 +7,9 @@ export default defineConfig({
   base: './',
   plugins: [react()],
   server: {
-    port: 3000,
-    // Proxy daemon API into dev server so the Tytus OS frontend can call it
+    port: 4242,
+    strictPort: false,
+    // Proxy daemon API into dev server so TytusOS can call it
     // without CORS or port-discovery during development.
     proxy: {
       '/api': 'http://127.0.0.1:0', // Phase 2: replace with discovered port from /tmp/tytus/tray-web.port
