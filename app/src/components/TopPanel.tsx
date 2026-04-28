@@ -2,9 +2,9 @@
 // TopPanel — Activities button, clock, system tray, daemon status pill
 // ============================================================
 
-import { useState, useEffect, useCallback, memo, useRef } from 'react';
+import { useState, useEffect, useCallback, memo, useRef, useMemo } from 'react';
 import { format } from 'date-fns';
-import { Power } from 'lucide-react';
+import { Power, Box } from 'lucide-react';
 import { useOS } from '@/hooks/useOSStore';
 import { useDaemonClient } from '@/hooks/useDaemonClient';
 import { useDaemonStateContext } from '@/hooks/useDaemonStateContext';
@@ -83,6 +83,30 @@ const TopPanel = memo(function TopPanel() {
   const formattedDate = format(time, 'EEEE, MMMM d, yyyy');
   const userLabel = daemon.state?.email ?? state.auth.userName;
 
+  // Fleet health summary — small clickable chip next to the daemon
+  // pill. Per manifest §2.2 the strip should reflect aggregate pod
+  // status; v1 derives from state.agents/included counts + active
+  // jobs because /api/state.agents has no per-pod status field. Color
+  // logic: any active job → blue (in progress); all good → green;
+  // no pods → grey (still clickable, opens Pod Inspector).
+  const fleet = useMemo(() => {
+    if (!daemon.state) return null;
+    const agents = daemon.state.agents.length;
+    const included = daemon.state.included.length;
+    const totalPods = agents + included;
+    const activeJobs = Object.values(daemon.state.active_jobs_per_pod).reduce(
+      (sum, jobs) => sum + (Array.isArray(jobs) ? jobs.length : 0),
+      0,
+    );
+    let color: 'green' | 'yellow' | 'gray' = 'gray';
+    if (totalPods > 0) color = activeJobs > 0 ? 'yellow' : 'green';
+    return { agents, included, totalPods, activeJobs, color };
+  }, [daemon.state]);
+
+  const openPodInspector = useCallback(() => {
+    dispatch({ type: 'OPEN_WINDOW', appId: 'pod-inspector' });
+  }, [dispatch]);
+
   return (
     <div
       className="fixed top-0 left-0 right-0 z-[200] grid items-center px-2 text-xs font-medium select-none"
@@ -125,6 +149,36 @@ const TopPanel = memo(function TopPanel() {
           />
           <span className="text-[11px] font-semibold">{pill.label}</span>
         </button>
+
+        {/* Fleet Health strip — only when daemon is online; suppressed
+            during offline since DaemonOfflineBanner already covers that
+            state at the shell level. */}
+        {fleet && pill.color !== 'red' && (
+          <button
+            onClick={openPodInspector}
+            title={
+              fleet.totalPods === 0
+                ? 'No pods yet — click to allocate'
+                : `${fleet.agents} allocated · ${fleet.included} included · ${fleet.activeJobs} active job${fleet.activeJobs === 1 ? '' : 's'}`
+            }
+            aria-label="Open Pod Inspector"
+            className="h-6 pl-1.5 pr-2 rounded-md flex items-center gap-1.5 transition-colors"
+            style={{
+              background: PILL_BG[fleet.color],
+              color: PILL_TEXT[fleet.color],
+            }}
+          >
+            <Box size={11} aria-hidden="true" />
+            <span className="text-[11px] font-semibold">
+              {fleet.totalPods === 0
+                ? 'No pods'
+                : `${fleet.totalPods} pod${fleet.totalPods === 1 ? '' : 's'}`}
+              {fleet.activeJobs > 0 && (
+                <span className="opacity-90"> · {fleet.activeJobs} job{fleet.activeJobs === 1 ? '' : 's'}</span>
+              )}
+            </span>
+          </button>
+        )}
       </div>
 
       {/* Center: Clock */}

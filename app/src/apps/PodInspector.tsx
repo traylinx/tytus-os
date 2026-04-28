@@ -438,6 +438,43 @@ const FleetView: FC<FleetViewProps> = ({
   const [search, setSearch] = useState('');
   const [sortMode, setSortMode] = useState<SortMode>('attention');
   const [openingPod, setOpeningPod] = useState<string | null>(null);
+  const [confirmRestartAll, setConfirmRestartAll] = useState(false);
+  const [batchProgress, setBatchProgress] = useState<{
+    total: number;
+    done: number;
+    failed: number;
+  } | null>(null);
+
+  // Sequential — manifest §11.7 explicitly calls out NOT-parallel:
+  // the daemon doesn't promise concurrency safety on per-pod actions,
+  // and serialising keeps log output sane.
+  const runRestartAll = useCallback(async () => {
+    setConfirmRestartAll(false);
+    const targets = rows
+      .filter((r) => r.kind === 'agent')
+      .map((r) => r.pod_id);
+    if (targets.length === 0) return;
+    setBatchProgress({ total: targets.length, done: 0, failed: 0 });
+    let failed = 0;
+    for (const podId of targets) {
+      const r = await client.postPodRestart(podId);
+      if (!r.ok) {
+        failed += 1;
+        onErr(`Pod ${podId} restart: ${r.error.message}`);
+      }
+      setBatchProgress((prev) =>
+        prev
+          ? { ...prev, done: prev.done + 1, failed: failed }
+          : prev,
+      );
+    }
+    // Hold the final summary for a beat so the user sees the completion
+    // count before the toast disappears.
+    setTimeout(() => setBatchProgress(null), 2400);
+  }, [rows, client, onErr]);
+
+  const restartableCount = rows.filter((r) => r.kind === 'agent').length;
+  const batchInFlight = batchProgress !== null && batchProgress.done < batchProgress.total;
 
   const onOpenAgentUi = useCallback(
     async (podId: string) => {
@@ -498,6 +535,22 @@ const FleetView: FC<FleetViewProps> = ({
             )}
           </div>
         </div>
+        {restartableCount > 1 && (
+          <button
+            onClick={() => setConfirmRestartAll(true)}
+            disabled={batchInFlight}
+            title={`Restart ${restartableCount} allocated pods sequentially`}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[11px] transition-colors disabled:opacity-60"
+            style={{
+              background: 'var(--bg-hover, rgba(255,255,255,0.04))',
+              border: '1px solid var(--border-default)',
+              color: 'var(--text-secondary)',
+            }}
+          >
+            <Power size={11} />
+            Restart all
+          </button>
+        )}
         <button
           onClick={onRefresh}
           aria-label="Refresh"
@@ -699,6 +752,16 @@ const FleetView: FC<FleetViewProps> = ({
           </table>
         )}
       </div>
+
+      {confirmRestartAll && (
+        <RestartAllConfirmModal
+          count={restartableCount}
+          onCancel={() => setConfirmRestartAll(false)}
+          onConfirm={runRestartAll}
+        />
+      )}
+
+      {batchProgress && <BatchProgressToast progress={batchProgress} />}
     </>
   );
 };
@@ -1336,6 +1399,118 @@ const RevokeConfirmModal: FC<{
             Revoke pod {podId} permanently
           </button>
         </div>
+      </div>
+    </div>
+  );
+};
+
+const RestartAllConfirmModal: FC<{
+  count: number;
+  onCancel: () => void;
+  onConfirm: () => void;
+}> = ({ count, onCancel, onConfirm }) => (
+  <div
+    className="fixed inset-0 z-[6000] flex items-center justify-center"
+    style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(6px)' }}
+  >
+    <div
+      className="w-[440px] rounded-xl flex flex-col overflow-hidden"
+      style={{
+        background: 'var(--bg-window, #1E1E1E)',
+        border: '1px solid var(--border-subtle)',
+        boxShadow: '0 24px 64px rgba(0,0,0,0.55)',
+      }}
+    >
+      <div className="px-5 pt-5 pb-3 flex items-start gap-3">
+        <div
+          className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0"
+          style={{
+            background: 'rgba(124,77,255,0.12)',
+            border: '1px solid rgba(124,77,255,0.30)',
+          }}
+        >
+          <Power size={16} style={{ color: '#7C4DFF' }} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="text-sm font-semibold text-[var(--text-primary)]">
+            Restart {count} pods?
+          </div>
+          <div className="text-[12px] text-[var(--text-secondary)] mt-1.5 leading-relaxed">
+            Each pod will be restarted sequentially via{' '}
+            <code
+              className="font-mono px-1 py-0.5 rounded"
+              style={{ background: 'rgba(255,255,255,0.06)' }}
+            >
+              tytus restart --pod NN
+            </code>
+            . Active workloads on each pod will be interrupted briefly.
+          </div>
+        </div>
+      </div>
+      <div
+        className="px-5 py-3 flex items-center justify-end gap-2"
+        style={{ borderTop: '1px solid var(--border-subtle)' }}
+      >
+        <button
+          onClick={onCancel}
+          className="px-3 py-1.5 rounded-md text-xs font-medium transition-colors"
+          style={{
+            background: 'transparent',
+            color: 'var(--text-primary)',
+            border: '1px solid var(--border-default)',
+          }}
+        >
+          Cancel
+        </button>
+        <button
+          onClick={onConfirm}
+          className="px-4 py-1.5 rounded-md text-xs font-semibold text-white transition-colors"
+          style={{ background: 'var(--accent-primary)' }}
+        >
+          Restart {count} pods
+        </button>
+      </div>
+    </div>
+  </div>
+);
+
+const BatchProgressToast: FC<{
+  progress: { total: number; done: number; failed: number };
+}> = ({ progress }) => {
+  const inFlight = progress.done < progress.total;
+  const pct = Math.round((progress.done / progress.total) * 100);
+  const success = progress.done - progress.failed;
+  return (
+    <div
+      className="absolute bottom-4 left-1/2 -translate-x-1/2 px-4 py-2.5 rounded-md text-xs flex flex-col items-stretch gap-2 min-w-[280px]"
+      style={{
+        background: 'rgba(30,30,30,0.95)',
+        border: '1px solid var(--border-subtle)',
+        boxShadow: '0 8px 24px rgba(0,0,0,0.45)',
+        zIndex: 10,
+      }}
+    >
+      <div className="flex items-center justify-between">
+        <span className="text-[var(--text-primary)] font-medium">
+          {inFlight
+            ? `Restarting pods… ${progress.done}/${progress.total}`
+            : `Done · ${success} succeeded${progress.failed > 0 ? ` · ${progress.failed} failed` : ''}`}
+        </span>
+        {inFlight && (
+          <Loader2 size={12} className="animate-spin text-[var(--text-secondary)]" />
+        )}
+      </div>
+      <div
+        className="h-1 rounded-full overflow-hidden"
+        style={{ background: 'var(--border-subtle)' }}
+      >
+        <div
+          className="h-full rounded-full transition-all"
+          style={{
+            width: `${pct}%`,
+            background: progress.failed > 0 ? '#FFC107' : '#4CAF50',
+          }}
+        />
       </div>
     </div>
   );
