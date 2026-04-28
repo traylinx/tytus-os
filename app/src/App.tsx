@@ -4,7 +4,9 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { OSProvider, useOS } from '@/hooks/useOSStore';
-import { DaemonClientProvider } from '@/hooks/useDaemonClient';
+import { DaemonClientProvider, useDaemonClient } from '@/hooks/useDaemonClient';
+import { useDaemonState } from '@/hooks/useDaemonState';
+import DaemonOfflineBanner from '@/components/DaemonOfflineBanner';
 import BootSequence from '@/components/BootSequence';
 import LoginScreen from '@/components/LoginScreen';
 import Desktop from '@/components/Desktop';
@@ -21,6 +23,12 @@ function AppShell() {
   const { bootPhase, auth } = state;
   const [bootComplete, setBootComplete] = useState(false);
   const altTabRef = useRef<{ holding: boolean }>({ holding: false });
+
+  // Shell-level daemon polling — shared with LoginScreen via context-less
+  // refetch. The login screen runs its own poll for snappier UX while the
+  // user is still on the auth gate; once authenticated the shell takes over.
+  const client = useDaemonClient();
+  const daemon = useDaemonState({ client, intervalMs: 4000 });
 
   // Boot sequence
   useEffect(() => {
@@ -109,6 +117,13 @@ function AppShell() {
 
   return (
     <div className={state.theme.mode === 'light' ? 'light' : ''} style={{ width: '100vw', height: '100vh', overflow: 'hidden' }}>
+      {/* Daemon-offline banner — A1a (immediate) / A1b (3-fail) */}
+      <DaemonOfflineBanner
+        visible={daemon.bannerVisible}
+        error={daemon.error}
+        onRefresh={daemon.refresh}
+      />
+
       {/* Boot Sequence */}
       {showBoot && <BootSequence onComplete={handleBootComplete} />}
 
