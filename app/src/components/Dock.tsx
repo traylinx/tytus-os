@@ -2,7 +2,7 @@
 // Dock — Bottom dock with pinned apps, open indicators, trash
 // ============================================================
 
-import { useCallback, memo, useState, useEffect } from 'react';
+import { useCallback, memo, useState } from 'react';
 import { useOS } from '@/hooks/useOSStore';
 import { getAppById } from '@/apps/registry';
 import { LayoutGrid, Trash2 } from 'lucide-react';
@@ -21,16 +21,18 @@ const Dock = memo(function Dock() {
   const [hoveredApp, setHoveredApp] = useState<string | null>(null);
   const [, setTooltipPos] = useState({ x: 0, y: 0 });
 
-  // Bounce animation cleanup
-  useEffect(() => {
-    const bouncing = dockItems.filter((d) => d.bounce).map((d) => d.appId);
-    if (bouncing.length > 0) {
-      setBouncingItems((prev) => new Set([...prev, ...bouncing]));
-      dispatch({ type: 'BOUNCE_DOCK_ITEM', appId: bouncing[0] });
-      const timer = setTimeout(() => setBouncingItems(new Set()), 400);
-      return () => clearTimeout(timer);
-    }
-  }, [dockItems, dispatch]);
+  // Bounce a dock icon for 400ms. State is local on purpose — keeps the
+  // animation out of the global reducer where it caused a feedback loop.
+  const triggerBounce = useCallback((appId: string) => {
+    setBouncingItems((prev) => new Set(prev).add(appId));
+    setTimeout(() => {
+      setBouncingItems((prev) => {
+        const next = new Set(prev);
+        next.delete(appId);
+        return next;
+      });
+    }, 400);
+  }, []);
 
   const handleAppClick = useCallback(
     (appId: string) => {
@@ -40,10 +42,18 @@ const Dock = memo(function Dock() {
         const win = state.windows.find((w) => w.appId === appId && w.state !== 'minimized');
         if (win) dispatch({ type: 'FOCUS_WINDOW', windowId: win.id });
       } else {
-        dispatch({ type: 'OPEN_WINDOW', appId });
+        // Re-show a minimized window if one exists
+        const minimized = state.windows.find((w) => w.appId === appId && w.state === 'minimized');
+        if (minimized) {
+          dispatch({ type: 'RESTORE_WINDOW', windowId: minimized.id });
+          dispatch({ type: 'FOCUS_WINDOW', windowId: minimized.id });
+        } else {
+          dispatch({ type: 'OPEN_WINDOW', appId });
+        }
+        triggerBounce(appId);
       }
     },
-    [dispatch, state.windows]
+    [dispatch, state.windows, triggerBounce]
   );
 
   const handleShowApps = useCallback(() => {
@@ -95,6 +105,8 @@ const Dock = memo(function Dock() {
         {/* Icon */}
         <button
           onClick={() => isTrash ? handleTrashClick() : handleAppClick(appId)}
+          aria-label={isTrash ? 'Trash' : app?.name || appId}
+          title={isTrash ? 'Trash' : app?.name || appId}
           className="w-10 h-10 rounded-[10px] flex items-center justify-center transition-all"
           style={{
             background: isHovered ? 'var(--bg-hover)' : 'transparent',
@@ -141,6 +153,8 @@ const Dock = memo(function Dock() {
       {/* Show Applications button */}
       <button
         onClick={handleShowApps}
+        aria-label="Show applications"
+        title="Show applications"
         className="w-10 h-10 rounded-[10px] flex items-center justify-center hover:bg-[var(--bg-hover)] transition-all"
         style={{
           background: state.appLauncherOpen ? 'var(--bg-active)' : 'transparent',
