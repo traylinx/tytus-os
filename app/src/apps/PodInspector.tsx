@@ -940,19 +940,15 @@ const PodTab: FC<PodTabProps> = ({ agent, ready, client, onError, isPinned, onTo
     runStreamedAction('revoke', 'revoke');
   }, [runStreamedAction]);
 
-  // Doctor — daemon-wide /api/doctor (per-pod doctor is a known gap
-  // per manifest §3.7). The job stream renders inline; we tag the
-  // active action as 'doctor' so the user knows it's not pod-scoped.
-  const onDoctor = useCallback(async () => {
-    setSubmittingAction('doctor');
-    const r = await client.postDoctor();
-    setSubmittingAction(null);
-    if (!r.ok) {
-      onError(`Couldn't start doctor: ${r.error.message}`);
-      return;
-    }
-    setActiveJob({ id: r.value.job_id, action: 'doctor (daemon-wide)' });
-  }, [client, onError]);
+  // Doctor — per-pod diagnostic via run-streamed `doctor` action
+  // (closes manifest §3.7 gap). The CLI's `tytus doctor --pod NN`
+  // calls Provider /pod/agent/status and prints container_status /
+  // healthy / uptime / image / ports one line at a time so each
+  // surfaces as a discrete `log` event in the JobStreamPane.
+  const onDoctor = useCallback(
+    () => runStreamedAction('doctor', 'doctor'),
+    [runStreamedAction],
+  );
 
   // Refresh credentials — rotates the pod's user_key without
   // restarting the container. Uses dedicated /api/pod/refresh-creds
@@ -1196,8 +1192,8 @@ const PodTab: FC<PodTabProps> = ({ agent, ready, client, onError, isPinned, onTo
           <ActionButton
             label="Doctor"
             icon={<Stethoscope size={12} />}
-            title="Daemon-wide diagnostic — per-pod doctor is a known gap"
-            running={submittingAction === 'doctor' || (activeJob?.action.startsWith('doctor') && !streamDone)}
+            title="Per-pod health check: container status, uptime, image, ports"
+            running={submittingAction === 'doctor' || (activeJob?.action === 'doctor' && !streamDone)}
             disabled={activeJob !== null && !streamDone}
             onClick={onDoctor}
           />
@@ -1266,7 +1262,11 @@ const PodTab: FC<PodTabProps> = ({ agent, ready, client, onError, isPinned, onTo
             }}
           >
             <div className="text-[var(--text-secondary)]">
-              {activeJob.action === 'logs' ? `Logs (last 200 lines, pod ${agent.pod_id})` : activeJob.action} ·{' '}
+              {activeJob.action === 'logs'
+                ? `Logs (last 200 lines, pod ${agent.pod_id})`
+                : activeJob.action === 'doctor'
+                  ? `Doctor (pod ${agent.pod_id})`
+                  : activeJob.action} ·{' '}
               <span
                 style={{
                   color:
