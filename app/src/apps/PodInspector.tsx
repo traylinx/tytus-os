@@ -861,6 +861,7 @@ interface PodTabProps {
 }
 
 const PodTab: FC<PodTabProps> = ({ agent, ready, client, onError, isPinned, onTogglePin }) => {
+  const daemon = useDaemonStateContext();
   const [keyRevealed, setKeyRevealed] = useState(false);
   const [uiRevealed, setUiRevealed] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
@@ -869,6 +870,29 @@ const PodTab: FC<PodTabProps> = ({ agent, ready, client, onError, isPinned, onTo
     action: string;
   } | null>(null);
   const [submittingAction, setSubmittingAction] = useState<string | null>(null);
+
+  // Daemon-restart detection. The job registry is in-memory, so a
+  // daemon restart silently invalidates every active job_id — without
+  // this hook the user would keep staring at a stuck "subscribing…"
+  // pane forever. We track the boot timestamp and drop stale state
+  // (activeJob + cancelling flag) the moment it changes.
+  const daemonBootedAt = daemon.version?.daemon_started_at ?? null;
+  const lastSeenBootRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (daemonBootedAt === null) return;
+    if (lastSeenBootRef.current === null) {
+      lastSeenBootRef.current = daemonBootedAt;
+      return;
+    }
+    if (lastSeenBootRef.current !== daemonBootedAt) {
+      lastSeenBootRef.current = daemonBootedAt;
+      setActiveJob(null);
+      setSubmittingAction(null);
+      onError(
+        'Tray daemon restarted. In-flight pod actions were cleared — re-run if needed.',
+      );
+    }
+  }, [daemonBootedAt, onError]);
 
   const visual = ready ? STATUS_VISUAL[ready.status] : STATUS_VISUAL.probing;
 

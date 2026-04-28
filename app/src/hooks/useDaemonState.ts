@@ -4,6 +4,7 @@ import type {
 } from "@/lib/daemon";
 import type {
   DaemonError,
+  DaemonVersion,
   StateSnapshot,
 } from "@/types/daemon";
 
@@ -21,6 +22,16 @@ export interface UseDaemonStateResult {
   failureCount: number;
   /** True when the offline banner should be visible per A1a / A1b. */
   bannerVisible: boolean;
+  /**
+   * Daemon identity from the latest successful /api/version poll.
+   * Survives across transient state-fetch failures (last-known wins
+   * until the version probe succeeds against a different daemon).
+   * Consumers depend on `version?.daemon_started_at` in a useEffect
+   * to detect daemon restart and drop in-flight job state — the
+   * registry is in-memory so every active job_id is invalid past a
+   * restart.
+   */
+  version: DaemonVersion | null;
   /** Force an immediate refresh (e.g. after user starts the daemon). */
   refresh: () => void;
 }
@@ -41,6 +52,7 @@ export const useDaemonState = (
   const [error, setError] = useState<DaemonError | null>(null);
   const [status, setStatus] = useState<DaemonStatus>("loading");
   const [failureCount, setFailureCount] = useState(0);
+  const [version, setVersion] = useState<DaemonVersion | null>(null);
   const [tick, setTick] = useState(0);
   const cancelledRef = useRef(false);
 
@@ -57,20 +69,31 @@ export const useDaemonState = (
 
     const run = async () => {
       abort = new AbortController();
-      const r = await client.getState(abort.signal);
+      // Parallel fetch — state drives the banner / status FSM, version
+      // drives restart detection. Failures are independent: keep the
+      // last-known version across transient state errors so a
+      // half-second blip doesn't make the UI think the daemon
+      // restarted.
+      const [stateR, versionR] = await Promise.all([
+        client.getState(abort.signal),
+        client.getVersion(abort.signal),
+      ]);
       if (cancelledRef.current) return;
-      if (r.ok) {
-        setState(r.value);
+      if (versionR.ok) {
+        setVersion(versionR.value);
+      }
+      if (stateR.ok) {
+        setState(stateR.value);
         setError(null);
         setFailureCount(0);
-        setStatus(r.value.logged_in ? "online" : "auth_required");
+        setStatus(stateR.value.logged_in ? "online" : "auth_required");
       } else {
-        setError(r.error);
-        if (r.error.code === "daemon_offline") {
+        setError(stateR.error);
+        if (stateR.error.code === "daemon_offline") {
           // A1a: immediate.
           setStatus("offline");
           setFailureCount((c) => c + 1);
-        } else if (r.error.code === "auth_required") {
+        } else if (stateR.error.code === "auth_required") {
           setStatus("auth_required");
           setFailureCount(0);
         } else {
@@ -101,6 +124,7 @@ export const useDaemonState = (
     status,
     failureCount,
     bannerVisible,
+    version,
     refresh: () => setTick((t) => t + 1),
   };
 };
