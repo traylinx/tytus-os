@@ -51,6 +51,10 @@ import {
   Eye,
   EyeOff,
   Check,
+  Stethoscope,
+  Square,
+  Trash2,
+  Skull,
 } from 'lucide-react';
 import { useOS } from '@/hooks/useOSStore';
 import { useDaemonClient } from '@/hooks/useDaemonClient';
@@ -735,6 +739,12 @@ const PodTab: FC<PodTabProps> = ({ agent, ready, client, onError }) => {
     [],
   );
 
+  // Confirmation modals — only Uninstall and Revoke open one. Restart,
+  // Doctor, and Stop forwarder fire immediately (each is reversible by
+  // re-running its inverse).
+  const [confirmUninstall, setConfirmUninstall] = useState(false);
+  const [confirmRevoke, setConfirmRevoke] = useState(false);
+
   const onOpenAgent = useCallback(async () => {
     setSubmittingAction('open');
     const r = await client.postPodOpen(agent.pod_id);
@@ -742,16 +752,53 @@ const PodTab: FC<PodTabProps> = ({ agent, ready, client, onError }) => {
     if (!r.ok) onError(`Couldn't open pod: ${r.error.message}`);
   }, [client, agent.pod_id, onError]);
 
-  const onRestart = useCallback(async () => {
-    setSubmittingAction('restart');
-    const r = await client.postPodRunStreamed(agent.pod_id, 'restart');
+  // Generic per-pod streamed action launcher. The action name maps to
+  // the daemon's run-streamed allowlist; we serialize through one
+  // activeJob slot so the user always sees a single live log pane.
+  const runStreamedAction = useCallback(
+    async (action: string, label: string) => {
+      setSubmittingAction(action);
+      const r = await client.postPodRunStreamed(agent.pod_id, action);
+      setSubmittingAction(null);
+      if (!r.ok) {
+        onError(`Couldn't start ${label}: ${r.error.message}`);
+        return;
+      }
+      setActiveJob({ id: r.value.job_id, action });
+    },
+    [client, agent.pod_id, onError],
+  );
+
+  const onRestart = useCallback(
+    () => runStreamedAction('restart', 'restart'),
+    [runStreamedAction],
+  );
+  const onStopForwarder = useCallback(
+    () => runStreamedAction('stop-forwarder', 'forwarder stop'),
+    [runStreamedAction],
+  );
+  const onUninstallConfirmed = useCallback(() => {
+    setConfirmUninstall(false);
+    runStreamedAction('uninstall', 'uninstall');
+  }, [runStreamedAction]);
+  const onRevokeConfirmed = useCallback(() => {
+    setConfirmRevoke(false);
+    runStreamedAction('revoke', 'revoke');
+  }, [runStreamedAction]);
+
+  // Doctor — daemon-wide /api/doctor (per-pod doctor is a known gap
+  // per manifest §3.7). The job stream renders inline; we tag the
+  // active action as 'doctor' so the user knows it's not pod-scoped.
+  const onDoctor = useCallback(async () => {
+    setSubmittingAction('doctor');
+    const r = await client.postDoctor();
     setSubmittingAction(null);
     if (!r.ok) {
-      onError(`Couldn't start restart: ${r.error.message}`);
+      onError(`Couldn't start doctor: ${r.error.message}`);
       return;
     }
-    setActiveJob({ id: r.value.job_id, action: 'restart' });
-  }, [client, agent.pod_id, onError]);
+    setActiveJob({ id: r.value.job_id, action: 'doctor (daemon-wide)' });
+  }, [client, onError]);
 
   const streamUrl = activeJob ? client.jobStreamUrl(activeJob.id) : null;
   const stream = useJobStream({ url: streamUrl });
@@ -924,11 +971,43 @@ const PodTab: FC<PodTabProps> = ({ agent, ready, client, onError }) => {
             disabled={activeJob !== null && !streamDone}
             onClick={onRestart}
           />
-          <span
-            className="text-[10px] text-[var(--text-secondary)] self-center ml-2"
-          >
-            More actions (Doctor, Stop forwarder, Uninstall, Revoke) land in a future update.
-          </span>
+          <ActionButton
+            label="Doctor"
+            icon={<Stethoscope size={12} />}
+            title="Daemon-wide diagnostic — per-pod doctor is a known gap"
+            running={submittingAction === 'doctor' || (activeJob?.action.startsWith('doctor') && !streamDone)}
+            disabled={activeJob !== null && !streamDone}
+            onClick={onDoctor}
+          />
+          <ActionButton
+            label="Stop forwarder"
+            icon={<Square size={12} />}
+            running={submittingAction === 'stop-forwarder' || (activeJob?.action === 'stop-forwarder' && !streamDone)}
+            disabled={activeJob !== null && !streamDone}
+            onClick={onStopForwarder}
+          />
+        </div>
+
+        <div className="flex flex-wrap gap-2 mt-3 pt-3" style={{ borderTop: '1px solid var(--border-subtle)' }}>
+          <div className="text-[10px] text-[var(--text-secondary)] w-full mb-1 uppercase tracking-wider">
+            Destructive
+          </div>
+          <ActionButton
+            label="Uninstall…"
+            icon={<Trash2 size={12} />}
+            destructive
+            running={submittingAction === 'uninstall' || (activeJob?.action === 'uninstall' && !streamDone)}
+            disabled={activeJob !== null && !streamDone}
+            onClick={() => setConfirmUninstall(true)}
+          />
+          <ActionButton
+            label="Revoke…"
+            icon={<Skull size={12} />}
+            destructive
+            running={submittingAction === 'revoke' || (activeJob?.action === 'revoke' && !streamDone)}
+            disabled={activeJob !== null && !streamDone}
+            onClick={() => setConfirmRevoke(true)}
+          />
         </div>
       </div>
 
@@ -998,6 +1077,25 @@ const PodTab: FC<PodTabProps> = ({ agent, ready, client, onError }) => {
           </pre>
         </div>
       )}
+
+      {confirmUninstall && (
+        <UninstallConfirmModal
+          podId={agent.pod_id}
+          agentType={agent.agent_type}
+          onCancel={() => setConfirmUninstall(false)}
+          onConfirm={onUninstallConfirmed}
+        />
+      )}
+
+      {confirmRevoke && (
+        <RevokeConfirmModal
+          podId={agent.pod_id}
+          agentType={agent.agent_type}
+          units={agent.units}
+          onCancel={() => setConfirmRevoke(false)}
+          onConfirm={onRevokeConfirmed}
+        />
+      )}
     </div>
   );
 };
@@ -1043,22 +1141,205 @@ const ActionButton: FC<{
   icon: React.ReactNode;
   running?: boolean;
   disabled?: boolean;
+  destructive?: boolean;
+  title?: string;
   onClick: () => void;
-}> = ({ label, icon, running, disabled, onClick }) => (
+}> = ({ label, icon, running, disabled, destructive, title, onClick }) => (
   <button
     onClick={onClick}
     disabled={running || disabled}
+    title={title}
     className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors disabled:opacity-60"
     style={{
-      background: 'var(--bg-hover, rgba(255,255,255,0.04))',
-      border: '1px solid var(--border-default)',
-      color: 'var(--text-primary)',
+      background: destructive
+        ? 'rgba(244,67,54,0.10)'
+        : 'var(--bg-hover, rgba(255,255,255,0.04))',
+      border: destructive
+        ? '1px solid rgba(244,67,54,0.30)'
+        : '1px solid var(--border-default)',
+      color: destructive ? '#FFCDD2' : 'var(--text-primary)',
     }}
   >
     {running ? <Loader2 size={12} className="animate-spin" /> : icon}
     {label}
   </button>
 );
+
+// ============================================================
+// Confirmation modals — soft (Uninstall) and hard (Revoke)
+// ============================================================
+
+const UninstallConfirmModal: FC<{
+  podId: string;
+  agentType: string;
+  onCancel: () => void;
+  onConfirm: () => void;
+}> = ({ podId, agentType, onCancel, onConfirm }) => (
+  <div
+    className="fixed inset-0 z-[6000] flex items-center justify-center"
+    style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(6px)' }}
+  >
+    <div
+      className="w-[440px] rounded-xl flex flex-col overflow-hidden"
+      style={{
+        background: 'var(--bg-window, #1E1E1E)',
+        border: '1px solid var(--border-subtle)',
+        boxShadow: '0 24px 64px rgba(0,0,0,0.55)',
+      }}
+    >
+      <div className="px-5 pt-5 pb-3 flex items-start gap-3">
+        <div
+          className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0"
+          style={{
+            background: 'rgba(255,193,7,0.12)',
+            border: '1px solid rgba(255,193,7,0.30)',
+          }}
+        >
+          <Trash2 size={16} style={{ color: '#FFC107' }} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="text-sm font-semibold text-[var(--text-primary)]">
+            Uninstall pod {podId}?
+          </div>
+          <div className="text-[12px] text-[var(--text-secondary)] mt-1.5 leading-relaxed">
+            This removes the {agentType} container but{' '}
+            <strong style={{ color: '#E0E0E0' }}>keeps the allocation</strong>
+            . You can re-install the agent later without spending another
+            unit. Workspace data inside the container will be lost.
+          </div>
+        </div>
+      </div>
+      <div
+        className="px-5 py-3 flex items-center justify-end gap-2"
+        style={{ borderTop: '1px solid var(--border-subtle)' }}
+      >
+        <button
+          onClick={onCancel}
+          className="px-3 py-1.5 rounded-md text-xs font-medium transition-colors"
+          style={{
+            background: 'transparent',
+            color: 'var(--text-primary)',
+            border: '1px solid var(--border-default)',
+          }}
+        >
+          Cancel
+        </button>
+        <button
+          onClick={onConfirm}
+          className="px-4 py-1.5 rounded-md text-xs font-semibold text-white transition-colors"
+          style={{ background: '#F57C00' }}
+        >
+          Uninstall
+        </button>
+      </div>
+    </div>
+  </div>
+);
+
+const RevokeConfirmModal: FC<{
+  podId: string;
+  agentType: string;
+  units: number;
+  onCancel: () => void;
+  onConfirm: () => void;
+}> = ({ podId, agentType, units, onCancel, onConfirm }) => {
+  // Hard confirm: user must type the exact phrase. Mirrors the lesson
+  // from the 2026-04-28 incident where a curl POST /api/logout wiped
+  // 2 nemoclaw pods server-side. Revoke is the per-pod equivalent —
+  // never let a stray click trigger it.
+  const expected = `pod ${podId}`;
+  const [typed, setTyped] = useState('');
+  const matches = typed.trim() === expected;
+
+  return (
+    <div
+      className="fixed inset-0 z-[6000] flex items-center justify-center"
+      style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(6px)' }}
+    >
+      <div
+        className="w-[480px] rounded-xl flex flex-col overflow-hidden"
+        style={{
+          background: 'var(--bg-window, #1E1E1E)',
+          border: '1px solid var(--border-subtle)',
+          boxShadow: '0 24px 64px rgba(0,0,0,0.55)',
+        }}
+      >
+        <div className="px-5 pt-5 pb-3 flex items-start gap-3">
+          <div
+            className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0"
+            style={{
+              background: 'rgba(244,67,54,0.12)',
+              border: '1px solid rgba(244,67,54,0.30)',
+            }}
+          >
+            <Skull size={18} style={{ color: '#F44336' }} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="text-sm font-semibold text-[var(--text-primary)]">
+              Revoke pod {podId}?
+            </div>
+            <div className="text-[12px] text-[var(--text-secondary)] mt-1.5 leading-relaxed">
+              Revoking the {agentType} pod{' '}
+              <strong style={{ color: '#FFCDD2' }}>
+                permanently destroys it
+              </strong>
+              {' '}and frees its {units} unit{units === 1 ? '' : 's'} back to
+              your plan budget. Workspace data on the pod cannot be
+              recovered.
+            </div>
+            <div className="text-[11px] text-[var(--text-secondary)] mt-3">
+              Type{' '}
+              <code
+                className="font-mono px-1 py-0.5 rounded"
+                style={{ background: 'rgba(255,255,255,0.06)' }}
+              >
+                {expected}
+              </code>{' '}
+              to confirm:
+            </div>
+            <input
+              autoFocus
+              value={typed}
+              onChange={(e) => setTyped(e.target.value)}
+              className="mt-2 w-full px-3 py-1.5 rounded-md text-xs font-mono outline-none"
+              style={{
+                background: 'var(--bg-input)',
+                color: 'var(--text-primary)',
+                border: matches
+                  ? '1px solid rgba(244,67,54,0.50)'
+                  : '1px solid var(--border-default)',
+              }}
+            />
+          </div>
+        </div>
+        <div
+          className="px-5 py-3 flex items-center justify-end gap-2"
+          style={{ borderTop: '1px solid var(--border-subtle)' }}
+        >
+          <button
+            onClick={onCancel}
+            className="px-3 py-1.5 rounded-md text-xs font-medium transition-colors"
+            style={{
+              background: 'transparent',
+              color: 'var(--text-primary)',
+              border: '1px solid var(--border-default)',
+            }}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={!matches}
+            className="px-4 py-1.5 rounded-md text-xs font-semibold text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            style={{ background: '#D32F2F' }}
+          >
+            Revoke pod {podId} permanently
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const FleetErrorToast: FC<{ message: string; onDismiss: () => void }> = ({
   message,
