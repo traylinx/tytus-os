@@ -21,10 +21,10 @@ You'll see four phases:
 
 ## The desktop in 30 seconds
 
-- **Top panel** (28 px tall) — `Activities` button on the left, clock + date in the middle, system tray on the right (Wi-Fi, volume, battery, power menu).
+- **Top panel** (28 px tall) — `Apps` button on the left, clock + date in the middle, system tray on the right (Wi-Fi, volume, battery, power menu). Buttons are 24 px tall so the hover background stays inside the panel.
 - **Wallpaper** — replaceable from Settings → Background.
 - **Desktop icons** — 8 by default (Pods, Files, Terminal, Settings, Chat, Channels, Browser, Help). Drag to rearrange (snaps to 80×90 grid). Right-click for the context menu.
-- **Dock** (bottom) — apps grid button on the far left, then 6 pinned apps, then any unpinned-but-open apps, then the trash. Open apps show a small dot below their icon.
+- **Dock** (bottom-center) — floats 6 px from the viewport with rounded corners on all four sides. Apps grid button on the far left, then 6 pinned apps, then any unpinned-but-open apps, then the trash. Open apps show a small dot near the bottom of their icon (inside the dock).
 
 ## Opening an app
 
@@ -45,7 +45,7 @@ The app opens in a draggable window in the middle of the screen.
 
 | Shortcut | Action |
 |---|---|
-| **⌘ / Win** | Toggle app launcher |
+| **⌘ / Win** | Toggle app launcher (also: click `Apps` in the top panel) |
 | **⌘+D** | Minimize all windows |
 | **Alt+Tab** | Switch between open windows |
 | **Ctrl+Alt+T** | Open Terminal |

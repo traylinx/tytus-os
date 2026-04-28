@@ -61,6 +61,12 @@
     --duration-slow: 400ms;
     --duration-slower: 600ms;
 
+    /* Radius scale — apply consistently:
+       sm (4px)  → tight chips, in-menu items, inline tags
+       md (8px)  → buttons, input fields, dropdowns, tooltips
+       lg (12px) → window frames, notification toasts, larger cards
+       xl (16px) → dialogs, app launcher cards, dock, login card
+       full      → pills, avatars, dot indicators */
     --radius-sm: 4px;
     --radius-md: 8px;
     --radius-lg: 12px;

@@ -75,7 +75,7 @@ const Toast = memo(function Toast({ notification, onClose, index }: ToastProps) 
         </span>
         <button
           onClick={() => { setIsExiting(true); setTimeout(onClose, 250); }}
-          className="w-5 h-5 rounded flex items-center justify-center text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] transition-colors"
+          className="w-5 h-5 rounded-sm flex items-center justify-center text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] transition-colors"
         >
           <X size={12} />
         </button>

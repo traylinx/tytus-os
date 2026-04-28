@@ -187,12 +187,13 @@ const WindowFrame = memo(function WindowFrame({ window: win, children }: WindowF
 
   // Maximized windows use viewport-relative CSS so they auto-track browser resize
   // without needing a JS resize listener. Stored size only applies when 'normal'.
+  // Maximized: 28px top panel + 56px dock + 6px lift + 6px buffer = 96px reserved below top panel
   const frameStyle: React.CSSProperties = isMaximized
     ? {
         left: 0,
         top: TOP_PANEL_HEIGHT,
         width: '100vw',
-        height: `calc(100vh - ${TOP_PANEL_HEIGHT}px - 48px)`,
+        height: `calc(100vh - ${TOP_PANEL_HEIGHT}px - 68px)`,
         zIndex: win.zIndex,
         borderRadius: 0,
       }

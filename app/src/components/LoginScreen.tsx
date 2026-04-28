@@ -52,7 +52,7 @@ const LoginScreen = memo(function LoginScreen() {
 
       {/* Login card */}
       <div
-        className="relative z-10 w-[360px] rounded-[20px] p-10 flex flex-col items-center"
+        className="relative z-10 w-[360px] rounded-2xl p-10 flex flex-col items-center"
         style={{
           background: 'rgba(45,45,45,0.85)',
           boxShadow: '0 16px 48px rgba(0,0,0,0.6)',

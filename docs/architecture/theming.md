@@ -117,3 +117,39 @@ The `@import url(...)` is the only outbound network request the app makes by def
 2. Add an override under `.light` if it should differ in light mode.
 3. Use it as `var(--my-token)` in any component's inline style or Tailwind arbitrary value (`bg-[var(--my-token)]`).
 4. Don't forget to update Settings → Appearance if you want it user-controllable.
+
+## Border-radius scale
+
+Use the radius tokens consistently — the visual hierarchy depends on it.
+
+| Token | Value | Use for |
+|---|---|---|
+| `--radius-sm` / `rounded-sm` | 4px | tight chips, in-menu items, inline tags, micro-buttons |
+| `--radius-md` / `rounded-md` | 8px | buttons, input fields, dropdowns, tooltips |
+| `--radius-lg` / `rounded-lg` | 12px | window frames, notification toasts, larger cards |
+| `--radius-xl` / `rounded-xl` | 16px | dialogs, app launcher cards, dock, login card |
+| `--radius-full` / `rounded-full` | pill | avatars, dot indicators, search bars, badges |
+
+Concrete anchors in the shell:
+
+- TopPanel buttons → `rounded-md` (8px), `h-6` (24px) — the panel itself is 28px so 24px buttons leave 2px breathing room above and below the hover background.
+- Window frame → 12px (corners only — bottom is square because it sits inside the body).
+- Dock → 16px (all corners). Lifted 6px from the bottom edge so the frame floats and the active-app dot inside the dock is never clipped against the viewport.
+- App launcher cards → `rounded-2xl` (16px) — visually distinct grid tiles.
+- Login card → `rounded-2xl` (16px).
+- Context menu items → 4px inside an 8px container.
+- Notification toasts → 12px.
+
+If you find yourself reaching for a radius outside this scale, ask why first.
+
+## Spacing anchors
+
+A few magic constants are coupled across the shell — change one and you must change all of them. They live in code:
+
+| Constant | Source | Used by |
+|---|---|---|
+| `TOP_PANEL_HEIGHT = 28` | `WindowFrame.tsx` | maximized window top + drag-clamp + Desktop top inset |
+| Dock `bottom = 6`, `height = 56` | `Dock.tsx` | maximized window height calc + Desktop bottom inset |
+| Reserved bottom = 68 | `WindowFrame.tsx`, `Desktop.tsx` | `bottom - 68` keeps content above the lifted dock |
+
+The maximized window is sized as `calc(100vh - 28px - 68px)` so it never runs under the dock.

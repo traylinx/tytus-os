@@ -103,7 +103,7 @@ const Desktop = memo(function Desktop() {
         backgroundSize: 'cover',
         backgroundPosition: 'center',
         top: 28,
-        bottom: 48,
+        bottom: 68,  // matches dock lift+height (6 + 56 + 6 buffer)
       }}
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
@@ -159,7 +159,7 @@ const Desktop = memo(function Desktop() {
             />
           </div>
           <span
-            className="text-[10px] font-medium text-center px-1 py-0.5 rounded max-w-[72px] truncate leading-tight"
+            className="text-[10px] font-medium text-center px-1 py-0.5 rounded-sm max-w-[72px] truncate leading-tight"
             style={{
               color: '#E0E0E0',
               textShadow: '0 1px 3px rgba(0,0,0,0.8)',

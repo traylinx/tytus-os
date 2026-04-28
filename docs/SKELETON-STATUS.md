@@ -20,7 +20,7 @@ summary: 52 pass · 0 fail · 52 total
 | Close button removes window | ✅ | smoke step 8 |
 | Minimize hides window | ✅ | smoke step 10 |
 | Click dock icon restores | ✅ | smoke step 11 (new in commit 378ae8d) |
-| Maximize fills viewport | ✅ | smoke step 12 (1440×824) |
+| Maximize fills viewport | ✅ | smoke step 12 (1440×804 — top 28 + dock 68 reserved) |
 | Double-click title to maximize | ✅ | manual |
 | Focus on click | ✅ | manual + Z-index increments |
 | Z-index stacking | ✅ | manual |
@@ -86,7 +86,7 @@ summary: 52 pass · 0 fail · 52 total
 
 | Capability | Status |
 |---|---|
-| Activities button → launcher | ✅ |
+| Apps button → launcher | ✅ |
 | Live clock | ✅ (updates every 1s) |
 | Date tooltip on hover | ✅ |
 | Click clock → notification center | ✅ |
@@ -117,6 +117,10 @@ summary: 52 pass · 0 fail · 52 total
 | Theme persists to localStorage | ✅ |
 | Wallpaper picker | ✅ (preset images) |
 | Wallpaper persists | ✅ |
+| Border-radius scale (sm 4 / md 8 / lg 12 / xl 16 / full) consistently applied | ✅ (audit pass 2026-04-28) |
+| TopPanel buttons fit inside 28 px panel (h-6 = 24 px) | ✅ |
+| Dock floats 6 px from viewport, full 16 px corners on all sides | ✅ |
+| Active-app dot sits inside dock (no edge clipping) | ✅ |
 
 ## Apps verified in sweep (all 52)
 

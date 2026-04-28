@@ -37,7 +37,7 @@ The three buttons on the right side of the title bar:
 | Button | Hover effect | Action |
 |---|---|---|
 | **−** | grey | Hides the window. Click its dock icon to bring it back. |
-| **□** | grey | Fills the available space (between top panel and dock). Click again to restore. |
+| **□** | grey | Fills the available space (between top panel and dock — top 28 px + dock space 68 px reserved). Click again to restore. |
 | **×** | turns red | Closes the window. State is lost. |
 
 You can also **double-click the title bar** to maximize/restore.

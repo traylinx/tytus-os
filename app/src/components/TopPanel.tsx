@@ -59,7 +59,7 @@ const TopPanel = memo(function TopPanel() {
           onClick={handleActivities}
           aria-label="Open app launcher"
           title="Open app launcher (Super)"
-          className="h-7 px-3 rounded hover:bg-[var(--bg-hover)] transition-colors text-xs font-medium"
+          className="h-6 px-2.5 rounded-md hover:bg-[var(--bg-hover)] transition-colors text-xs font-medium flex items-center"
         >
           Apps
         </button>
@@ -69,7 +69,7 @@ const TopPanel = memo(function TopPanel() {
       <button
         onClick={handleClockClick}
         aria-label={`${formattedTime} — open notification center`}
-        className="h-7 px-2 rounded hover:bg-[var(--bg-hover)] transition-colors text-xs font-medium group relative whitespace-nowrap justify-self-center"
+        className="h-6 px-2 rounded-md hover:bg-[var(--bg-hover)] transition-colors text-xs font-medium group relative whitespace-nowrap justify-self-center flex items-center"
       >
         <span>{formattedTime}</span>
         {/* Tooltip */}
@@ -80,19 +80,19 @@ const TopPanel = memo(function TopPanel() {
 
       {/* Right: System tray */}
       <div className="flex items-center gap-1 justify-self-end">
-        <button aria-label="Accessibility" className="h-7 px-1.5 rounded hover:bg-[var(--bg-hover)] transition-colors hidden sm:inline-flex items-center">
+        <button aria-label="Accessibility" className="h-6 px-1.5 rounded-md hover:bg-[var(--bg-hover)] transition-colors hidden sm:inline-flex items-center">
           <Accessibility size={14} />
         </button>
-        <button aria-label="Keyboard layout" className="h-7 px-1.5 rounded hover:bg-[var(--bg-hover)] transition-colors hidden sm:inline-flex items-center">
+        <button aria-label="Keyboard layout" className="h-6 px-1.5 rounded-md hover:bg-[var(--bg-hover)] transition-colors hidden sm:inline-flex items-center">
           <Keyboard size={14} />
         </button>
-        <button aria-label="Network" className="h-7 px-1.5 rounded hover:bg-[var(--bg-hover)] transition-colors flex items-center">
+        <button aria-label="Network" className="h-6 px-1.5 rounded-md hover:bg-[var(--bg-hover)] transition-colors flex items-center">
           <Wifi size={14} />
         </button>
-        <button aria-label="Volume" className="h-7 px-1.5 rounded hover:bg-[var(--bg-hover)] transition-colors flex items-center">
+        <button aria-label="Volume" className="h-6 px-1.5 rounded-md hover:bg-[var(--bg-hover)] transition-colors flex items-center">
           <Volume2 size={14} />
         </button>
-        <button aria-label="Battery 100 percent" className="h-7 px-1.5 rounded hover:bg-[var(--bg-hover)] transition-colors flex items-center gap-1">
+        <button aria-label="Battery 100 percent" className="h-6 px-1.5 rounded-md hover:bg-[var(--bg-hover)] transition-colors flex items-center gap-1">
           <Battery size={14} />
           <span className="text-[10px] hidden md:inline">100%</span>
         </button>
@@ -101,14 +101,14 @@ const TopPanel = memo(function TopPanel() {
             onClick={() => setSysMenuOpen(!sysMenuOpen)}
             aria-label="System menu"
             aria-expanded={sysMenuOpen}
-            className="h-7 px-1.5 rounded hover:bg-[var(--bg-hover)] transition-colors"
+            className="h-6 px-1.5 rounded-md hover:bg-[var(--bg-hover)] transition-colors flex items-center"
           >
             <Power size={14} />
           </button>
 
           {sysMenuOpen && (
             <div
-              className="absolute top-full right-0 mt-1 py-2 rounded-lg z-[5000]"
+              className="absolute top-full right-0 mt-1 py-2 rounded-xl z-[5000]"
               style={{
                 background: 'var(--bg-context-menu)',
                 boxShadow: 'var(--shadow-lg)',

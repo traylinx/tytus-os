@@ -45,7 +45,7 @@ app/
     │   ├── BootSequence.tsx    4-phase animated boot (logo → loading → transition → desktop)
     │   ├── LoginScreen.tsx     blurred-wallpaper login card
     │   ├── Desktop.tsx         icons + drag + right-click context menu
-    │   ├── TopPanel.tsx        Activities button, clock, system tray
+    │   ├── TopPanel.tsx        Apps button, clock, system tray
     │   ├── Dock.tsx            pinned + open apps, indicator dots, trash
     │   ├── WindowFrame.tsx     drag, resize, focus, title bar with controls
     │   ├── WindowManager.tsx   renders open windows, dispatches via AppRouter

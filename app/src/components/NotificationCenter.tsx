@@ -80,7 +80,7 @@ const NotificationCenter = memo(function NotificationCenter() {
         <div className="flex items-center justify-between mb-3">
           <button
             onClick={() => setCalendarDate(subMonths(calendarDate, 1))}
-            className="w-6 h-6 rounded flex items-center justify-center text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]"
+            className="w-6 h-6 rounded-md flex items-center justify-center text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]"
           >
             <ChevronLeft size={14} />
           </button>
@@ -89,7 +89,7 @@ const NotificationCenter = memo(function NotificationCenter() {
           </span>
           <button
             onClick={() => setCalendarDate(addMonths(calendarDate, 1))}
-            className="w-6 h-6 rounded flex items-center justify-center text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]"
+            className="w-6 h-6 rounded-md flex items-center justify-center text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]"
           >
             <ChevronRight size={14} />
           </button>
@@ -155,7 +155,7 @@ const NotificationCenter = memo(function NotificationCenter() {
                   </span>
                   <button
                     onClick={() => dispatch({ type: 'REMOVE_NOTIFICATION', id: n.id })}
-                    className="w-4 h-4 rounded flex items-center justify-center text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                    className="w-4 h-4 rounded-sm flex items-center justify-center text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
                   >
                     <X size={10} />
                   </button>

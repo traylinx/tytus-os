@@ -122,10 +122,10 @@ const Dock = memo(function Dock() {
           )}
         </button>
 
-        {/* Active indicator dot */}
+        {/* Active indicator dot — sits inside the dock so it's never clipped at the viewport edge */}
         {isOpen && (
           <div
-            className="absolute -bottom-0.5 w-1 h-1 rounded-full"
+            className="absolute bottom-1 w-1 h-1 rounded-full"
             style={{
               background: isFocused ? 'var(--accent-primary)' : 'var(--text-disabled)',
               animation: 'dotAppear 200ms cubic-bezier(0.34, 1.56, 0.64, 1)',
@@ -140,15 +140,15 @@ const Dock = memo(function Dock() {
     <div
       role="navigation"
       aria-label="Application dock"
-      className="fixed bottom-0 left-1/2 -translate-x-1/2 z-[150] flex items-center gap-0.5 px-2 overflow-x-auto max-w-[calc(100vw-32px)]"
+      className="fixed left-1/2 -translate-x-1/2 z-[150] flex items-center gap-0.5 px-2 overflow-x-auto max-w-[calc(100vw-32px)]"
       style={{
-        height: 48,
+        bottom: 6,
+        height: 56,
         background: 'rgba(45,45,45,0.75)',
         backdropFilter: 'blur(20px)',
         WebkitBackdropFilter: 'blur(20px)',
-        borderRadius: '16px 16px 0 0',
+        borderRadius: 16,
         border: '1px solid var(--border-subtle)',
-        borderBottom: 'none',
         animation: 'dockSlideUp 300ms cubic-bezier(0, 0, 0.2, 1)',
         scrollbarWidth: 'none',  // hide scrollbar; user scrolls via wheel/swipe
       }}

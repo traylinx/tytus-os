@@ -1,6 +1,6 @@
 # Dock
 
-The dock is the floating bar at the bottom-center of the screen.
+The dock is the floating bar at the bottom-center of the screen. It is lifted 6 px from the viewport edge so it visually floats — the rounded corners on all four sides are intentional, not a clip.
 
 ```
 ┌─────────────────────────────────────────────────────┐
@@ -16,7 +16,7 @@ The dock is the floating bar at the bottom-center of the screen.
 
 ## Active indicator
 
-Open apps show a small dot below their icon:
+Open apps show a small dot near the bottom of their icon (inside the dock — never clipped at the viewport edge):
 - **Accent-colored dot** (purple by default) when the window is focused
 - **Grey dot** when open but not focused
 - **No dot** when no window of that app is open
