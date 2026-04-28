@@ -64,18 +64,20 @@ describe("useDaemonState", () => {
     expect(result.current.bannerVisible).toBe(false);
   });
 
-  it("populates `version` from /api/version on first poll", async () => {
+  it("derives `version` from state.daemon_version + daemon_started_at", async () => {
+    // Architectural note: we read these fields off the existing
+    // /api/state response — no separate /api/version request fires.
+    // That eliminates 404 noise on consumers running against pre-
+    // sprint daemons (which simply don't include the fields), and
+    // saves a roundtrip per poll on new daemons.
+    const stateWithVersion = {
+      ...stateFixture,
+      daemon_version: "0.6.0",
+      daemon_started_at: 1714325847,
+      daemon_pid: 12345,
+    };
     const { fetch } = makeFakeFetch([
-      { method: "GET", path: "/api/state", body: stateFixture },
-      {
-        method: "GET",
-        path: "/api/version",
-        body: {
-          daemon_version: "0.6.0",
-          daemon_pid: 12345,
-          daemon_started_at: 1714325847,
-        },
-      },
+      { method: "GET", path: "/api/state", body: stateWithVersion },
     ]);
     const client = createDaemonClient({ fetch });
     const { result } = renderHook(() =>
@@ -85,8 +87,24 @@ describe("useDaemonState", () => {
       expect(result.current.version?.daemon_started_at).toBe(1714325847),
     );
     expect(result.current.version?.daemon_version).toBe("0.6.0");
-    // Both ran in parallel — state is also populated.
-    expect(result.current.state?.tier).toBe("operator");
+    expect(result.current.version?.daemon_pid).toBe(12345);
+  });
+
+  it("leaves version null when state omits the fields (old daemon)", async () => {
+    // Forward-compat: pre-sprint daemons return /api/state without
+    // daemon_version / daemon_started_at. We must NOT half-populate
+    // a DaemonVersion in that case — restart detection needs to stay
+    // fully inert (the consumer keys off `version?.daemon_started_at
+    // !== last`, and we don't want any false positives).
+    const { fetch } = makeFakeFetch([
+      { method: "GET", path: "/api/state", body: stateFixture },
+    ]);
+    const client = createDaemonClient({ fetch });
+    const { result } = renderHook(() =>
+      useDaemonState({ client, intervalMs: 60_000 }),
+    );
+    await waitFor(() => expect(result.current.status).toBe("online"));
+    expect(result.current.version).toBeNull();
   });
 
   it("keeps last-known version across a transient state failure", async () => {
@@ -94,24 +112,20 @@ describe("useDaemonState", () => {
     // wipe the cached version (which feeds restart detection in
     // PodInspector). If we cleared it and the next poll succeeded,
     // the consumer would see a "fresh" version and incorrectly drop
-    // activeJob state every time the daemon hiccupped.
+    // activeJob state every time the daemon hiccupped. The hook only
+    // updates `version` on stateR.ok, so this just falls out — but
+    // pin the invariant so a future refactor can't break it silently.
     let stateCalls = 0;
-    const wrap: typeof fetch = async (input) => {
-      const url = typeof input === "string" ? input : (input as URL).toString();
-      if (url.endsWith("/api/version")) {
-        return new Response(
-          JSON.stringify({
-            daemon_version: "0.6.0",
-            daemon_pid: 12345,
-            daemon_started_at: 1714325847,
-          }),
-          { status: 200, headers: { "Content-Type": "application/json" } },
-        );
-      }
-      // /api/state — first call succeeds, second fails, third succeeds.
+    const stateWithVersion = {
+      ...stateFixture,
+      daemon_version: "0.6.0",
+      daemon_started_at: 1714325847,
+      daemon_pid: 12345,
+    };
+    const wrap: typeof fetch = async () => {
       stateCalls++;
       if (stateCalls === 2) throw new TypeError("transient blip");
-      return new Response(JSON.stringify(stateFixture), {
+      return new Response(JSON.stringify(stateWithVersion), {
         status: 200,
         headers: { "Content-Type": "application/json" },
       });
@@ -128,21 +142,16 @@ describe("useDaemonState", () => {
     expect(result.current.version?.daemon_started_at).toBe(1714325847);
   });
 
-  it("stops polling /api/version after first 404 (old-daemon forward-compat)", async () => {
-    // Real-world scenario: the user's installed tray binary predates
-    // the /api/version endpoint. Without this guard, every state tick
-    // fires another red 404 in the browser network tab and the
-    // console fills with noise. After the first 404 we treat the
-    // daemon as "doesn't support it" and stop firing.
+  it("never fires /api/version (piggyback architecture invariant)", async () => {
+    // Pin the architecture: useDaemonState reads version off
+    // /api/state and must never fire a separate /api/version request.
+    // Regression guard against accidentally re-introducing the
+    // parallel fetch and the 404 spam it caused on old daemons.
     let versionCalls = 0;
     const wrap: typeof fetch = async (input) => {
       const url = typeof input === "string" ? input : (input as URL).toString();
       if (url.endsWith("/api/version")) {
         versionCalls++;
-        return new Response("not found", {
-          status: 404,
-          headers: { "Content-Type": "text/plain" },
-        });
       }
       return new Response(JSON.stringify(stateFixture), {
         status: 200,
@@ -154,14 +163,8 @@ describe("useDaemonState", () => {
       useDaemonState({ client, intervalMs: 10 }),
     );
     await waitFor(() => expect(result.current.status).toBe("online"));
-    // Let several poll ticks fire.
-    await new Promise((r) => setTimeout(r, 120));
-    // /api/version was probed once and then suppressed. We allow up
-    // to 2 calls to absorb the case where the second poll fired
-    // before the first response came back, but the count must NOT
-    // grow per-tick.
-    expect(versionCalls).toBeLessThanOrEqual(2);
-    expect(result.current.version).toBeNull();
+    await new Promise((r) => setTimeout(r, 80));
+    expect(versionCalls).toBe(0);
   });
 
   it("refresh() triggers a new poll", async () => {

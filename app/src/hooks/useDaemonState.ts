@@ -23,9 +23,15 @@ export interface UseDaemonStateResult {
   /** True when the offline banner should be visible per A1a / A1b. */
   bannerVisible: boolean;
   /**
-   * Daemon identity from the latest successful /api/version poll.
-   * Survives across transient state-fetch failures (last-known wins
-   * until the version probe succeeds against a different daemon).
+   * Daemon identity derived from the latest /api/state response (the
+   * `daemon_version` + `daemon_started_at` fields landed alongside
+   * the existing snapshot, no separate /api/version request fires).
+   *
+   * `null` when:
+   *   • The daemon predates the state-includes-version sprint and
+   *     omits both fields. Restart detection stays inert in that case.
+   *   • The first /api/state poll hasn't completed yet.
+   *
    * Consumers depend on `version?.daemon_started_at` in a useEffect
    * to detect daemon restart and drop in-flight job state — the
    * registry is in-memory so every active job_id is invalid past a
@@ -44,6 +50,27 @@ export interface UseDaemonStateOptions {
   bannerThreshold?: number;
 }
 
+/**
+ * Pull `daemon_version` + `daemon_started_at` off a StateSnapshot if
+ * the daemon advertises them. Returns `null` for pre-sprint daemons
+ * so consumers can branch on it cleanly. Both fields are optional on
+ * the wire and arrive together; if either is missing we treat the
+ * pair as absent (don't surface a half-populated DaemonVersion).
+ */
+const versionFromState = (s: StateSnapshot): DaemonVersion | null => {
+  if (
+    typeof s.daemon_version === "string" &&
+    typeof s.daemon_started_at === "number"
+  ) {
+    return {
+      daemon_version: s.daemon_version,
+      daemon_pid: s.daemon_pid,
+      daemon_started_at: s.daemon_started_at,
+    };
+  }
+  return null;
+};
+
 export const useDaemonState = (
   options: UseDaemonStateOptions,
 ): UseDaemonStateResult => {
@@ -55,16 +82,9 @@ export const useDaemonState = (
   const [version, setVersion] = useState<DaemonVersion | null>(null);
   const [tick, setTick] = useState(0);
   const cancelledRef = useRef(false);
-  // Forward-compat: older daemons (< the /api/version sprint) return
-  // 404. After the first such 404 we stop polling /api/version on
-  // this session — otherwise every state tick logs a red 404 in the
-  // browser network tab and there's no graceful upgrade path. Reset
-  // on `refresh()` so a re-detection happens after the user upgrades.
-  const versionUnsupportedRef = useRef(false);
 
   useEffect(() => {
     cancelledRef.current = false;
-    versionUnsupportedRef.current = false;
     let abort: AbortController | null = null;
     let timer: ReturnType<typeof setTimeout> | null = null;
 
@@ -76,30 +96,18 @@ export const useDaemonState = (
 
     const run = async () => {
       abort = new AbortController();
-      // Parallel fetch — state drives the banner / status FSM, version
-      // drives restart detection. Failures are independent: keep the
-      // last-known version across transient state errors so a
-      // half-second blip doesn't make the UI think the daemon
-      // restarted.
-      const [stateR, versionR] = await Promise.all([
-        client.getState(abort.signal),
-        versionUnsupportedRef.current
-          ? Promise.resolve(null)
-          : client.getVersion(abort.signal),
-      ]);
+      const stateR = await client.getState(abort.signal);
       if (cancelledRef.current) return;
-      if (versionR && versionR.ok) {
-        setVersion(versionR.value);
-      } else if (versionR && !versionR.ok && versionR.error.code === "not_found") {
-        // Old daemon that predates /api/version. Stop probing for the
-        // rest of this session — restart detection just stays inert.
-        versionUnsupportedRef.current = true;
-      }
       if (stateR.ok) {
         setState(stateR.value);
         setError(null);
         setFailureCount(0);
         setStatus(stateR.value.logged_in ? "online" : "auth_required");
+        // Version derives from the same response — last-known wins
+        // across transient blips (we only update when stateR.ok, so
+        // a failed poll never wipes the cached value).
+        const v = versionFromState(stateR.value);
+        if (v) setVersion(v);
       } else {
         setError(stateR.error);
         if (stateR.error.code === "daemon_offline") {
