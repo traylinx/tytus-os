@@ -2,13 +2,18 @@
 // System Settings — Full system preferences panel
 // ============================================================
 
-import { useState, useCallback } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   Wifi, Bluetooth, Image, Palette, Bell, Volume2, Battery,
   Monitor, Mouse, Keyboard, Printer, Disc, Clock, User,
   Star, Eye, Info, Search, Check,
+  Server, LogOut, Power, Loader2,
 } from 'lucide-react';
 import { useOS } from '@/hooks/useOSStore';
+import { useDaemonClient } from '@/hooks/useDaemonClient';
+import { useDaemonStateContext } from '@/hooks/useDaemonStateContext';
+import { computePill } from '@/lib/statusPill';
+import type { DaemonSettings } from '@/types/daemon';
 
 interface SettingCategory {
   id: string;
@@ -17,6 +22,8 @@ interface SettingCategory {
 }
 
 const CATEGORIES: SettingCategory[] = [
+  { id: 'account', label: 'Account', icon: <User size={18} /> },
+  { id: 'daemon', label: 'Daemon', icon: <Server size={18} /> },
   { id: 'wifi', label: 'Wi-Fi', icon: <Wifi size={18} /> },
   { id: 'bluetooth', label: 'Bluetooth', icon: <Bluetooth size={18} /> },
   { id: 'background', label: 'Background', icon: <Image size={18} /> },
@@ -86,8 +93,90 @@ const Slider: React.FC<{ value: number; min?: number; max?: number; onChange: (v
 
 const Settings: React.FC = () => {
   const { state, dispatch } = useOS();
-  const [activeCategory, setActiveCategory] = useState('appearance');
+  const [activeCategory, setActiveCategory] = useState('account');
   const [search, setSearch] = useState('');
+  const client = useDaemonClient();
+  const daemon = useDaemonStateContext();
+  const pill = computePill(daemon.status, daemon.state, daemon.error);
+
+  const [daemonSettings, setDaemonSettings] = useState<DaemonSettings | null>(null);
+  const [daemonSettingsErr, setDaemonSettingsErr] = useState<string | null>(null);
+  const [pendingSetting, setPendingSetting] = useState<keyof DaemonSettings | null>(null);
+  const [lifecycleAction, setLifecycleAction] = useState<'start' | 'stop' | 'restart' | null>(null);
+  const [lifecycleErr, setLifecycleErr] = useState<string | null>(null);
+  const [signingOut, setSigningOut] = useState(false);
+  const [signOutErr, setSignOutErr] = useState<string | null>(null);
+
+  // Load daemon settings on mount + when daemon comes online.
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      const r = await client.getSettings();
+      if (cancelled) return;
+      if (r.ok) {
+        setDaemonSettings(r.value);
+        setDaemonSettingsErr(null);
+      } else if (r.error.code !== 'daemon_offline') {
+        setDaemonSettingsErr(r.error.message);
+      }
+    };
+    if (daemon.status === 'online') load();
+    return () => {
+      cancelled = true;
+    };
+  }, [client, daemon.status]);
+
+  const toggleAutostart = useCallback(
+    async (key: keyof DaemonSettings) => {
+      if (!daemonSettings) return;
+      const next = !daemonSettings[key];
+      setPendingSetting(key);
+      const r =
+        key === 'autostart_tray'
+          ? await client.postSettingsAutostartTray(next)
+          : await client.postSettingsAutostartTunnel(next);
+      setPendingSetting(null);
+      if (r.ok) {
+        setDaemonSettings({ ...daemonSettings, [key]: next });
+      } else {
+        setDaemonSettingsErr(r.error.message);
+      }
+    },
+    [client, daemonSettings],
+  );
+
+  const runLifecycle = useCallback(
+    async (action: 'start' | 'stop' | 'restart') => {
+      setLifecycleAction(action);
+      setLifecycleErr(null);
+      const r =
+        action === 'start'
+          ? await client.postDaemonStart()
+          : action === 'stop'
+            ? await client.postDaemonStop()
+            : await client.postDaemonRestart();
+      setLifecycleAction(null);
+      if (!r.ok) {
+        setLifecycleErr(r.error.message);
+      } else {
+        daemon.refresh();
+      }
+    },
+    [client, daemon],
+  );
+
+  const signOut = useCallback(async () => {
+    setSigningOut(true);
+    setSignOutErr(null);
+    const r = await client.postLogout();
+    setSigningOut(false);
+    if (!r.ok) {
+      setSignOutErr(r.error.message);
+      return;
+    }
+    dispatch({ type: 'LOGOUT' });
+    daemon.refresh();
+  }, [client, dispatch, daemon]);
 
   // Settings state (loaded from localStorage)
   const [settings, setSettings] = useState<Record<string, unknown>>(() => {
@@ -110,6 +199,180 @@ const Settings: React.FC = () => {
 
   const renderPanel = () => {
     switch (activeCategory) {
+      case 'account':
+        return (
+          <div className="space-y-6">
+            <h2 className="text-2xl font-semibold text-[var(--text-primary)]">Account</h2>
+            <div
+              className="p-4 rounded-lg flex items-center gap-4"
+              style={{ background: 'var(--bg-card, rgba(255,255,255,0.03))', border: '1px solid var(--border-subtle)' }}
+            >
+              <div
+                className="w-14 h-14 rounded-full flex items-center justify-center"
+                style={{ background: 'linear-gradient(135deg, #7C4DFF, #4A148C)' }}
+              >
+                <User size={28} className="text-white" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm text-[var(--text-primary)] font-semibold truncate">
+                  {daemon.state?.email ?? 'Not signed in'}
+                </div>
+                <div className="text-xs text-[var(--text-secondary)] mt-0.5">
+                  Tier:{' '}
+                  <span className="font-medium">
+                    {daemon.state?.tier ?? '—'}
+                  </span>
+                  {daemon.state && (
+                    <>
+                      {' · '}
+                      {daemon.state.units_used}/{daemon.state.units_limit} units
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <button
+                onClick={signOut}
+                disabled={signingOut || !daemon.state?.logged_in}
+                className="flex items-center gap-2 px-4 py-2 rounded-md text-sm transition-colors disabled:opacity-50"
+                style={{
+                  background: 'rgba(244,67,54,0.10)',
+                  border: '1px solid rgba(244,67,54,0.30)',
+                  color: '#FFCDD2',
+                }}
+              >
+                {signingOut ? (
+                  <Loader2 size={14} className="animate-spin" />
+                ) : (
+                  <LogOut size={14} />
+                )}
+                Sign out
+              </button>
+              {signOutErr && (
+                <div className="text-xs" style={{ color: '#F44336' }}>
+                  {signOutErr}
+                </div>
+              )}
+              <div className="text-[11px] text-[var(--text-secondary)]">
+                Sign-in is initiated from the Tytus tray menu (
+                <strong>Sign in</strong>). TytusOS will pick up the new session automatically.
+              </div>
+            </div>
+          </div>
+        );
+
+      case 'daemon':
+        return (
+          <div className="space-y-6">
+            <h2 className="text-2xl font-semibold text-[var(--text-primary)]">Daemon</h2>
+
+            <div
+              className="p-4 rounded-lg flex items-start gap-3"
+              style={{ background: 'var(--bg-card, rgba(255,255,255,0.03))', border: '1px solid var(--border-subtle)' }}
+            >
+              <span
+                className="w-3 h-3 rounded-full mt-1.5"
+                style={{
+                  background:
+                    pill.color === 'green' ? '#4CAF50'
+                      : pill.color === 'yellow' ? '#FFC107'
+                        : pill.color === 'red' ? '#F44336' : '#9E9E9E',
+                }}
+                aria-hidden="true"
+              />
+              <div className="flex-1">
+                <div className="text-sm font-semibold text-[var(--text-primary)]">{pill.label}</div>
+                <div className="text-xs text-[var(--text-secondary)] mt-0.5">{pill.detail}</div>
+                {daemon.state && (
+                  <div className="text-[11px] text-[var(--text-secondary)] mt-2 grid grid-cols-2 gap-x-4 gap-y-0.5">
+                    <span>PID</span><span className="font-mono">{daemon.state.daemon_pid}</span>
+                    <span>Uptime</span><span className="font-mono">{Math.round(daemon.state.uptime_secs / 60)}m</span>
+                    <span>Tunnel</span><span className="font-mono">{daemon.state.tunnel_active ? 'active' : 'down'}</span>
+                    <span>Keychain</span><span className="font-mono">{daemon.state.keychain_healthy ? 'healthy' : 'unhealthy'}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <div className="text-xs text-[var(--text-secondary)] uppercase tracking-wider">Lifecycle</div>
+              <div className="flex flex-wrap gap-2">
+                {(['start', 'restart', 'stop'] as const).map((action) => (
+                  <button
+                    key={action}
+                    onClick={() => runLifecycle(action)}
+                    disabled={lifecycleAction !== null}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs transition-colors disabled:opacity-60"
+                    style={{
+                      background: 'var(--bg-hover, rgba(255,255,255,0.04))',
+                      border: '1px solid var(--border-default)',
+                      color: 'var(--text-primary)',
+                    }}
+                  >
+                    {lifecycleAction === action ? (
+                      <Loader2 size={12} className="animate-spin" />
+                    ) : (
+                      <Power size={12} />
+                    )}
+                    {action.charAt(0).toUpperCase() + action.slice(1)}
+                  </button>
+                ))}
+              </div>
+              {lifecycleErr && (
+                <div className="text-xs" style={{ color: '#F44336' }}>
+                  {lifecycleErr}
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-3">
+              <div className="text-xs text-[var(--text-secondary)] uppercase tracking-wider">Autostart</div>
+              {!daemonSettings && !daemonSettingsErr && (
+                <div className="text-xs text-[var(--text-secondary)] flex items-center gap-2">
+                  <Loader2 size={12} className="animate-spin" /> Loading settings…
+                </div>
+              )}
+              {daemonSettingsErr && (
+                <div className="text-xs" style={{ color: '#F44336' }}>{daemonSettingsErr}</div>
+              )}
+              {daemonSettings && (
+                <>
+                  <div className="flex items-center justify-between py-2 px-3 rounded-md" style={{ background: 'var(--bg-hover, rgba(255,255,255,0.02))' }}>
+                    <div>
+                      <div className="text-sm text-[var(--text-primary)]">Tray autostart</div>
+                      <div className="text-[11px] text-[var(--text-secondary)]">Launch the menu-bar app at login.</div>
+                    </div>
+                    {pendingSetting === 'autostart_tray' ? (
+                      <Loader2 size={14} className="animate-spin text-[var(--text-secondary)]" />
+                    ) : (
+                      <Toggle
+                        value={daemonSettings.autostart_tray}
+                        onChange={() => toggleAutostart('autostart_tray')}
+                      />
+                    )}
+                  </div>
+                  <div className="flex items-center justify-between py-2 px-3 rounded-md" style={{ background: 'var(--bg-hover, rgba(255,255,255,0.02))' }}>
+                    <div>
+                      <div className="text-sm text-[var(--text-primary)]">Tunnel autostart</div>
+                      <div className="text-[11px] text-[var(--text-secondary)]">Bring up the WireGuard tunnel at login.</div>
+                    </div>
+                    {pendingSetting === 'autostart_tunnel' ? (
+                      <Loader2 size={14} className="animate-spin text-[var(--text-secondary)]" />
+                    ) : (
+                      <Toggle
+                        value={daemonSettings.autostart_tunnel}
+                        onChange={() => toggleAutostart('autostart_tunnel')}
+                      />
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        );
+
       case 'wifi':
         return (
           <div className="space-y-4">

@@ -22,6 +22,7 @@ export const DaemonClientProvider = ({ children, client }: ProviderProps) => {
   );
 };
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const useDaemonClient = (): DaemonClient => {
   const c = useContext(DaemonClientContext);
   if (!c)

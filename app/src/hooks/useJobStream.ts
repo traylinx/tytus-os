@@ -47,16 +47,20 @@ export const useJobStream = (
   const sourceRef = useRef<EventSourceLike | null>(null);
 
   useEffect(() => {
+    // Reset on url change. The lint rule warns about setState-in-effect,
+    // but this is a deliberate sync of derived per-url state — there's no
+    // external system to subscribe to until we know the url.
+    /* eslint-disable react-hooks/set-state-in-effect */
     if (!url) {
       setStatus("subscribing");
       setLines([]);
       setExitCode(null);
       return;
     }
-
     setStatus("subscribing");
     setLines([]);
     setExitCode(null);
+    /* eslint-enable react-hooks/set-state-in-effect */
 
     const Ctor =
       options.EventSourceCtor ??

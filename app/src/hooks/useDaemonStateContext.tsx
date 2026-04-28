@@ -25,6 +25,7 @@ export const DaemonStateProvider = ({
   );
 };
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const useDaemonStateContext = (): UseDaemonStateResult => {
   const v = useContext(DaemonStateContext);
   if (!v)
