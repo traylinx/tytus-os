@@ -35,9 +35,17 @@ npm run build    # tsc -b && vite build → dist/
 npm run typecheck
 ```
 
+## Documentation
+
+Full docs live one level up in [`../docs/`](../docs/README.md):
+
+- **User manual** — getting started, windows, dock, launcher, keyboard shortcuts, apps catalog, troubleshooting
+- **Architecture** — stack, state, windowing internals, app system, theming
+- **Development** — contributing, adding an app, testing, phase roadmap
+
 ## Phase plan
 
-See `../INTEGRATION-DEEPDIVE.md` (one level up). Six phases, strangler-port from Tytus Tower into TytusOS native apps. The `tytus-cli` daemon (~40 endpoints, SSE jobs, tray fragment deep-links) is the load-bearing contract — the OS frontend talks to it; nothing about the daemon changes.
+See [`../INTEGRATION-DEEPDIVE.md`](../INTEGRATION-DEEPDIVE.md) and [`../docs/development/roadmap.md`](../docs/development/roadmap.md). Six phases, strangler-port from Tytus Tower into TytusOS native apps. The `tytus-cli` daemon (~40 endpoints, SSE jobs, tray fragment deep-links) is the load-bearing contract — the OS frontend talks to it; nothing about the daemon changes.
 
 ## Layout
 
