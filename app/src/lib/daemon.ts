@@ -284,6 +284,10 @@ export interface DaemonClient {
     url: string,
     signal?: AbortSignal,
   ): Promise<DaemonResult<null>>;
+  postPodOpen(
+    podId: string,
+    signal?: AbortSignal,
+  ): Promise<DaemonResult<null>>;
   postSettingsAutostartTray(
     enabled: boolean,
     signal?: AbortSignal,
@@ -441,6 +445,14 @@ export const createDaemonClient = (
         deps,
         "/api/open-external",
         { method: "POST", body: { url }, signal },
+        noBody,
+      ),
+
+    postPodOpen: (podId, signal) =>
+      runRequest(
+        deps,
+        `/api/pod/open?pod=${encodeURIComponent(podId)}`,
+        { method: "POST", signal },
         noBody,
       ),
 

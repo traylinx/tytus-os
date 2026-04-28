@@ -312,6 +312,24 @@ describe("daemon client — POSTs", () => {
     expect(observed).toEqual({ name: "doctor" });
   });
 
+  it("postPodOpen targets /api/pod/open?pod=NN", async () => {
+    const { fetch, calls } = makeFakeFetch([
+      {
+        method: "POST",
+        path: "/api/pod/open?pod=02",
+        body: null,
+        // Body must be empty — pod_id travels in the query string,
+        // matching the daemon's existing /api/pod/<action> contract.
+        expect: (init) => {
+          expect(init?.body).toBeUndefined();
+        },
+      },
+    ]);
+    const r = await createDaemonClient({ fetch }).postPodOpen("02");
+    expect(r.ok).toBe(true);
+    expect(calls[0]?.url).toBe("/api/pod/open?pod=02");
+  });
+
   it("postOpenExternal sends {url}", async () => {
     let observed: unknown = undefined;
     const { fetch } = makeFakeFetch([

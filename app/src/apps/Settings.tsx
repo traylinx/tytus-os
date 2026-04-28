@@ -173,6 +173,9 @@ const Settings: React.FC = () => {
   const [catalog, setCatalog] = useState<Catalog | null>(null);
   const [catalogLoading, setCatalogLoading] = useState(false);
   const [catalogErr, setCatalogErr] = useState<string | null>(null);
+  // Bumped by Retry button to re-fire getCatalog without depending on
+  // the activeCategory effect's other inputs.
+  const [catalogReloadNonce, setCatalogReloadNonce] = useState(0);
 
   // Install wizard state. `pendingAgent` is the chosen card before install
   // fires; once we have a job_id, `installJob` is set and the modal swaps
@@ -265,7 +268,7 @@ const Settings: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, [activeCategory, client, daemon.status]);
+  }, [activeCategory, client, daemon.status, catalogReloadNonce]);
 
   // Deep-link install: navigate(#/settings/agents?install=<id|auto>)
   // pre-opens the wizard with the matching (or cheapest installable)
@@ -568,6 +571,7 @@ const Settings: React.FC = () => {
           loading={catalogLoading}
           error={catalogErr}
           onPick={(a) => setPendingAgent(a)}
+          onRetry={() => setCatalogReloadNonce((n) => n + 1)}
         />;
 
       case 'wifi':
@@ -1081,6 +1085,13 @@ interface PodsPanelProps {
 }
 
 const PodsPanel: React.FC<PodsPanelProps> = ({ state, onAllocate, onRefresh }) => {
+  // Bumped by RefreshButton clicks; PodCard reads it to re-probe
+  // /api/pod/ready without us coupling to daemon poll timing.
+  const [readyNonce, setReadyNonce] = useState(0);
+  const handleRefresh = useCallback(() => {
+    onRefresh();
+    setReadyNonce((n) => n + 1);
+  }, [onRefresh]);
   if (!state) {
     return (
       <div className="space-y-4">
@@ -1097,7 +1108,7 @@ const PodsPanel: React.FC<PodsPanelProps> = ({ state, onAllocate, onRefresh }) =
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-semibold text-[var(--text-primary)]">Pods</h2>
         <div className="flex items-center gap-2">
-          <RefreshButton onClick={onRefresh} />
+          <RefreshButton onClick={handleRefresh} />
           <button
             onClick={onAllocate}
             className="px-3 py-1.5 rounded-md text-xs font-medium text-white transition-colors"
@@ -1151,7 +1162,7 @@ const PodsPanel: React.FC<PodsPanelProps> = ({ state, onAllocate, onRefresh }) =
           </div>
           <div className="space-y-2">
             {state.agents.map((a) => (
-              <PodCard key={a.pod_id} agent={a} />
+              <PodCard key={a.pod_id} agent={a} refreshNonce={readyNonce} />
             ))}
           </div>
         </div>
@@ -1193,12 +1204,43 @@ const PodsPanel: React.FC<PodsPanelProps> = ({ state, onAllocate, onRefresh }) =
 
 interface PodCardProps {
   agent: import('@/types/daemon').Agent;
+  /** Bumped by parent's RefreshButton to re-probe pod readiness. */
+  refreshNonce?: number;
 }
 
-const PodCard: React.FC<PodCardProps> = ({ agent }) => {
+type ReadyDot = { color: string; label: string } | null;
+
+const PodCard: React.FC<PodCardProps> = ({ agent, refreshNonce = 0 }) => {
+  const client = useDaemonClient();
   const [keyRevealed, setKeyRevealed] = useState(false);
   const [uiRevealed, setUiRevealed] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
+  const [opening, setOpening] = useState(false);
+  const [openErr, setOpenErr] = useState<string | null>(null);
+  const [ready, setReady] = useState<ReadyDot>(null);
+
+  // Lazy /api/pod/ready probe. Re-runs when refreshNonce changes
+  // (parent's Refresh button) so the dot reflects the latest probe.
+  useEffect(() => {
+    let cancelled = false;
+    /* eslint-disable-next-line react-hooks/set-state-in-effect */
+    setReady({ color: '#9E9E9E', label: 'Probing…' });
+    client.getPodReady(agent.pod_id).then((r) => {
+      if (cancelled) return;
+      if (!r.ok) {
+        setReady({ color: '#9E9E9E', label: 'Probe failed' });
+        return;
+      }
+      if (r.value.ready) {
+        setReady({ color: '#4CAF50', label: 'Ready' });
+      } else {
+        setReady({ color: '#FFC107', label: r.value.reason || 'Not ready' });
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [client, agent.pod_id, refreshNonce]);
 
   const copyToClipboard = useCallback(async (label: string, value: string) => {
     try {
@@ -1211,6 +1253,14 @@ const PodCard: React.FC<PodCardProps> = ({ agent }) => {
     }
   }, []);
 
+  const openPod = useCallback(async () => {
+    setOpening(true);
+    setOpenErr(null);
+    const r = await client.postPodOpen(agent.pod_id);
+    setOpening(false);
+    if (!r.ok) setOpenErr(r.error.message);
+  }, [client, agent.pod_id]);
+
   return (
     <div
       className="p-3 rounded-lg flex flex-col gap-2"
@@ -1220,17 +1270,55 @@ const PodCard: React.FC<PodCardProps> = ({ agent }) => {
       }}
     >
       <div className="flex items-center gap-3">
-        <Box size={20} className="text-[var(--accent-primary)] flex-shrink-0" />
+        <div className="relative flex-shrink-0">
+          <Box size={20} className="text-[var(--accent-primary)]" />
+          {ready && (
+            <span
+              className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full"
+              style={{
+                background: ready.color,
+                boxShadow: '0 0 0 2px var(--bg-card, #1E1E1E)',
+              }}
+              title={ready.label}
+              aria-label={ready.label}
+            />
+          )}
+        </div>
         <div className="flex-1 min-w-0">
           <div className="text-sm font-medium text-[var(--text-primary)] truncate">
             Pod {agent.pod_id} · {agent.agent_type}
           </div>
           <div className="text-[11px] text-[var(--text-secondary)] mt-0.5">
             {agent.units} unit{agent.units === 1 ? '' : 's'} ·{' '}
-            api port {agent.api_url.split(':').pop()}
+            <span style={{ color: ready?.color ?? 'var(--text-secondary)' }}>
+              {ready?.label ?? '…'}
+            </span>
           </div>
         </div>
+        <button
+          onClick={openPod}
+          disabled={opening}
+          className="flex items-center gap-1 px-2.5 py-1.5 rounded-md text-[11px] font-medium transition-colors disabled:opacity-60"
+          style={{
+            background: 'var(--bg-hover, rgba(255,255,255,0.04))',
+            border: '1px solid var(--border-default)',
+            color: 'var(--text-primary)',
+          }}
+        >
+          {opening ? (
+            <Loader2 size={11} className="animate-spin" />
+          ) : (
+            <ExternalLink size={11} />
+          )}
+          Open
+        </button>
       </div>
+
+      {openErr && (
+        <div className="text-[11px]" style={{ color: '#FFB4A2' }}>
+          Couldn't open pod URL: {openErr}
+        </div>
+      )}
 
       <div className="grid grid-cols-[80px_1fr_auto] gap-x-2 gap-y-1.5 text-[11px] items-center mt-1">
         <span className="text-[var(--text-secondary)]">API URL</span>
@@ -1381,9 +1469,10 @@ interface AgentsPanelProps {
   loading: boolean;
   error: string | null;
   onPick: (agent: CatalogAgent) => void;
+  onRetry: () => void;
 }
 
-const AgentsPanel: React.FC<AgentsPanelProps> = ({ state, catalog, loading, error, onPick }) => {
+const AgentsPanel: React.FC<AgentsPanelProps> = ({ state, catalog, loading, error, onPick, onRetry }) => {
   const tier = state?.tier ?? 'explorer';
   const unitsRemaining = state ? state.units_limit - state.units_used : 0;
   const userTierRank = TIER_RANK[tier];
@@ -1428,7 +1517,20 @@ const AgentsPanel: React.FC<AgentsPanelProps> = ({ state, catalog, loading, erro
           }}
         >
           <AlertTriangle size={14} className="flex-shrink-0 mt-0.5" />
-          <span>{error}</span>
+          <div className="flex-1">
+            <div>Couldn't load catalog: {error}</div>
+            <button
+              onClick={onRetry}
+              className="mt-2 inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors"
+              style={{
+                background: 'rgba(255,255,255,0.06)',
+                border: '1px solid rgba(255,255,255,0.12)',
+                color: '#FFCDD2',
+              }}
+            >
+              <RefreshCw size={11} /> Retry
+            </button>
+          </div>
         </div>
       )}
 
