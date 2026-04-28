@@ -1680,4 +1680,10 @@ const FleetErrorToast: FC<{ message: string; onDismiss: () => void }> = ({
   );
 };
 
+// Named exports for unit tests. Keeps the modals' destructive-guard
+// behavior under direct test coverage (the typed-name confirm in
+// RevokeConfirmModal is the response to the 2026-04-28 logout-wipe
+// incident — it must never silently regress).
+export { RevokeConfirmModal, UninstallConfirmModal };
+
 export default PodInspector;
