@@ -312,6 +312,21 @@ describe("daemon client — POSTs", () => {
     expect(observed).toEqual({ name: "doctor" });
   });
 
+  it("postPodRefreshCreds returns job_id", async () => {
+    const { fetch, calls } = makeFakeFetch([
+      {
+        method: "POST",
+        path: "/api/pod/refresh-creds?pod=02",
+        body: { job_id: "refresh-1", pod: "02" },
+      },
+    ]);
+    const r = await createDaemonClient({ fetch }).postPodRefreshCreds("02");
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.value.job_id).toBe("refresh-1");
+    expect(calls[0]?.url).toBe("/api/pod/refresh-creds?pod=02");
+  });
+
   it("postPodRestart targets /api/pod/restart?pod=NN", async () => {
     const { fetch, calls } = makeFakeFetch([
       { method: "POST", path: "/api/pod/restart?pod=02", body: null },

@@ -292,6 +292,10 @@ export interface DaemonClient {
     podId: string,
     signal?: AbortSignal,
   ): Promise<DaemonResult<null>>;
+  postPodRefreshCreds(
+    podId: string,
+    signal?: AbortSignal,
+  ): Promise<DaemonResult<JobResponse>>;
   /**
    * Per-pod streamed action. The daemon's allowlist (Phase 2 spike,
    * web_server.rs::pod_action_argv) currently accepts: restart, revoke,
@@ -477,6 +481,14 @@ export const createDaemonClient = (
         `/api/pod/restart?pod=${encodeURIComponent(podId)}`,
         { method: "POST", signal },
         noBody,
+      ),
+
+    postPodRefreshCreds: (podId, signal) =>
+      runRequest(
+        deps,
+        `/api/pod/refresh-creds?pod=${encodeURIComponent(podId)}`,
+        { method: "POST", signal },
+        (b) => expectShape(b, isJobResponse, "malformed /api/pod/refresh-creds"),
       ),
 
     postPodRunStreamed: (podId, action, signal) =>

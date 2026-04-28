@@ -55,11 +55,14 @@ import {
   Square,
   Trash2,
   Skull,
+  KeyRound,
+  Star,
 } from 'lucide-react';
 import { useOS } from '@/hooks/useOSStore';
 import { useDaemonClient } from '@/hooks/useDaemonClient';
 import { useDaemonStateContext } from '@/hooks/useDaemonStateContext';
 import { useJobStream } from '@/hooks/useJobStream';
+import { usePinnedPods, PIN_CAP } from '@/hooks/usePinnedPods';
 import { navigate } from '@/lib/router';
 import {
   maskSecret,
@@ -127,6 +130,18 @@ const PodInspector: FC = () => {
   const [readyNonce, setReadyNonce] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
   const [errToast, setErrToast] = useState<string | null>(null);
+  const pins = usePinnedPods();
+
+  const onTogglePin = useCallback(
+    (podId: string) => {
+      const wasPinned = pins.has(podId);
+      const didPin = pins.toggle(podId);
+      if (!wasPinned && !didPin) {
+        setErrToast(`Pin limit reached (${PIN_CAP}). Unpin one first.`);
+      }
+    },
+    [pins],
+  );
 
   const rows: FleetRow[] = useMemo(() => {
     const out: FleetRow[] = [];
@@ -264,6 +279,7 @@ const PodInspector: FC = () => {
             : new Map()
         }
         readyByPod={readyByPod}
+        pinnedPods={pins.pinned}
       />
 
       {activeTab === 'fleet' && (
@@ -277,6 +293,8 @@ const PodInspector: FC = () => {
           onOpenTab={openPodTab}
           onErr={setErrToast}
           client={client}
+          isPinned={pins.has}
+          onTogglePin={onTogglePin}
         />
       )}
 
@@ -286,6 +304,8 @@ const PodInspector: FC = () => {
           ready={readyByPod.get(activeAgent.pod_id)}
           client={client}
           onError={setErrToast}
+          isPinned={pins.has(activeAgent.pod_id)}
+          onTogglePin={() => onTogglePin(activeAgent.pod_id)}
         />
       )}
 
@@ -316,6 +336,7 @@ interface TabStripProps {
   onClose: (podId: string) => void;
   agentsByPod: Map<string, Agent>;
   readyByPod: Map<string, ReadyState>;
+  pinnedPods: string[];
 }
 
 const TabStrip: FC<TabStripProps> = ({
@@ -325,6 +346,7 @@ const TabStrip: FC<TabStripProps> = ({
   onClose,
   agentsByPod,
   readyByPod,
+  pinnedPods,
 }) => (
   <div
     className="flex items-stretch flex-shrink-0 overflow-x-auto"
@@ -357,6 +379,7 @@ const TabStrip: FC<TabStripProps> = ({
       const ready = readyByPod.get(podId);
       const visual = ready ? STATUS_VISUAL[ready.status] : null;
       const active = activeTab === podId;
+      const isPinned = pinnedPods.includes(podId);
       return (
         <div
           key={podId}
@@ -378,6 +401,13 @@ const TabStrip: FC<TabStripProps> = ({
                 : 'var(--text-secondary)',
             }}
           >
+            {isPinned && (
+              <Star
+                size={10}
+                className="flex-shrink-0"
+                style={{ color: '#FFC107', fill: '#FFC107' }}
+              />
+            )}
             {visual && (
               <span
                 className="w-1.5 h-1.5 rounded-full"
@@ -422,6 +452,8 @@ interface FleetViewProps {
   onOpenTab: (podId: string) => void;
   onErr: (msg: string) => void;
   client: DaemonClient;
+  isPinned: (podId: string) => boolean;
+  onTogglePin: (podId: string) => void;
 }
 
 const FleetView: FC<FleetViewProps> = ({
@@ -434,6 +466,8 @@ const FleetView: FC<FleetViewProps> = ({
   onOpenTab,
   onErr,
   client,
+  isPinned,
+  onTogglePin,
 }) => {
   const [search, setSearch] = useState('');
   const [sortMode, setSortMode] = useState<SortMode>('attention');
@@ -496,8 +530,17 @@ const FleetView: FC<FleetViewProps> = ({
         )
       : [...rows];
 
+    // Pinned pods always sort above non-pinned, regardless of mode.
+    const pinSort = (a: FleetRow, b: FleetRow): number => {
+      const pa = isPinned(a.pod_id) ? 0 : 1;
+      const pb = isPinned(b.pod_id) ? 0 : 1;
+      return pa - pb;
+    };
+
     if (sortMode === 'attention') {
       out.sort((a, b) => {
+        const p = pinSort(a, b);
+        if (p !== 0) return p;
         const sa = readyByPod.get(a.pod_id)?.status ?? 'probing';
         const sb = readyByPod.get(b.pod_id)?.status ?? 'probing';
         const r = STATUS_RANK[sb] - STATUS_RANK[sa];
@@ -505,11 +548,15 @@ const FleetView: FC<FleetViewProps> = ({
         return a.pod_id.localeCompare(b.pod_id);
       });
     } else {
-      out.sort((a, b) => a.pod_id.localeCompare(b.pod_id));
+      out.sort((a, b) => {
+        const p = pinSort(a, b);
+        if (p !== 0) return p;
+        return a.pod_id.localeCompare(b.pod_id);
+      });
     }
 
     return out;
-  }, [rows, search, sortMode, readyByPod]);
+  }, [rows, search, sortMode, readyByPod, isPinned]);
 
   const isEmpty = !state || rows.length === 0;
 
@@ -652,7 +699,8 @@ const FleetView: FC<FleetViewProps> = ({
               style={{ color: 'var(--text-secondary)' }}
             >
               <tr style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-                <th className="text-left px-5 py-2 font-medium">Pod</th>
+                <th className="text-center px-2 py-2 font-medium" aria-label="Pin"></th>
+                <th className="text-left px-3 py-2 font-medium">Pod</th>
                 <th className="text-left px-3 py-2 font-medium">Status</th>
                 <th className="text-left px-3 py-2 font-medium">Agent</th>
                 <th className="text-right px-3 py-2 font-medium">Units</th>
@@ -673,7 +721,38 @@ const FleetView: FC<FleetViewProps> = ({
                     style={{ borderBottom: '1px solid var(--border-subtle)' }}
                     onClick={() => isAgent && onOpenTab(row.pod_id)}
                   >
-                    <td className="px-5 py-2.5">
+                    <td
+                      className="px-2 py-2.5 text-center"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {isAgent && (
+                        <button
+                          onClick={() => onTogglePin(row.pod_id)}
+                          aria-label={
+                            isPinned(row.pod_id)
+                              ? `Unpin pod ${row.pod_id}`
+                              : `Pin pod ${row.pod_id}`
+                          }
+                          className="p-0.5 rounded transition-colors"
+                          style={{
+                            color: isPinned(row.pod_id)
+                              ? '#FFC107'
+                              : 'var(--text-disabled, rgba(255,255,255,0.25))',
+                          }}
+                          title={
+                            isPinned(row.pod_id) ? 'Unpin' : 'Pin to top'
+                          }
+                        >
+                          <Star
+                            size={12}
+                            style={{
+                              fill: isPinned(row.pod_id) ? '#FFC107' : 'none',
+                            }}
+                          />
+                        </button>
+                      )}
+                    </td>
+                    <td className="px-3 py-2.5">
                       <div className="text-[var(--text-primary)] font-medium">
                         Pod {row.pod_id}
                       </div>
@@ -741,7 +820,7 @@ const FleetView: FC<FleetViewProps> = ({
               {filteredSorted.length === 0 && (
                 <tr>
                   <td
-                    colSpan={5}
+                    colSpan={6}
                     className="px-5 py-6 text-center text-[var(--text-secondary)]"
                   >
                     No pods match "{search}".
@@ -775,9 +854,11 @@ interface PodTabProps {
   ready: ReadyState | undefined;
   client: DaemonClient;
   onError: (msg: string) => void;
+  isPinned: boolean;
+  onTogglePin: () => void;
 }
 
-const PodTab: FC<PodTabProps> = ({ agent, ready, client, onError }) => {
+const PodTab: FC<PodTabProps> = ({ agent, ready, client, onError, isPinned, onTogglePin }) => {
   const [keyRevealed, setKeyRevealed] = useState(false);
   const [uiRevealed, setUiRevealed] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
@@ -863,6 +944,20 @@ const PodTab: FC<PodTabProps> = ({ agent, ready, client, onError }) => {
     setActiveJob({ id: r.value.job_id, action: 'doctor (daemon-wide)' });
   }, [client, onError]);
 
+  // Refresh credentials — rotates the pod's user_key without
+  // restarting the container. Uses dedicated /api/pod/refresh-creds
+  // (run-streamed allowlist doesn't include this verb).
+  const onRefreshCreds = useCallback(async () => {
+    setSubmittingAction('refresh-creds');
+    const r = await client.postPodRefreshCreds(agent.pod_id);
+    setSubmittingAction(null);
+    if (!r.ok) {
+      onError(`Couldn't refresh creds: ${r.error.message}`);
+      return;
+    }
+    setActiveJob({ id: r.value.job_id, action: 'refresh-creds' });
+  }, [client, agent.pod_id, onError]);
+
   const streamUrl = activeJob ? client.jobStreamUrl(activeJob.id) : null;
   const stream = useJobStream({ url: streamUrl });
   const streamDone =
@@ -886,7 +981,13 @@ const PodTab: FC<PodTabProps> = ({ agent, ready, client, onError }) => {
           />
         </div>
         <div className="flex-1 min-w-0">
-          <div className="text-base font-semibold text-[var(--text-primary)]">
+          <div className="text-base font-semibold text-[var(--text-primary)] flex items-center gap-1.5">
+            {isPinned && (
+              <Star
+                size={14}
+                style={{ color: '#FFC107', fill: '#FFC107' }}
+              />
+            )}
             Pod {agent.pod_id} · {agent.agent_type}
           </div>
           <div className="text-[11px] mt-0.5">
@@ -903,6 +1004,31 @@ const PodTab: FC<PodTabProps> = ({ agent, ready, client, onError }) => {
             </span>
           </div>
         </div>
+        <button
+          onClick={onTogglePin}
+          aria-label={isPinned ? 'Unpin pod' : 'Pin pod'}
+          title={
+            isPinned
+              ? 'Unpin — pod sinks back into the default sort'
+              : 'Pin — keeps this pod at the top of the Fleet table'
+          }
+          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[11px] transition-colors"
+          style={{
+            background: isPinned
+              ? 'rgba(255,193,7,0.12)'
+              : 'var(--bg-hover, rgba(255,255,255,0.04))',
+            border: isPinned
+              ? '1px solid rgba(255,193,7,0.30)'
+              : '1px solid var(--border-default)',
+            color: isPinned ? '#FFE082' : 'var(--text-secondary)',
+          }}
+        >
+          <Star
+            size={11}
+            style={{ fill: isPinned ? '#FFC107' : 'none' }}
+          />
+          {isPinned ? 'Pinned' : 'Pin'}
+        </button>
       </div>
 
       {/* URLs + env */}
@@ -1048,6 +1174,14 @@ const PodTab: FC<PodTabProps> = ({ agent, ready, client, onError }) => {
             running={submittingAction === 'stop-forwarder' || (activeJob?.action === 'stop-forwarder' && !streamDone)}
             disabled={activeJob !== null && !streamDone}
             onClick={onStopForwarder}
+          />
+          <ActionButton
+            label="Refresh creds"
+            icon={<KeyRound size={12} />}
+            title="Rotate the pod's user_key without restarting the container"
+            running={submittingAction === 'refresh-creds' || (activeJob?.action === 'refresh-creds' && !streamDone)}
+            disabled={activeJob !== null && !streamDone}
+            onClick={onRefreshCreds}
           />
         </div>
 
