@@ -2,23 +2,20 @@
 // LoginScreen — Auth bridge to the Tytus daemon
 // ============================================================
 //
-// The daemon owns auth (Sentinel device-auth via the `tytus login` CLI).
-// TytusOS does NOT prompt for a password; the tray triggers the login
-// flow and the daemon flips `state.logged_in` to true. We poll, and when
-// it's true we hand control to the desktop shell.
+// The daemon owns auth (device-auth via the `tytus login` CLI). TytusOS
+// does NOT prompt for a password and does NOT trigger login itself —
+// the tray's "Sign In" menu item is the canonical entry point. We poll
+// /api/state, and when logged_in flips to true we hand control to the
+// desktop shell.
 
-import { memo, useCallback, useEffect, useState } from "react";
+import { memo, useEffect } from "react";
 import { LogIn, Loader2, AlertCircle, RefreshCw } from "lucide-react";
 import { useOS } from "@/hooks/useOSStore";
-import { useDaemonClient } from "@/hooks/useDaemonClient";
 import { useDaemonStateContext } from "@/hooks/useDaemonStateContext";
 
 const LoginScreen = memo(function LoginScreen() {
-  const client = useDaemonClient();
   const { dispatch } = useOS();
   const { status, state, refresh } = useDaemonStateContext();
-  const [opening, setOpening] = useState(false);
-  const [openError, setOpenError] = useState<string | null>(null);
 
   // Auto-advance once the daemon reports a logged-in user.
   useEffect(() => {
@@ -26,20 +23,6 @@ const LoginScreen = memo(function LoginScreen() {
       dispatch({ type: "LOGIN", isGuest: false });
     }
   }, [state?.logged_in, dispatch]);
-
-  const onOpenSentinel = useCallback(async () => {
-    setOpening(true);
-    setOpenError(null);
-    const r = await client.postOpenExternal("https://sentinel.traylinx.com/");
-    setOpening(false);
-    if (!r.ok) {
-      setOpenError(
-        r.error.code === "daemon_offline"
-          ? "Daemon offline — open the Tytus tray and start it first."
-          : r.error.message,
-      );
-    }
-  }, [client]);
 
   const isOffline = status === "offline";
   const isLoading = status === "loading";
@@ -91,7 +74,8 @@ const LoginScreen = memo(function LoginScreen() {
         )}
 
         {isOffline && (
-          <div className="mt-6 w-full p-4 rounded-lg flex items-start gap-3 text-left text-sm"
+          <div
+            className="mt-6 w-full p-4 rounded-lg flex items-start gap-3 text-left text-sm"
             style={{
               background: "rgba(244,67,54,0.10)",
               border: "1px solid rgba(244,67,54,0.30)",
@@ -109,36 +93,31 @@ const LoginScreen = memo(function LoginScreen() {
 
         {!isLoading && !isOffline && (
           <>
-            <p className="text-sm text-[#9E9E9E] mt-3 leading-relaxed">
-              Click the Tytus icon in your menu bar and choose{" "}
-              <strong className="text-[#E0E0E0]">Sign in</strong>. We'll
-              detect the login automatically.
-            </p>
-
-            <button
-              onClick={onOpenSentinel}
-              disabled={opening}
-              className="w-full h-11 rounded-full mt-6 text-sm font-semibold text-white transition-colors flex items-center justify-center gap-2"
-              style={{
-                background: opening ? "#673AB7" : "#7C4DFF",
-                opacity: opening ? 0.8 : 1,
-              }}
+            <ol
+              className="text-sm text-[#E0E0E0] mt-4 mb-2 text-left space-y-2 leading-relaxed list-decimal list-inside"
+              style={{ color: "#CFCFCF" }}
             >
-              {opening ? (
-                <Loader2 size={16} className="animate-spin" />
-              ) : (
-                <LogIn size={16} />
-              )}
-              Open Sentinel
-            </button>
-
-            {openError && (
-              <p className="mt-3 text-xs text-[#F44336]">{openError}</p>
-            )}
+              <li>
+                Click the <strong>Tytus icon</strong> in your menu bar
+                (top-right of the screen).
+              </li>
+              <li>
+                Choose <strong>Sign In…</strong> — your browser will open
+                with a one-time login code.
+              </li>
+              <li>
+                Approve it. This screen unlocks automatically.
+              </li>
+            </ol>
 
             <button
               onClick={refresh}
-              className="mt-3 text-xs text-[#9E9E9E] hover:text-[#E0E0E0] transition-colors flex items-center gap-1"
+              className="mt-4 inline-flex items-center gap-1.5 px-4 py-2 rounded-md text-xs font-medium transition-colors"
+              style={{
+                background: "rgba(255,255,255,0.06)",
+                color: "#E0E0E0",
+                border: "1px solid rgba(255,255,255,0.10)",
+              }}
             >
               <RefreshCw size={12} /> Check again
             </button>
