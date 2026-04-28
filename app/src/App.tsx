@@ -4,6 +4,7 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { OSProvider, useOS } from '@/hooks/useOSStore';
+import { DaemonClientProvider } from '@/hooks/useDaemonClient';
 import BootSequence from '@/components/BootSequence';
 import LoginScreen from '@/components/LoginScreen';
 import Desktop from '@/components/Desktop';
@@ -217,8 +218,10 @@ function AppShell() {
 
 export default function App() {
   return (
-    <OSProvider>
-      <AppShell />
-    </OSProvider>
+    <DaemonClientProvider>
+      <OSProvider>
+        <AppShell />
+      </OSProvider>
+    </DaemonClientProvider>
   );
 }

@@ -1,159 +1,158 @@
 // ============================================================
-// LoginScreen — Blurred wallpaper + centered login card
+// LoginScreen — Auth bridge to the Tytus daemon
 // ============================================================
+//
+// The daemon owns auth (Sentinel device-auth via the `tytus login` CLI).
+// TytusOS does NOT prompt for a password; the tray triggers the login
+// flow and the daemon flips `state.logged_in` to true. We poll, and when
+// it's true we hand control to the desktop shell.
 
-import { useState, useCallback, memo } from 'react';
-import { LogOut, Moon, Power, User } from 'lucide-react';
-import { useOS } from '@/hooks/useOSStore';
+import { memo, useCallback, useEffect, useState } from "react";
+import { LogIn, Loader2, AlertCircle, RefreshCw } from "lucide-react";
+import { useOS } from "@/hooks/useOSStore";
+import { useDaemonClient } from "@/hooks/useDaemonClient";
+import { useDaemonState } from "@/hooks/useDaemonState";
 
 const LoginScreen = memo(function LoginScreen() {
+  const client = useDaemonClient();
   const { dispatch } = useOS();
-  const [password, setPassword] = useState('');
-  const [isUnlocking, setIsUnlocking] = useState(false);
-  const [error, setError] = useState(false);
+  const { status, state, refresh } = useDaemonState({
+    client,
+    intervalMs: 2000,
+  });
+  const [opening, setOpening] = useState(false);
+  const [openError, setOpenError] = useState<string | null>(null);
 
-  const handleUnlock = useCallback(() => {
-    setIsUnlocking(true);
-    setError(false);
-    setTimeout(() => {
-      dispatch({ type: 'LOGIN', isGuest: false });
-    }, 800);
-  }, [dispatch]);
+  // Auto-advance once the daemon reports a logged-in user.
+  useEffect(() => {
+    if (state?.logged_in) {
+      dispatch({ type: "LOGIN", isGuest: false });
+    }
+  }, [state?.logged_in, dispatch]);
 
-  const handleGuest = useCallback(() => {
-    dispatch({ type: 'LOGIN', isGuest: true });
-  }, [dispatch]);
+  const onOpenSentinel = useCallback(async () => {
+    setOpening(true);
+    setOpenError(null);
+    const r = await client.postOpenExternal("https://sentinel.traylinx.com/");
+    setOpening(false);
+    if (!r.ok) {
+      setOpenError(
+        r.error.code === "daemon_offline"
+          ? "Daemon offline — open the Tytus tray and start it first."
+          : r.error.message,
+      );
+    }
+  }, [client]);
 
-  const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent) => {
-      if (e.key === 'Enter') handleUnlock();
-    },
-    [handleUnlock]
-  );
+  const isOffline = status === "offline";
+  const isLoading = status === "loading";
 
   return (
     <div
       className="fixed inset-0 z-[9998] flex items-center justify-center"
       style={{
-        backgroundImage: 'url(/wallpaper-default.jpg)',
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
+        backgroundImage: "url(/wallpaper-default.jpg)",
+        backgroundSize: "cover",
+        backgroundPosition: "center",
       }}
     >
-      {/* Blur overlay */}
       <div
         className="absolute inset-0"
         style={{
-          backdropFilter: 'blur(24px)',
-          WebkitBackdropFilter: 'blur(24px)',
-          background: 'rgba(0,0,0,0.4)',
+          backdropFilter: "blur(24px)",
+          WebkitBackdropFilter: "blur(24px)",
+          background: "rgba(0,0,0,0.4)",
         }}
       />
 
-      {/* Login card */}
       <div
-        className="relative z-10 w-[360px] rounded-2xl p-10 flex flex-col items-center"
+        className="relative z-10 w-[420px] rounded-2xl p-10 flex flex-col items-center text-center"
         style={{
-          background: 'rgba(45,45,45,0.85)',
-          boxShadow: '0 16px 48px rgba(0,0,0,0.6)',
-          animation: 'loginEnter 400ms cubic-bezier(0.34, 1.56, 0.64, 1)',
+          background: "rgba(45,45,45,0.85)",
+          boxShadow: "0 16px 48px rgba(0,0,0,0.6)",
+          animation: "loginEnter 400ms cubic-bezier(0.34, 1.56, 0.64, 1)",
         }}
       >
-        {/* Avatar */}
         <div
           className="w-20 h-20 rounded-full flex items-center justify-center border-[3px] border-[#7C4DFF] mb-4"
-          style={{ background: 'linear-gradient(135deg, #7C4DFF, #4A148C)' }}
-        >
-          <User size={36} className="text-white" />
-        </div>
-
-        {/* Username */}
-        <h2 className="text-xl font-semibold text-[#E0E0E0]">User</h2>
-
-        {/* Password input */}
-        <div className="w-full mt-6 relative">
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => { setPassword(e.target.value); setError(false); }}
-            onKeyDown={handleKeyDown}
-            placeholder="Password"
-            className="w-full h-11 rounded-full px-5 text-sm text-[#E0E0E0] outline-none transition-all"
-            style={{
-              background: '#1A1A1A',
-              border: `1px solid ${error ? '#F44336' : 'rgba(255,255,255,0.1)'}`,
-              boxShadow: error ? '0 0 0 3px rgba(244,67,54,0.15)' : undefined,
-            }}
-            onFocus={(e) => {
-              if (!error) e.currentTarget.style.borderColor = '#7C4DFF';
-              e.currentTarget.style.boxShadow = '0 0 0 3px rgba(124,77,255,0.15)';
-            }}
-            onBlur={(e) => {
-              e.currentTarget.style.borderColor = error ? '#F44336' : 'rgba(255,255,255,0.1)';
-              e.currentTarget.style.boxShadow = 'none';
-            }}
-          />
-        </div>
-
-        {/* Unlock button */}
-        <button
-          onClick={handleUnlock}
-          disabled={isUnlocking}
-          className="w-full h-11 rounded-full mt-4 text-sm font-semibold text-white transition-colors"
           style={{
-            background: isUnlocking ? '#673AB7' : '#7C4DFF',
-            transform: 'scale(1)',
-            transition: 'all 150ms ease',
+            background: "linear-gradient(135deg, #7C4DFF, #4A148C)",
           }}
-          onMouseEnter={(e) => { if (!isUnlocking) e.currentTarget.style.background = '#9575FF'; }}
-          onMouseLeave={(e) => { if (!isUnlocking) e.currentTarget.style.background = '#7C4DFF'; }}
-          onMouseDown={(e) => { e.currentTarget.style.transform = 'scale(0.97)'; }}
-          onMouseUp={(e) => { e.currentTarget.style.transform = 'scale(1)'; }}
         >
-          {isUnlocking ? (
-            <div className="flex items-center justify-center gap-2">
-              <div className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
-              <span>Unlocking...</span>
-            </div>
-          ) : (
-            'Unlock'
-          )}
-        </button>
-
-        {/* Guest login */}
-        <button
-          onClick={handleGuest}
-          className="mt-3 text-sm text-[#7C4DFF] hover:text-[#9575FF] transition-colors"
-        >
-          Log in as Guest
-        </button>
-
-        {/* Power options */}
-        <div className="flex items-center gap-4 mt-6 pt-4 w-full justify-center"
-          style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}
-        >
-          <button className="w-8 h-8 rounded-lg flex items-center justify-center text-[#9E9E9E] hover:text-[#E0E0E0] hover:bg-white/[0.06] transition-all">
-            <Power size={16} />
-          </button>
-          <button className="w-8 h-8 rounded-lg flex items-center justify-center text-[#9E9E9E] hover:text-[#E0E0E0] hover:bg-white/[0.06] transition-all">
-            <Moon size={16} />
-          </button>
-          <button className="w-8 h-8 rounded-lg flex items-center justify-center text-[#9E9E9E] hover:text-[#E0E0E0] hover:bg-white/[0.06] transition-all">
-            <LogOut size={16} />
-          </button>
+          <LogIn size={36} className="text-white" />
         </div>
+
+        <h2 className="text-xl font-semibold text-[#E0E0E0]">
+          Sign in to Tytus
+        </h2>
+
+        {isLoading && (
+          <p className="text-sm text-[#9E9E9E] mt-4 flex items-center gap-2">
+            <Loader2 size={14} className="animate-spin" />
+            Checking daemon…
+          </p>
+        )}
+
+        {isOffline && (
+          <div className="mt-6 w-full p-4 rounded-lg flex items-start gap-3 text-left text-sm"
+            style={{
+              background: "rgba(244,67,54,0.10)",
+              border: "1px solid rgba(244,67,54,0.30)",
+              color: "#FFCDD2",
+            }}
+          >
+            <AlertCircle size={16} className="mt-0.5 flex-shrink-0" />
+            <span>
+              Tytus daemon is not running. Open the Tytus icon in your
+              menu bar and choose <strong>Start daemon</strong>. We'll
+              auto-detect when it's back.
+            </span>
+          </div>
+        )}
+
+        {!isLoading && !isOffline && (
+          <>
+            <p className="text-sm text-[#9E9E9E] mt-3 leading-relaxed">
+              Click the Tytus icon in your menu bar and choose{" "}
+              <strong className="text-[#E0E0E0]">Sign in</strong>. We'll
+              detect the login automatically.
+            </p>
+
+            <button
+              onClick={onOpenSentinel}
+              disabled={opening}
+              className="w-full h-11 rounded-full mt-6 text-sm font-semibold text-white transition-colors flex items-center justify-center gap-2"
+              style={{
+                background: opening ? "#673AB7" : "#7C4DFF",
+                opacity: opening ? 0.8 : 1,
+              }}
+            >
+              {opening ? (
+                <Loader2 size={16} className="animate-spin" />
+              ) : (
+                <LogIn size={16} />
+              )}
+              Open Sentinel
+            </button>
+
+            {openError && (
+              <p className="mt-3 text-xs text-[#F44336]">{openError}</p>
+            )}
+
+            <button
+              onClick={refresh}
+              className="mt-3 text-xs text-[#9E9E9E] hover:text-[#E0E0E0] transition-colors flex items-center gap-1"
+            >
+              <RefreshCw size={12} /> Check again
+            </button>
+          </>
+        )}
       </div>
 
       <style>{`
         @keyframes loginEnter {
           from { opacity: 0; transform: scale(0.9); }
           to { opacity: 1; transform: scale(1); }
-        }
-        @keyframes loginShake {
-          0%, 100% { transform: translateX(0); }
-          25% { transform: translateX(-8px); }
-          50% { transform: translateX(8px); }
-          75% { transform: translateX(-8px); }
         }
       `}</style>
     </div>
