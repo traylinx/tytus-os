@@ -18,6 +18,7 @@ import WindowManager from '@/components/WindowManager';
 import ContextMenu from '@/components/ContextMenu';
 import NotificationSystem from '@/components/NotificationSystem';
 import NotificationCenter from '@/components/NotificationCenter';
+import CommandPalette from '@/components/CommandPalette';
 
 function AppShell() {
   const { state, dispatch } = useOS();
@@ -163,6 +164,7 @@ function AppShell() {
           <ContextMenu />
           <NotificationSystem />
           <NotificationCenter />
+          <CommandPalette />
 
           {/* Alt+Tab switcher */}
           {state.isAltTabbing && (
