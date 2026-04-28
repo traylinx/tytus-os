@@ -13,7 +13,8 @@
     "typecheck:guard": "tsc --noEmit -p tsconfig.guard.json",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:smoke": "node scripts/smoke.mjs"
+    "test:smoke": "node scripts/smoke.mjs",
+    "test:probe": "node scripts/probe-phase2.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
