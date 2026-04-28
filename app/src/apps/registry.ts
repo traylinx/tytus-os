@@ -27,7 +27,7 @@ export const APP_REGISTRY: AppDefinition[] = [
 
   { id: 'help', name: 'Help', icon: 'LifeBuoy', category: 'System',
     description: 'Doctor, daemon lifecycle, log tail, troubleshooting.',
-    defaultSize: { width: 720, height: 560 }, minSize: { width: 440, height: 360 }, phase: 4 },
+    defaultSize: { width: 880, height: 600 }, minSize: { width: 640, height: 400 }, phase: 4 },
 
   // ================================================================
   // SYSTEM

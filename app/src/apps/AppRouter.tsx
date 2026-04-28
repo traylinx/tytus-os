@@ -3,6 +3,7 @@ import AppPlaceholder from './AppPlaceholder';
 
 // Tytus product surfaces
 import PodInspector from './PodInspector';
+import Help from './Help';
 
 // System
 import Settings from './Settings';
@@ -75,10 +76,10 @@ interface AppRouterProps {
 const AppRouter: FC<AppRouterProps> = ({ appId }) => {
   switch (appId) {
     case 'pod-inspector': return <PodInspector />;
+    case 'help': return <Help />;
 
     // Tytus product surfaces — placeholder until their phase wires them up
     case 'channels':
-    case 'help':
       return <AppPlaceholder appId={appId} />;
 
     // System
