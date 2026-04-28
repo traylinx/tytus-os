@@ -25,7 +25,9 @@ async function main() {
   await page.click('text=Log in as Guest');
 
   console.log('4. wait for desktop');
-  await page.waitForSelector('text=Activities', { timeout: 5000 });
+  await page.waitForSelector('button[aria-label="Open app launcher"]', { timeout: 5000 });
+  // Also wait for the dock to settle (it animates in last)
+  await page.waitForSelector('button[aria-label="Show applications"]', { timeout: 3000 });
   await page.waitForTimeout(300);
 
   console.log('5. open Pod Inspector via desktop dbl-click');

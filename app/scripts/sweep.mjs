@@ -1,12 +1,15 @@
-// Skeleton sweep — opens every app from the launcher, captures runtime errors.
-// Discovers the app catalog by reading the launcher grid (no TS import).
+// Skeleton sweep — opens every app from the registry, captures runtime errors.
+//
+// We dispatch clicks directly on app buttons via JS evaluation rather than
+// page.click() because the launcher dialog uses backdrop-filter, which creates
+// a stacking context Playwright's hit-test treats as opaque on top of children.
+// Bypassing hit-test with native .click() is reliable and faster.
 //
 // Usage: TYTUS_BASE=http://localhost:4242 node scripts/sweep.mjs
 
 import { chromium } from 'playwright';
 
 const BASE = process.env.TYTUS_BASE || 'http://localhost:4242';
-
 const winSel = (id) => `div[data-app-id="${id}"]`;
 
 async function main() {
@@ -23,46 +26,60 @@ async function main() {
   await page.goto(BASE, { waitUntil: 'domcontentloaded' });
   await page.waitForSelector('text=Log in as Guest', { timeout: 12000 });
   await page.click('text=Log in as Guest');
-  await page.waitForSelector('text=Activities', { timeout: 5000 });
-  await page.waitForTimeout(300);
+  await page.waitForSelector('button[aria-label="Open app launcher"]', { timeout: 5000 });
+  await page.waitForTimeout(500);
 
-  // Open launcher and harvest the All-tab grid for the canonical app list
+  // Open launcher once and harvest the canonical app list from the All grid
   await page.click('button[aria-label="Show applications"]');
   await page.waitForSelector('input[placeholder*="search applications"]', { timeout: 3000 });
-  // Force "All" tab
-  await page.locator('button', { hasText: /^All$/ }).first().click();
-  await page.waitForTimeout(200);
-
-  const apps = await page.$$eval('div[style*="auto-fill"] > button', (cards) =>
-    cards.map((c) => c.querySelector('span')?.textContent?.trim()).filter(Boolean)
+  await page.waitForTimeout(500);
+  // The default tab is 'All' on launcher open — just harvest immediately
+  const apps = await page.$$eval('[role="dialog"] [style*="auto-fill"] > button', (cards) =>
+    cards.map((c) => ({
+      name: c.querySelector('span')?.textContent?.trim() || '',
+    })).filter((a) => a.name)
   );
   console.log(`discovered ${apps.length} apps in launcher`);
+  // Close launcher
   await page.keyboard.press('Escape');
-  await page.waitForTimeout(200);
+  await page.waitForTimeout(400);
 
   let pass = 0;
   let fail = 0;
-  const failures = [];
 
-  for (const name of apps) {
+  for (const { name } of apps) {
     currentApp = name;
     errsByApp[name] = [];
     process.stdout.write(`  ${name.padEnd(22)} `);
     try {
+      // Open via launcher: type into search, then trigger button .click() directly
+      // (bypasses Playwright hit-test, which is confused by the backdrop-filter
+      // stacking context on the dialog).
       await page.click('button[aria-label="Show applications"]');
       await page.waitForSelector('input[placeholder*="search applications"]', { timeout: 3000 });
       await page.fill('input[placeholder*="search applications"]', name);
-      await page.waitForTimeout(150);
-      await page.locator('div[style*="auto-fill"] > button').first().click();
-      // Wait for any window-frame to appear (we don't know the appId here)
+      await page.waitForTimeout(300);
+      const opened = await page.evaluate((name) => {
+        const cards = [...document.querySelectorAll('[role="dialog"] [style*="auto-fill"] > button')];
+        const exact = cards.find((c) => (c.querySelector('span')?.textContent || '').trim() === name);
+        if (!exact) return false;
+        exact.click();
+        return true;
+      }, name);
+      if (!opened) throw new Error(`no card matching "${name}"`);
+
       await page.waitForSelector('div.absolute.flex.flex-col[data-app-id]', { timeout: 4000 });
-      await page.waitForTimeout(150);
+      await page.waitForTimeout(200);
       const appId = await page.locator('div.absolute.flex.flex-col[data-app-id]').last().getAttribute('data-app-id');
-      // Close it
-      await page.click('button[aria-label="Close"]');
-      await page.waitForTimeout(150);
-      // Wait until window is gone
+
+      // Close (also via direct .click() to skip hit-test)
+      await page.evaluate(() => {
+        const btn = document.querySelector('button[aria-label="Close"]');
+        if (btn) btn.click();
+      });
+      await page.waitForTimeout(200);
       await page.waitForSelector(winSel(appId), { state: 'detached', timeout: 2000 }).catch(() => {});
+
       const errs = errsByApp[name];
       if (errs.length === 0) {
         process.stdout.write(`✓ (${appId})\n`);
@@ -70,12 +87,10 @@ async function main() {
       } else {
         process.stdout.write(`✗ ${errs.length} error(s)\n`);
         errs.forEach((e) => console.log(`     ${e}`));
-        failures.push({ name, errs });
         fail++;
       }
     } catch (e) {
       process.stdout.write(`✗ ${e.message}\n`);
-      failures.push({ name, errs: [e.message] });
       fail++;
     }
   }

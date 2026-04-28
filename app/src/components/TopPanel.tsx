@@ -42,9 +42,10 @@ const TopPanel = memo(function TopPanel() {
 
   return (
     <div
-      className="fixed top-0 left-0 right-0 z-[200] flex items-center justify-between px-2 text-xs font-medium select-none"
+      className="fixed top-0 left-0 right-0 z-[200] grid items-center px-2 text-xs font-medium select-none"
       style={{
         height: 28,
+        gridTemplateColumns: '1fr auto 1fr',  // left | clock | right — guarantees no overlap
         background: 'var(--bg-panel)',
         backdropFilter: 'blur(16px)',
         WebkitBackdropFilter: 'blur(16px)',
@@ -52,20 +53,23 @@ const TopPanel = memo(function TopPanel() {
         color: 'var(--text-primary)',
       }}
     >
-      {/* Left: Activities */}
-      <div className="flex items-center">
+      {/* Left: Apps button */}
+      <div className="flex items-center justify-self-start">
         <button
           onClick={handleActivities}
+          aria-label="Open app launcher"
+          title="Open app launcher (Super)"
           className="h-7 px-3 rounded hover:bg-[var(--bg-hover)] transition-colors text-xs font-medium"
         >
-          Activities
+          Apps
         </button>
       </div>
 
-      {/* Center: Clock */}
+      {/* Center: Clock — flex-laid-out, no absolute positioning, no overlap */}
       <button
         onClick={handleClockClick}
-        className="absolute left-1/2 -translate-x-1/2 h-7 px-2 rounded hover:bg-[var(--bg-hover)] transition-colors text-xs font-medium group relative"
+        aria-label={`${formattedTime} — open notification center`}
+        className="h-7 px-2 rounded hover:bg-[var(--bg-hover)] transition-colors text-xs font-medium group relative whitespace-nowrap justify-self-center"
       >
         <span>{formattedTime}</span>
         {/* Tooltip */}
@@ -75,26 +79,28 @@ const TopPanel = memo(function TopPanel() {
       </button>
 
       {/* Right: System tray */}
-      <div className="flex items-center gap-1">
-        <button className="h-7 px-1.5 rounded hover:bg-[var(--bg-hover)] transition-colors">
+      <div className="flex items-center gap-1 justify-self-end">
+        <button aria-label="Accessibility" className="h-7 px-1.5 rounded hover:bg-[var(--bg-hover)] transition-colors hidden sm:inline-flex items-center">
           <Accessibility size={14} />
         </button>
-        <button className="h-7 px-1.5 rounded hover:bg-[var(--bg-hover)] transition-colors">
+        <button aria-label="Keyboard layout" className="h-7 px-1.5 rounded hover:bg-[var(--bg-hover)] transition-colors hidden sm:inline-flex items-center">
           <Keyboard size={14} />
         </button>
-        <button className="h-7 px-1.5 rounded hover:bg-[var(--bg-hover)] transition-colors">
+        <button aria-label="Network" className="h-7 px-1.5 rounded hover:bg-[var(--bg-hover)] transition-colors flex items-center">
           <Wifi size={14} />
         </button>
-        <button className="h-7 px-1.5 rounded hover:bg-[var(--bg-hover)] transition-colors">
+        <button aria-label="Volume" className="h-7 px-1.5 rounded hover:bg-[var(--bg-hover)] transition-colors flex items-center">
           <Volume2 size={14} />
         </button>
-        <button className="h-7 px-1.5 rounded hover:bg-[var(--bg-hover)] transition-colors flex items-center gap-1">
+        <button aria-label="Battery 100 percent" className="h-7 px-1.5 rounded hover:bg-[var(--bg-hover)] transition-colors flex items-center gap-1">
           <Battery size={14} />
-          <span className="text-[10px]">100%</span>
+          <span className="text-[10px] hidden md:inline">100%</span>
         </button>
         <div className="relative" ref={menuRef}>
           <button
             onClick={() => setSysMenuOpen(!sysMenuOpen)}
+            aria-label="System menu"
+            aria-expanded={sysMenuOpen}
             className="h-7 px-1.5 rounded hover:bg-[var(--bg-hover)] transition-colors"
           >
             <Power size={14} />
@@ -150,24 +156,17 @@ const TopPanel = memo(function TopPanel() {
 
               <button
                 className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-[var(--bg-hover)] transition-colors text-left"
-                onClick={() => { setSysMenuOpen(false); dispatch({ type: 'LOGOUT' }); }}
+                onClick={() => { setSysMenuOpen(false); dispatch({ type: 'LOCK' }); }}
               >
                 <span>🔒</span>
-                Lock
+                Lock screen
               </button>
               <button
                 className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-[var(--bg-hover)] transition-colors text-left"
                 onClick={() => { setSysMenuOpen(false); dispatch({ type: 'LOGOUT' }); }}
               >
                 <span>🚪</span>
-                Log Out
-              </button>
-              <button
-                className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-[var(--bg-hover)] transition-colors text-left"
-                onClick={() => setSysMenuOpen(false)}
-              >
-                <span>⏻</span>
-                Power Off / Restart
+                Sign out
               </button>
             </div>
           )}

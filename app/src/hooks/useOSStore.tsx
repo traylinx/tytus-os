@@ -17,15 +17,21 @@ const createWindow = (state: OSState, appId: string, title?: string): Window => 
   const id = generateId();
   const vw = window.innerWidth;
   const vh = window.innerHeight;
+  const DOCK_HEIGHT = 48;
+  const usableH = Math.max(MIN_VIEWPORT_H, vh - TOP_PANEL_HEIGHT - DOCK_HEIGHT - 20);
+  const usableW = Math.max(MIN_VIEWPORT_W, vw - 40);
+  // Clamp the window's default size to the viewport so apps don't open off-screen
+  const width = Math.min(app.defaultSize.width, usableW);
+  const height = Math.min(app.defaultSize.height, usableH);
   const offset = (state.windows.filter((w) => w.appId === appId && w.state !== 'minimized').length) * 30;
-  const x = Math.max(20, Math.min(vw - app.defaultSize.width - 20, 60 + offset));
-  const y = Math.max(TOP_PANEL_HEIGHT + 10, Math.min(vh - app.defaultSize.height - 60, 40 + offset));
+  const x = Math.max(20, Math.min(vw - width - 20, 60 + offset));
+  const y = Math.max(TOP_PANEL_HEIGHT + 10, Math.min(vh - height - DOCK_HEIGHT - 20, 40 + offset));
   return {
     id,
     appId,
     title: title || app.name,
     position: { x, y },
-    size: { ...app.defaultSize },
+    size: { width, height },
     state: 'normal',
     isFocused: true,
     zIndex: state.nextZIndex,
@@ -33,6 +39,9 @@ const createWindow = (state: OSState, appId: string, title?: string): Window => 
     createdAt: Date.now(),
   };
 };
+
+const MIN_VIEWPORT_W = 320;
+const MIN_VIEWPORT_H = 240;
 
 // ---- Initial State ----
 const defaultDesktopIcons: DesktopIcon[] = [
@@ -118,6 +127,15 @@ function osReducer(state: OSState, action: OSAction): OSState {
       };
     }
 
+    case 'LOCK': {
+      // Returns to the login screen but keeps every open window and the layout
+      // intact. Unlocking via LOGIN drops you back where you were.
+      return {
+        ...state,
+        auth: { ...state.auth, isAuthenticated: false },
+      };
+    }
+
     case 'OPEN_WINDOW': {
       const win = createWindow(state, action.appId, action.title);
       const newWindows = state.windows.map((w) => ({ ...w, isFocused: false }));
@@ -164,8 +182,12 @@ function osReducer(state: OSState, action: OSAction): OSState {
       );
       const appId = win.appId;
       const hasVisible = updated.some((w) => w.appId === appId && w.state !== 'minimized');
+      const hasAnyWindow = updated.some((w) => w.appId === appId); // includes minimized
+      // Dock indicator stays on as long as ANY window of this app exists (visible or
+      // minimized). Otherwise unpinned apps that are minimized would lose their only
+      // restore affordance — the user would have no way to bring them back.
       const updatedDock = state.dockItems.map((d) =>
-        d.appId === appId ? { ...d, isFocused: hasVisible, isOpen: hasVisible || d.isPinned } : d
+        d.appId === appId ? { ...d, isFocused: hasVisible, isOpen: hasAnyWindow } : d
       );
       const newActiveId = updated
         .filter((w) => w.state !== 'minimized')

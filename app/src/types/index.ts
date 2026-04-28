@@ -201,6 +201,7 @@ export type OSAction =
   | { type: 'SET_BOOT_PHASE'; phase: BootPhase }
   | { type: 'LOGIN'; isGuest: boolean }
   | { type: 'LOGOUT' }
+  | { type: 'LOCK' }
   | { type: 'OPEN_WINDOW'; appId: string; title?: string }
   | { type: 'CLOSE_WINDOW'; windowId: string }
   | { type: 'MINIMIZE_WINDOW'; windowId: string }

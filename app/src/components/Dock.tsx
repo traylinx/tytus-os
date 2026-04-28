@@ -138,7 +138,9 @@ const Dock = memo(function Dock() {
 
   return (
     <div
-      className="fixed bottom-0 left-1/2 -translate-x-1/2 z-[150] flex items-center gap-0.5 px-2"
+      role="navigation"
+      aria-label="Application dock"
+      className="fixed bottom-0 left-1/2 -translate-x-1/2 z-[150] flex items-center gap-0.5 px-2 overflow-x-auto max-w-[calc(100vw-32px)]"
       style={{
         height: 48,
         background: 'rgba(45,45,45,0.75)',
@@ -148,6 +150,7 @@ const Dock = memo(function Dock() {
         border: '1px solid var(--border-subtle)',
         borderBottom: 'none',
         animation: 'dockSlideUp 300ms cubic-bezier(0, 0, 0.2, 1)',
+        scrollbarWidth: 'none',  // hide scrollbar; user scrolls via wheel/swipe
       }}
     >
       {/* Show Applications button */}

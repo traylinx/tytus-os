@@ -185,6 +185,26 @@ const WindowFrame = memo(function WindowFrame({ window: win, children }: WindowF
   // window stays untouched so the title bar / body get their events.
   const showHandles = !isMaximized;
 
+  // Maximized windows use viewport-relative CSS so they auto-track browser resize
+  // without needing a JS resize listener. Stored size only applies when 'normal'.
+  const frameStyle: React.CSSProperties = isMaximized
+    ? {
+        left: 0,
+        top: TOP_PANEL_HEIGHT,
+        width: '100vw',
+        height: `calc(100vh - ${TOP_PANEL_HEIGHT}px - 48px)`,
+        zIndex: win.zIndex,
+        borderRadius: 0,
+      }
+    : {
+        left: win.position.x,
+        top: win.position.y,
+        width: win.size.width,
+        height: win.size.height,
+        zIndex: win.zIndex,
+        borderRadius: 12,
+      };
+
   return (
     <div
       className="absolute flex flex-col select-none"
@@ -192,12 +212,7 @@ const WindowFrame = memo(function WindowFrame({ window: win, children }: WindowF
       data-app-id={win.appId}
       data-window-title={win.title}
       style={{
-        left: win.position.x,
-        top: win.position.y,
-        width: win.size.width,
-        height: win.size.height,
-        zIndex: win.zIndex,
-        borderRadius: isMaximized ? 0 : 12,
+        ...frameStyle,
         border: `1px solid ${isFocused ? 'rgba(255,255,255,0.10)' : 'rgba(255,255,255,0.06)'}`,
         boxShadow: isFocused
           ? '0 8px 32px rgba(0,0,0,0.5)'

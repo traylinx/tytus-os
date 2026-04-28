@@ -5,7 +5,7 @@
 import { useState, useCallback, useRef, useEffect, memo } from 'react';
 import { useOS } from '@/hooks/useOSStore';
 import { getAppById } from '@/apps/registry';
-import { Search, X } from 'lucide-react';
+import { Search, X, ChevronUp, ChevronDown } from 'lucide-react';
 import * as Icons from 'lucide-react';
 import type { LucideProps } from 'lucide-react';
 
@@ -22,6 +22,34 @@ const AppLauncher = memo(function AppLauncher() {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState('All');
   const inputRef = useRef<HTMLInputElement>(null);
+  const gridRef = useRef<HTMLDivElement>(null);
+  const [canScrollUp, setCanScrollUp] = useState(false);
+  const [canScrollDown, setCanScrollDown] = useState(false);
+
+  // Watch the grid's scroll position so we can show / hide arrow buttons
+  useEffect(() => {
+    if (!appLauncherOpen) return;
+    const el = gridRef.current;
+    if (!el) return;
+    const update = () => {
+      setCanScrollUp(el.scrollTop > 4);
+      setCanScrollDown(el.scrollTop + el.clientHeight < el.scrollHeight - 4);
+    };
+    update();
+    el.addEventListener('scroll', update, { passive: true });
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => {
+      el.removeEventListener('scroll', update);
+      ro.disconnect();
+    };
+  }, [appLauncherOpen, searchQuery, activeCategory]);
+
+  const scrollGrid = useCallback((dir: 'up' | 'down') => {
+    const el = gridRef.current;
+    if (!el) return;
+    el.scrollBy({ top: dir === 'down' ? el.clientHeight * 0.8 : -el.clientHeight * 0.8, behavior: 'smooth' });
+  }, []);
 
   useEffect(() => {
     if (appLauncherOpen) {
@@ -73,6 +101,9 @@ const AppLauncher = memo(function AppLauncher() {
 
   return (
     <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Application launcher"
       className="fixed inset-0 z-[3000] flex flex-col items-center"
       style={{
         background: 'var(--bg-app-grid)',
@@ -170,15 +201,50 @@ const AppLauncher = memo(function AppLauncher() {
         </div>
       )}
 
+      {/* App grid wrapper — scroll buttons sit absolutely above/below */}
+      <div className="relative mt-6 w-[720px] max-w-[90vw]" style={{ maxHeight: 'calc(100vh - 220px)' }}>
+        {canScrollUp && (
+          <button
+            onClick={() => scrollGrid('up')}
+            aria-label="Scroll up"
+            className="absolute left-1/2 -translate-x-1/2 -top-3 w-9 h-9 rounded-full flex items-center justify-center z-10 transition-opacity"
+            style={{
+              background: 'var(--bg-tooltip, rgba(40,40,40,0.92))',
+              boxShadow: '0 4px 12px rgba(0,0,0,0.4)',
+              color: 'var(--text-primary)',
+              border: '1px solid var(--border-subtle)',
+            }}
+          >
+            <ChevronUp size={18} />
+          </button>
+        )}
+        {canScrollDown && (
+          <button
+            onClick={() => scrollGrid('down')}
+            aria-label="Scroll down"
+            className="absolute left-1/2 -translate-x-1/2 -bottom-3 w-9 h-9 rounded-full flex items-center justify-center z-10 transition-opacity"
+            style={{
+              background: 'var(--bg-tooltip, rgba(40,40,40,0.92))',
+              boxShadow: '0 4px 12px rgba(0,0,0,0.4)',
+              color: 'var(--text-primary)',
+              border: '1px solid var(--border-subtle)',
+            }}
+          >
+            <ChevronDown size={18} />
+          </button>
+        )}
+
       {/* App grid */}
       <div
-        className="mt-6 w-[720px] max-w-[90vw] overflow-y-auto"
+        ref={gridRef}
+        className="overflow-y-auto custom-scrollbar"
         style={{
           maxHeight: 'calc(100vh - 220px)',
           display: 'grid',
           gridTemplateColumns: 'repeat(auto-fill, minmax(80px, 1fr))',
           gap: 16,
           animation: 'gridAppear 300ms cubic-bezier(0.34, 1.56, 0.64, 1) 200ms both',
+          padding: '4px',
         }}
       >
         {filteredApps.map((app, index) => (
@@ -215,7 +281,15 @@ const AppLauncher = memo(function AppLauncher() {
           </div>
         )}
       </div>
+      </div>
 
+      <style>{`
+        .custom-scrollbar::-webkit-scrollbar { width: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: rgba(255,255,255,0.04); border-radius: 8px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.18); border-radius: 8px; border: 2px solid transparent; background-clip: padding-box; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.3); background-clip: padding-box; border: 2px solid transparent; }
+        .custom-scrollbar { scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.18) transparent; }
+      `}</style>
       <style>{`
         @keyframes launcherFade {
           from { opacity: 0; }
