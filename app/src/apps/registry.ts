@@ -1,229 +1,250 @@
 import type { AppDefinition } from '@/types';
 
-// 22 apps — 8 Tytus product surfaces + 14 OS-feel utilities.
-// Games / Email / PasswordManager / FtpClient / RegexTester / JsonFormatter /
-// ApiTester / Base64Tool / GitClient / Whiteboard / Drawing / ColorPalette /
-// ColorPicker / AsciiArt / Contacts / Reminders / Spreadsheet / RssReader /
-// NetworkTools / Weather / VoiceRecorder / ScreenRecorder / MediaConverter /
-// PhotoEditor / ImageGallery / FlappyBird / MatrixRain were intentionally
-// dropped — see git log for the codex consult that picked this 22.
+// 50 apps total in v1.
+// 8 Tytus product surfaces + 42 OS-feel utilities (kept from the original Kimi seed).
+// Permanently dropped (codex consult + product judgement):
+//   Contacts        — fake contacts DB, no real address-book integration
+//   Email           — fake "send email" flow, creates a real safety risk
+//   FtpClient       — fake FTP client, pretends to dial servers it can't reach
+//   GitClient       — fake git ops, misleading
+//   NetworkTools    — fake ping/traceroute, dangerous if user thinks it's real
+//   PasswordManager — fake password store, security misrepresentation
+// Reasoning: every icon implies a product promise; these 6 promised things we
+// can't deliver. Games + creative apps + utilities = honest "OS feel" without
+// implying the OS does ops it doesn't.
 
 export const APP_REGISTRY: AppDefinition[] = [
-  // ====== TYTUS (System) — placeholder until phase wires them up ======
-  {
-    id: 'pod-inspector',
-    name: 'Pod Inspector',
-    icon: 'Box',
-    category: 'System',
+  // ================================================================
+  // TYTUS product surfaces (System + Internet)
+  // ================================================================
+  { id: 'pod-inspector', name: 'Pod Inspector', icon: 'Box', category: 'System',
     description: 'Inspect, restart, uninstall, revoke pods. Live job logs.',
-    defaultSize: { width: 880, height: 600 },
-    minSize: { width: 520, height: 400 },
-    phase: 3,
-  },
-  {
-    id: 'channels',
-    name: 'Channels',
-    icon: 'Send',
-    category: 'Internet',
+    defaultSize: { width: 880, height: 600 }, minSize: { width: 520, height: 400 }, phase: 3 },
+
+  { id: 'channels', name: 'Channels', icon: 'Send', category: 'Internet',
     description: 'Telegram, Slack, iMessage, Matrix bindings per pod.',
-    defaultSize: { width: 760, height: 560 },
-    minSize: { width: 440, height: 400 },
-    phase: 5,
-  },
-  {
-    id: 'help',
-    name: 'Help',
-    icon: 'LifeBuoy',
-    category: 'System',
+    defaultSize: { width: 760, height: 560 }, minSize: { width: 440, height: 400 }, phase: 5 },
+
+  { id: 'help', name: 'Help', icon: 'LifeBuoy', category: 'System',
     description: 'Doctor, daemon lifecycle, log tail, troubleshooting.',
-    defaultSize: { width: 720, height: 560 },
-    minSize: { width: 440, height: 360 },
-    phase: 4,
-  },
+    defaultSize: { width: 720, height: 560 }, minSize: { width: 440, height: 360 }, phase: 4 },
 
-  // ====== OS-FEEL (System) — functional today, daemon-wired later ======
-  {
-    id: 'settings',
-    name: 'System Settings',
-    icon: 'Settings',
-    category: 'System',
+  // ================================================================
+  // SYSTEM
+  // ================================================================
+  { id: 'settings', name: 'System Settings', icon: 'Settings', category: 'System',
     description: 'Appearance, display, sound, power, keyboard, mouse — and pod plan/units.',
-    defaultSize: { width: 760, height: 560 },
-    minSize: { width: 480, height: 400 },
-  },
-  {
-    id: 'filemanager',
-    name: 'Files',
-    icon: 'Folder',
-    category: 'System',
+    defaultSize: { width: 760, height: 560 }, minSize: { width: 480, height: 400 } },
+
+  { id: 'filemanager', name: 'Files', icon: 'Folder', category: 'System',
     description: 'Browse local, pod inbox, downloads, garage shared folders.',
-    defaultSize: { width: 880, height: 580 },
-    minSize: { width: 480, height: 360 },
-    phase: 5,
-  },
-  {
-    id: 'terminal',
-    name: 'Terminal',
-    icon: 'Terminal',
-    category: 'System',
+    defaultSize: { width: 880, height: 580 }, minSize: { width: 480, height: 360 }, phase: 5 },
+
+  { id: 'terminal', name: 'Terminal', icon: 'Terminal', category: 'System',
     description: 'Local shell + tytus exec into pod containers.',
-    defaultSize: { width: 720, height: 460 },
-    minSize: { width: 400, height: 280 },
-    phase: 6,
-  },
-  {
-    id: 'systemmonitor',
-    name: 'System Monitor',
-    icon: 'Activity',
-    category: 'System',
+    defaultSize: { width: 720, height: 460 }, minSize: { width: 400, height: 280 }, phase: 6 },
+
+  { id: 'systemmonitor', name: 'System Monitor', icon: 'Activity', category: 'System',
     description: 'CPU, memory, disk, network — host + pods.',
-    defaultSize: { width: 720, height: 500 },
-    minSize: { width: 400, height: 320 },
-  },
-  {
-    id: 'archivemanager',
-    name: 'Archive Manager',
-    icon: 'Package',
-    category: 'System',
+    defaultSize: { width: 720, height: 500 }, minSize: { width: 400, height: 320 } },
+
+  { id: 'archivemanager', name: 'Archive Manager', icon: 'Package', category: 'System',
     description: 'Create and extract ZIP, TAR, 7Z archives.',
-    defaultSize: { width: 600, height: 440 },
-    minSize: { width: 360, height: 280 },
-  },
+    defaultSize: { width: 600, height: 440 }, minSize: { width: 360, height: 280 } },
 
-  // ====== INTERNET ======
-  {
-    id: 'chat',
-    name: 'Chat',
-    icon: 'MessageSquare',
-    category: 'Internet',
+  // ================================================================
+  // INTERNET
+  // ================================================================
+  { id: 'chat', name: 'Chat', icon: 'MessageSquare', category: 'Internet',
     description: 'Talk to your pod AI.',
-    defaultSize: { width: 520, height: 640 },
-    minSize: { width: 360, height: 440 },
-    phase: 4,
-  },
-  {
-    id: 'browser',
-    name: 'Browser',
-    icon: 'Globe',
-    category: 'Internet',
+    defaultSize: { width: 520, height: 640 }, minSize: { width: 360, height: 440 }, phase: 4 },
+
+  { id: 'browser', name: 'Browser', icon: 'Globe', category: 'Internet',
     description: 'Open Tytus pod URLs, agent docs, GitHub.',
-    defaultSize: { width: 960, height: 640 },
-    minSize: { width: 480, height: 360 },
-  },
+    defaultSize: { width: 960, height: 640 }, minSize: { width: 480, height: 360 } },
 
-  // ====== PRODUCTIVITY ======
-  {
-    id: 'notes',
-    name: 'Notes',
-    icon: 'StickyNote',
-    category: 'Productivity',
+  { id: 'weather', name: 'Weather', icon: 'CloudSun', category: 'Internet',
+    description: 'Weather forecast with locations.',
+    defaultSize: { width: 440, height: 520 }, minSize: { width: 320, height: 400 } },
+
+  { id: 'rssreader', name: 'RSS Reader', icon: 'Rss', category: 'Internet',
+    description: 'Feed reader for news subscriptions.',
+    defaultSize: { width: 800, height: 560 }, minSize: { width: 480, height: 360 } },
+
+  // ================================================================
+  // PRODUCTIVITY
+  // ================================================================
+  { id: 'notes', name: 'Notes', icon: 'StickyNote', category: 'Productivity',
     description: 'Quick notes with folders.',
-    defaultSize: { width: 640, height: 480 },
-    minSize: { width: 360, height: 300 },
-  },
-  {
-    id: 'todo',
-    name: 'Todo',
-    icon: 'CheckSquare',
-    category: 'Productivity',
+    defaultSize: { width: 640, height: 480 }, minSize: { width: 360, height: 300 } },
+
+  { id: 'todo', name: 'Todo', icon: 'CheckSquare', category: 'Productivity',
     description: 'Task list with priorities and projects.',
-    defaultSize: { width: 480, height: 560 },
-    minSize: { width: 320, height: 400 },
-  },
-  {
-    id: 'calendar',
-    name: 'Calendar',
-    icon: 'Calendar',
-    category: 'Productivity',
+    defaultSize: { width: 480, height: 560 }, minSize: { width: 320, height: 400 } },
+
+  { id: 'reminders', name: 'Reminders', icon: 'Bell', category: 'Productivity',
+    description: 'Time-based reminders.',
+    defaultSize: { width: 440, height: 480 }, minSize: { width: 320, height: 360 } },
+
+  { id: 'calendar', name: 'Calendar', icon: 'Calendar', category: 'Productivity',
     description: 'Monthly view with events.',
-    defaultSize: { width: 720, height: 520 },
-    minSize: { width: 400, height: 360 },
-  },
-  {
-    id: 'calculator',
-    name: 'Calculator',
-    icon: 'Calculator',
-    category: 'Productivity',
+    defaultSize: { width: 720, height: 520 }, minSize: { width: 400, height: 360 } },
+
+  { id: 'calculator', name: 'Calculator', icon: 'Calculator', category: 'Productivity',
     description: 'Standard calculator with history.',
-    defaultSize: { width: 340, height: 480 },
-    minSize: { width: 280, height: 400 },
-  },
-  {
-    id: 'clock',
-    name: 'Clock',
-    icon: 'Clock',
-    category: 'Productivity',
+    defaultSize: { width: 340, height: 480 }, minSize: { width: 280, height: 400 } },
+
+  { id: 'clock', name: 'Clock', icon: 'Clock', category: 'Productivity',
     description: 'World clock, alarms, timer, stopwatch.',
-    defaultSize: { width: 440, height: 400 },
-    minSize: { width: 320, height: 280 },
-  },
-  {
-    id: 'texteditor',
-    name: 'Text Editor',
-    icon: 'FileText',
-    category: 'Productivity',
+    defaultSize: { width: 440, height: 400 }, minSize: { width: 320, height: 280 } },
+
+  { id: 'spreadsheet', name: 'Spreadsheet', icon: 'Table2', category: 'Productivity',
+    description: 'Basic spreadsheet with formulas.',
+    defaultSize: { width: 800, height: 560 }, minSize: { width: 480, height: 320 } },
+
+  { id: 'texteditor', name: 'Text Editor', icon: 'FileText', category: 'Productivity',
     description: 'Edit plain text files.',
-    defaultSize: { width: 640, height: 480 },
-    minSize: { width: 320, height: 240 },
-  },
-  {
-    id: 'documentviewer',
-    name: 'Document Viewer',
-    icon: 'File',
-    category: 'Productivity',
+    defaultSize: { width: 640, height: 480 }, minSize: { width: 320, height: 240 } },
+
+  { id: 'documentviewer', name: 'Document Viewer', icon: 'File', category: 'Productivity',
     description: 'PDF and document viewer.',
-    defaultSize: { width: 720, height: 600 },
-    minSize: { width: 400, height: 360 },
-  },
-  {
-    id: 'markdownpreview',
-    name: 'Markdown Preview',
-    icon: 'FileCode',
-    category: 'Productivity',
+    defaultSize: { width: 720, height: 600 }, minSize: { width: 400, height: 360 } },
+
+  { id: 'markdownpreview', name: 'Markdown Preview', icon: 'FileCode', category: 'Productivity',
     description: 'Live markdown with GitHub styling.',
-    defaultSize: { width: 800, height: 600 },
-    minSize: { width: 480, height: 360 },
-  },
+    defaultSize: { width: 800, height: 600 }, minSize: { width: 480, height: 360 } },
 
-  // ====== MEDIA ======
-  {
-    id: 'imageviewer',
-    name: 'Image Viewer',
-    icon: 'Image',
-    category: 'Media',
+  // ================================================================
+  // MEDIA
+  // ================================================================
+  { id: 'imageviewer', name: 'Image Viewer', icon: 'Image', category: 'Media',
     description: 'View images with zoom and slideshow.',
-    defaultSize: { width: 720, height: 520 },
-    minSize: { width: 400, height: 320 },
-  },
-  {
-    id: 'musicplayer',
-    name: 'Music Player',
-    icon: 'Music',
-    category: 'Media',
-    description: 'Audio player with playlist.',
-    defaultSize: { width: 520, height: 440 },
-    minSize: { width: 360, height: 320 },
-  },
-  {
-    id: 'videoplayer',
-    name: 'Video Player',
-    icon: 'PlayCircle',
-    category: 'Media',
-    description: 'Video player with controls.',
-    defaultSize: { width: 640, height: 440 },
-    minSize: { width: 400, height: 280 },
-  },
+    defaultSize: { width: 720, height: 520 }, minSize: { width: 400, height: 320 } },
 
-  // ====== DEVTOOLS ======
-  {
-    id: 'codeeditor',
-    name: 'Code Editor',
-    icon: 'Code2',
-    category: 'DevTools',
+  { id: 'imagegallery', name: 'Image Gallery', icon: 'Images', category: 'Media',
+    description: 'Browse and organize image collections.',
+    defaultSize: { width: 800, height: 560 }, minSize: { width: 480, height: 360 } },
+
+  { id: 'photoeditor', name: 'Photo Editor', icon: 'Camera', category: 'Media',
+    description: 'Basic photo editing with filters.',
+    defaultSize: { width: 880, height: 600 }, minSize: { width: 480, height: 360 } },
+
+  { id: 'musicplayer', name: 'Music Player', icon: 'Music', category: 'Media',
+    description: 'Audio player with playlist.',
+    defaultSize: { width: 520, height: 440 }, minSize: { width: 360, height: 320 } },
+
+  { id: 'videoplayer', name: 'Video Player', icon: 'PlayCircle', category: 'Media',
+    description: 'Video player with controls.',
+    defaultSize: { width: 640, height: 440 }, minSize: { width: 400, height: 280 } },
+
+  { id: 'voicerecorder', name: 'Voice Recorder', icon: 'Mic', category: 'Media',
+    description: 'Record audio from your microphone.',
+    defaultSize: { width: 440, height: 320 }, minSize: { width: 320, height: 240 } },
+
+  { id: 'screenrecorder', name: 'Screen Recorder', icon: 'Video', category: 'Media',
+    description: 'Capture and record your screen.',
+    defaultSize: { width: 520, height: 360 }, minSize: { width: 360, height: 280 } },
+
+  { id: 'mediaconverter', name: 'Media Converter', icon: 'RefreshCw', category: 'Media',
+    description: 'Convert between media formats.',
+    defaultSize: { width: 560, height: 400 }, minSize: { width: 360, height: 280 } },
+
+  // ================================================================
+  // DEVTOOLS
+  // ================================================================
+  { id: 'codeeditor', name: 'Code Editor', icon: 'Code2', category: 'DevTools',
     description: 'Syntax-highlighted code editor with tabs.',
-    defaultSize: { width: 880, height: 640 },
-    minSize: { width: 480, height: 360 },
-  },
+    defaultSize: { width: 880, height: 640 }, minSize: { width: 480, height: 360 } },
+
+  { id: 'apitester', name: 'API Tester', icon: 'Send', category: 'DevTools',
+    description: 'Postman-style HTTP request builder. Real fetch.',
+    defaultSize: { width: 720, height: 560 }, minSize: { width: 440, height: 360 } },
+
+  { id: 'jsonformatter', name: 'JSON Formatter', icon: 'Braces', category: 'DevTools',
+    description: 'Format, validate, and beautify JSON.',
+    defaultSize: { width: 680, height: 520 }, minSize: { width: 400, height: 320 } },
+
+  { id: 'regextester', name: 'Regex Tester', icon: 'Search', category: 'DevTools',
+    description: 'Test and debug regular expressions.',
+    defaultSize: { width: 720, height: 480 }, minSize: { width: 440, height: 320 } },
+
+  { id: 'base64tool', name: 'Base64 Tool', icon: 'Shuffle', category: 'DevTools',
+    description: 'Encode/decode Base64 and URL strings.',
+    defaultSize: { width: 560, height: 440 }, minSize: { width: 360, height: 300 } },
+
+  { id: 'colorpalette', name: 'Color Palette', icon: 'Palette', category: 'DevTools',
+    description: 'Color schemes and palette generation.',
+    defaultSize: { width: 640, height: 480 }, minSize: { width: 400, height: 320 } },
+
+  // ================================================================
+  // CREATIVE
+  // ================================================================
+  { id: 'drawing', name: 'Drawing', icon: 'Paintbrush', category: 'Creative',
+    description: 'Canvas-based drawing with brushes.',
+    defaultSize: { width: 800, height: 600 }, minSize: { width: 480, height: 360 } },
+
+  { id: 'whiteboard', name: 'Whiteboard', icon: 'Layout', category: 'Creative',
+    description: 'Infinite canvas for sketches.',
+    defaultSize: { width: 800, height: 600 }, minSize: { width: 480, height: 360 } },
+
+  { id: 'colorpicker', name: 'Color Picker', icon: 'Pipette', category: 'Creative',
+    description: 'Pick colors, generate palettes.',
+    defaultSize: { width: 440, height: 400 }, minSize: { width: 320, height: 280 } },
+
+  { id: 'asciiart', name: 'ASCII Art', icon: 'Type', category: 'Creative',
+    description: 'Create ASCII text art and diagrams.',
+    defaultSize: { width: 640, height: 480 }, minSize: { width: 400, height: 320 } },
+
+  { id: 'matrixrain', name: 'Matrix Rain', icon: 'Sparkles', category: 'Creative',
+    description: 'Animated falling characters.',
+    defaultSize: { width: 600, height: 480 }, minSize: { width: 400, height: 320 } },
+
+  // ================================================================
+  // GAMES
+  // ================================================================
+  { id: 'minesweeper', name: 'Minesweeper', icon: 'Bomb', category: 'Games',
+    description: 'Classic minesweeper with 3 difficulty levels.',
+    defaultSize: { width: 360, height: 440 }, minSize: { width: 280, height: 360 } },
+
+  { id: 'snake', name: 'Snake', icon: 'Gamepad2', category: 'Games',
+    description: 'Classic snake game with increasing speed.',
+    defaultSize: { width: 440, height: 480 }, minSize: { width: 320, height: 360 } },
+
+  { id: 'tetris', name: 'Tetris', icon: 'Grid3x3', category: 'Games',
+    description: 'Block-stacking puzzle game.',
+    defaultSize: { width: 400, height: 560 }, minSize: { width: 280, height: 440 } },
+
+  { id: 'tictactoe', name: 'Tic-Tac-Toe', icon: 'X', category: 'Games',
+    description: '2-player and AI tic-tac-toe.',
+    defaultSize: { width: 400, height: 440 }, minSize: { width: 280, height: 320 } },
+
+  { id: 'game2048', name: '2048', icon: 'Hash', category: 'Games',
+    description: 'Number sliding puzzle.',
+    defaultSize: { width: 400, height: 480 }, minSize: { width: 320, height: 400 } },
+
+  { id: 'sudoku', name: 'Sudoku', icon: 'Grid2x2', category: 'Games',
+    description: '9×9 number puzzle with 4 difficulties.',
+    defaultSize: { width: 480, height: 520 }, minSize: { width: 360, height: 400 } },
+
+  { id: 'chess', name: 'Chess', icon: 'Crown', category: 'Games',
+    description: 'Chess with AI opponent.',
+    defaultSize: { width: 560, height: 600 }, minSize: { width: 400, height: 440 } },
+
+  { id: 'memory', name: 'Memory Game', icon: 'Brain', category: 'Games',
+    description: 'Card matching memory game.',
+    defaultSize: { width: 480, height: 440 }, minSize: { width: 320, height: 280 } },
+
+  { id: 'pong', name: 'Pong', icon: 'Circle', category: 'Games',
+    description: 'Classic paddle ball game.',
+    defaultSize: { width: 600, height: 400 }, minSize: { width: 400, height: 280 } },
+
+  { id: 'solitaire', name: 'Solitaire', icon: 'Layers', category: 'Games',
+    description: 'Classic card solitaire.',
+    defaultSize: { width: 720, height: 520 }, minSize: { width: 480, height: 360 } },
+
+  { id: 'flappybird', name: 'Flappy Bird', icon: 'Feather', category: 'Games',
+    description: 'Side-scrolling arcade game.',
+    defaultSize: { width: 400, height: 560 }, minSize: { width: 280, height: 400 } },
 ];
 
 export const getAppById = (id: string): AppDefinition | undefined =>
