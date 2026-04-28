@@ -57,6 +57,7 @@ import {
   Skull,
   KeyRound,
   Star,
+  ScrollText,
 } from 'lucide-react';
 import { useOS } from '@/hooks/useOSStore';
 import { useDaemonClient } from '@/hooks/useDaemonClient';
@@ -922,6 +923,14 @@ const PodTab: FC<PodTabProps> = ({ agent, ready, client, onError, isPinned, onTo
     () => runStreamedAction('stop-forwarder', 'forwarder stop'),
     [runStreamedAction],
   );
+  // Tail the agent container's stdout/stderr. Bounded snapshot — the
+  // CLI's `tytus logs --pod NN --lines 200` exits after printing,
+  // so the stream pane terminates with `success`. Re-fire the action
+  // for fresh lines (no live `-f` follow yet — daemon gap).
+  const onShowLogs = useCallback(
+    () => runStreamedAction('logs', 'logs'),
+    [runStreamedAction],
+  );
   const onUninstallConfirmed = useCallback(() => {
     setConfirmUninstall(false);
     runStreamedAction('uninstall', 'uninstall');
@@ -1207,6 +1216,14 @@ const PodTab: FC<PodTabProps> = ({ agent, ready, client, onError, isPinned, onTo
             disabled={activeJob !== null && !streamDone}
             onClick={onRefreshCreds}
           />
+          <ActionButton
+            label="Logs"
+            icon={<ScrollText size={12} />}
+            title="Tail the last 200 lines of the agent container's stdout/stderr"
+            running={submittingAction === 'logs' || (activeJob?.action === 'logs' && !streamDone)}
+            disabled={activeJob !== null && !streamDone}
+            onClick={onShowLogs}
+          />
         </div>
 
         <div className="flex flex-wrap gap-2 mt-3 pt-3" style={{ borderTop: '1px solid var(--border-subtle)' }}>
@@ -1249,7 +1266,7 @@ const PodTab: FC<PodTabProps> = ({ agent, ready, client, onError, isPinned, onTo
             }}
           >
             <div className="text-[var(--text-secondary)]">
-              {activeJob.action} ·{' '}
+              {activeJob.action === 'logs' ? `Logs (last 200 lines, pod ${agent.pod_id})` : activeJob.action} ·{' '}
               <span
                 style={{
                   color:
@@ -1267,17 +1284,34 @@ const PodTab: FC<PodTabProps> = ({ agent, ready, client, onError, isPinned, onTo
               </span>
             </div>
             {streamDone && (
-              <button
-                onClick={() => setActiveJob(null)}
-                className="px-2 py-0.5 rounded text-[10px] transition-colors"
-                style={{
-                  background: 'var(--bg-hover, rgba(255,255,255,0.04))',
-                  color: 'var(--text-secondary)',
-                  border: '1px solid var(--border-default)',
-                }}
-              >
-                Dismiss
-              </button>
+              <div className="flex items-center gap-1.5">
+                {activeJob.action === 'logs' && (
+                  <button
+                    onClick={onShowLogs}
+                    className="px-2 py-0.5 rounded text-[10px] transition-colors flex items-center gap-1"
+                    style={{
+                      background: 'var(--bg-hover, rgba(255,255,255,0.04))',
+                      color: 'var(--text-secondary)',
+                      border: '1px solid var(--border-default)',
+                    }}
+                    title="Re-fetch the trailing 200 lines"
+                  >
+                    <RefreshCw size={10} />
+                    Refresh
+                  </button>
+                )}
+                <button
+                  onClick={() => setActiveJob(null)}
+                  className="px-2 py-0.5 rounded text-[10px] transition-colors"
+                  style={{
+                    background: 'var(--bg-hover, rgba(255,255,255,0.04))',
+                    color: 'var(--text-secondary)',
+                    border: '1px solid var(--border-default)',
+                  }}
+                >
+                  Dismiss
+                </button>
+              </div>
             )}
           </div>
           <pre
