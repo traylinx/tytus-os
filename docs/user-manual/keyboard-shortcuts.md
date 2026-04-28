@@ -24,6 +24,7 @@ Every shortcut TytusOS responds to today.
 | Shortcut | Action |
 |---|---|
 | **Ctrl+Alt+T** | Open Terminal |
+| **⌘+K** (macOS) / **Ctrl+K** (Linux/Windows) | Open the Command Palette — search-as-you-type, **↑ / ↓** to navigate, **Enter** to execute, **Esc** to close |
 
 ## In the launcher
 

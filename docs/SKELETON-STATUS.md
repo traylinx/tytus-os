@@ -1,6 +1,6 @@
 # Skeleton Status
 
-A snapshot of what's working in TytusOS as of **2026-04-28**, end of Phase 1.
+A snapshot of what's working in TytusOS as of **2026-04-28**, end of Phases 1–7 (shipped same session). 71/71 vitest tests green.
 
 ## Verified (52/52 apps green)
 
@@ -153,33 +153,109 @@ summary: 52 pass · 0 fail · 52 total
 | Smoke duration | ~10 s |
 | Sweep duration | ~3 min (52 × 3 s) |
 
-## Known gaps (intentional)
+## Daemon client (Phase 2)
 
-| Gap | Phase to fix |
+| Capability | Status |
 |---|---|
-| No daemon connection | Phase 2 |
-| Pod Inspector / Channels / Help are placeholders | Phase 3-4 |
-| Login password isn't validated | Phase 2 |
-| Wi-Fi / Bluetooth / Power panels in Settings are decorative | Phase 3 |
-| Terminal commands are simulated | Phase 6 |
-| Tower deep-link fragment routing | Phase 3 (router) |
+| `lib/daemon.ts` typed client (28+ methods: getState, getCatalog, postLaunch, postInstall, postLogout, …) | ✅ |
+| Opaque `Secret` brand type with `revealSecret(s, "user_gesture")` literal type-gate | ✅ |
+| `DaemonResult<T>` envelope with 9 error categories | ✅ |
+| `useDaemonState` hook (5s poll, A1a immediate / A1b 3-fail offline banner) | ✅ |
+| `useJobStream` hook (SSE consumer with late-subscribe deadline) | ✅ |
+| Hash-fragment router with nonce preservation (`#/run/doctor`, `#/pod/02/restart`, `#/settings/agents`) | ✅ |
+| `LoginScreen` reads `state.logged_in` + polls; user signs in via tray menu | ✅ |
+| `Sec-Fetch-Site: same-origin` POST guard + nosniff on tytus-cli daemon | ✅ |
+
+## Settings (Phase 3a)
+
+| Capability | Status |
+|---|---|
+| Sidebar groups: Tytus / System with divider | ✅ |
+| Account panel | ✅ |
+| Plan & Units panel (refresh button, tier breakdown by pod) | ✅ |
+| Pods panel (refresh button, copy + reveal Secret-typed user_key, ui_url token) | ✅ |
+| Agents panel (1-click install, install wizard modal with Retry + auto-refresh) | ✅ |
+| Daemon panel | ✅ |
+| Display panel: "Show demo apps" toggle (default off for paid users) | ✅ Phase 6 |
+| Sign-out confirmation modal | ✅ |
+| `?install=auto` deep-link from ZeroPodsOverlay | ✅ |
+| ZeroPodsOverlay shell-level CTA when `state.agents = []` | ✅ |
+| Persisted active Settings category in localStorage | ✅ |
+
+## Pod Inspector (Phase 3b)
+
+| Capability | Status |
+|---|---|
+| Fleet Overview table (sortable, search, status pills) | ✅ |
+| Per-pod tabs: URLs / env / status / actions | ✅ |
+| Action streaming via run-streamed: Restart, Doctor, Stop forwarder, Refresh creds | ✅ |
+| Uninstall soft confirm modal | ✅ |
+| Revoke hard confirm — typed-name confirmation | ✅ |
+| Restart-all batch op | ✅ |
+| TopPanel Fleet Health strip (color-coded chip showing pod count + active jobs) | ✅ |
+| Per-pod pin (Fleet table star + Pod tab marker, persisted in localStorage with 8-pod cap) | ✅ |
+
+## Help + Command Palette (Phase 4)
+
+| Capability | Status |
+|---|---|
+| Help app: Doctor tab | ✅ |
+| Help app: Health Test tab | ✅ |
+| Help app: Logs tab — polls `/api/logs?name=daemon\|startup&offset=N`, pause/resume + auto-scroll | ✅ |
+| Help app: About tab | ✅ |
+| Command Palette (Cmd+K / Ctrl+K) — modal, search, Apps / Pods / System sections, ↑↓ wraps, Enter executes | ✅ |
+| Window state persistence — open windows persist to localStorage, restore on reload | ✅ |
+| Chat app v1 — link launcher (sidebar of pods + "Open Pod NN in browser →" button) | ✅ |
+
+## Channels / Files / Browser (Phase 5)
+
+| Capability | Status |
+|---|---|
+| Channels: pods sidebar + Available/Configured columns | ✅ |
+| Channels: token-secure Add modal (token in body, never URL) | ✅ |
+| Files: Inbox tab (run-streamed ls-inbox) | ✅ |
+| Files: Downloads tab (postFilesOpenDownloads → Finder) | ✅ |
+| Browser: URL bar with scheme validation + registered launchers + Quick Actions | ✅ |
+
+## Shared folders + Desktop pin (Phase 7)
+
+| Capability | Status |
+|---|---|
+| Files: Shared folders tab — bind modal, pick-folder via osascript | ✅ |
+| Sync-now + open-in-Finder actions | ✅ |
+| Desktop reserved-zone pin — 4×2 top-left grid for pinned pods | ✅ |
+| Click pinned pod → opens Pod Inspector tab | ✅ |
+
+## Known gaps
+
+| Gap | Status |
+|---|---|
+| No daemon connection | ✅ FIXED Phase 2 |
+| Pod Inspector / Channels / Help are placeholders | ✅ FIXED Phases 3b / 5 / 4 |
+| Login password isn't validated | ✅ FIXED Phase 2 (LoginScreen reads `state.logged_in`, signs in via tray) |
+| Tower deep-link fragment routing | ✅ FIXED Phase 2 (hash router with nonce preservation) |
+| Wi-Fi / Bluetooth / Power panels in Settings are decorative | ⏳ still decorative — out of scope |
+| Terminal commands are simulated | ⏳ deferred |
+| Per-pod logs SSE tail | ⏳ Phase 8 — daemon gap (`/api/logs?name=pod-NN` doesn't exist; run-streamed allowlist lacks `logs` action) |
+| Tower removal in tytus-cli | ⏳ Phase 8 — gated on manifest Q7 14-day no-link trigger |
+| Desktop pin v2 (no overlap with user icons) | ⏳ Phase 8 — manifest §2.5 |
 | Boot bundle eagerly loads all 50 apps | Future polish (`React.lazy`) |
 | No CI gating on PRs | Future |
-| No reducer unit tests | Future |
 | No multi-monitor / window snapping | Future |
 | No PWA / offline | Future |
 
 ## What this status doc gates
 
-The skeleton is **complete enough** to:
+TytusOS v1 (Phases 1–7) is **complete enough** to:
 
-- ✅ Land a daemon client (Phase 2) without breaking anything
-- ✅ Build out Pod Inspector / Settings (Phase 3) on top
+- ✅ Replace Tytus Tower for end users (Settings + Pod Inspector + Channels + Files + Help all native)
+- ✅ Ship to Operator-tier customers — all daemon-wired surfaces working, 71/71 tests green
 - ✅ Onboard a new contributor — they can read the docs, run the sweep, see green
 - ✅ Demo the look-and-feel to anyone (Sebastian's "real OS feel" mandate)
+- ✅ Land Phase 8 (per-pod logs / Tower ripout / pin v2) on top without restructuring
 
 What it does **not** gate:
 
 - ❌ Public release (logo + naming + license + landing page still TBD)
-- ❌ Operator-tier sale (needs the daemon-wired surfaces from Phases 2–5)
+- ❌ Tower removal in tytus-cli (manifest Q7 trigger gate not yet armed)
 - ❌ Apple code signing (deferred until paying customers — see Tytus v0.6 audit)

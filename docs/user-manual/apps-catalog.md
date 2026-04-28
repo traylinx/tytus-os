@@ -1,26 +1,26 @@
 # Apps Catalog
 
-Every app installed in TytusOS today (52 total). Apps marked **[Tytus]** are placeholders awaiting their phase wiring.
+Every app installed in TytusOS today. The Tytus surfaces (Pod Inspector, Settings, Help, Chat, Files, Channels, Browser) are now wired to the daemon — no more placeholders.
 
 ## System (8)
 
 | App | What it does |
 |---|---|
-| **Pod Inspector** **[Tytus]** | Pod state, env vars, restart, uninstall, revoke, streamed logs. Phase 3. |
-| **Help** **[Tytus]** | Doctor, daemon lifecycle, log tail, troubleshooting. Phase 4. |
-| **System Settings** | Appearance, display, sound, power, accent color (and pod plan/units in Phase 3). |
-| **Files** | Browse local virtual filesystem. Pod inbox + downloads + garage shared folders in Phase 5. |
-| **Terminal** | Simulated bash today. Real `tytus exec` into pod containers in Phase 6. |
+| **Pod Inspector** | Fleet Overview + per-pod tabs. Sort by *Needs attention* or *Pod ID*; search by `pod_id` or `agent_type`. Each row shows a status pill, an **Open agent UI** button, and click-through to the per-pod tab. The per-pod tab shows a status header, URLs grid, **Pin / Unpin**, an action row (**Open / Restart / Doctor / Stop forwarder / Refresh creds**), and a destructive section (**Uninstall… / Revoke…**). Streaming actions render an inline log pane. Pinned pods sort to top. **Restart all** appears when 2+ pods are allocated. |
+| **System Settings** | Tytus product config (Account, Plan & Units, Pods, Agents, Daemon) plus OS-feel preferences. See [Settings](settings.md). |
+| **Help** | Sidebar tabs: **Doctor**, **Health test**, **Logs**, **About**. Doctor + Test each have a **Run** button, an SSE log pane, and a *"Last run: Xm ago · exit 0"* status line. Logs polls `/api/logs` every 2s with **Pause / Resume** and auto-scroll-when-pinned. About shows daemon PID, formatted uptime, and GitHub links. |
+| **Files** | Pods sidebar plus three tabs: **Inbox** (run-streamed `ls-inbox`), **Downloads** (opens `~/Downloads/tytus/pod-NN/` via `postFilesOpenDownloads`), and **Shared** (bind a Mac folder to one or more pods via Garage — folder picker, bucket validation, auto-sync toggle). |
+| **Terminal** | Simulated bash today. Real `tytus exec` into pod containers in a later phase. |
 | **System Monitor** | CPU, memory, disk, network — host today, pods later. |
 | **Archive Manager** | Create and extract ZIP / TAR / 7Z archives. |
-| **Channels** **[Tytus]** | Telegram / Slack / iMessage / Matrix bindings per pod. Phase 5. |
+| **Channels** | Pods sidebar plus **Available** and **Configured** columns. **Add** opens a modal with a `type=password` input — the token travels in the request body, never in the URL. **Remove** asks for confirmation. |
 
 ## Internet (4)
 
 | App | What it does |
 |---|---|
-| **Chat** | Talks to your pod AI (Phase 4 wires real chat). |
-| **Browser** | Lightweight tabbed browser (iframe-based). |
+| **Chat** | Pods sidebar plus a main pane showing *"Pod NN ready to chat"* and an **Open Pod NN in browser** button (launches the agent UI). Inline chat planned for v1.1. |
+| **Browser** | URL bar with scheme validation, registered launchers from `getLaunchers`, plus **Quick Actions** (Tytus dashboard / Provider / GitHub). |
 | **Weather** | Forecast with locations. |
 | **RSS Reader** | Feed reader with default subscriptions. |
 
@@ -63,31 +63,34 @@ Every app installed in TytusOS today (52 total). Apps marked **[Tytus]** are pla
 | **Base64 Tool** | Encode / decode Base64 + URL strings. |
 | **Color Palette** | Generate complementary color schemes. |
 
-## Creative (5)
+## Creative (3)
 
 | App | What it does |
 |---|---|
 | **Drawing** | Canvas-based drawing app with brushes. |
 | **Whiteboard** | Infinite canvas for sketches. |
 | **Color Picker** | Pick colors, build palettes. |
-| **ASCII Art** | Generate ASCII text art and diagrams. |
-| **Matrix Rain** | Animated falling characters (the green movie effect). |
 
-## Games (11)
+## Demo apps (hidden by default)
 
-| App | What it does |
-|---|---|
-| **Minesweeper** | Classic with 3 difficulty levels. |
-| **Snake** | Classic snake with increasing speed. |
-| **Tetris** | Block-stacking puzzle. |
-| **Tic-Tac-Toe** | 2-player or vs AI. |
-| **2048** | Sliding tile puzzle. |
-| **Sudoku** | 9 × 9 puzzle, 4 difficulties. |
-| **Chess** | vs AI. |
-| **Memory** | Card matching. |
-| **Pong** | Classic paddle ball. |
-| **Solitaire** | Klondike. |
-| **Flappy Bird** | Side-scroller. |
+The 11 Games plus **ASCII Art** and **Matrix Rain** are gated by the **Show demo apps** toggle in **Settings → Display** (default OFF — manifest AN8 demo-apps gate). Flip it on to expose:
+
+- **Minesweeper**, **Snake**, **Tetris**, **Tic-Tac-Toe**, **2048**, **Sudoku**, **Chess**, **Memory**, **Pong**, **Solitaire**, **Flappy Bird**
+- **ASCII Art** — generate ASCII text art and diagrams
+- **Matrix Rain** — animated falling characters (the green movie effect)
+
+## Shell-level surfaces
+
+Beyond windowed apps, TytusOS now exposes pod state directly from the shell:
+
+- **Top Panel — Daemon status pill** — green / yellow / red / grey. Click opens **Settings → Daemon**.
+- **Top Panel — Fleet Health chip** (next to the daemon pill) — pod count + active jobs, color-coded. Click opens **Pod Inspector**.
+- **Desktop — Reserved Pods Zone** — top-left 4×2 grid for pinned pods. Click → opens **Pod Inspector** with that pod's tab focused. Right-click → **Unpin**. Stale pins (revoked elsewhere) render at 50% opacity.
+- **Desktop — Zero-pods overlay** — appears when `state.agents = []`. CTA jumps to **Settings → Agents**.
+
+## Window state persistence
+
+Open windows persist across reloads — positions, sizes, minimized and maximized state. Focus order and z-index reset on reload.
 
 ## Permanently dropped (won't ship)
 

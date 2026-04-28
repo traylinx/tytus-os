@@ -4,7 +4,22 @@ Six phases, strangler-port. The full architectural decision lives at [INTEGRATIO
 
 ## Where we are
 
-**Phase 1: Foundation cleanup** — ✅ shipped 2026-04-28.
+**Phases 1–7 all shipped 2026-04-28** in a single session across 8 feature branches. 71/71 vitest tests green.
+
+| Phase | Status | Branch |
+|---|---|---|
+| Phase 1 — Foundation cleanup | ✅ shipped 2026-04-28 | (skeleton freeze) |
+| Phase 2 — Daemon client + auth bridge | ✅ shipped 2026-04-28 | `phase-2/daemon-client` + `phase-2/security-floor` (tytus-cli) |
+| Phase 3a — Zero-pods overlay + Settings + Install wizard | ✅ shipped 2026-04-28 | `phase-3a/zero-pods-and-install` |
+| Phase 3b — Pod Inspector | ✅ shipped 2026-04-28 | `phase-3b/pod-inspector` |
+| Phase 4 — Help app + Command Palette | ✅ shipped 2026-04-28 | `phase-4/help-app` |
+| Phase 5 — Channels + Files + Browser | ✅ shipped 2026-04-28 | `phase-5/channels-files-browser` |
+| Phase 6 — Demo apps toggle | ✅ shipped 2026-04-28 | `phase-6/demo-apps-toggle` |
+| Phase 7 — Shared folders + Desktop pin | ✅ shipped 2026-04-28 | `phase-7/shared-folders-and-desktop-pin` |
+
+## What shipped
+
+### Phase 1 — Foundation cleanup ✅ (2026-04-28)
 
 - Boot / login / desktop / dock / window manager all functional
 - 50 apps installed (8 Tytus surfaces + 42 OS-feel utilities)
@@ -12,55 +27,63 @@ Six phases, strangler-port. The full architectural decision lives at [INTEGRATIO
 - Smoke tests cover window interactions + dock + launcher
 - Repo at `traylinx/tytus-os`, private
 
-The skeleton is locked. Phase 2 starts whenever Sebastian gives the word.
+### Phase 2 — Daemon client + types + auth bridge ✅ (2026-04-28, `phase-2/daemon-client` + `phase-2/security-floor`)
 
-## What's next
+- **`lib/daemon.ts`** — full daemon client, 28+ methods (`getState`, `getCatalog`, `postLaunch`, `postInstall`, `postLogout`, …)
+- **Opaque `Secret` brand type** with `revealSecret(s, "user_gesture")` literal type-gate
+- **`DaemonResult<T>` envelope** with 9 error categories
+- **`useDaemonState` hook** — 5s poll, A1a immediate / A1b 3-fail offline banner
+- **`useJobStream` hook** — SSE consumer with late-subscribe deadline
+- **Hash-fragment router** with nonce preservation (`#/run/doctor`, `#/pod/02/restart`, `#/settings/agents`)
+- **Auth bridge** — `LoginScreen` reads `state.logged_in`, polls; user signs in via tray menu
+- **Security floor (tytus-cli)** — `Sec-Fetch-Site: same-origin` POST guard + nosniff on the daemon
 
-### Phase 2 — Daemon client + types + auth bridge (2–3 days)
+### Phase 3a — Zero-pods overlay + Settings + Install wizard ✅ (2026-04-28, `phase-3a/zero-pods-and-install`)
 
-Goal: every app that needs pod data can fetch it from `tytus-cli` over a stable contract.
+- **ZeroPodsOverlay** shell-level CTA when `state.agents = []`
+- **Settings panels**: Account, Plan & Units, Pods, Agents, Daemon (sidebar groups: Tytus | System with divider)
+- **Install wizard modal** with Retry on failure + auto-refresh on success
+- **1-click install** via `?install=auto` deep-link from overlay
+- **Pod cards** with copy + reveal (Secret-typed user_key, ui_url token)
+- **Sign-out confirmation modal** (the destructive bug from 2026-04-28 caught us)
+- Refresh buttons on Plan + Pods, plan tier breakdown by pod
+- Persisted active Settings category in localStorage
 
-- **`lib/daemon.ts`** — port discovery (`/tmp/tytus/tray-web.port`), typed `fetch`, retry with exponential backoff, structured error model
-- **Domain types** in `types/`: `Pod`, `Plan`, `Channel`, `Job`, `BindingRow`, `Catalog`, `StateSnapshot`
-- **`hooks/useDaemonState.ts`** — react-query-style live `/api/state` poll with auto-revalidation
-- **`hooks/useJobStream.ts`** — EventSource wrapper for SSE, handles reconnect + cancellation
-- **Auth bridge** — `LoginScreen` reads daemon state; if unauthenticated, deep-links to tray's `tytus login` flow and polls until auth flips
+### Phase 3b — Pod Inspector ✅ (2026-04-28, `phase-3b/pod-inspector`)
 
-**Acceptance:** the OS knows the user's plan tier, units used, and pod list. It does not yet *show* this — that's Phase 3.
+- **Fleet Overview** table — sortable, search, status pills
+- **Per-pod tabs** — URLs / env / status / actions
+- **Action streaming** via run-streamed: Restart, Doctor (daemon-wide), Stop forwarder, Refresh creds
+- **Uninstall** soft confirm modal
+- **Revoke** hard confirm — typed-name confirmation (mirrors the 2026-04-28 logout-wipe lesson)
+- **Restart-all** batch op
+- **TopPanel Fleet Health strip** — color-coded chip showing pod count + active jobs
+- **Per-pod pin** — Fleet table star + Pod tab marker, persisted in localStorage with 8-pod cap
 
-### Phase 3 — Settings + Pod Inspector (3–4 days)
+### Phase 4 — Help app + streamed runs ✅ (2026-04-28, `phase-4/help-app`)
 
-Goal: the two most-used tray destinations work natively in TytusOS.
+- **Help app**: Doctor / Health Test / Logs / About tabs
+- **Logs tab** polls `/api/logs?name=daemon|startup&offset=N` with pause/resume + auto-scroll
+- **Command Palette** (Cmd+K / Ctrl+K) — modal, search, Apps / Pods / System sections, ↑↓ wraps, Enter executes
+- **Window state persistence** — open windows persist to localStorage, restore on reload
+- **Chat app v1** — link launcher (sidebar of pods + "Open Pod NN in browser →" button per pod)
 
-- **Settings** gains a top strip: plan name, units used / total, "Upgrade" button, agent catalog with one-click install, autostart toggles, sign-out. Wi-Fi / Bluetooth panels either get a "Pod network" replacement or hide.
-- **Pod Inspector** ships: per-pod card (env vars, URLs, copy buttons), restart / uninstall / revoke buttons that POST to `/api/pod/<n>/run-streamed` and stream into a built-in log pane
-- **Tray deep-link router** — `#/pod/02/restart` opens Pod Inspector for pod 02 and auto-fires the restart
+### Phase 5 — Channels + Files + Browser ✅ (2026-04-28, `phase-5/channels-files-browser`)
 
-**Acceptance:** Tytus Tower's "Settings" and per-pod actions are now fully covered by TytusOS. Tower stays alive but most users won't need to click into it.
+- **Channels** — pods sidebar + Available/Configured columns + token-secure Add modal (token in body, never URL)
+- **Files** — Inbox + Downloads tabs (run-streamed ls-inbox; postFilesOpenDownloads → Finder)
+- **Browser** — URL bar with scheme validation + registered launchers + Quick Actions
 
-### Phase 4 — Chat + streamed runs (2–3 days)
+### Phase 6 — Demo apps toggle ✅ (2026-04-28, `phase-6/demo-apps-toggle`)
 
-- **Chat** wires to pod chat (either via `/api/pod/open` browser deep-link, or eventually inline via daemon proxy)
-- **Help** wires to `/api/doctor`, daemon lifecycle, log tail
-- Health-test surface inside Pod Inspector
+- **Manifest AN8** — `isDemo` flag on Games + ASCII Art + Matrix Rain
+- **Settings → Display** "Show demo apps" toggle (default off for paid users)
+- **AppLauncher** filters demo apps + hides Games tab when off
 
-**Acceptance:** `#chat`, `#/run/doctor`, `#/run/test` all native.
+### Phase 7 — Shared folders + Desktop pin ✅ (2026-04-28, `phase-7/shared-folders-and-desktop-pin`)
 
-### Phase 5 — Files + Channels (3–4 days)
-
-- **Files** integrates per-pod inbox, downloads, garage shared folders. The current virtual-FS hook gets a daemon-backed implementation.
-- **Channels** ships: per-pod bindings list, Add Channel modal with token input (using shadcn `<Dialog>` — but tokens never touch the URL bar)
-- All `/api/shared-folders/*` endpoints surfaced
-
-**Acceptance:** Tytus Tower's last functional tabs are absorbed.
-
-### Phase 6 — Deprecate Tower (1 day, gated on parity)
-
-- Banner on the legacy Tower page: "This is now built into Tytus — open the OS"
-- Tray menu items still pointing at Tower get rerouted in `tytus-cli` to open TytusOS
-- After 2 weeks of zero-traffic on Tower routes (metric-gated), delete the Tower HTML/JS bundles + tower routes from `tytus-cli`
-
-**Acceptance:** Tower is gone. Contract preserved. Tray ↔ OS bridge is the only path.
+- **Files: Shared folders tab** — bind modal, pick-folder via osascript, sync-now, open in Finder
+- **Desktop reserved-zone pin** — 4×2 top-left grid for pinned pods, click opens Pod Inspector tab
 
 ## Hard rules across all phases
 
@@ -70,7 +93,13 @@ Goal: the two most-used tray destinations work natively in TytusOS.
 4. **Token modals stay browser-secure.** Tokens never appear in URLs.
 5. **Phase 2 lands before any feature porting.** The typed daemon client is the foundation for everything else; skipping it = "Tower with prettier CSS."
 
-## Beyond Phase 6 (parking lot)
+## Deferred (Phase 8 candidates)
+
+1. **Per-pod logs SSE tail** — daemon gap. `/api/logs?name=pod-NN` doesn't exist, and the run-streamed allowlist lacks a `logs` action. Needs a tytus-cli daemon change before TytusOS can wire it.
+2. **Tower removal in tytus-cli** — manifest Q7 trigger gate: "no Tower bundle linked from any tray menu for 14 days." Not yet armed; can ripout after the gate fires.
+3. **Desktop pin v2** — manifest §2.5 says "user icons cannot be displaced by pin." Current Phase 7 simplification accepts visual overlap; v2 needs reserved-zone reflow + collision-aware grid.
+
+## Beyond Phase 8 (parking lot)
 
 - Code splitting per app (drop boot bundle from 363 KB to ~150 KB gzipped)
 - Real auth flow (no more "Unlock with any password")
