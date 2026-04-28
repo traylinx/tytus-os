@@ -128,6 +128,42 @@ describe("useDaemonState", () => {
     expect(result.current.version?.daemon_started_at).toBe(1714325847);
   });
 
+  it("stops polling /api/version after first 404 (old-daemon forward-compat)", async () => {
+    // Real-world scenario: the user's installed tray binary predates
+    // the /api/version endpoint. Without this guard, every state tick
+    // fires another red 404 in the browser network tab and the
+    // console fills with noise. After the first 404 we treat the
+    // daemon as "doesn't support it" and stop firing.
+    let versionCalls = 0;
+    const wrap: typeof fetch = async (input) => {
+      const url = typeof input === "string" ? input : (input as URL).toString();
+      if (url.endsWith("/api/version")) {
+        versionCalls++;
+        return new Response("not found", {
+          status: 404,
+          headers: { "Content-Type": "text/plain" },
+        });
+      }
+      return new Response(JSON.stringify(stateFixture), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    };
+    const client = createDaemonClient({ fetch: wrap });
+    const { result } = renderHook(() =>
+      useDaemonState({ client, intervalMs: 10 }),
+    );
+    await waitFor(() => expect(result.current.status).toBe("online"));
+    // Let several poll ticks fire.
+    await new Promise((r) => setTimeout(r, 120));
+    // /api/version was probed once and then suppressed. We allow up
+    // to 2 calls to absorb the case where the second poll fired
+    // before the first response came back, but the count must NOT
+    // grow per-tick.
+    expect(versionCalls).toBeLessThanOrEqual(2);
+    expect(result.current.version).toBeNull();
+  });
+
   it("refresh() triggers a new poll", async () => {
     let callCount = 0;
     const wrap: typeof fetch = async () => {

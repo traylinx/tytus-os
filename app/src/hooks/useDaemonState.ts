@@ -55,9 +55,16 @@ export const useDaemonState = (
   const [version, setVersion] = useState<DaemonVersion | null>(null);
   const [tick, setTick] = useState(0);
   const cancelledRef = useRef(false);
+  // Forward-compat: older daemons (< the /api/version sprint) return
+  // 404. After the first such 404 we stop polling /api/version on
+  // this session — otherwise every state tick logs a red 404 in the
+  // browser network tab and there's no graceful upgrade path. Reset
+  // on `refresh()` so a re-detection happens after the user upgrades.
+  const versionUnsupportedRef = useRef(false);
 
   useEffect(() => {
     cancelledRef.current = false;
+    versionUnsupportedRef.current = false;
     let abort: AbortController | null = null;
     let timer: ReturnType<typeof setTimeout> | null = null;
 
@@ -76,11 +83,17 @@ export const useDaemonState = (
       // restarted.
       const [stateR, versionR] = await Promise.all([
         client.getState(abort.signal),
-        client.getVersion(abort.signal),
+        versionUnsupportedRef.current
+          ? Promise.resolve(null)
+          : client.getVersion(abort.signal),
       ]);
       if (cancelledRef.current) return;
-      if (versionR.ok) {
+      if (versionR && versionR.ok) {
         setVersion(versionR.value);
+      } else if (versionR && !versionR.ok && versionR.error.code === "not_found") {
+        // Old daemon that predates /api/version. Stop probing for the
+        // rest of this session — restart detection just stays inert.
+        versionUnsupportedRef.current = true;
       }
       if (stateR.ok) {
         setState(stateR.value);
