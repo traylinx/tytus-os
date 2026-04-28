@@ -316,6 +316,41 @@ export interface DaemonClient {
     signal?: AbortSignal,
   ): Promise<DaemonResult<null>>;
   /**
+   * Open the macOS native folder picker. Returns the chosen POSIX
+   * path, or marks the call cancelled if the user dismissed the
+   * dialog. Non-macOS daemons return 501 (auth_required would be
+   * misleading; we surface as logical_error in that case).
+   */
+  postSharedFoldersPickFolder(
+    signal?: AbortSignal,
+  ): Promise<DaemonResult<{ path: string } | { cancelled: true }>>;
+  /**
+   * Bind a Mac folder to one or more pods via a Garage bucket. The
+   * call is fire-and-stream: returns {job_id} on accept, daemon
+   * runs garagetytus-folder-bind in the background and streams
+   * progress over SSE.
+   */
+  postSharedFoldersBind(
+    payload: {
+      local_path: string;
+      bucket: string;
+      pods?: string[];
+      auto_sync?: boolean;
+    },
+    signal?: AbortSignal,
+  ): Promise<DaemonResult<JobResponse>>;
+  postSharedFoldersOpen(
+    localPath: string,
+    signal?: AbortSignal,
+  ): Promise<DaemonResult<null>>;
+  postSharedFoldersOpenCache(
+    signal?: AbortSignal,
+  ): Promise<DaemonResult<null>>;
+  postSharedFoldersRunStreamed(
+    action: "list" | "status" | "conflicts" | "refresh-all",
+    signal?: AbortSignal,
+  ): Promise<DaemonResult<JobResponse>>;
+  /**
    * Per-pod streamed action. The daemon's allowlist (Phase 2 spike,
    * web_server.rs::pod_action_argv) currently accepts: restart, revoke,
    * uninstall, stop-forwarder, channels-list, ls-inbox. Returns a
@@ -540,6 +575,67 @@ export const createDaemonClient = (
         `/api/files/open-downloads?pod=${encodeURIComponent(podId)}`,
         { method: "POST", signal },
         noBody,
+      ),
+
+    postSharedFoldersPickFolder: (signal) =>
+      runRequest(
+        deps,
+        "/api/shared-folders/pick-folder",
+        { method: "POST", signal },
+        (b) => {
+          if (
+            isObject(b) &&
+            (("path" in b && typeof b.path === "string") ||
+              ("cancelled" in b && b.cancelled === true))
+          ) {
+            return ok(b as { path: string } | { cancelled: true });
+          }
+          return err(
+            errorOf("daemon_unhealthy", "malformed pick-folder response"),
+          );
+        },
+      ),
+
+    postSharedFoldersBind: (payload, signal) =>
+      runRequest(
+        deps,
+        "/api/shared-folders/bind",
+        { method: "POST", body: payload, signal },
+        (b) =>
+          expectShape(
+            b,
+            isJobResponse,
+            "malformed /api/shared-folders/bind",
+          ),
+      ),
+
+    postSharedFoldersOpen: (localPath, signal) =>
+      runRequest(
+        deps,
+        "/api/shared-folders/open",
+        { method: "POST", body: { local_path: localPath }, signal },
+        noBody,
+      ),
+
+    postSharedFoldersOpenCache: (signal) =>
+      runRequest(
+        deps,
+        "/api/shared-folders/open-cache",
+        { method: "POST", signal },
+        noBody,
+      ),
+
+    postSharedFoldersRunStreamed: (action, signal) =>
+      runRequest(
+        deps,
+        `/api/shared-folders/run-streamed?action=${encodeURIComponent(action)}`,
+        { method: "POST", signal },
+        (b) =>
+          expectShape(
+            b,
+            isJobResponse,
+            "malformed /api/shared-folders/run-streamed",
+          ),
       ),
 
     postPodRunStreamed: (podId, action, signal) =>

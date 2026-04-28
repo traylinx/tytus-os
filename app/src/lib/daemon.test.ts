@@ -312,6 +312,97 @@ describe("daemon client — POSTs", () => {
     expect(observed).toEqual({ name: "doctor" });
   });
 
+  it("postSharedFoldersPickFolder returns chosen path", async () => {
+    const { fetch } = makeFakeFetch([
+      {
+        method: "POST",
+        path: "/api/shared-folders/pick-folder",
+        body: { path: "/Users/foo/Shared" },
+      },
+    ]);
+    const r = await createDaemonClient({ fetch }).postSharedFoldersPickFolder();
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect("path" in r.value && r.value.path).toBe("/Users/foo/Shared");
+  });
+
+  it("postSharedFoldersPickFolder surfaces user cancel", async () => {
+    const { fetch } = makeFakeFetch([
+      {
+        method: "POST",
+        path: "/api/shared-folders/pick-folder",
+        body: { cancelled: true },
+      },
+    ]);
+    const r = await createDaemonClient({ fetch }).postSharedFoldersPickFolder();
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect("cancelled" in r.value && r.value.cancelled).toBe(true);
+  });
+
+  it("postSharedFoldersBind sends payload + returns job_id", async () => {
+    let observed: unknown = undefined;
+    const { fetch } = makeFakeFetch([
+      {
+        method: "POST",
+        path: "/api/shared-folders/bind",
+        body: { job_id: "bind-1" },
+        expect: (init) => {
+          observed = init?.body ? JSON.parse(init.body as string) : null;
+        },
+      },
+    ]);
+    const r = await createDaemonClient({ fetch }).postSharedFoldersBind({
+      local_path: "/Users/foo/Shared",
+      bucket: "shared",
+      pods: ["02", "04"],
+      auto_sync: true,
+    });
+    expect(r.ok).toBe(true);
+    expect(observed).toEqual({
+      local_path: "/Users/foo/Shared",
+      bucket: "shared",
+      pods: ["02", "04"],
+      auto_sync: true,
+    });
+  });
+
+  it("postSharedFoldersRunStreamed encodes action in query", async () => {
+    const { fetch, calls } = makeFakeFetch([
+      {
+        method: "POST",
+        path: "/api/shared-folders/run-streamed?action=refresh-all",
+        body: { job_id: "sync-1" },
+      },
+    ]);
+    const r = await createDaemonClient({ fetch }).postSharedFoldersRunStreamed(
+      "refresh-all",
+    );
+    expect(r.ok).toBe(true);
+    expect(calls[0]?.url).toBe(
+      "/api/shared-folders/run-streamed?action=refresh-all",
+    );
+  });
+
+  it("postSharedFoldersOpen sends {local_path}", async () => {
+    let observed: unknown = undefined;
+    const { fetch } = makeFakeFetch([
+      {
+        method: "POST",
+        path: "/api/shared-folders/open",
+        body: null,
+        expect: (init) => {
+          observed = init?.body ? JSON.parse(init.body as string) : null;
+        },
+      },
+    ]);
+    const r = await createDaemonClient({ fetch }).postSharedFoldersOpen(
+      "/Users/foo/Shared",
+    );
+    expect(r.ok).toBe(true);
+    expect(observed).toEqual({ local_path: "/Users/foo/Shared" });
+  });
+
   it("postChannelsAdd sends {pod, channel, token} in body, not URL", async () => {
     let observedBody: unknown = undefined;
     const { fetch, calls } = makeFakeFetch([
