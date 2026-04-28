@@ -193,58 +193,58 @@ export const APP_REGISTRY: AppDefinition[] = [
 
   { id: 'asciiart', name: 'ASCII Art', icon: 'Type', category: 'Creative',
     description: 'Create ASCII text art and diagrams.',
-    defaultSize: { width: 640, height: 480 }, minSize: { width: 400, height: 320 } },
+    defaultSize: { width: 640, height: 480 }, minSize: { width: 400, height: 320 }, isDemo: true },
 
   { id: 'matrixrain', name: 'Matrix Rain', icon: 'Sparkles', category: 'Creative',
     description: 'Animated falling characters.',
-    defaultSize: { width: 600, height: 480 }, minSize: { width: 400, height: 320 } },
+    defaultSize: { width: 600, height: 480 }, minSize: { width: 400, height: 320 }, isDemo: true },
 
   // ================================================================
   // GAMES
   // ================================================================
   { id: 'minesweeper', name: 'Minesweeper', icon: 'Bomb', category: 'Games',
     description: 'Classic minesweeper with 3 difficulty levels.',
-    defaultSize: { width: 360, height: 440 }, minSize: { width: 280, height: 360 } },
+    defaultSize: { width: 360, height: 440 }, minSize: { width: 280, height: 360 }, isDemo: true },
 
   { id: 'snake', name: 'Snake', icon: 'Gamepad2', category: 'Games',
     description: 'Classic snake game with increasing speed.',
-    defaultSize: { width: 440, height: 480 }, minSize: { width: 320, height: 360 } },
+    defaultSize: { width: 440, height: 480 }, minSize: { width: 320, height: 360 }, isDemo: true },
 
   { id: 'tetris', name: 'Tetris', icon: 'Grid3x3', category: 'Games',
     description: 'Block-stacking puzzle game.',
-    defaultSize: { width: 400, height: 560 }, minSize: { width: 280, height: 440 } },
+    defaultSize: { width: 400, height: 560 }, minSize: { width: 280, height: 440 }, isDemo: true },
 
   { id: 'tictactoe', name: 'Tic-Tac-Toe', icon: 'X', category: 'Games',
     description: '2-player and AI tic-tac-toe.',
-    defaultSize: { width: 400, height: 440 }, minSize: { width: 280, height: 320 } },
+    defaultSize: { width: 400, height: 440 }, minSize: { width: 280, height: 320 }, isDemo: true },
 
   { id: 'game2048', name: '2048', icon: 'Hash', category: 'Games',
     description: 'Number sliding puzzle.',
-    defaultSize: { width: 400, height: 480 }, minSize: { width: 320, height: 400 } },
+    defaultSize: { width: 400, height: 480 }, minSize: { width: 320, height: 400 }, isDemo: true },
 
   { id: 'sudoku', name: 'Sudoku', icon: 'Grid2x2', category: 'Games',
     description: '9×9 number puzzle with 4 difficulties.',
-    defaultSize: { width: 480, height: 520 }, minSize: { width: 360, height: 400 } },
+    defaultSize: { width: 480, height: 520 }, minSize: { width: 360, height: 400 }, isDemo: true },
 
   { id: 'chess', name: 'Chess', icon: 'Crown', category: 'Games',
     description: 'Chess with AI opponent.',
-    defaultSize: { width: 560, height: 600 }, minSize: { width: 400, height: 440 } },
+    defaultSize: { width: 560, height: 600 }, minSize: { width: 400, height: 440 }, isDemo: true },
 
   { id: 'memory', name: 'Memory Game', icon: 'Brain', category: 'Games',
     description: 'Card matching memory game.',
-    defaultSize: { width: 480, height: 440 }, minSize: { width: 320, height: 280 } },
+    defaultSize: { width: 480, height: 440 }, minSize: { width: 320, height: 280 }, isDemo: true },
 
   { id: 'pong', name: 'Pong', icon: 'Circle', category: 'Games',
     description: 'Classic paddle ball game.',
-    defaultSize: { width: 600, height: 400 }, minSize: { width: 400, height: 280 } },
+    defaultSize: { width: 600, height: 400 }, minSize: { width: 400, height: 280 }, isDemo: true },
 
   { id: 'solitaire', name: 'Solitaire', icon: 'Layers', category: 'Games',
     description: 'Classic card solitaire.',
-    defaultSize: { width: 720, height: 520 }, minSize: { width: 480, height: 360 } },
+    defaultSize: { width: 720, height: 520 }, minSize: { width: 480, height: 360 }, isDemo: true },
 
   { id: 'flappybird', name: 'Flappy Bird', icon: 'Feather', category: 'Games',
     description: 'Side-scrolling arcade game.',
-    defaultSize: { width: 400, height: 560 }, minSize: { width: 280, height: 400 } },
+    defaultSize: { width: 400, height: 560 }, minSize: { width: 280, height: 400 }, isDemo: true },
 ];
 
 export const getAppById = (id: string): AppDefinition | undefined =>

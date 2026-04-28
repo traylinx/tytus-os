@@ -16,6 +16,7 @@ import { useDaemonClient } from '@/hooks/useDaemonClient';
 import { useDaemonStateContext } from '@/hooks/useDaemonStateContext';
 import { useHashRoute } from '@/hooks/useHashRoute';
 import { useJobStream } from '@/hooks/useJobStream';
+import { useDemoApps } from '@/hooks/useDemoApps';
 import { computePill } from '@/lib/statusPill';
 import { maskSecret, maskTokenUrl, revealSecret, revealTokenUrl } from '@/lib/secrets';
 import type {
@@ -169,6 +170,7 @@ const Settings: React.FC = () => {
   const client = useDaemonClient();
   const daemon = useDaemonStateContext();
   const pill = computePill(daemon.status, daemon.state, daemon.error);
+  const { showDemoApps, setShowDemoApps } = useDemoApps();
 
   // Deep-link: navigate(#/settings/agents) flips the active panel.
   // Deliberate setState-in-effect — we're syncing UI state from a URL
@@ -755,8 +757,10 @@ const Settings: React.FC = () => {
                 <option value="1280x720">1280 x 720</option>
               </select>
             </div>
-            <div className="flex items-center justify-between">
-              <div className="text-sm text-[var(--text-primary)]">Scale</div>
+            <div className="flex items-center justify-between py-3 border-b" style={{ borderColor: 'var(--border-subtle)' }}>
+              <div>
+                <div className="text-sm text-[var(--text-primary)]">Scale</div>
+              </div>
               <select
                 className="text-xs bg-[var(--bg-input)] text-[var(--text-primary)] border rounded-md px-2 py-1 outline-none"
                 style={{ borderColor: 'var(--border-default)' }}
@@ -768,6 +772,17 @@ const Settings: React.FC = () => {
                 <option value="150">150%</option>
                 <option value="200">200%</option>
               </select>
+            </div>
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-sm text-[var(--text-primary)]">Show demo apps</div>
+                <div className="text-[11px] text-[var(--text-secondary)] mt-0.5">
+                  Reveal Games, ASCII Art, and Matrix Rain in the App Launcher.
+                  Off by default for paid users — these are credibility apps,
+                  not Tytus surfaces.
+                </div>
+              </div>
+              <Toggle value={showDemoApps} onChange={setShowDemoApps} />
             </div>
           </div>
         );
