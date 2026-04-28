@@ -19,7 +19,7 @@ export const APP_REGISTRY: AppDefinition[] = [
   // ================================================================
   { id: 'pod-inspector', name: 'Pod Inspector', icon: 'Box', category: 'System',
     description: 'Inspect, restart, uninstall, revoke pods. Live job logs.',
-    defaultSize: { width: 880, height: 600 }, minSize: { width: 520, height: 400 }, phase: 3 },
+    defaultSize: { width: 1100, height: 720 }, minSize: { width: 800, height: 480 }, phase: 3 },
 
   { id: 'channels', name: 'Channels', icon: 'Send', category: 'Internet',
     description: 'Telegram, Slack, iMessage, Matrix bindings per pod.',
