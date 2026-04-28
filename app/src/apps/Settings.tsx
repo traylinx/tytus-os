@@ -139,12 +139,32 @@ const TIER_RANK: Record<Tier, number> = {
 
 const PROVIDER_BILLING_URL = 'https://tytus.traylinx.com/account/plan';
 
+const ACTIVE_CATEGORY_STORAGE_KEY = 'tytus_settings_active_category';
+
 const Settings: React.FC = () => {
   const { state, dispatch } = useOS();
   const route = useHashRoute();
-  const [activeCategory, setActiveCategory] = useState<string>(() =>
-    route.kind === 'settings' && route.section ? route.section : 'account',
-  );
+  // Initial category resolution: hash route wins (deep-link), then
+  // localStorage (returning user), then 'account' default.
+  const [activeCategory, setActiveCategory] = useState<string>(() => {
+    if (route.kind === 'settings' && route.section) return route.section;
+    try {
+      const saved = localStorage.getItem(ACTIVE_CATEGORY_STORAGE_KEY);
+      if (saved) return saved;
+    } catch {
+      // localStorage can throw in private-mode / sandboxed contexts.
+    }
+    return 'account';
+  });
+
+  // Persist on every change so reload restores the last-viewed panel.
+  useEffect(() => {
+    try {
+      localStorage.setItem(ACTIVE_CATEGORY_STORAGE_KEY, activeCategory);
+    } catch {
+      // best-effort — see above
+    }
+  }, [activeCategory]);
   const [search, setSearch] = useState('');
   const client = useDaemonClient();
   const daemon = useDaemonStateContext();
@@ -1065,6 +1085,40 @@ const PlanPanel: React.FC<PlanPanelProps> = ({ state, onUpgrade, onRefresh }) =>
           </div>
         </div>
       </div>
+
+      {state.agents.length > 0 && (
+        <div>
+          <div className="text-xs text-[var(--text-secondary)] uppercase tracking-wider mb-2">
+            Breakdown
+          </div>
+          <div className="space-y-1">
+            {state.agents.map((a) => (
+              <div
+                key={a.pod_id}
+                className="flex items-center justify-between py-1.5 px-3 rounded-md text-xs"
+                style={{
+                  background: 'var(--bg-card, rgba(255,255,255,0.03))',
+                  border: '1px solid var(--border-subtle)',
+                }}
+              >
+                <span className="text-[var(--text-primary)]">
+                  Pod {a.pod_id} · {a.agent_type}
+                </span>
+                <span className="font-mono text-[var(--text-secondary)]">
+                  {a.units} unit{a.units === 1 ? '' : 's'}
+                </span>
+              </div>
+            ))}
+            <div
+              className="flex items-center justify-between py-1.5 px-3 text-xs"
+              style={{ color: 'var(--text-secondary)' }}
+            >
+              <span>Total</span>
+              <span className="font-mono">{state.units_used} of {state.units_limit}</span>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="text-[11px] text-[var(--text-secondary)]">
         Units are consumed by allocated agents (nemoclaw = 1 unit, hermes = 2 units).
