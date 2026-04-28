@@ -63,6 +63,7 @@ import { useDaemonClient } from '@/hooks/useDaemonClient';
 import { useDaemonStateContext } from '@/hooks/useDaemonStateContext';
 import { useJobStream } from '@/hooks/useJobStream';
 import { usePinnedPods, PIN_CAP } from '@/hooks/usePinnedPods';
+import { useNotifications } from '@/hooks/useOSStore';
 import { navigate } from '@/lib/router';
 import {
   maskSecret,
@@ -964,6 +965,29 @@ const PodTab: FC<PodTabProps> = ({ agent, ready, client, onError, isPinned, onTo
     stream.status === 'success' ||
     stream.status === 'failed' ||
     stream.status === 'lost';
+
+  // Toast on restart success — phase 8.3 notification wiring. Other
+  // streamed actions (doctor / stop-forwarder / uninstall / revoke /
+  // refresh-creds) all show their state inside the per-pod log pane,
+  // which the user is already looking at; restart is the one that
+  // commonly runs while the user has tabbed away to do something else.
+  const { addNotification } = useNotifications();
+  const toastedJobRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!activeJob || stream.status !== 'success') return;
+    if (toastedJobRef.current === activeJob.id) return;
+    toastedJobRef.current = activeJob.id;
+    if (activeJob.action === 'restart') {
+      addNotification({
+        appId: 'pod-inspector',
+        appName: 'Pod Inspector',
+        appIcon: 'Power',
+        title: `Pod ${agent.pod_id} restarted`,
+        message: `${agent.agent_type} container is back up.`,
+        isRead: false,
+      });
+    }
+  }, [activeJob, stream.status, addNotification, agent.pod_id, agent.agent_type]);
 
   return (
     <div className="flex-1 overflow-y-auto custom-scrollbar p-5 space-y-5">

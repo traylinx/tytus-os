@@ -17,6 +17,7 @@ import { useDaemonStateContext } from '@/hooks/useDaemonStateContext';
 import { useHashRoute } from '@/hooks/useHashRoute';
 import { useJobStream } from '@/hooks/useJobStream';
 import { useDemoApps } from '@/hooks/useDemoApps';
+import { useNotifications } from '@/hooks/useOSStore';
 import { computePill } from '@/lib/statusPill';
 import { maskSecret, maskTokenUrl, revealSecret, revealTokenUrl } from '@/lib/secrets';
 import type {
@@ -145,6 +146,7 @@ const ACTIVE_CATEGORY_STORAGE_KEY = 'tytus_settings_active_category';
 const Settings: React.FC = () => {
   const { state, dispatch } = useOS();
   const route = useHashRoute();
+  const { addNotification } = useNotifications();
   // Initial category resolution: hash route wins (deep-link), then
   // localStorage (returning user), then 'account' default.
   const [activeCategory, setActiveCategory] = useState<string>(() => {
@@ -1000,7 +1002,20 @@ const Settings: React.FC = () => {
           jobStreamUrl={installJob ? client.jobStreamUrl(installJob.id) : null}
           onConfirm={startInstall}
           onRetry={retryInstall}
-          onSuccess={daemon.refresh}
+          onSuccess={() => {
+            daemon.refresh();
+            const agent = (installJob?.agent ?? pendingAgent) as CatalogAgent | null;
+            if (agent) {
+              addNotification({
+                appId: 'settings',
+                appName: 'Settings',
+                appIcon: 'Sparkles',
+                title: `${agent.name} installed`,
+                message: `Allocated ${agent.units} unit${agent.units === 1 ? '' : 's'}. Find the new pod in the Pods panel.`,
+                isRead: false,
+              });
+            }
+          }}
           onClose={closeInstallWizard}
         />
       )}

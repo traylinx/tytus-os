@@ -46,7 +46,7 @@ import {
   Box,
   Sparkles,
 } from 'lucide-react';
-import { useOS } from '@/hooks/useOSStore';
+import { useOS, useNotifications } from '@/hooks/useOSStore';
 import { useDaemonClient } from '@/hooks/useDaemonClient';
 import { useDaemonStateContext } from '@/hooks/useDaemonStateContext';
 import { useHashRoute } from '@/hooks/useHashRoute';
@@ -64,6 +64,7 @@ const Channels: FC = () => {
   const client = useDaemonClient();
   const daemon = useDaemonStateContext();
   const route = useHashRoute();
+  const { addNotification } = useNotifications();
 
   const agents = useMemo(
     () => daemon.state?.agents ?? [],
@@ -156,9 +157,20 @@ const Channels: FC = () => {
   }, [dispatch]);
 
   const onAddSubmitted = useCallback(() => {
+    const justAdded = addType;
     setAddType(null);
     refreshChannels();
-  }, [refreshChannels]);
+    if (activePod && justAdded) {
+      addNotification({
+        appId: 'channels',
+        appName: 'Channels',
+        appIcon: 'Send',
+        title: `${justAdded} added to pod ${activePod}`,
+        message: `Channel binding active. The agent has redeployed with the new credential.`,
+        isRead: false,
+      });
+    }
+  }, [refreshChannels, addType, activePod, addNotification]);
 
   const onRemoveSubmitted = useCallback(() => {
     setConfirmRemove(null);
