@@ -14,6 +14,7 @@ import type {
   DaemonResult,
   DaemonSettings,
   DaemonStatus,
+  DaemonVersion,
   ErrorEnvelope,
   IncludedPod,
   JobCancelResult,
@@ -196,6 +197,12 @@ const isStateLike = (v: unknown): v is RawState =>
 const isDaemonStatus = (v: unknown): v is DaemonStatus =>
   isObject(v) && typeof v.pid === "number" && typeof v.running === "boolean";
 
+const isDaemonVersion = (v: unknown): v is DaemonVersion =>
+  isObject(v) &&
+  typeof v.daemon_version === "string" &&
+  typeof v.daemon_pid === "number" &&
+  typeof v.daemon_started_at === "number";
+
 const isSettings = (v: unknown): v is DaemonSettings =>
   isObject(v) &&
   typeof v.autostart_tray === "boolean" &&
@@ -250,6 +257,15 @@ export interface DaemonClient {
   // GET
   getState(signal?: AbortSignal): Promise<DaemonResult<StateSnapshot>>;
   getDaemonStatus(signal?: AbortSignal): Promise<DaemonResult<DaemonStatus>>;
+  /**
+   * Daemon identity + boot timestamp.
+   *
+   * Use `daemon_started_at` to detect a daemon restart between polls
+   * and drop in-flight `activeJob` state — the registry is in-memory
+   * so every job_id is invalid after restart. Use `daemon_version` to
+   * gate UI features that require a newer daemon surface.
+   */
+  getVersion(signal?: AbortSignal): Promise<DaemonResult<DaemonVersion>>;
   getSettings(signal?: AbortSignal): Promise<DaemonResult<DaemonSettings>>;
   getCatalog(signal?: AbortSignal): Promise<DaemonResult<Catalog>>;
   getChannels(
@@ -424,6 +440,11 @@ export const createDaemonClient = (
         const r = expectShape(b, isStateLike, "malformed /api/state");
         return r.ok ? ok(materializeState(r.value)) : r;
       }),
+
+    getVersion: (signal) =>
+      runRequest(deps, "/api/version", { signal }, (b) =>
+        expectShape(b, isDaemonVersion, "malformed /api/version"),
+      ),
 
     getDaemonStatus: (signal) =>
       runRequest(deps, "/api/daemon/status", { signal }, (b) =>

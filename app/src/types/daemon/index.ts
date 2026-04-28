@@ -12,6 +12,7 @@ export type {
   ConfiguredChannel,
 } from "./Channels";
 export type { JobResponse, JobCancelResult } from "./JobResponse";
+export type { DaemonVersion } from "./Version";
 export type { ErrorEnvelope } from "./ErrorEnvelope";
 export type { Launchers } from "./Launchers";
 export type { LogChunk } from "./Logs";

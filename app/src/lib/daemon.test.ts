@@ -139,6 +139,41 @@ describe("daemon client — other GETs", () => {
     expect(r.value.running).toBe(true);
   });
 
+  it("getVersion parses populated body", async () => {
+    const { fetch, calls } = makeFakeFetch([
+      {
+        method: "GET",
+        path: "/api/version",
+        body: {
+          daemon_version: "0.6.0",
+          daemon_pid: 12345,
+          daemon_started_at: 1714325847,
+        },
+      },
+    ]);
+    const r = await createDaemonClient({ fetch }).getVersion();
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.value.daemon_version).toBe("0.6.0");
+    expect(r.value.daemon_pid).toBe(12345);
+    expect(r.value.daemon_started_at).toBe(1714325847);
+    expect(calls[0]?.url).toBe("/api/version");
+  });
+
+  it("getVersion rejects malformed body (numeric version, missing pid)", async () => {
+    // Pin the guard so a future daemon refactor that drops a field
+    // surfaces as a parser error rather than `undefined` propagation.
+    const { fetch } = makeFakeFetch([
+      {
+        method: "GET",
+        path: "/api/version",
+        body: { daemon_version: 6, daemon_started_at: 1714325847 },
+      },
+    ]);
+    const r = await createDaemonClient({ fetch }).getVersion();
+    expect(r.ok).toBe(false);
+  });
+
   it("getSettings parses fixture", async () => {
     const { fetch } = makeFakeFetch([
       { method: "GET", path: "/api/settings", body: settingsFixture },
