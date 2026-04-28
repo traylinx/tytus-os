@@ -39,7 +39,9 @@ const defaultDesktopIcons: DesktopIcon[] = [
   { id: 'desk-pods', name: 'Pods', icon: 'Box', appId: 'pod-inspector', position: { x: 16, y: 16 }, isSelected: false },
   { id: 'desk-settings', name: 'Settings', icon: 'Settings', appId: 'settings', position: { x: 16, y: 106 }, isSelected: false },
   { id: 'desk-chat', name: 'Chat', icon: 'MessageSquare', appId: 'chat', position: { x: 16, y: 196 }, isSelected: false },
-  { id: 'desk-files', name: 'Files', icon: 'Folder', appId: 'files', position: { x: 16, y: 286 }, isSelected: false },
+  { id: 'desk-files', name: 'Files', icon: 'Folder', appId: 'filemanager', position: { x: 16, y: 286 }, isSelected: false },
+  { id: 'desk-terminal', name: 'Terminal', icon: 'Terminal', appId: 'terminal', position: { x: 96, y: 196 }, isSelected: false },
+  { id: 'desk-browser', name: 'Browser', icon: 'Globe', appId: 'browser', position: { x: 96, y: 286 }, isSelected: false },
   { id: 'desk-channels', name: 'Channels', icon: 'Send', appId: 'channels', position: { x: 96, y: 16 }, isSelected: false },
   { id: 'desk-help', name: 'Help', icon: 'LifeBuoy', appId: 'help', position: { x: 96, y: 106 }, isSelected: false },
 ];

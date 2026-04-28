@@ -29,7 +29,7 @@ export interface Window {
   createdAt: number;
 }
 
-export type AppCategory = 'System' | 'Internet';
+export type AppCategory = 'System' | 'Internet' | 'Productivity' | 'Media' | 'DevTools';
 
 export interface AppDefinition {
   id: string;

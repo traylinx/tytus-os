@@ -1,8 +1,9 @@
 import { chromium } from 'playwright';
 import fs from 'fs';
 
-// auto-detect dev port from vite log scrape via env override
 const BASE = process.env.TYTUS_BASE || 'http://localhost:4242';
+
+const win = (appId) => `div[data-app-id="${appId}"]`;
 
 async function main() {
   const browser = await chromium.launch({ headless: true });
@@ -27,14 +28,10 @@ async function main() {
   await page.waitForSelector('text=Activities', { timeout: 5000 });
   await page.waitForTimeout(300);
 
-  // ===== windows =====
-  console.log('5. open Pod Inspector via desktop icon dbl-click');
+  console.log('5. open Pod Inspector via desktop dbl-click');
   await page.locator('span:has-text("Pods")').first().dblclick();
-  await page.waitForTimeout(500);
-  await page.waitForSelector('h2:has-text("Pod Inspector")', { timeout: 5000 });
-
-  const winLocator = page.locator('div.absolute.flex.flex-col').filter({ has: page.locator('h2:has-text("Pod Inspector")') });
-  const initBox = await winLocator.boundingBox();
+  await page.waitForSelector(win('pod-inspector'), { timeout: 5000 });
+  const initBox = await page.locator(win('pod-inspector')).boundingBox();
 
   console.log('6. drag title bar');
   await page.mouse.move(initBox.x + 100, initBox.y + 18);
@@ -43,7 +40,7 @@ async function main() {
   await page.mouse.move(initBox.x + 320, initBox.y + 110, { steps: 12 });
   await page.mouse.up();
   await page.waitForTimeout(300);
-  const afterDrag = await winLocator.boundingBox();
+  const afterDrag = await page.locator(win('pod-inspector')).boundingBox();
   if (afterDrag.x - initBox.x < 100) throw new Error(`DRAG FAIL: dx=${afterDrag.x - initBox.x}`);
   console.log(`   ✓ dx=${afterDrag.x - initBox.x}, dy=${afterDrag.y - initBox.y}`);
 
@@ -56,96 +53,91 @@ async function main() {
   await page.mouse.move(seX + 120, seY + 100, { steps: 12 });
   await page.mouse.up();
   await page.waitForTimeout(300);
-  const afterResize = await winLocator.boundingBox();
+  const afterResize = await page.locator(win('pod-inspector')).boundingBox();
   if (afterResize.width - afterDrag.width < 50) throw new Error(`RESIZE FAIL`);
   console.log(`   ✓ dw=${afterResize.width - afterDrag.width}, dh=${afterResize.height - afterDrag.height}`);
 
   console.log('8. close (X)');
   await page.click('button[aria-label="Close"]');
   await page.waitForTimeout(400);
-  if ((await page.locator('h2:has-text("Pod Inspector")').count()) !== 0) throw new Error('CLOSE FAIL');
+  if ((await page.locator(win('pod-inspector')).count()) !== 0) throw new Error('CLOSE FAIL');
   console.log('   ✓ closed');
 
-  // ===== dock =====
-  console.log('9. dock-stickiness regression: Chat → close → Files → check Chat is not focused');
+  console.log('9. dock-stickiness regression: Chat → close → Files');
   await page.locator('span:has-text("Chat")').first().dblclick();
-  await page.waitForTimeout(500);
-  await page.waitForSelector('h2:has-text("Chat")', { timeout: 3000 });
-
-  // Wait for bounce to finish (400ms + buffer)
+  await page.waitForSelector(win('chat'), { timeout: 5000 });
   await page.waitForTimeout(700);
 
-  // Read the dock chat icon's transform — should be no Y translation
   const chatDockBtn = page.locator('button[title="Chat"]').first();
   const chatBoxBefore = await chatDockBtn.boundingBox();
-  console.log(`   chat dock icon Y after bounce: ${chatBoxBefore.y}`);
+  console.log(`   chat dock Y after bounce: ${chatBoxBefore.y}`);
 
-  console.log('10. close Chat window');
   await page.click('button[aria-label="Close"]');
   await page.waitForTimeout(400);
 
-  console.log('11. open Files');
   await page.locator('span:has-text("Files")').first().dblclick();
-  await page.waitForTimeout(700); // include bounce
+  await page.waitForSelector(win('filemanager'), { timeout: 5000 });
+  await page.waitForTimeout(700);
 
   const chatBoxAfter = await chatDockBtn.boundingBox();
-  console.log(`   chat dock icon Y after open Files: ${chatBoxAfter.y}`);
-
-  // The Chat icon should be in its baseline position (not raised by bouncing)
+  console.log(`   chat dock Y after open Files: ${chatBoxAfter.y}`);
   if (Math.abs(chatBoxAfter.y - chatBoxBefore.y) > 1) {
     throw new Error(`DOCK STICKINESS BUG: chat icon Y drifted from ${chatBoxBefore.y} to ${chatBoxAfter.y}`);
   }
-  console.log('   ✓ chat icon settled, no stickiness');
+  console.log('   ✓ chat icon settled');
 
-  // Verify chat dock icon has no "open" indicator dot but Files does
-  // The dot is a span/div with `rounded-full` `w-1 h-1` inside the chat dock button's parent
-  const chatHasDot = await page.locator('button[title="Chat"]').first()
-    .locator('xpath=..').locator('div.rounded-full').count();
-  console.log(`   chat dot indicator: ${chatHasDot}`);
-
+  const chatHasDot = await chatDockBtn.locator('xpath=..').locator('div.rounded-full').count();
   const filesHasDot = await page.locator('button[title="Files"]').first()
     .locator('xpath=..').locator('div.rounded-full').count();
-  console.log(`   files dot indicator: ${filesHasDot}`);
+  console.log(`   chat dot: ${chatHasDot} · files dot: ${filesHasDot}`);
+  if (chatHasDot > 0) throw new Error('Chat dot stuck after close');
+  if (filesHasDot === 0) throw new Error('Files dot missing while open');
 
-  if (chatHasDot > 0) throw new Error('Chat dock dot is stuck even after close');
-  if (filesHasDot === 0) throw new Error('Files dock dot missing while window open');
-  console.log('   ✓ dot indicators correct');
-
-  // ===== misc =====
-  console.log('12. minimize active window');
+  console.log('10. minimize Files');
   await page.click('button[aria-label="Minimize"]');
   await page.waitForTimeout(400);
-  if ((await page.locator('h2:has-text("Files")').count()) !== 0) throw new Error('MINIMIZE FAIL');
-  console.log('   ✓ minimize hides window');
+  if ((await page.locator(win('filemanager')).count()) !== 0) throw new Error('MINIMIZE FAIL');
+  console.log('   ✓ minimized');
 
-  console.log('13. click Files in dock to restore minimized window');
+  console.log('11. restore via dock click');
   await page.locator('button[title="Files"]').first().click();
   await page.waitForTimeout(400);
-  if ((await page.locator('h2:has-text("Files")').count()) === 0) throw new Error('RESTORE FROM DOCK FAIL');
-  console.log('   ✓ restored from dock');
+  if ((await page.locator(win('filemanager')).count()) === 0) throw new Error('RESTORE FAIL');
+  console.log('   ✓ restored');
 
-  console.log('14. maximize');
+  console.log('12. maximize');
   await page.click('button[aria-label="Maximize"]');
   await page.waitForTimeout(400);
-  const filesWin = page.locator('div.absolute.flex.flex-col').filter({ has: page.locator('h2:has-text("Files")') });
-  const maxBox = await filesWin.boundingBox();
-  if (maxBox.width < 1300 || maxBox.height < 700) throw new Error(`MAXIMIZE FAIL: ${JSON.stringify(maxBox)}`);
+  const maxBox = await page.locator(win('filemanager')).boundingBox();
+  if (maxBox.width < 1300 || maxBox.height < 700) throw new Error(`MAXIMIZE FAIL`);
   console.log(`   ✓ maximized to ${maxBox.width}x${maxBox.height}`);
 
-  // ===== app launcher =====
-  console.log('15. close + open app launcher (Meta key)');
+  console.log('13. app launcher open + Esc');
   await page.click('button[aria-label="Close"]');
   await page.waitForTimeout(400);
-  // Use the dock LayoutGrid button — Meta key is OS-intercepted in headless
   await page.click('button[aria-label="Show applications"]');
-  await page.waitForTimeout(400);
   await page.waitForSelector('input[placeholder*="search applications"]', { timeout: 3000 });
   console.log('   ✓ launcher open');
   await page.keyboard.press('Escape');
   await page.waitForTimeout(300);
-  const launcherStillOpen = await page.locator('input[placeholder*="search applications"]').count();
-  if (launcherStillOpen) throw new Error('LAUNCHER ESC FAIL');
+  if ((await page.locator('input[placeholder*="search applications"]').count()) > 0)
+    throw new Error('LAUNCHER ESC FAIL');
   console.log('   ✓ Esc closes launcher');
+
+  console.log('14. open restored apps: Settings, Calculator, Notes');
+  for (const id of ['settings', 'calculator', 'notes']) {
+    await page.click('button[aria-label="Show applications"]');
+    await page.waitForTimeout(300);
+    // Apps in launcher use button with text+icon; search lets us filter precisely
+    await page.fill('input[placeholder*="search applications"]', id);
+    await page.waitForTimeout(300);
+    // First button in the grid after typing matches our app
+    await page.locator('div[style*="auto-fill"] > button').first().click();
+    await page.waitForSelector(win(id), { timeout: 5000 });
+    console.log(`   ✓ ${id} opens`);
+    await page.click('button[aria-label="Close"]');
+    await page.waitForTimeout(300);
+  }
 
   await page.screenshot({ path: '/tmp/tytus-final.png' });
 
