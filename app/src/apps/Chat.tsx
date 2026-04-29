@@ -365,7 +365,7 @@ const AgentLanding: FC<{
           <div className="flex-1">{error}</div>
           <button
             onClick={onDismissError}
-            className="text-[11px] px-1.5 py-0.5 rounded transition-colors"
+            className="text-[11px] px-1.5 py-0.5 rounded-sm transition-colors"
             style={{
               color: '#FFCDD2',
               background: 'rgba(255,255,255,0.05)',

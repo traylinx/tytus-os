@@ -67,7 +67,7 @@ const TreeEntry: React.FC<{
   return (
     <div>
       <div
-        className="flex items-center gap-2 py-1 px-2 rounded cursor-pointer transition-colors hover:bg-[var(--bg-hover)]"
+        className="flex items-center gap-2 py-1 px-2 rounded-sm cursor-pointer transition-colors hover:bg-[var(--bg-hover)]"
         style={{ paddingLeft: 8 + level * 16 }}
         onClick={() => onToggle(entry.id)}
       >
@@ -278,7 +278,7 @@ const ArchiveManager: React.FC = () => {
                 <Package size={16} className="text-[var(--accent-primary)]" />
                 <span className="text-sm font-semibold text-[var(--text-primary)]">{activeArchive.name}</span>
                 {activeArchive.isPasswordProtected && (
-                  <span className="flex items-center gap-1 text-[10px] text-[var(--accent-warning)] px-1.5 py-0.5 rounded" style={{ background: 'rgba(255,152,0,0.15)' }}>
+                  <span className="flex items-center gap-1 text-[10px] text-[var(--accent-warning)] px-1.5 py-0.5 rounded-sm" style={{ background: 'rgba(255,152,0,0.15)' }}>
                     <Lock size={10} /> Protected
                   </span>
                 )}
@@ -292,7 +292,7 @@ const ArchiveManager: React.FC = () => {
                 >
                   <Download size={12} /> Extract
                 </button>
-                <button onClick={() => deleteArchive(activeArchive.id)} className="p-1.5 rounded hover:bg-[var(--bg-hover)] text-[var(--text-secondary)] hover:text-[var(--accent-error)]">
+                <button onClick={() => deleteArchive(activeArchive.id)} className="p-1.5 rounded-sm hover:bg-[var(--bg-hover)] text-[var(--text-secondary)] hover:text-[var(--accent-error)]">
                   <Trash2 size={14} />
                 </button>
               </div>

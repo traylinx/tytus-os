@@ -203,9 +203,9 @@ export default function DocumentViewer({ fileNodeId }: DocumentViewerProps) {
               {searchIndex + 1}/{searchMatches.length}
             </span>
           )}
-          <button onClick={() => navigateSearch(-1)} className="p-1 rounded" style={{ color: 'var(--text-secondary)' }}><ChevronLeft size={14} /></button>
-          <button onClick={() => navigateSearch(1)} className="p-1 rounded" style={{ color: 'var(--text-secondary)' }}><ChevronRight size={14} /></button>
-          <button onClick={() => { setShowSearch(false); setSearchQuery(''); }} className="p-1 rounded" style={{ color: 'var(--text-secondary)' }}><X size={14} /></button>
+          <button onClick={() => navigateSearch(-1)} className="p-1 rounded-sm" style={{ color: 'var(--text-secondary)' }}><ChevronLeft size={14} /></button>
+          <button onClick={() => navigateSearch(1)} className="p-1 rounded-sm" style={{ color: 'var(--text-secondary)' }}><ChevronRight size={14} /></button>
+          <button onClick={() => { setShowSearch(false); setSearchQuery(''); }} className="p-1 rounded-sm" style={{ color: 'var(--text-secondary)' }}><X size={14} /></button>
         </div>
       )}
 
@@ -257,7 +257,7 @@ export default function DocumentViewer({ fileNodeId }: DocumentViewerProps) {
           <div className="rounded-lg shadow-xl overflow-hidden" style={{ width: '480px', maxHeight: '400px', background: 'var(--bg-window)' }}>
             <div className="flex items-center justify-between px-4 py-2 border-b" style={{ borderColor: 'var(--border-subtle)', background: 'var(--bg-panel)' }}>
               <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>Open File</span>
-              <button onClick={() => setShowFilePicker(false)} className="p-1 rounded"><X size={14} /></button>
+              <button onClick={() => setShowFilePicker(false)} className="p-1 rounded-sm"><X size={14} /></button>
             </div>
             <div className="overflow-auto custom-scrollbar p-2" style={{ maxHeight: '320px' }}>
               {getTextFiles().map(file => (

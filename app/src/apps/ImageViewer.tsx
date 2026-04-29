@@ -130,26 +130,26 @@ export default function ImageViewer() {
         }}
       >
         <div className="flex items-center gap-1">
-          <button onClick={handleZoomOut} className="flex items-center justify-center rounded hover:bg-[rgba(255,255,255,0.1)]" style={{ width: 28, height: 28 }}>
+          <button onClick={handleZoomOut} className="flex items-center justify-center rounded-sm hover:bg-[rgba(255,255,255,0.1)]" style={{ width: 28, height: 28 }}>
             <ZoomOut size={16} style={{ color: 'white' }} />
           </button>
           <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.7)', minWidth: 36, textAlign: 'center' }}>{zoomPercent}%</span>
-          <button onClick={handleZoomIn} className="flex items-center justify-center rounded hover:bg-[rgba(255,255,255,0.1)]" style={{ width: 28, height: 28 }}>
+          <button onClick={handleZoomIn} className="flex items-center justify-center rounded-sm hover:bg-[rgba(255,255,255,0.1)]" style={{ width: 28, height: 28 }}>
             <ZoomIn size={16} style={{ color: 'white' }} />
           </button>
           <div style={{ width: 1, height: 20, background: 'rgba(255,255,255,0.2)', margin: '0 4px' }} />
-          <button onClick={() => { setViewMode('fit'); setZoom(1); setPanOffset({ x: 0, y: 0 }); }} className="flex items-center justify-center rounded hover:bg-[rgba(255,255,255,0.1)]" style={{ width: 28, height: 28 }}>
+          <button onClick={() => { setViewMode('fit'); setZoom(1); setPanOffset({ x: 0, y: 0 }); }} className="flex items-center justify-center rounded-sm hover:bg-[rgba(255,255,255,0.1)]" style={{ width: 28, height: 28 }}>
             <Maximize2 size={16} style={{ color: viewMode === 'fit' ? 'var(--accent-primary)' : 'white' }} />
           </button>
-          <button onClick={() => setViewMode('actual')} className="flex items-center justify-center rounded hover:bg-[rgba(255,255,255,0.1)]" style={{ width: 28, height: 28 }}>
+          <button onClick={() => setViewMode('actual')} className="flex items-center justify-center rounded-sm hover:bg-[rgba(255,255,255,0.1)]" style={{ width: 28, height: 28 }}>
             <RotateCcw size={16} style={{ color: viewMode === 'actual' ? 'var(--accent-primary)' : 'white' }} />
           </button>
         </div>
         <div className="flex items-center gap-1">
-          <button onClick={() => setIsSlideshow((s) => !s)} className="flex items-center justify-center rounded hover:bg-[rgba(255,255,255,0.1)]" style={{ width: 28, height: 28 }}>
+          <button onClick={() => setIsSlideshow((s) => !s)} className="flex items-center justify-center rounded-sm hover:bg-[rgba(255,255,255,0.1)]" style={{ width: 28, height: 28 }}>
             {isSlideshow ? <Square size={16} style={{ color: 'var(--accent-primary)' }} /> : <Play size={16} style={{ color: 'white' }} />}
           </button>
-          <button onClick={() => setShowInfo((s) => !s)} className="flex items-center justify-center rounded hover:bg-[rgba(255,255,255,0.1)]" style={{ width: 28, height: 28 }}>
+          <button onClick={() => setShowInfo((s) => !s)} className="flex items-center justify-center rounded-sm hover:bg-[rgba(255,255,255,0.1)]" style={{ width: 28, height: 28 }}>
             <Info size={16} style={{ color: showInfo ? 'var(--accent-primary)' : 'white' }} />
           </button>
         </div>

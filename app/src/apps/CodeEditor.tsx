@@ -311,21 +311,21 @@ export default function CodeEditor() {
     <div className="h-full flex flex-col" style={{ background: 'var(--bg-window)' }}>
       {/* Menu Bar */}
       <div className="flex items-center gap-1 px-2 shrink-0" style={{ height: 32, background: 'var(--bg-titlebar)', borderBottom: '1px solid var(--border-subtle)' }}>
-        <button onClick={newFile} className="flex items-center gap-1 px-2 py-1 rounded hover:bg-[var(--bg-hover)] transition-colors" title="New File">
+        <button onClick={newFile} className="flex items-center gap-1 px-2 py-1 rounded-sm hover:bg-[var(--bg-hover)] transition-colors" title="New File">
           <Plus size={14} /><span className="text-xs">New</span>
         </button>
-        <button onClick={() => setShowSidebar((v) => !v)} className="flex items-center gap-1 px-2 py-1 rounded hover:bg-[var(--bg-hover)] transition-colors" title="Toggle Sidebar">
+        <button onClick={() => setShowSidebar((v) => !v)} className="flex items-center gap-1 px-2 py-1 rounded-sm hover:bg-[var(--bg-hover)] transition-colors" title="Toggle Sidebar">
           <FolderOpen size={14} /><span className="text-xs">Explorer</span>
         </button>
-        <button onClick={() => setShowFindBar((v) => !v)} className="flex items-center gap-1 px-2 py-1 rounded hover:bg-[var(--bg-hover)] transition-colors" title="Find (Ctrl+F)">
+        <button onClick={() => setShowFindBar((v) => !v)} className="flex items-center gap-1 px-2 py-1 rounded-sm hover:bg-[var(--bg-hover)] transition-colors" title="Find (Ctrl+F)">
           <Search size={14} /><span className="text-xs">Find</span>
         </button>
-        <button onClick={saveFile} className="flex items-center gap-1 px-2 py-1 rounded hover:bg-[var(--bg-hover)] transition-colors" title="Save (Ctrl+S)">
+        <button onClick={saveFile} className="flex items-center gap-1 px-2 py-1 rounded-sm hover:bg-[var(--bg-hover)] transition-colors" title="Save (Ctrl+S)">
           <Save size={14} /><span className="text-xs">Save</span>
         </button>
         <div className="ml-auto flex items-center gap-2">
           {activeTab && (
-            <span className="text-xs px-2 py-0.5 rounded" style={{ background: 'var(--bg-hover)' }}>
+            <span className="text-xs px-2 py-0.5 rounded-sm" style={{ background: 'var(--bg-hover)' }}>
               {activeTab.language}
             </span>
           )}
@@ -340,11 +340,11 @@ export default function CodeEditor() {
             value={findQuery}
             onChange={(e) => setFindQuery(e.target.value)}
             placeholder="Find in file..."
-            className="flex-1 text-xs px-2 py-1 rounded outline-none"
+            className="flex-1 text-xs px-2 py-1 rounded-sm outline-none"
             style={{ background: 'var(--bg-input)', color: 'var(--text-primary)', border: '1px solid var(--border-default)' }}
             autoFocus
           />
-          <button onClick={() => setShowFindBar(false)} className="text-xs px-2 py-0.5 rounded hover:bg-[var(--bg-hover)]">Esc</button>
+          <button onClick={() => setShowFindBar(false)} className="text-xs px-2 py-0.5 rounded-sm hover:bg-[var(--bg-hover)]">Esc</button>
           {findQuery && (
             <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>
               {findMatches.length} matches
@@ -372,7 +372,7 @@ export default function CodeEditor() {
               <span className="truncate max-w-[120px]">{tab.name}</span>
               <button
                 onClick={(e) => { e.stopPropagation(); closeTab(tab.id); }}
-                className="ml-1 p-0.5 rounded hover:bg-[var(--bg-hover)]"
+                className="ml-1 p-0.5 rounded-sm hover:bg-[var(--bg-hover)]"
               >
                 <X size={10} />
               </button>
@@ -454,7 +454,7 @@ export default function CodeEditor() {
                 Open a file from the explorer or create a new file
               </p>
               <div className="flex gap-2">
-                <button onClick={newFile} className="flex items-center gap-1 px-3 py-1.5 rounded text-xs" style={{ background: 'var(--accent-primary)', color: 'white' }}>
+                <button onClick={newFile} className="flex items-center gap-1 px-3 py-1.5 rounded-sm text-xs" style={{ background: 'var(--accent-primary)', color: 'white' }}>
                   <Plus size={14} /> New File
                 </button>
               </div>

@@ -90,7 +90,7 @@ const Dock = memo(function Dock() {
         {/* Tooltip */}
         {isHovered && (
           <div
-            className="absolute bottom-full mb-2 px-2 py-1 rounded text-[10px] font-medium whitespace-nowrap z-[4000]"
+            className="absolute bottom-full mb-2 px-2 py-1 rounded-sm text-[10px] font-medium whitespace-nowrap z-[4000]"
             style={{
               background: 'var(--bg-tooltip)',
               color: 'var(--text-primary)',

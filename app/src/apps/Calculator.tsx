@@ -204,13 +204,13 @@ const Calculator: React.FC = () => {
         <div className="flex gap-1">
           <button
             onClick={() => setMode('standard')}
-            className={`text-xs px-2 py-1 rounded ${mode === 'standard' ? 'text-[var(--accent-primary)] font-semibold' : 'text-[var(--text-secondary)]'}`}
+            className={`text-xs px-2 py-1 rounded-sm ${mode === 'standard' ? 'text-[var(--accent-primary)] font-semibold' : 'text-[var(--text-secondary)]'}`}
           >
             Standard
           </button>
           <button
             onClick={() => setMode('scientific')}
-            className={`text-xs px-2 py-1 rounded ${mode === 'scientific' ? 'text-[var(--accent-primary)] font-semibold' : 'text-[var(--text-secondary)]'}`}
+            className={`text-xs px-2 py-1 rounded-sm ${mode === 'scientific' ? 'text-[var(--accent-primary)] font-semibold' : 'text-[var(--text-secondary)]'}`}
           >
             Scientific
           </button>
@@ -245,7 +245,7 @@ const Calculator: React.FC = () => {
                 <button
                   key={i}
                   onClick={() => { setDisplay(h.result); setWaitingForOperand(true); }}
-                  className="w-full text-right py-1 px-2 rounded hover:bg-[var(--bg-hover)] transition-colors"
+                  className="w-full text-right py-1 px-2 rounded-sm hover:bg-[var(--bg-hover)] transition-colors"
                 >
                   <div className="text-[10px] text-[var(--text-secondary)]">{h.expr}</div>
                   <div className="text-sm text-[var(--text-primary)]">{h.result}</div>

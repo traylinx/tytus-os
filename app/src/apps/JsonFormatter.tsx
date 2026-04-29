@@ -285,23 +285,23 @@ export default function JsonFormatter() {
     <div className="h-full flex flex-col" style={{ background: 'var(--bg-window)' }}>
       {/* Toolbar */}
       <div className="flex items-center gap-2 px-3 py-1.5 shrink-0" style={{ background: 'var(--bg-titlebar)', borderBottom: '1px solid var(--border-subtle)' }}>
-        <button onClick={formatJson} className="flex items-center gap-1 px-2.5 py-1 rounded text-xs font-medium transition-colors" style={{ background: 'var(--accent-primary)', color: 'white' }}>
+        <button onClick={formatJson} className="flex items-center gap-1 px-2.5 py-1 rounded-sm text-xs font-medium transition-colors" style={{ background: 'var(--accent-primary)', color: 'white' }}>
           <Wand2 size={13} /> Format
         </button>
-        <button onClick={minifyJson} className="flex items-center gap-1 px-2.5 py-1 rounded text-xs hover:bg-[var(--bg-hover)] transition-colors" style={{ border: '1px solid var(--border-default)' }}>
+        <button onClick={minifyJson} className="flex items-center gap-1 px-2.5 py-1 rounded-sm text-xs hover:bg-[var(--bg-hover)] transition-colors" style={{ border: '1px solid var(--border-default)' }}>
           <Minimize2 size={13} /> Minify
         </button>
-        <button onClick={validate} className="flex items-center gap-1 px-2.5 py-1 rounded text-xs hover:bg-[var(--bg-hover)] transition-colors" style={{ border: '1px solid var(--border-default)' }}>
+        <button onClick={validate} className="flex items-center gap-1 px-2.5 py-1 rounded-sm text-xs hover:bg-[var(--bg-hover)] transition-colors" style={{ border: '1px solid var(--border-default)' }}>
           <Check size={13} /> Validate
         </button>
-        <button onClick={clearAll} className="flex items-center gap-1 px-2.5 py-1 rounded text-xs hover:bg-[var(--bg-hover)] transition-colors" style={{ border: '1px solid var(--border-default)' }}>
+        <button onClick={clearAll} className="flex items-center gap-1 px-2.5 py-1 rounded-sm text-xs hover:bg-[var(--bg-hover)] transition-colors" style={{ border: '1px solid var(--border-default)' }}>
           <Trash2 size={13} /> Clear
         </button>
         <div className="w-px h-5 mx-1" style={{ background: 'var(--border-subtle)' }} />
-        <button onClick={copyOutput} className="flex items-center gap-1 px-2.5 py-1 rounded text-xs hover:bg-[var(--bg-hover)] transition-colors" style={{ border: '1px solid var(--border-default)' }}>
+        <button onClick={copyOutput} className="flex items-center gap-1 px-2.5 py-1 rounded-sm text-xs hover:bg-[var(--bg-hover)] transition-colors" style={{ border: '1px solid var(--border-default)' }}>
           <Copy size={13} /> {copied ? 'Copied!' : 'Copy'}
         </button>
-        <button onClick={downloadJson} className="flex items-center gap-1 px-2.5 py-1 rounded text-xs hover:bg-[var(--bg-hover)] transition-colors" style={{ border: '1px solid var(--border-default)' }}>
+        <button onClick={downloadJson} className="flex items-center gap-1 px-2.5 py-1 rounded-sm text-xs hover:bg-[var(--bg-hover)] transition-colors" style={{ border: '1px solid var(--border-default)' }}>
           <Download size={13} /> Download
         </button>
         <div className="ml-auto flex items-center gap-2">
@@ -309,7 +309,7 @@ export default function JsonFormatter() {
           <select
             value={indent}
             onChange={(e) => { setIndent(Number(e.target.value)); if (input) processJson(input); }}
-            className="text-xs px-1 py-0.5 rounded outline-none"
+            className="text-xs px-1 py-0.5 rounded-sm outline-none"
             style={{ background: 'var(--bg-input)', color: 'var(--text-primary)', border: '1px solid var(--border-default)' }}
           >
             <option value={2}>2 spaces</option>
@@ -318,7 +318,7 @@ export default function JsonFormatter() {
           <select
             value={viewMode}
             onChange={(e) => setViewMode(e.target.value as 'formatted' | 'tree')}
-            className="text-xs px-1 py-0.5 rounded outline-none"
+            className="text-xs px-1 py-0.5 rounded-sm outline-none"
             style={{ background: 'var(--bg-input)', color: 'var(--text-primary)', border: '1px solid var(--border-default)' }}
           >
             <option value="tree">Tree</option>
@@ -352,8 +352,8 @@ export default function JsonFormatter() {
           <div className="flex items-center justify-between px-2 py-0.5 shrink-0" style={{ background: 'var(--bg-titlebar)' }}>
             <span className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>Input</span>
             <div className="flex gap-1">
-              <button onClick={loadSample} className="text-xs px-2 py-0.5 rounded hover:bg-[var(--bg-hover)]">Sample</button>
-              <button onClick={loadFromFS} className="flex items-center gap-1 text-xs px-2 py-0.5 rounded hover:bg-[var(--bg-hover)]">
+              <button onClick={loadSample} className="text-xs px-2 py-0.5 rounded-sm hover:bg-[var(--bg-hover)]">Sample</button>
+              <button onClick={loadFromFS} className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-sm hover:bg-[var(--bg-hover)]">
                 <FileUp size={10} /> Load
               </button>
             </div>
@@ -378,7 +378,7 @@ export default function JsonFormatter() {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search..."
-                className="text-xs px-1.5 py-0.5 rounded outline-none w-28"
+                className="text-xs px-1.5 py-0.5 rounded-sm outline-none w-28"
                 style={{ background: 'var(--bg-input)', color: 'var(--text-primary)', border: '1px solid var(--border-default)' }}
               />
             </div>

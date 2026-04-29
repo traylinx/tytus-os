@@ -203,7 +203,7 @@ const Todo: React.FC = () => {
                   onChange={e => setNewProjectName(e.target.value)}
                   onKeyDown={e => { if (e.key === 'Enter') createProject(); if (e.key === 'Escape') setShowNewProject(false); }}
                   placeholder="List name"
-                  className="flex-1 h-7 px-2 rounded text-xs text-[var(--text-primary)] outline-none placeholder:text-[var(--text-disabled)]"
+                  className="flex-1 h-7 px-2 rounded-sm text-xs text-[var(--text-primary)] outline-none placeholder:text-[var(--text-disabled)]"
                   style={{ background: 'var(--bg-input)', border: '1px solid var(--border-default)' }}
                   autoFocus
                 />
@@ -235,7 +235,7 @@ const Todo: React.FC = () => {
           <div className="flex items-center gap-2">
             <button
               onClick={() => setSortBy(s => s === 'date' ? 'priority' : 'date')}
-              className="text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] px-2 py-1 rounded hover:bg-[var(--bg-hover)]"
+              className="text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] px-2 py-1 rounded-sm hover:bg-[var(--bg-hover)]"
             >
               Sort: {sortBy}
             </button>
@@ -243,7 +243,7 @@ const Todo: React.FC = () => {
               <button
                 key={f}
                 onClick={() => setFilter(f)}
-                className="text-xs capitalize px-2 py-1 rounded transition-colors"
+                className="text-xs capitalize px-2 py-1 rounded-sm transition-colors"
                 style={{
                   background: filter === f ? 'var(--bg-selected)' : 'transparent',
                   color: filter === f ? 'var(--accent-primary)' : 'var(--text-secondary)',
@@ -280,13 +280,13 @@ const Todo: React.FC = () => {
                   type="date"
                   value={newTaskDate}
                   onChange={e => setNewTaskDate(e.target.value)}
-                  className="h-7 px-2 rounded text-xs text-[var(--text-primary)] outline-none"
+                  className="h-7 px-2 rounded-sm text-xs text-[var(--text-primary)] outline-none"
                   style={{ background: 'var(--bg-input)', border: '1px solid var(--border-default)' }}
                 />
                 <select
                   value={newTaskPriority}
                   onChange={e => setNewTaskPriority(e.target.value as Task['priority'])}
-                  className="h-7 px-2 rounded text-xs text-[var(--text-primary)] outline-none"
+                  className="h-7 px-2 rounded-sm text-xs text-[var(--text-primary)] outline-none"
                   style={{ background: 'var(--bg-input)', border: '1px solid var(--border-default)' }}
                 >
                   <option value="none">No Priority</option>
@@ -296,7 +296,7 @@ const Todo: React.FC = () => {
                 </select>
                 <div className="flex-1" />
                 <button onClick={() => setShowAddTask(false)} className="text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] px-2 py-1">Cancel</button>
-                <button onClick={addTask} className="text-xs font-medium text-white px-3 py-1.5 rounded" style={{ background: 'var(--accent-primary)' }}>Add</button>
+                <button onClick={addTask} className="text-xs font-medium text-white px-3 py-1.5 rounded-sm" style={{ background: 'var(--accent-primary)' }}>Add</button>
               </div>
             </div>
           )}
@@ -322,7 +322,7 @@ const Todo: React.FC = () => {
                 {/* Checkbox */}
                 <button
                   onClick={() => toggleTask(task.id)}
-                  className="w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-colors"
+                  className="w-5 h-5 rounded-sm border-2 flex items-center justify-center shrink-0 transition-colors"
                   style={{
                     borderColor: task.completed ? 'var(--accent-success)' : 'var(--border-default)',
                     background: task.completed ? 'var(--accent-success)' : 'transparent',
@@ -339,7 +339,7 @@ const Todo: React.FC = () => {
                         value={editTitle}
                         onChange={e => setEditTitle(e.target.value)}
                         onKeyDown={e => { if (e.key === 'Enter') saveEdit(task.id); if (e.key === 'Escape') setEditingTask(null); }}
-                        className="flex-1 h-7 px-2 rounded text-sm text-[var(--text-primary)] outline-none"
+                        className="flex-1 h-7 px-2 rounded-sm text-sm text-[var(--text-primary)] outline-none"
                         style={{ background: 'var(--bg-input)', border: '1px solid var(--border-default)' }}
                         autoFocus
                       />
@@ -371,13 +371,13 @@ const Todo: React.FC = () => {
                 <div className="hidden group-hover:flex items-center gap-1">
                   <button
                     onClick={() => { setEditingTask(task.id); setEditTitle(task.title); }}
-                    className="p-1 rounded hover:bg-[var(--bg-hover)] text-[var(--text-secondary)]"
+                    className="p-1 rounded-sm hover:bg-[var(--bg-hover)] text-[var(--text-secondary)]"
                   >
                     <Edit2 size={12} />
                   </button>
                   <button
                     onClick={() => deleteTask(task.id)}
-                    className="p-1 rounded hover:bg-[var(--bg-hover)] text-[var(--accent-error)]"
+                    className="p-1 rounded-sm hover:bg-[var(--bg-hover)] text-[var(--accent-error)]"
                   >
                     <Trash2 size={12} />
                   </button>

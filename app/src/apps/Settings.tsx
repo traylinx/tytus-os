@@ -1532,7 +1532,7 @@ const CopyBtn: React.FC<{
   <button
     onClick={onClick}
     aria-label={`Copy ${label}`}
-    className="p-1 rounded transition-colors"
+    className="p-1 rounded-sm transition-colors"
     style={{
       background: isCopied ? 'rgba(76,175,80,0.18)' : 'transparent',
       color: isCopied ? '#A5D6A7' : 'var(--text-secondary)',
@@ -1549,7 +1549,7 @@ const RevealBtn: React.FC<{
   <button
     onClick={onToggle}
     aria-label={revealed ? 'Hide value' : 'Show value'}
-    className="p-1 rounded transition-colors"
+    className="p-1 rounded-sm transition-colors"
     style={{ background: 'transparent', color: 'var(--text-secondary)' }}
   >
     {revealed ? <EyeOff size={12} /> : <Eye size={12} />}

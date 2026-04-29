@@ -188,7 +188,7 @@ const TopPanel = memo(function TopPanel() {
         className="h-6 px-2 rounded-md hover:bg-[var(--bg-hover)] transition-colors text-xs font-medium group relative whitespace-nowrap justify-self-center flex items-center"
       >
         <span>{formattedTime}</span>
-        <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 px-2 py-1 rounded bg-[var(--bg-tooltip)] text-[var(--text-primary)] text-[10px] whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-[5000]">
+        <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 px-2 py-1 rounded-sm bg-[var(--bg-tooltip)] text-[var(--text-primary)] text-[10px] whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-[5000]">
           {formattedDate}
         </div>
       </button>
@@ -224,7 +224,7 @@ const TopPanel = memo(function TopPanel() {
                 </div>
                 <span className="text-sm font-medium flex-1 truncate">{userLabel}</span>
                 <button
-                  className="w-7 h-7 rounded flex items-center justify-center hover:bg-[var(--bg-hover)]"
+                  className="w-7 h-7 rounded-sm flex items-center justify-center hover:bg-[var(--bg-hover)]"
                   onClick={() => {
                     setSysMenuOpen(false);
                     dispatch({ type: 'OPEN_WINDOW', appId: 'settings' });

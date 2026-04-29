@@ -216,31 +216,31 @@ const TextEditor: React.FC = () => {
     <div className="flex flex-col h-full" style={{ background: 'var(--bg-window)' }}>
       {/* Toolbar */}
       <div className="flex items-center gap-1 px-2 h-10 border-b shrink-0" style={{ borderColor: 'var(--border-subtle)', background: 'var(--bg-titlebar)' }}>
-        <button onClick={newFile} className="flex items-center gap-1 px-2 py-1 rounded text-xs hover:bg-[var(--bg-hover)] text-[var(--text-primary)]" title="New (Ctrl+N)">
+        <button onClick={newFile} className="flex items-center gap-1 px-2 py-1 rounded-sm text-xs hover:bg-[var(--bg-hover)] text-[var(--text-primary)]" title="New (Ctrl+N)">
           <Plus size={14} /> New
         </button>
-        <button onClick={() => setShowOpen(true)} className="flex items-center gap-1 px-2 py-1 rounded text-xs hover:bg-[var(--bg-hover)] text-[var(--text-primary)]" title="Open (Ctrl+O)">
+        <button onClick={() => setShowOpen(true)} className="flex items-center gap-1 px-2 py-1 rounded-sm text-xs hover:bg-[var(--bg-hover)] text-[var(--text-primary)]" title="Open (Ctrl+O)">
           <FolderOpen size={14} /> Open
         </button>
-        <button onClick={saveActiveFile} className="flex items-center gap-1 px-2 py-1 rounded text-xs hover:bg-[var(--bg-hover)] text-[var(--text-primary)]" title="Save (Ctrl+S)">
+        <button onClick={saveActiveFile} className="flex items-center gap-1 px-2 py-1 rounded-sm text-xs hover:bg-[var(--bg-hover)] text-[var(--text-primary)]" title="Save (Ctrl+S)">
           <Save size={14} /> Save
         </button>
         <div className="w-px h-5 mx-1" style={{ background: 'var(--border-subtle)' }} />
-        <button onClick={() => setShowFind(!showFind)} className="flex items-center gap-1 px-2 py-1 rounded text-xs hover:bg-[var(--bg-hover)] text-[var(--text-primary)]">
+        <button onClick={() => setShowFind(!showFind)} className="flex items-center gap-1 px-2 py-1 rounded-sm text-xs hover:bg-[var(--bg-hover)] text-[var(--text-primary)]">
           <Search size={14} /> Find
         </button>
-        <button onClick={() => setWordWrap(!wordWrap)} className={`flex items-center gap-1 px-2 py-1 rounded text-xs ${wordWrap ? 'text-[var(--accent-primary)]' : 'text-[var(--text-primary)]'} hover:bg-[var(--bg-hover)]`} title="Word Wrap">
+        <button onClick={() => setWordWrap(!wordWrap)} className={`flex items-center gap-1 px-2 py-1 rounded-sm text-xs ${wordWrap ? 'text-[var(--accent-primary)]' : 'text-[var(--text-primary)]'} hover:bg-[var(--bg-hover)]`} title="Word Wrap">
           <WrapText size={14} />
         </button>
-        <button onClick={() => setShowLineNumbers(!showLineNumbers)} className={`flex items-center gap-1 px-2 py-1 rounded text-xs ${showLineNumbers ? 'text-[var(--accent-primary)]' : 'text-[var(--text-primary)]'} hover:bg-[var(--bg-hover)]`} title="Line Numbers">
+        <button onClick={() => setShowLineNumbers(!showLineNumbers)} className={`flex items-center gap-1 px-2 py-1 rounded-sm text-xs ${showLineNumbers ? 'text-[var(--accent-primary)]' : 'text-[var(--text-primary)]'} hover:bg-[var(--bg-hover)]`} title="Line Numbers">
           <Hash size={14} />
         </button>
         <div className="flex-1" />
-        <button onClick={() => setFontSize(s => Math.max(8, s - 1))} className="p-1 rounded hover:bg-[var(--bg-hover)] text-[var(--text-secondary)]">
+        <button onClick={() => setFontSize(s => Math.max(8, s - 1))} className="p-1 rounded-sm hover:bg-[var(--bg-hover)] text-[var(--text-secondary)]">
           <ZoomOut size={14} />
         </button>
         <span className="text-[10px] text-[var(--text-secondary)] w-6 text-center">{fontSize}</span>
-        <button onClick={() => setFontSize(s => Math.min(32, s + 1))} className="p-1 rounded hover:bg-[var(--bg-hover)] text-[var(--text-secondary)]">
+        <button onClick={() => setFontSize(s => Math.min(32, s + 1))} className="p-1 rounded-sm hover:bg-[var(--bg-hover)] text-[var(--text-secondary)]">
           <ZoomIn size={14} />
         </button>
       </div>
@@ -362,7 +362,7 @@ const TextEditor: React.FC = () => {
 
           {/* Find matches indicator */}
           {showFind && findQuery && (
-            <div className="absolute bottom-8 right-4 px-2 py-1 rounded text-[10px]" style={{ background: 'var(--accent-primary)', color: 'white' }}>
+            <div className="absolute bottom-8 right-4 px-2 py-1 rounded-sm text-[10px]" style={{ background: 'var(--accent-primary)', color: 'white' }}>
               {(activeFile.content.match(new RegExp(findQuery, 'g')) || []).length} matches
             </div>
           )}
@@ -372,10 +372,10 @@ const TextEditor: React.FC = () => {
           <FileText size={48} className="text-[var(--text-disabled)] opacity-30" />
           <div className="text-sm text-[var(--text-secondary)]">Open a file or create a new document</div>
           <div className="flex gap-2">
-            <button onClick={newFile} className="px-4 py-2 rounded text-xs font-medium" style={{ background: 'var(--accent-primary)', color: 'white' }}>
+            <button onClick={newFile} className="px-4 py-2 rounded-sm text-xs font-medium" style={{ background: 'var(--accent-primary)', color: 'white' }}>
               New File
             </button>
-            <button onClick={() => setShowOpen(true)} className="px-4 py-2 rounded text-xs font-medium border" style={{ borderColor: 'var(--border-default)', color: 'var(--text-primary)' }}>
+            <button onClick={() => setShowOpen(true)} className="px-4 py-2 rounded-sm text-xs font-medium border" style={{ borderColor: 'var(--border-default)', color: 'var(--text-primary)' }}>
               Open File
             </button>
           </div>
@@ -389,7 +389,7 @@ const TextEditor: React.FC = () => {
                   <button
                     key={rf}
                     onClick={() => openFileById(rf)}
-                    className="flex items-center gap-2 w-full px-3 py-1.5 rounded text-xs text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+                    className="flex items-center gap-2 w-full px-3 py-1.5 rounded-sm text-xs text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
                   >
                     <FileText size={12} /> {node.name}
                   </button>
@@ -428,7 +428,7 @@ const TextEditor: React.FC = () => {
                 <button
                   key={f.id}
                   onClick={() => openFileById(f.id)}
-                  className="flex items-center gap-2 w-full px-3 py-2 rounded text-xs text-[var(--text-primary)] hover:bg-[var(--bg-hover)]"
+                  className="flex items-center gap-2 w-full px-3 py-2 rounded-sm text-xs text-[var(--text-primary)] hover:bg-[var(--bg-hover)]"
                 >
                   <FileText size={14} className="text-[var(--text-secondary)]" />
                   <span className="flex-1 text-left">{f.name}</span>

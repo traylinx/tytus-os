@@ -769,7 +769,7 @@ const FleetView: FC<FleetViewProps> = ({
                               ? `Unpin pod ${row.pod_id}`
                               : `Pin pod ${row.pod_id}`
                           }
-                          className="p-0.5 rounded transition-colors"
+                          className="p-0.5 rounded-sm transition-colors"
                           style={{
                             color: isPinned(row.pod_id)
                               ? '#FFC107'
@@ -1159,7 +1159,7 @@ const PodTab: FC<PodTabProps> = ({ agent, ready, client, onError, isPinned, onTo
             style={{
               background: 'rgba(255,255,255,0.03)',
               padding: '3px 8px',
-              borderRadius: 3,
+              borderRadius: "var(--radius-sm)",
             }}
             title={agent.api_url}
           >
@@ -1177,7 +1177,7 @@ const PodTab: FC<PodTabProps> = ({ agent, ready, client, onError, isPinned, onTo
             style={{
               background: 'rgba(255,255,255,0.03)',
               padding: '3px 8px',
-              borderRadius: 3,
+              borderRadius: "var(--radius-sm)",
             }}
             title={agent.public_url}
           >
@@ -1195,7 +1195,7 @@ const PodTab: FC<PodTabProps> = ({ agent, ready, client, onError, isPinned, onTo
             style={{
               background: 'rgba(255,255,255,0.03)',
               padding: '3px 8px',
-              borderRadius: 3,
+              borderRadius: "var(--radius-sm)",
             }}
           >
             {uiRevealed
@@ -1225,7 +1225,7 @@ const PodTab: FC<PodTabProps> = ({ agent, ready, client, onError, isPinned, onTo
             style={{
               background: 'rgba(255,255,255,0.03)',
               padding: '3px 8px',
-              borderRadius: 3,
+              borderRadius: "var(--radius-sm)",
             }}
           >
             {keyRevealed
@@ -1387,7 +1387,7 @@ const PodTab: FC<PodTabProps> = ({ agent, ready, client, onError, isPinned, onTo
               <button
                 onClick={onCancelJob}
                 disabled={cancelling}
-                className="px-2 py-0.5 rounded text-[10px] transition-colors flex items-center gap-1 disabled:opacity-60"
+                className="px-2 py-0.5 rounded-sm text-[10px] transition-colors flex items-center gap-1 disabled:opacity-60"
                 style={{
                   background: 'rgba(244,67,54,0.10)',
                   color: '#FFCDD2',
@@ -1404,7 +1404,7 @@ const PodTab: FC<PodTabProps> = ({ agent, ready, client, onError, isPinned, onTo
                 {activeJob.action === 'logs' && (
                   <button
                     onClick={onShowLogs}
-                    className="px-2 py-0.5 rounded text-[10px] transition-colors flex items-center gap-1"
+                    className="px-2 py-0.5 rounded-sm text-[10px] transition-colors flex items-center gap-1"
                     style={{
                       background: 'var(--bg-hover, rgba(255,255,255,0.04))',
                       color: 'var(--text-secondary)',
@@ -1418,7 +1418,7 @@ const PodTab: FC<PodTabProps> = ({ agent, ready, client, onError, isPinned, onTo
                 )}
                 <button
                   onClick={() => setActiveJob(null)}
-                  className="px-2 py-0.5 rounded text-[10px] transition-colors"
+                  className="px-2 py-0.5 rounded-sm text-[10px] transition-colors"
                   style={{
                     background: 'var(--bg-hover, rgba(255,255,255,0.04))',
                     color: 'var(--text-secondary)',
@@ -1483,7 +1483,7 @@ const CopyBtn: FC<{
   <button
     onClick={onClick}
     aria-label={`Copy ${label}`}
-    className="p-1 rounded transition-colors"
+    className="p-1 rounded-sm transition-colors"
     style={{
       background: isCopied ? 'rgba(76,175,80,0.18)' : 'transparent',
       color: isCopied ? '#A5D6A7' : 'var(--text-secondary)',
@@ -1500,7 +1500,7 @@ const RevealBtn: FC<{
   <button
     onClick={onToggle}
     aria-label={revealed ? 'Hide value' : 'Show value'}
-    className="p-1 rounded transition-colors"
+    className="p-1 rounded-sm transition-colors"
     style={{ background: 'transparent', color: 'var(--text-secondary)' }}
   >
     {revealed ? <EyeOff size={12} /> : <Eye size={12} />}
@@ -1661,7 +1661,7 @@ const RevokeConfirmModal: FC<{
             <div className="text-[11px] text-[var(--text-secondary)] mt-3">
               Type{' '}
               <code
-                className="font-mono px-1 py-0.5 rounded"
+                className="font-mono px-1 py-0.5 rounded-sm"
                 style={{ background: 'rgba(255,255,255,0.06)' }}
               >
                 {expected}
@@ -1746,7 +1746,7 @@ const RestartAllConfirmModal: FC<{
           <div className="text-[12px] text-[var(--text-secondary)] mt-1.5 leading-relaxed">
             Each pod will be restarted sequentially via{' '}
             <code
-              className="font-mono px-1 py-0.5 rounded"
+              className="font-mono px-1 py-0.5 rounded-sm"
               style={{ background: 'rgba(255,255,255,0.06)' }}
             >
               tytus restart --pod NN

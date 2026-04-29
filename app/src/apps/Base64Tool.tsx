@@ -197,13 +197,13 @@ export default function Base64Tool() {
                   onChange={(e) => processJwt(e.target.value)}
                   placeholder="Paste JWT token here..."
                   spellCheck={false}
-                  className="w-full resize-none outline-none p-3 rounded text-xs custom-scrollbar"
+                  className="w-full resize-none outline-none p-3 rounded-sm text-xs custom-scrollbar"
                   style={{ height: 80, background: 'var(--bg-input)', color: 'var(--text-primary)', border: '1px solid var(--border-default)', fontFamily: "'JetBrains Mono', monospace" }}
                 />
               </div>
 
               {error && (
-                <div className="flex items-center gap-2 px-2 py-1 rounded" style={{ background: 'rgba(244,67,54,0.1)' }}>
+                <div className="flex items-center gap-2 px-2 py-1 rounded-sm" style={{ background: 'rgba(244,67,54,0.1)' }}>
                   <span className="text-xs text-red-400">{error}</span>
                 </div>
               )}
@@ -211,10 +211,10 @@ export default function Base64Tool() {
               {decodedJwt && (
                 <div className="flex flex-col gap-2">
                   {/* Header */}
-                  <div className="p-3 rounded" style={{ background: 'var(--bg-input)', border: '1px solid var(--border-default)' }}>
+                  <div className="p-3 rounded-sm" style={{ background: 'var(--bg-input)', border: '1px solid var(--border-default)' }}>
                     <div className="flex items-center justify-between mb-1">
                       <span className="text-xs font-semibold" style={{ color: 'var(--accent-primary)' }}>HEADER</span>
-                      <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: 'var(--bg-active)', color: 'var(--text-secondary)' }}>ALGORITHM</span>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded-sm" style={{ background: 'var(--bg-active)', color: 'var(--text-secondary)' }}>ALGORITHM</span>
                     </div>
                     <pre className="text-xs" style={{ fontFamily: "'JetBrains Mono', monospace", color: 'var(--text-primary)' }}>
                       {JSON.stringify(JSON.parse(decodedJwt.header), null, 2)}
@@ -222,7 +222,7 @@ export default function Base64Tool() {
                   </div>
 
                   {/* Payload */}
-                  <div className="p-3 rounded" style={{ background: 'var(--bg-input)', border: '1px solid var(--border-default)' }}>
+                  <div className="p-3 rounded-sm" style={{ background: 'var(--bg-input)', border: '1px solid var(--border-default)' }}>
                     <div className="flex items-center justify-between mb-1">
                       <span className="text-xs font-semibold" style={{ color: 'var(--accent-success)' }}>PAYLOAD</span>
                       {(() => {
@@ -230,7 +230,7 @@ export default function Base64Tool() {
                         if (!exp) return null;
                         const isExpired = exp.getTime() < Date.now();
                         return (
-                          <span className={`text-[10px] px-1.5 py-0.5 rounded ${isExpired ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400'}`}>
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded-sm ${isExpired ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400'}`}>
                             {isExpired ? 'Expired' : `Exp: ${exp.toLocaleString()}`}
                           </span>
                         );
@@ -242,7 +242,7 @@ export default function Base64Tool() {
                   </div>
 
                   {/* Signature */}
-                  <div className="p-3 rounded" style={{ background: 'var(--bg-input)', border: '1px solid var(--border-default)' }}>
+                  <div className="p-3 rounded-sm" style={{ background: 'var(--bg-input)', border: '1px solid var(--border-default)' }}>
                     <span className="text-xs font-semibold block mb-1" style={{ color: 'var(--accent-warning)' }}>SIGNATURE</span>
                     <span className="text-xs break-all font-mono" style={{ color: 'var(--text-secondary)' }}>{decodedJwt.signature}</span>
                   </div>
@@ -267,7 +267,7 @@ export default function Base64Tool() {
                   onChange={(e) => setInput(e.target.value)}
                   placeholder="Enter text..."
                   spellCheck={false}
-                  className="flex-1 w-full resize-none outline-none p-3 rounded text-xs custom-scrollbar"
+                  className="flex-1 w-full resize-none outline-none p-3 rounded-sm text-xs custom-scrollbar"
                   style={{ background: 'var(--bg-input)', color: 'var(--text-primary)', border: '1px solid var(--border-default)', fontFamily: "'JetBrains Mono', monospace" }}
                 />
               </div>
@@ -282,37 +282,37 @@ export default function Base64Tool() {
                 )}
 
                 {activeTab === 'encode' && (
-                  <button onClick={encodeBase64} className="flex items-center gap-1 px-3 py-1.5 rounded text-xs font-medium" style={{ background: 'var(--accent-primary)', color: 'white' }}>
+                  <button onClick={encodeBase64} className="flex items-center gap-1 px-3 py-1.5 rounded-sm text-xs font-medium" style={{ background: 'var(--accent-primary)', color: 'white' }}>
                     <ArrowRight size={12} /> Encode
                   </button>
                 )}
                 {activeTab === 'decode' && (
-                  <button onClick={decodeBase64} className="flex items-center gap-1 px-3 py-1.5 rounded text-xs font-medium" style={{ background: 'var(--accent-primary)', color: 'white' }}>
+                  <button onClick={decodeBase64} className="flex items-center gap-1 px-3 py-1.5 rounded-sm text-xs font-medium" style={{ background: 'var(--accent-primary)', color: 'white' }}>
                     <ArrowLeft size={12} /> Decode
                   </button>
                 )}
                 {activeTab === 'url' && (
                   <>
-                    <button onClick={() => processUrl(true)} className="flex items-center gap-1 px-3 py-1.5 rounded text-xs font-medium" style={{ background: 'var(--accent-primary)', color: 'white' }}>
+                    <button onClick={() => processUrl(true)} className="flex items-center gap-1 px-3 py-1.5 rounded-sm text-xs font-medium" style={{ background: 'var(--accent-primary)', color: 'white' }}>
                       <ArrowRight size={12} /> Encode
                     </button>
-                    <button onClick={() => processUrl(false)} className="flex items-center gap-1 px-3 py-1.5 rounded text-xs font-medium" style={{ background: 'var(--bg-hover)', border: '1px solid var(--border-default)' }}>
+                    <button onClick={() => processUrl(false)} className="flex items-center gap-1 px-3 py-1.5 rounded-sm text-xs font-medium" style={{ background: 'var(--bg-hover)', border: '1px solid var(--border-default)' }}>
                       <ArrowLeft size={12} /> Decode
                     </button>
                   </>
                 )}
                 {activeTab === 'hex' && (
                   <>
-                    <button onClick={() => processHex(true)} className="flex items-center gap-1 px-3 py-1.5 rounded text-xs font-medium" style={{ background: 'var(--accent-primary)', color: 'white' }}>
+                    <button onClick={() => processHex(true)} className="flex items-center gap-1 px-3 py-1.5 rounded-sm text-xs font-medium" style={{ background: 'var(--accent-primary)', color: 'white' }}>
                       <ArrowRight size={12} /> To Hex
                     </button>
-                    <button onClick={() => processHex(false)} className="flex items-center gap-1 px-3 py-1.5 rounded text-xs font-medium" style={{ background: 'var(--bg-hover)', border: '1px solid var(--border-default)' }}>
+                    <button onClick={() => processHex(false)} className="flex items-center gap-1 px-3 py-1.5 rounded-sm text-xs font-medium" style={{ background: 'var(--bg-hover)', border: '1px solid var(--border-default)' }}>
                       <ArrowLeft size={12} /> From Hex
                     </button>
                   </>
                 )}
 
-                <button onClick={clearAll} className="p-1.5 rounded hover:bg-[var(--bg-hover)]">
+                <button onClick={clearAll} className="p-1.5 rounded-sm hover:bg-[var(--bg-hover)]">
                   <Trash2 size={14} style={{ color: 'var(--text-secondary)' }} />
                 </button>
 
@@ -326,7 +326,7 @@ export default function Base64Tool() {
                     <span className="text-xs font-semibold" style={{ color: 'var(--text-secondary)' }}>Output</span>
                     <div className="flex items-center gap-2">
                       <span className="text-xs" style={{ color: 'var(--text-disabled)' }}>{output.length} chars | {outSize} bytes</span>
-                      <button onClick={copyOutput} className="flex items-center gap-1 text-xs px-2 py-0.5 rounded hover:bg-[var(--bg-hover)]">
+                      <button onClick={copyOutput} className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-sm hover:bg-[var(--bg-hover)]">
                         {copied ? <Check size={10} /> : <Copy size={10} />} {copied ? 'Copied!' : 'Copy'}
                       </button>
                     </div>
@@ -334,7 +334,7 @@ export default function Base64Tool() {
                   <textarea
                     value={output}
                     readOnly
-                    className="flex-1 w-full resize-none outline-none p-3 rounded text-xs custom-scrollbar"
+                    className="flex-1 w-full resize-none outline-none p-3 rounded-sm text-xs custom-scrollbar"
                     style={{ background: 'var(--bg-hover)', color: 'var(--text-primary)', border: '1px solid var(--border-default)', fontFamily: "'JetBrains Mono', monospace" }}
                   />
                 </div>
@@ -350,8 +350,8 @@ export default function Base64Tool() {
             <span className="text-xs font-semibold" style={{ color: 'var(--text-secondary)' }}>HISTORY</span>
           </div>
           {history.map((h) => (
-            <div key={h.id} className="p-1.5 rounded mb-1" style={{ background: 'var(--bg-hover)' }}>
-              <span className="text-[10px] px-1 py-0.5 rounded" style={{ background: 'var(--bg-active)', color: 'var(--text-secondary)' }}>{h.tab}</span>
+            <div key={h.id} className="p-1.5 rounded-sm mb-1" style={{ background: 'var(--bg-hover)' }}>
+              <span className="text-[10px] px-1 py-0.5 rounded-sm" style={{ background: 'var(--bg-active)', color: 'var(--text-secondary)' }}>{h.tab}</span>
               <div className="text-[10px] mt-0.5 truncate font-mono" style={{ color: 'var(--text-secondary)' }}>{h.input}</div>
               <div className="text-[10px] truncate font-mono" style={{ color: 'var(--accent-primary)' }}>{h.output}</div>
             </div>
