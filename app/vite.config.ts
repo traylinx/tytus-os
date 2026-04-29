@@ -1,52 +1,77 @@
+import http from 'node:http';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import { defineConfig } from 'vite';
+import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 
-// Discover the running daemon's HTTP port. tytus-cli writes the port to
-// `/tmp/tytus/tray-web.port` whenever the tray is running. If the file is
-// missing or empty, dev mode falls back to a placeholder loopback target so
-// vite still boots — the SPA will surface daemon_offline via the banner.
+// tytus-cli writes its current HTTP port to `/tmp/tytus/tray-web.port`
+// every time the daemon starts. The port can change on every restart
+// (it's an OS-assigned ephemeral). Vite's built-in proxy reads its
+// target ONCE at startup, so a daemon restart strands the dev proxy
+// on a dead port until vite is bounced. The plugin below re-reads the
+// file on every /api/* request so vite tracks daemon restarts live.
 const TRAY_PORT_FILE = '/tmp/tytus/tray-web.port';
-const FALLBACK_DAEMON_TARGET = 'http://127.0.0.1:0';
 
-const discoverDaemonTarget = (): string => {
+const discoverDaemonPort = (): number | null => {
   try {
     const raw = readFileSync(TRAY_PORT_FILE, 'utf8').trim();
     const port = Number.parseInt(raw, 10);
-    if (Number.isFinite(port) && port > 0 && port < 65_536) {
-      return `http://127.0.0.1:${port}`;
-    }
+    if (Number.isFinite(port) && port > 0 && port < 65_536) return port;
   } catch {
-    // file missing or unreadable; fall through.
+    // file missing or unreadable; daemon offline.
   }
-  return FALLBACK_DAEMON_TARGET;
+  return null;
 };
+
+const daemonProxyPlugin = (): Plugin => ({
+  name: 'tytus-daemon-proxy',
+  configureServer(server) {
+    server.middlewares.use('/api', (req, res) => {
+      const port = discoverDaemonPort();
+      if (port === null) {
+        res.statusCode = 502;
+        res.setHeader('Content-Type', 'application/json');
+        res.end(JSON.stringify({ error: 'daemon_offline', detail: 'tray-web.port missing' }));
+        return;
+      }
+      // Phase 2 §11 security floor: daemon's strict same-origin guard
+      // expects Sec-Fetch-Site. Server-to-server hops drop it; forge
+      // here so the dev proxy matches the production browser path.
+      const headers = { ...req.headers, 'sec-fetch-site': 'same-origin' };
+      delete (headers as Record<string, unknown>).host;
+
+      const upstream = http.request(
+        {
+          host: '127.0.0.1',
+          port,
+          method: req.method,
+          path: '/api' + (req.url ?? ''),
+          headers,
+        },
+        (proxyRes) => {
+          res.statusCode = proxyRes.statusCode ?? 502;
+          for (const [k, v] of Object.entries(proxyRes.headers)) {
+            if (v !== undefined) res.setHeader(k, v as string | string[]);
+          }
+          proxyRes.pipe(res);
+        },
+      );
+      upstream.on('error', (err) => {
+        res.statusCode = 502;
+        res.setHeader('Content-Type', 'application/json');
+        res.end(JSON.stringify({ error: 'daemon_unreachable', detail: err.message, port }));
+      });
+      req.pipe(upstream);
+    });
+  },
+});
 
 export default defineConfig({
   base: './',
-  plugins: [react()],
+  plugins: [react(), daemonProxyPlugin()],
   server: {
     port: 4242,
     strictPort: false,
-    proxy: {
-      // Phase 2 §11 security floor: when the SPA POSTs through the dev
-      // proxy, the underlying request is server-to-server and would
-      // normally NOT carry Sec-Fetch-Site. The daemon's strict guard
-      // would reject it. We forge the header here so daemon-side
-      // behaviour matches production where the browser sends it
-      // directly. This is safe because the dev proxy only listens on
-      // 127.0.0.1 and the dev port is not routable from elsewhere.
-      '/api': {
-        target: discoverDaemonTarget(),
-        changeOrigin: false,
-        configure: (proxy) => {
-          proxy.on('proxyReq', (proxyReq) => {
-            proxyReq.setHeader('Sec-Fetch-Site', 'same-origin');
-          });
-        },
-      },
-    },
   },
   resolve: {
     alias: {
