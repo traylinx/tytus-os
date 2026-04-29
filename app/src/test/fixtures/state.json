@@ -1,0 +1,46 @@
+{
+  "active_jobs_per_pod": {},
+  "agents": [
+    {
+      "agent_type": "nemoclaw",
+      "api_url": "https://njc9ctj3zgkn-p02.tytus.traylinx.com/v1",
+      "pod_id": "02",
+      "public_url": "https://njc9ctj3zgkn-p02.tytus.traylinx.com",
+      "ui_url": "https://njc9ctj3zgkn-p02.tytus.traylinx.com/?token=REDACTED",
+      "units": 1,
+      "user_key": "sk-tytus-user-REDACTED"
+    },
+    {
+      "agent_type": "nemoclaw",
+      "api_url": "https://njc9ctj3zgkn-p04.tytus.traylinx.com/v1",
+      "pod_id": "04",
+      "public_url": "https://njc9ctj3zgkn-p04.tytus.traylinx.com",
+      "ui_url": "https://njc9ctj3zgkn-p04.tytus.traylinx.com/?token=REDACTED",
+      "units": 1,
+      "user_key": "sk-tytus-user-REDACTED"
+    }
+  ],
+  "app_bundle_installed": true,
+  "connected": true,
+  "daemon_pid": 604,
+  "daemon_running": true,
+  "email": "REDACTED@example.com",
+  "forwarders": [],
+  "included": [
+    {
+      "endpoint": "http://10.42.42.1:18080",
+      "kind": "ail",
+      "pod_id": "01",
+      "public_url": "https://njc9ctj3zgkn-p01.tytus.traylinx.com",
+      "user_key": "sk-tytus-user-REDACTED"
+    }
+  ],
+  "keychain_healthy": true,
+  "last_refresh_error": null,
+  "logged_in": true,
+  "tier": "operator",
+  "tunnel_active": true,
+  "units_limit": 4,
+  "units_used": 2,
+  "uptime_secs": 21037
+}

@@ -1,0 +1,8 @@
+{
+    "chunk": "[2026-04-28T06:18:33Z] cmd_connect START: email=REDACTED@example.com, has_rt=true, has_at=true, expires_at=2026-04-27T19:52:17Z, pods=3, pod_id=None\n[2026-04-28T06:18:35Z] ensure_token OK: token refreshed successfully\nConnecting to default pod 01...\nDownloading tunnel config...\nActivating WireGuard tunnel...\n\u2713 Tunnel active on utun4\n[2026-04-28T06:18:38Z] cmd_connect OK: tunnel active on utun4 (elevated)\nENDPOINT=http://10.42.42.1:18080\nTunnel daemon running (pid 1120). Stop with: tytus disconnect\n[2026-04-28T08:19:40Z] ensure_token OK: token refreshed successfully\n[2026-04-28T10:19:45Z] ensure_token OK: token refreshed successfully\n",
+    "missing": false,
+    "name": "startup",
+    "offset": 653,
+    "size": 653,
+    "truncated": false
+}
