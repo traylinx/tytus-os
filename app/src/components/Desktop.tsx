@@ -321,7 +321,7 @@ const Desktop = memo(function Desktop() {
             top: pinMenu.y,
             minWidth: 140,
             background: 'var(--bg-context-menu)',
-            borderRadius: 8,
+            borderRadius: 'var(--radius-md)',
             border: '1px solid var(--border-default)',
             boxShadow: 'var(--shadow-lg)',
           }}
@@ -331,7 +331,7 @@ const Desktop = memo(function Desktop() {
             className="w-full flex items-center gap-2.5 px-3 h-8 text-sm transition-colors"
             style={{
               color: 'var(--text-primary)',
-              borderRadius: 4,
+              borderRadius: 'var(--radius-sm)',
               margin: '0 4px',
               width: 'calc(100% - 8px)',
               cursor: 'pointer',

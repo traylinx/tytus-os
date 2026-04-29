@@ -55,7 +55,7 @@ const Toast = memo(function Toast({ notification, onClose, index }: ToastProps) 
       className="relative w-[360px] overflow-hidden"
       style={{
         background: 'var(--bg-notification)',
-        borderRadius: 12,
+        borderRadius: 'var(--radius-lg)',
         border: '1px solid var(--border-default)',
         boxShadow: 'var(--shadow-md)',
         padding: '12px 16px',

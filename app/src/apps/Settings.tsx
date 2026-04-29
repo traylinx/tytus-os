@@ -1421,7 +1421,7 @@ const PodCard: React.FC<PodCardProps> = ({ agent, refreshNonce = 0 }) => {
         <span className="text-[var(--text-secondary)]">API URL</span>
         <code
           className="font-mono text-[var(--text-primary)] truncate"
-          style={{ background: 'rgba(255,255,255,0.03)', padding: '2px 6px', borderRadius: 3 }}
+          style={{ background: 'rgba(255,255,255,0.03)', padding: '2px 6px', borderRadius: 'var(--radius-sm)' }}
           title={agent.api_url}
         >
           {agent.api_url}
@@ -1435,7 +1435,7 @@ const PodCard: React.FC<PodCardProps> = ({ agent, refreshNonce = 0 }) => {
         <span className="text-[var(--text-secondary)]">Public</span>
         <code
           className="font-mono text-[var(--text-primary)] truncate"
-          style={{ background: 'rgba(255,255,255,0.03)', padding: '2px 6px', borderRadius: 3 }}
+          style={{ background: 'rgba(255,255,255,0.03)', padding: '2px 6px', borderRadius: 'var(--radius-sm)' }}
           title={agent.public_url}
         >
           {agent.public_url}
@@ -1449,7 +1449,7 @@ const PodCard: React.FC<PodCardProps> = ({ agent, refreshNonce = 0 }) => {
         <span className="text-[var(--text-secondary)]">UI URL</span>
         <code
           className="font-mono text-[var(--text-primary)] truncate"
-          style={{ background: 'rgba(255,255,255,0.03)', padding: '2px 6px', borderRadius: 3 }}
+          style={{ background: 'rgba(255,255,255,0.03)', padding: '2px 6px', borderRadius: 'var(--radius-sm)' }}
         >
           {uiRevealed
             ? revealTokenUrl(agent.ui_url, 'user_gesture')
@@ -1472,7 +1472,7 @@ const PodCard: React.FC<PodCardProps> = ({ agent, refreshNonce = 0 }) => {
         <span className="text-[var(--text-secondary)]">Key</span>
         <code
           className="font-mono text-[var(--text-primary)] truncate"
-          style={{ background: 'rgba(255,255,255,0.03)', padding: '2px 6px', borderRadius: 3 }}
+          style={{ background: 'rgba(255,255,255,0.03)', padding: '2px 6px', borderRadius: 'var(--radius-sm)' }}
         >
           {keyRevealed
             ? revealSecret(agent.user_key, 'user_gesture')
