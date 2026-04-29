@@ -1,0 +1,1 @@
+{"available":[{"label":"Discord","name":"discord"},{"label":"Slack (Socket Mode)","name":"slack"},{"label":"LINE","name":"line"}],"configured":[{"label":"Telegram","name":"telegram","secret_count":1}],"pod_id":"02"}
