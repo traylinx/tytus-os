@@ -50,11 +50,25 @@ module.exports = {
         },
       },
       borderRadius: {
-        xl: "calc(var(--radius) + 4px)",
-        lg: "var(--radius)",
-        md: "calc(var(--radius) - 2px)",
-        sm: "calc(var(--radius) - 4px)",
-        xs: "calc(var(--radius) - 6px)",
+        // Token contract — pinned to the `--radius-*` scale documented in
+        // src/index.css. The previous arithmetic against a generic `--radius`
+        // drifted from the design tokens whenever `--radius` was absent.
+        xs: "var(--radius-sm)", // legacy callers (dialog close, menubar, sheet, resizable) — same px as sm
+        sm: "var(--radius-sm)", // 4px
+        md: "var(--radius-md)", // 8px — buttons, inputs, dropdowns, tooltips
+        lg: "var(--radius-lg)", // 12px — windows, toasts, larger cards
+        xl: "var(--radius-xl)", // 16px — dialogs, launcher cards, dock, login
+
+        // Semantic aliases — surface-named so callers say what they are,
+        // not what radius they want. Keeps the policy in one place.
+        button: "var(--radius-md)",
+        input: "var(--radius-md)",
+        menu: "var(--radius-md)",
+        card: "var(--radius-lg)",
+        window: "var(--radius-lg)",
+        toast: "var(--radius-lg)",
+        dialog: "var(--radius-xl)",
+        dock: "var(--radius-xl)",
       },
       boxShadow: {
         xs: "0 1px 2px 0 rgb(0 0 0 / 0.05)",
