@@ -19,6 +19,7 @@ import { useJobStream } from '@/hooks/useJobStream';
 import { useDemoApps } from '@/hooks/useDemoApps';
 import { useNotifications } from '@/hooks/useOSStore';
 import { computePill } from '@/lib/statusPill';
+import { READY_COLORS, visualForAgentStatus } from '@/lib/agentStatus';
 import { maskSecret, maskTokenUrl, revealSecret, revealTokenUrl } from '@/lib/secrets';
 import type {
   Catalog,
@@ -1306,11 +1307,20 @@ const PodCard: React.FC<PodCardProps> = ({ agent, refreshNonce = 0 }) => {
   const [openErr, setOpenErr] = useState<string | null>(null);
   const [ready, setReady] = useState<ReadyDot>(null);
 
-  // Lazy /api/pod/ready probe. Re-runs when refreshNonce changes
-  // (parent's Refresh button) so the dot reflects the latest probe.
+  // Two paths for the readiness dot:
+  //   - New daemons (≥ 0.7.0) populate `agent.status` directly. Map
+  //     that to a dot without firing a network request.
+  //   - Old daemons omit the field; fall back to /api/pod/ready.
+  // refreshNonce only re-fires the fallback probe — the state-field
+  // path naturally re-renders with new state.
   useEffect(() => {
+    if (agent.status !== undefined) {
+      const v = visualForAgentStatus(agent.status);
+      /* eslint-disable-next-line react-hooks/set-state-in-effect */
+      setReady({ color: READY_COLORS[v.state], label: v.label });
+      return;
+    }
     let cancelled = false;
-    /* eslint-disable-next-line react-hooks/set-state-in-effect */
     setReady({ color: '#9E9E9E', label: 'Probing…' });
     client.getPodReady(agent.pod_id).then((r) => {
       if (cancelled) return;
@@ -1327,7 +1337,7 @@ const PodCard: React.FC<PodCardProps> = ({ agent, refreshNonce = 0 }) => {
     return () => {
       cancelled = true;
     };
-  }, [client, agent.pod_id, refreshNonce]);
+  }, [client, agent.pod_id, agent.status, refreshNonce]);
 
   const copyToClipboard = useCallback(async (label: string, value: string) => {
     try {

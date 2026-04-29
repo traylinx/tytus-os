@@ -1,5 +1,5 @@
 export type { Secret } from "./Secret";
-export type { Agent, AgentType } from "./Agent";
+export type { Agent, AgentType, AgentStatus } from "./Agent";
 export type { IncludedPod } from "./IncludedPod";
 export type { Forwarder } from "./Forwarder";
 export type { StateSnapshot, Tier } from "./StateSnapshot";
