@@ -1,0 +1,23 @@
+event: log
+data: Pod 02 — Doctor
+
+event: log
+data:   container_status: exited
+
+event: log
+data:   healthy: false
+
+event: log
+data:   uptime: 0s
+
+event: log
+data:   image: tytus-nemoclaw:latest
+
+event: log
+data:   ports: health=3000 api=3000 ui=3000
+
+event: log
+data: ✗ container is not running — try `tytus restart --pod 02`
+
+event: exit
+data: {"code":1}

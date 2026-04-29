@@ -14,6 +14,20 @@ export interface Size {
 
 export type WindowState = 'normal' | 'minimized' | 'maximized';
 
+/**
+ * Per-window startup args. Set by OPEN_WINDOW callers that want to
+ * pre-seed an app with context (e.g. Files → right-click → "Open with
+ * Image Viewer" passes the file name in `file`). Each app component
+ * is free to ignore unfamiliar keys; missing args means the app should
+ * launch with its default state.
+ */
+export interface WindowArgs {
+  /** Pod-relative file path or pure name, surfaced as a viewer banner. */
+  file?: string;
+  /** The pod the file lives on, when set. Optional for app-level launches. */
+  podId?: string;
+}
+
 export interface Window {
   id: string;
   appId: string;
@@ -27,6 +41,7 @@ export interface Window {
   zIndex: number;
   icon: string;
   createdAt: number;
+  args?: WindowArgs;
 }
 
 export type AppCategory = 'System' | 'Internet' | 'Productivity' | 'Media' | 'DevTools' | 'Games' | 'Creative';
@@ -208,7 +223,7 @@ export type OSAction =
   | { type: 'LOGIN'; isGuest: boolean }
   | { type: 'LOGOUT' }
   | { type: 'LOCK' }
-  | { type: 'OPEN_WINDOW'; appId: string; title?: string }
+  | { type: 'OPEN_WINDOW'; appId: string; title?: string; args?: WindowArgs }
   | { type: 'CLOSE_WINDOW'; windowId: string }
   | { type: 'MINIMIZE_WINDOW'; windowId: string }
   | { type: 'MAXIMIZE_WINDOW'; windowId: string }

@@ -51,6 +51,58 @@ export class FakeEventSource implements EventSourceLike {
   }
 }
 
+/**
+ * Parse a raw SSE wire-format transcript (as produced by the daemon's
+ * /api/jobs/<id>/stream and captured into a fixture file) into the
+ * ScriptedEvent[] shape this fake EventSource consumes. Phase 4 cont
+ * uses this to drive useJobStream against a real-shape failure
+ * transcript captured from `tytus doctor` against a stopped pod.
+ *
+ * Format expected:
+ *   event: <type>
+ *   data: <line>
+ *   data: <line>      <-- multi-line continuation joined with "\n"
+ *   <blank>           <-- terminates the event
+ *   event: <type>
+ *   ...
+ *
+ * Lines starting with `:` are SSE comments and are ignored. Unknown
+ * event types throw — we don't want a typo in a fixture to silently
+ * disappear into the void.
+ */
+export const parseSseTranscript = (raw: string): ScriptedEvent[] => {
+  const out: ScriptedEvent[] = [];
+  let type: string | null = null;
+  const dataLines: string[] = [];
+  const flush = () => {
+    if (type === null && dataLines.length === 0) return;
+    if (type !== "log" && type !== "exit") {
+      throw new Error(
+        `unknown SSE event type ${JSON.stringify(type)} in fixture`,
+      );
+    }
+    out.push({ type, data: dataLines.join("\n") });
+    type = null;
+    dataLines.length = 0;
+  };
+  for (const rawLine of raw.split(/\r?\n/)) {
+    if (rawLine === "") {
+      flush();
+      continue;
+    }
+    if (rawLine.startsWith(":")) continue;
+    const colon = rawLine.indexOf(":");
+    if (colon < 0) continue;
+    const field = rawLine.slice(0, colon);
+    let value = rawLine.slice(colon + 1);
+    if (value.startsWith(" ")) value = value.slice(1);
+    if (field === "event") type = value;
+    else if (field === "data") dataLines.push(value);
+  }
+  flush();
+  return out;
+};
+
 export const makeFakeEventSource = (
   scripts: Record<string, ScriptedEvent[]>,
 ): FakeEventSourceHandle => {

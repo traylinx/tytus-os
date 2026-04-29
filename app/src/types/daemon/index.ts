@@ -18,5 +18,6 @@ export type { Launchers } from "./Launchers";
 export type { LogChunk } from "./Logs";
 export type { PodReady } from "./PodReady";
 export type { Binding, SharedFoldersList } from "./Binding";
+export type { PodEnv, PodEnvVar, EnvVarSource } from "./PodEnv";
 export type { DaemonResult, DaemonError, DaemonErrorCode } from "./Result";
 export { ok, err } from "./Result";

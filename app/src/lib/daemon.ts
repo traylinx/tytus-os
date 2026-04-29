@@ -21,6 +21,8 @@ import type {
   JobResponse,
   Launchers,
   LogChunk,
+  PodEnv,
+  PodEnvVar,
   PodReady,
   SharedFoldersList,
   StateSnapshot,
@@ -292,6 +294,17 @@ const isPodReady = (v: unknown): v is PodReady =>
 const isSharedFolders = (v: unknown): v is SharedFoldersList =>
   isObject(v) && Array.isArray(v.bindings);
 
+const isPodEnvVar = (v: unknown): v is PodEnvVar =>
+  isObject(v) &&
+  typeof v.key === "string" &&
+  typeof v.value === "string" &&
+  (v.source === undefined || typeof v.source === "string");
+
+const isPodEnv = (v: unknown): v is PodEnv =>
+  isObject(v) &&
+  Array.isArray(v.vars) &&
+  v.vars.every(isPodEnvVar);
+
 // ---- conditional state result -------------------------------------------
 
 /**
@@ -350,6 +363,18 @@ export interface DaemonClient {
     podId: string,
     signal?: AbortSignal,
   ): Promise<DaemonResult<PodReady>>;
+  /**
+   * Per-pod env vars (manifest A.exist A3.5). The daemon proxies through
+   * to Provider, which redacts secret-shaped keys unless the caller is
+   * Operator-tier and passes `revealSecrets: true`. A 403 result with
+   * `code: "auth_required"` means the user's plan tier is below
+   * Operator — surface it as an upgrade prompt, not an error toast.
+   */
+  getPodEnv(
+    podId: string,
+    revealSecrets?: boolean,
+    signal?: AbortSignal,
+  ): Promise<DaemonResult<PodEnv>>;
   getSharedFolders(
     signal?: AbortSignal,
   ): Promise<DaemonResult<SharedFoldersList>>;
@@ -678,6 +703,16 @@ export const createDaemonClient = (
         { signal },
         (b) => expectShape(b, isPodReady, "malformed /api/pod/ready"),
       ),
+
+    getPodEnv: (podId, revealSecrets, signal) => {
+      const reveal = revealSecrets ? "&reveal=secrets" : "";
+      return runRequest(
+        deps,
+        `/api/pod/env?pod=${encodeURIComponent(podId)}${reveal}`,
+        { signal },
+        (b) => expectShape(b, isPodEnv, "malformed /api/pod/env"),
+      );
+    },
 
     getSharedFolders: (signal) =>
       runRequest(deps, "/api/shared-folders/list", { signal }, (b) =>
