@@ -172,7 +172,10 @@ const Settings: React.FC = () => {
   const client = useDaemonClient();
   const daemon = useDaemonStateContext();
   const pill = computePill(daemon.status, daemon.state, daemon.error);
-  const { showDemoApps, setShowDemoApps } = useDemoApps();
+  // Tier-aware default — paid tiers (creator/operator) start with
+  // demos OFF; Explorer defaults ON. The stored choice wins once the
+  // user toggles.
+  const { showDemoApps, setShowDemoApps } = useDemoApps(daemon.state?.tier);
 
   // Deep-link: navigate(#/settings/agents) flips the active panel.
   // Deliberate setState-in-effect — we're syncing UI state from a URL
