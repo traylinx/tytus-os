@@ -6,6 +6,7 @@ import { useState, useCallback, useRef, useEffect, memo } from 'react';
 import { useOS } from '@/hooks/useOSStore';
 import { getAppById } from '@/apps/registry';
 import { useDemoApps } from '@/hooks/useDemoApps';
+import { useDaemonStateContext } from '@/hooks/useDaemonStateContext';
 import { Search, X, ChevronUp, ChevronDown } from 'lucide-react';
 import * as Icons from 'lucide-react';
 import type { LucideProps } from 'lucide-react';
@@ -20,7 +21,11 @@ const CATEGORIES = ['Favorites', 'All', 'System', 'Internet', 'Productivity', 'M
 const AppLauncher = memo(function AppLauncher() {
   const { state, dispatch } = useOS();
   const { appLauncherOpen, apps, dockItems } = state;
-  const { showDemoApps } = useDemoApps();
+  // Tier-aware default for demo apps: paid tiers (creator/operator)
+  // start with demos OFF; Explorer / unknown / pre-state-load default
+  // to ON. Once the user toggles in Settings, the stored choice wins.
+  const daemon = useDaemonStateContext();
+  const { showDemoApps } = useDemoApps(daemon.state?.tier);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState('All');
   const inputRef = useRef<HTMLInputElement>(null);
