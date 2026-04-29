@@ -1,0 +1,137 @@
+// ============================================================
+// ZeroPodsOverlay — Phase 3a §2.4
+// ============================================================
+//
+// Shown on Desktop when the user is logged in but has no allocated
+// pods. Per the manifest, ignore state.included[] when gating —
+// AIL freebies are pre-allocated for every account and would never
+// trigger this overlay if counted as pods.
+//
+// Primary CTA opens Settings → Agents (the in-app install wizard).
+// Secondary "Refresh" triggers a state poll in case the user just
+// allocated from another surface and wants the UI to catch up.
+
+import { memo, useCallback } from "react";
+import { Rocket, Sparkles, RefreshCw } from "lucide-react";
+import { useOS } from "@/hooks/useOSStore";
+import { useDaemonStateContext } from "@/hooks/useDaemonStateContext";
+import { navigate } from "@/lib/router";
+
+const ZeroPodsOverlay = memo(function ZeroPodsOverlay() {
+  const { state: osState, dispatch } = useOS();
+  const { state, refresh } = useDaemonStateContext();
+
+  const onAllocate = useCallback(() => {
+    dispatch({ type: "OPEN_WINDOW", appId: "settings" });
+    // ?install=auto tells Settings to pre-select the cheapest installable
+    // agent from the catalog and open the wizard. User can still Cancel
+    // to fall back to manual catalog browsing.
+    navigate({
+      kind: "settings",
+      section: "agents",
+      params: new URLSearchParams({ install: "auto" }),
+    });
+  }, [dispatch]);
+
+  // Only render when we have a real signal: logged in, state loaded,
+  // zero allocated agents. Don't render during boot or login screens.
+  if (!osState.auth.isAuthenticated) return null;
+  if (!state || !state.logged_in) return null;
+  if (state.agents.length > 0) return null;
+
+  // Suppress while any window is open — user is actively in an app and
+  // probably already on their way (e.g. inside Settings → Agents).
+  // The desktop will show the overlay again when they close all windows.
+  const hasOpenWindow = osState.windows.some((w) => w.state !== "minimized");
+  if (hasOpenWindow) return null;
+
+  return (
+    <div
+      className="fixed inset-0 z-[4000] flex items-center justify-center pointer-events-none"
+      style={{ top: 28, bottom: 68 }}
+    >
+      <div
+        className="pointer-events-auto w-[460px] rounded-2xl p-8 flex flex-col items-center text-center"
+        style={{
+          background: "rgba(30,30,30,0.92)",
+          backdropFilter: "blur(20px)",
+          WebkitBackdropFilter: "blur(20px)",
+          border: "1px solid rgba(255,255,255,0.08)",
+          boxShadow: "0 24px 64px rgba(0,0,0,0.55)",
+          animation: "zeroPodsAppear 360ms cubic-bezier(0.34, 1.56, 0.64, 1)",
+        }}
+      >
+        <div
+          className="w-16 h-16 rounded-2xl flex items-center justify-center mb-4"
+          style={{
+            background: "linear-gradient(135deg, #7C4DFF, #4A148C)",
+            boxShadow: "0 8px 24px rgba(124,77,255,0.30)",
+          }}
+        >
+          <Rocket size={32} className="text-white" />
+        </div>
+
+        <h2 className="text-xl font-semibold text-[#E0E0E0]">
+          Welcome to Tytus
+        </h2>
+        <p
+          className="text-sm mt-2 leading-relaxed"
+          style={{ color: "#B0B0B0" }}
+        >
+          You don't have any pods yet. Allocate your first pod to start
+          using your private AI infrastructure.
+        </p>
+
+        {state.tier && state.units_limit > 0 && (
+          <div
+            className="mt-4 px-3 py-1.5 rounded-md text-[11px] flex items-center gap-1.5"
+            style={{
+              background: "rgba(124,77,255,0.10)",
+              border: "1px solid rgba(124,77,255,0.25)",
+              color: "#D6C8FF",
+            }}
+          >
+            <Sparkles size={11} />
+            <span>
+              {state.tier.charAt(0).toUpperCase() + state.tier.slice(1)} tier
+              · {state.units_limit} unit{state.units_limit === 1 ? "" : "s"}{" "}
+              available
+            </span>
+          </div>
+        )}
+
+        <button
+          onClick={onAllocate}
+          className="mt-6 w-full px-4 py-3 rounded-lg text-sm font-semibold transition-colors"
+          style={{
+            background: "linear-gradient(135deg, #7C4DFF, #6037E0)",
+            color: "white",
+            boxShadow: "0 4px 16px rgba(124,77,255,0.35)",
+          }}
+        >
+          Allocate your first pod →
+        </button>
+
+        <button
+          onClick={refresh}
+          className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs transition-colors"
+          style={{
+            background: "transparent",
+            color: "#9E9E9E",
+          }}
+        >
+          <RefreshCw size={11} /> Already have pods? Refresh
+        </button>
+      </div>
+
+      <style>{`
+        @keyframes zeroPodsAppear {
+          from { opacity: 0; transform: translateY(20px) scale(0.96); }
+          to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+      `}</style>
+    </div>
+  );
+});
+
+export default ZeroPodsOverlay;

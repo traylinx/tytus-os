@@ -5,6 +5,7 @@
 import { useState, useCallback, useRef, useEffect, memo } from 'react';
 import { useOS } from '@/hooks/useOSStore';
 import { getAppById } from '@/apps/registry';
+import { useDemoApps } from '@/hooks/useDemoApps';
 import { Search, X, ChevronUp, ChevronDown } from 'lucide-react';
 import * as Icons from 'lucide-react';
 import type { LucideProps } from 'lucide-react';
@@ -19,6 +20,7 @@ const CATEGORIES = ['Favorites', 'All', 'System', 'Internet', 'Productivity', 'M
 const AppLauncher = memo(function AppLauncher() {
   const { state, dispatch } = useOS();
   const { appLauncherOpen, apps, dockItems } = state;
+  const { showDemoApps } = useDemoApps();
   const [searchQuery, setSearchQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState('All');
   const inputRef = useRef<HTMLInputElement>(null);
@@ -82,6 +84,10 @@ const AppLauncher = memo(function AppLauncher() {
   );
 
   const filteredApps = apps.filter((app) => {
+    // Manifest AN8: hide demo apps when the toggle is off, regardless
+    // of category or search match. User can opt back in via Settings
+    // → Display.
+    if (app.isDemo && !showDemoApps) return false;
     const matchesSearch = !searchQuery ||
       app.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       app.description.toLowerCase().includes(searchQuery.toLowerCase());
@@ -91,6 +97,23 @@ const AppLauncher = memo(function AppLauncher() {
     const matchesFavorites = activeCategory !== 'Favorites' || dockItems.some((d) => d.appId === app.id && d.isPinned);
     return matchesSearch && matchesCategory && matchesFavorites;
   });
+
+  // Filter the Games category off entirely when demo apps are hidden —
+  // an empty category tab is worse than no tab.
+  const visibleCategories = CATEGORIES.filter((c) =>
+    showDemoApps ? true : c !== 'Games',
+  );
+
+  // If user toggles demo apps off while sitting on Games, snap back
+  // to All so they don't see an empty grid with no nav target.
+  // Deliberate setState-in-effect — syncing local UI state to an
+  // external preference change.
+  useEffect(() => {
+    if (!showDemoApps && activeCategory === 'Games') {
+      /* eslint-disable-next-line react-hooks/set-state-in-effect */
+      setActiveCategory('All');
+    }
+  }, [showDemoApps, activeCategory]);
 
   const frequentApps = dockItems
     .filter((d) => d.isPinned)
@@ -185,7 +208,7 @@ const AppLauncher = memo(function AppLauncher() {
           className="flex items-center gap-0 mt-6 overflow-x-auto max-w-[90vw]"
           style={{ animation: 'searchSlideDown 300ms ease 250ms both' }}
         >
-          {CATEGORIES.map((cat) => (
+          {visibleCategories.map((cat) => (
             <button
               key={cat}
               onClick={() => setActiveCategory(cat)}

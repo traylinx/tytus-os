@@ -1,6 +1,11 @@
 import type { FC } from 'react';
 import AppPlaceholder from './AppPlaceholder';
 
+// Tytus product surfaces
+import PodInspector from './PodInspector';
+import Help from './Help';
+import Channels from './Channels';
+
 // System
 import Settings from './Settings';
 import FileManager from './FileManager';
@@ -71,11 +76,12 @@ interface AppRouterProps {
 
 const AppRouter: FC<AppRouterProps> = ({ appId }) => {
   switch (appId) {
+    case 'pod-inspector': return <PodInspector />;
+    case 'help': return <Help />;
+
     // Tytus product surfaces — placeholder until their phase wires them up
-    case 'pod-inspector':
     case 'channels':
-    case 'help':
-      return <AppPlaceholder appId={appId} />;
+      return <Channels />;
 
     // System
     case 'settings': return <Settings />;

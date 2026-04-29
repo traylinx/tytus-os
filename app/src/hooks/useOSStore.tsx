@@ -2,9 +2,67 @@
 // OS State Management — React Context + useReducer
 // ============================================================
 
-import React, { createContext, useContext, useReducer, useCallback } from 'react';
+import React, { createContext, useContext, useReducer, useCallback, useEffect } from 'react';
 import type { OSState, OSAction, Window, DesktopIcon, Notification, DockItem, WindowState } from '@/types';
 import { APP_REGISTRY, getAppById, getDefaultDockApps } from '@/apps/registry';
+
+// ---- Window persistence ----
+const WINDOWS_STORAGE_KEY = 'tytus_windows';
+
+interface PersistedWindow {
+  id: string;
+  appId: string;
+  title: string;
+  position: { x: number; y: number };
+  size: { width: number; height: number };
+  state: WindowState;
+  icon: string;
+}
+
+const isPersistedWindow = (value: unknown): value is PersistedWindow => {
+  if (!value || typeof value !== 'object') return false;
+  const v = value as Record<string, unknown>;
+  if (typeof v.id !== 'string' || typeof v.appId !== 'string') return false;
+  if (typeof v.title !== 'string' || typeof v.icon !== 'string') return false;
+  if (v.state !== 'normal' && v.state !== 'minimized' && v.state !== 'maximized') return false;
+  const pos = v.position as Record<string, unknown> | null | undefined;
+  const size = v.size as Record<string, unknown> | null | undefined;
+  if (!pos || typeof pos.x !== 'number' || typeof pos.y !== 'number') return false;
+  if (!size || typeof size.width !== 'number' || typeof size.height !== 'number') return false;
+  return true;
+};
+
+const loadPersistedWindows = (): PersistedWindow[] | null => {
+  try {
+    const raw = localStorage.getItem(WINDOWS_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return null;
+    const valid = parsed.filter(isPersistedWindow).filter((w) => getAppById(w.appId));
+    return valid;
+  } catch {
+    return null;
+  }
+};
+
+const persistWindows = (windows: Window[]): void => {
+  try {
+    const trimmed: PersistedWindow[] = windows
+      .filter((w) => getAppById(w.appId))
+      .map((w) => ({
+        id: w.id,
+        appId: w.appId,
+        title: w.title,
+        position: { x: w.position.x, y: w.position.y },
+        size: { width: w.size.width, height: w.size.height },
+        state: w.state,
+        icon: w.icon,
+      }));
+    localStorage.setItem(WINDOWS_STORAGE_KEY, JSON.stringify(trimmed));
+  } catch {
+    /* ignore */
+  }
+};
 
 // ---- Helpers ----
 const generateId = () => Math.random().toString(36).slice(2) + Date.now().toString(36);
@@ -44,15 +102,25 @@ const MIN_VIEWPORT_W = 320;
 const MIN_VIEWPORT_H = 240;
 
 // ---- Initial State ----
+//
+// Manifest §2.5 — Reserved Pods Zone occupies the top-left 4×2 grid
+// (x ∈ [16, 336), y ∈ [16, 196)) for pinned-pod icons. User icons must
+// not be displaced by pins (and vice versa). Default icons start at
+// y = 196 (just below row 2 of the reserved zone), keeping the
+// existing two-column layout at x = 16 and x = 96.
+//
+// Persisted user-moved icons (loadDesktopIcons → tytus_desktop_icons
+// in localStorage) take precedence over these defaults, so existing
+// users who already arranged their desktop are not relocated.
 const defaultDesktopIcons: DesktopIcon[] = [
-  { id: 'desk-pods', name: 'Pods', icon: 'Box', appId: 'pod-inspector', position: { x: 16, y: 16 }, isSelected: false },
-  { id: 'desk-settings', name: 'Settings', icon: 'Settings', appId: 'settings', position: { x: 16, y: 106 }, isSelected: false },
-  { id: 'desk-chat', name: 'Chat', icon: 'MessageSquare', appId: 'chat', position: { x: 16, y: 196 }, isSelected: false },
-  { id: 'desk-files', name: 'Files', icon: 'Folder', appId: 'filemanager', position: { x: 16, y: 286 }, isSelected: false },
+  { id: 'desk-pods', name: 'Pods', icon: 'Box', appId: 'pod-inspector', position: { x: 16, y: 196 }, isSelected: false },
+  { id: 'desk-settings', name: 'Settings', icon: 'Settings', appId: 'settings', position: { x: 16, y: 286 }, isSelected: false },
+  { id: 'desk-chat', name: 'Chat', icon: 'MessageSquare', appId: 'chat', position: { x: 16, y: 376 }, isSelected: false },
+  { id: 'desk-files', name: 'Files', icon: 'Folder', appId: 'filemanager', position: { x: 16, y: 466 }, isSelected: false },
   { id: 'desk-terminal', name: 'Terminal', icon: 'Terminal', appId: 'terminal', position: { x: 96, y: 196 }, isSelected: false },
   { id: 'desk-browser', name: 'Browser', icon: 'Globe', appId: 'browser', position: { x: 96, y: 286 }, isSelected: false },
-  { id: 'desk-channels', name: 'Channels', icon: 'Send', appId: 'channels', position: { x: 96, y: 16 }, isSelected: false },
-  { id: 'desk-help', name: 'Help', icon: 'LifeBuoy', appId: 'help', position: { x: 96, y: 106 }, isSelected: false },
+  { id: 'desk-channels', name: 'Channels', icon: 'Send', appId: 'channels', position: { x: 96, y: 376 }, isSelected: false },
+  { id: 'desk-help', name: 'Help', icon: 'LifeBuoy', appId: 'help', position: { x: 96, y: 466 }, isSelected: false },
 ];
 
 const createInitialDockItems = (): DockItem[] => {
@@ -74,33 +142,64 @@ const loadDesktopIcons = (): DesktopIcon[] => {
   return defaultDesktopIcons;
 };
 
-const initialState: OSState = {
-  bootPhase: 'off',
-  auth: { isAuthenticated: false, isGuest: false, userName: 'User' },
-  windows: [],
-  apps: APP_REGISTRY,
-  desktopIcons: loadDesktopIcons(),
-  theme: {
-    mode: 'dark',
-    accent: '#7C4DFF',
-    wallpaper: '/wallpaper-default.jpg',
-  },
-  notifications: [],
-  dockItems: createInitialDockItems(),
-  contextMenu: {
-    visible: false,
-    x: 0,
-    y: 0,
-    type: 'desktop',
-    items: [],
-  },
-  appLauncherOpen: false,
-  notificationCenterOpen: false,
-  activeWindowId: null,
-  nextZIndex: 100,
-  isAltTabbing: false,
-  altTabIndex: 0,
+const buildInitialState = (): OSState => {
+  const persisted = loadPersistedWindows();
+  const startingZ = 100;
+  let restoredWindows: Window[] = [];
+  let nextZIndex = startingZ;
+  let dockItems = createInitialDockItems();
+
+  if (persisted && persisted.length > 0) {
+    const now = Date.now();
+    restoredWindows = persisted.map((p, i) => ({
+      id: p.id,
+      appId: p.appId,
+      title: p.title,
+      position: { x: p.position.x, y: p.position.y },
+      size: { width: p.size.width, height: p.size.height },
+      state: p.state,
+      isFocused: false,
+      zIndex: startingZ + i,
+      icon: p.icon,
+      createdAt: now,
+    }));
+    nextZIndex = startingZ + restoredWindows.length;
+    const openAppIds = new Set(restoredWindows.map((w) => w.appId));
+    dockItems = dockItems.map((d) =>
+      openAppIds.has(d.appId) ? { ...d, isOpen: true } : d
+    );
+  }
+
+  return {
+    bootPhase: 'off',
+    auth: { isAuthenticated: false, isGuest: false, userName: 'User' },
+    windows: restoredWindows,
+    apps: APP_REGISTRY,
+    desktopIcons: loadDesktopIcons(),
+    theme: {
+      mode: 'dark',
+      accent: '#7C4DFF',
+      wallpaper: '/wallpaper-default.jpg',
+    },
+    notifications: [],
+    dockItems,
+    contextMenu: {
+      visible: false,
+      x: 0,
+      y: 0,
+      type: 'desktop',
+      items: [],
+    },
+    appLauncherOpen: false,
+    notificationCenterOpen: false,
+    activeWindowId: null,
+    nextZIndex,
+    isAltTabbing: false,
+    altTabIndex: 0,
+  };
 };
+
+const initialState: OSState = buildInitialState();
 
 // ---- Reducer ----
 function osReducer(state: OSState, action: OSAction): OSState {
@@ -483,6 +582,14 @@ const OSContext = createContext<OSContextType | null>(null);
 
 export const OSProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [state, dispatch] = useReducer(osReducer, initialState);
+
+  // Persist window position / size / state to localStorage whenever the
+  // windows array changes. We're syncing to an external store, so a useEffect
+  // is the right shape (vs. wrapping dispatch).
+  useEffect(() => {
+    persistWindows(state.windows);
+  }, [state.windows]);
+
   return (
     <OSContext.Provider value={{ state, dispatch }}>
       {children}

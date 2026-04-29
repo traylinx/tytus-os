@@ -12,7 +12,7 @@ services/tytus-os/
 
 ## Status
 
-**Phase 1 complete (2026-04-28).** Foundation is verified — 52/52 apps open cleanly, zero console errors, smoke tests green.
+**Phases 1–7 complete (2026-04-28).** Foundation + daemon-wired surfaces shipped in one session. 71/71 vitest tests green.
 
 | Layer | Status |
 |---|---|
@@ -20,8 +20,13 @@ services/tytus-os/
 | Boot → Login → Desktop | ✅ |
 | Dock + Launcher + Notifications | ✅ |
 | 50 apps installed | ✅ (42 OS-feel + 8 Tytus surfaces) |
-| Daemon connection | ⏳ Phase 2 |
-| Pod Inspector functional | ⏳ Phase 3 |
+| Daemon connection (typed client + state hook + SSE) | ✅ Phase 2 |
+| Pod Inspector functional | ✅ Phase 3b |
+| Settings (Account / Plan / Pods / Agents / Daemon) | ✅ Phase 3a |
+| Help (Doctor / Test / Logs / About) + Command Palette | ✅ Phase 4 |
+| Channels / Files / Browser apps | ✅ Phase 5 |
+| Demo apps toggle | ✅ Phase 6 |
+| Shared folders + Desktop pin | ✅ Phase 7 |
 
 Full status: [docs/SKELETON-STATUS.md](docs/SKELETON-STATUS.md).
 
@@ -46,6 +51,21 @@ The same files will load into the in-OS **Help** app once Phase 4 wires it up.
 ## Phase plan
 
 A 6-phase strangler-port from Tytus Tower into TytusOS native apps. Daemon API frozen. Tray bridges preserved. See [docs/development/roadmap.md](docs/development/roadmap.md) and [INTEGRATION-DEEPDIVE.md](INTEGRATION-DEEPDIVE.md).
+
+**Shipped 2026-04-28:**
+- ✅ Phase 1 — Foundation (boot/login/desktop/dock/window manager + 52 apps)
+- ✅ Phase 2 — Daemon client + Secret brand type + state/job hooks + hash router + same-origin guard
+- ✅ Phase 3a — Zero-pods overlay + Settings (Account / Plan / Pods / Agents / Daemon) + install wizard
+- ✅ Phase 3b — Pod Inspector (Fleet Overview, per-pod tabs, streamed actions, typed-name revoke confirm, per-pod pin)
+- ✅ Phase 4 — Help app + Command Palette (Cmd+K) + window state persistence + Chat link launcher
+- ✅ Phase 5 — Channels + Files (Inbox/Downloads) + Browser
+- ✅ Phase 6 — `isDemo` flag + Settings → Display "Show demo apps" toggle
+- ✅ Phase 7 — Files: Shared folders tab + Desktop reserved-zone pin (4×2 top-left grid)
+
+**Deferred (Phase 8 candidates):**
+- ⏳ Per-pod logs SSE tail — daemon gap (`/api/logs?name=pod-NN` doesn't exist; run-streamed allowlist lacks `logs` action)
+- ⏳ Tower removal in tytus-cli — gated on "no Tower bundle linked from any tray menu for 14 days" trigger (manifest Q7)
+- ⏳ Desktop pin v2 — manifest §2.5 "user icons cannot be displaced by pin" rule (current Phase 7 simplification accepts visual overlap)
 
 ## Repo
 

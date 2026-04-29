@@ -4,6 +4,10 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { OSProvider, useOS } from '@/hooks/useOSStore';
+import { DaemonClientProvider } from '@/hooks/useDaemonClient';
+import { DaemonStateProvider, useDaemonStateContext } from '@/hooks/useDaemonStateContext';
+import DaemonOfflineBanner from '@/components/DaemonOfflineBanner';
+import ZeroPodsOverlay from '@/components/ZeroPodsOverlay';
 import BootSequence from '@/components/BootSequence';
 import LoginScreen from '@/components/LoginScreen';
 import Desktop from '@/components/Desktop';
@@ -14,12 +18,17 @@ import WindowManager from '@/components/WindowManager';
 import ContextMenu from '@/components/ContextMenu';
 import NotificationSystem from '@/components/NotificationSystem';
 import NotificationCenter from '@/components/NotificationCenter';
+import CommandPalette from '@/components/CommandPalette';
 
 function AppShell() {
   const { state, dispatch } = useOS();
   const { bootPhase, auth } = state;
   const [bootComplete, setBootComplete] = useState(false);
   const altTabRef = useRef<{ holding: boolean }>({ holding: false });
+
+  // Shell-level daemon state shared via DaemonStateProvider context so
+  // TopPanel, DaemonOfflineBanner, and LoginScreen all read the same poll.
+  const daemon = useDaemonStateContext();
 
   // Boot sequence
   useEffect(() => {
@@ -108,6 +117,13 @@ function AppShell() {
 
   return (
     <div className={state.theme.mode === 'light' ? 'light' : ''} style={{ width: '100vw', height: '100vh', overflow: 'hidden' }}>
+      {/* Daemon-offline banner — A1a (immediate) / A1b (3-fail) */}
+      <DaemonOfflineBanner
+        visible={daemon.bannerVisible}
+        error={daemon.error}
+        onRefresh={daemon.refresh}
+      />
+
       {/* Boot Sequence */}
       {showBoot && <BootSequence onComplete={handleBootComplete} />}
 
@@ -140,11 +156,15 @@ function AppShell() {
           {/* Dock */}
           <Dock />
 
+          {/* Zero-pods overlay (Phase 3a §2.4) */}
+          <ZeroPodsOverlay />
+
           {/* Overlays */}
           <AppLauncher />
           <ContextMenu />
           <NotificationSystem />
           <NotificationCenter />
+          <CommandPalette />
 
           {/* Alt+Tab switcher */}
           {state.isAltTabbing && (
@@ -217,8 +237,12 @@ function AppShell() {
 
 export default function App() {
   return (
-    <OSProvider>
-      <AppShell />
-    </OSProvider>
+    <DaemonClientProvider>
+      <DaemonStateProvider>
+        <OSProvider>
+          <AppShell />
+        </OSProvider>
+      </DaemonStateProvider>
+    </DaemonClientProvider>
   );
 }

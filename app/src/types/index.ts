@@ -42,6 +42,12 @@ export interface AppDefinition {
   component?: string;
   /** Roadmap phase the real implementation lands in (placeholder until then). */
   phase?: number;
+  /**
+   * Manifest AN8 — apps gated behind the Settings → Display
+   * "Show demo apps" toggle. Default OFF for paid users so the
+   * launcher only shows the apps with a real product role.
+   */
+  isDemo?: boolean;
 }
 
 // --------------------------------------------------------
