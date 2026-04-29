@@ -34,11 +34,28 @@ interface PinMenu {
   y: number;
 }
 
+// Sprint Phase 4 — desktop drag state lives in a ref, not React state, so
+// we never cause a re-render mid-drag (which would unbind window listeners
+// and drop mouseup). Window listeners are attached only during an active
+// drag and removed on mouseup OR component unmount.
+interface DragState {
+  id: string;
+  startClient: { x: number; y: number };
+  startPosition: { x: number; y: number };
+  hasDragged: boolean;
+  suppressNextClick: boolean;
+}
+
+const ICON_SIZE = 64; // visual footprint used for bounds clamping
+const DRAG_THRESHOLD = 5; // px of pointer travel before we consider it a drag
+
 const Desktop = memo(function Desktop() {
   const { state, dispatch } = useOS();
   const { desktopIcons, theme } = state;
+  // Force re-render only on the icon currently being dragged so the
+  // visual style (opacity 0.5) follows. We don't store position in state.
   const [draggingId, setDraggingId] = useState<string | null>(null);
-  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+  const dragRef = useRef<DragState | null>(null);
   const desktopRef = useRef<HTMLDivElement>(null);
 
   // Reserved Pods Zone — manifest §2.5
@@ -80,6 +97,9 @@ const Desktop = memo(function Desktop() {
 
   const handleIconDoubleClick = useCallback(
     (icon: typeof desktopIcons[0]) => {
+      // After a successful drag, suppress the open. The flag is set in
+      // handleWindowMouseMove and cleared after the next click cycle.
+      if (dragRef.current?.suppressNextClick) return;
       if (icon.appId) {
         dispatch({ type: 'OPEN_WINDOW', appId: icon.appId });
       }
@@ -87,44 +107,79 @@ const Desktop = memo(function Desktop() {
     [dispatch]
   );
 
+  // Window-level handlers — installed on mousedown, removed on mouseup
+  // or on unmount. Stable references so add/remove always match.
+  const handleWindowMouseMove = useCallback((e: MouseEvent) => {
+    const drag = dragRef.current;
+    const rect = desktopRef.current?.getBoundingClientRect();
+    if (!drag || !rect) return;
+
+    const totalDx = e.clientX - drag.startClient.x;
+    const totalDy = e.clientY - drag.startClient.y;
+
+    // Threshold compares against ORIGINAL mousedown — not last tick. This
+    // is the bug fix: the previous code re-set dragOffset every tick so
+    // sub-5px ticks always slipped under the threshold.
+    if (!drag.hasDragged && Math.hypot(totalDx, totalDy) < DRAG_THRESHOLD) return;
+    drag.hasDragged = true;
+    drag.suppressNextClick = true;
+
+    const rawX = drag.startPosition.x + totalDx;
+    const rawY = drag.startPosition.y + totalDy;
+
+    const maxX = Math.max(16, rect.width - ICON_SIZE - 16);
+    const maxY = Math.max(16, rect.height - ICON_SIZE - 16);
+
+    const snappedX = Math.round((rawX - 16) / GRID_X) * GRID_X + 16;
+    const snappedY = Math.round((rawY - 16) / GRID_Y) * GRID_Y + 16;
+
+    dispatch({
+      type: 'UPDATE_DESKTOP_ICON_POSITION',
+      id: drag.id,
+      position: {
+        x: Math.min(maxX, Math.max(16, snappedX)),
+        y: Math.min(maxY, Math.max(16, snappedY)),
+      },
+    });
+  }, [dispatch]);
+
+  const handleWindowMouseUp = useCallback(() => {
+    window.removeEventListener('mousemove', handleWindowMouseMove);
+    setDraggingId(null);
+    // Do NOT clear dragRef.current yet — handleIconDoubleClick and the
+    // parent desktop onClick read suppressNextClick on the same event
+    // cycle. We clear it on the next mousedown.
+  }, [handleWindowMouseMove]);
+
   const handleIconMouseDown = useCallback(
     (e: React.MouseEvent, icon: typeof desktopIcons[0]) => {
+      // Only start drag on primary button — right-click belongs to the
+      // context menu, middle-click is a no-op.
+      if (e.button !== 0) return;
       e.stopPropagation();
       dispatch({ type: 'SELECT_DESKTOP_ICON', id: icon.id });
-      if (icon.appId) {
-        setDraggingId(icon.id);
-        setDragOffset({ x: e.clientX, y: e.clientY });
-      }
+      // Reset suppress flag from prior drag now that we're starting fresh.
+      dragRef.current = {
+        id: icon.id,
+        startClient: { x: e.clientX, y: e.clientY },
+        startPosition: icon.position,
+        hasDragged: false,
+        suppressNextClick: false,
+      };
+      setDraggingId(icon.id);
+      window.addEventListener('mousemove', handleWindowMouseMove);
+      window.addEventListener('mouseup', handleWindowMouseUp, { once: true });
     },
-    [dispatch]
+    [dispatch, handleWindowMouseMove, handleWindowMouseUp]
   );
 
-  const handleMouseMove = useCallback(
-    (e: React.MouseEvent) => {
-      if (!draggingId) return;
-      const dx = e.clientX - dragOffset.x;
-      const dy = e.clientY - dragOffset.y;
-      if (Math.abs(dx) < 5 && Math.abs(dy) < 5) return;
-
-      const icon = desktopIcons.find((i) => i.id === draggingId);
-      if (!icon) return;
-
-      const nx = Math.round((icon.position.x + dx) / GRID_X) * GRID_X + 16;
-      const ny = Math.round((icon.position.y + dy) / GRID_Y) * GRID_Y + 16;
-
-      dispatch({
-        type: 'UPDATE_DESKTOP_ICON_POSITION',
-        id: draggingId,
-        position: { x: Math.max(16, nx), y: Math.max(16, ny) },
-      });
-      setDragOffset({ x: e.clientX, y: e.clientY });
-    },
-    [draggingId, dragOffset, desktopIcons, dispatch]
-  );
-
-  const handleMouseUp = useCallback(() => {
-    setDraggingId(null);
-  }, []);
+  // Unmount cleanup — if the desktop unmounts mid-drag (HMR, route
+  // change, lost mouseup) drop the window listeners so they don't leak.
+  useEffect(() => () => {
+    window.removeEventListener('mousemove', handleWindowMouseMove);
+    window.removeEventListener('mouseup', handleWindowMouseUp);
+    dragRef.current = null;
+  }, [handleWindowMouseMove, handleWindowMouseUp]);
 
   const handleDesktopContextMenu = useCallback(
     (e: React.MouseEvent) => {
@@ -161,10 +216,16 @@ const Desktop = memo(function Desktop() {
         top: 28,
         bottom: 68,  // matches dock lift+height (6 + 56 + 6 buffer)
       }}
-      onMouseMove={handleMouseMove}
-      onMouseUp={handleMouseUp}
       onContextMenu={handleDesktopContextMenu}
-      onClick={() => dispatch({ type: 'SELECT_DESKTOP_ICON', id: null })}
+      onClick={() => {
+        // After a drag ends, ignore the click so the user's selection
+        // isn't cleared the moment they release the mouse.
+        if (dragRef.current?.suppressNextClick) {
+          dragRef.current = null;
+          return;
+        }
+        dispatch({ type: 'SELECT_DESKTOP_ICON', id: null });
+      }}
     >
       {/* Desktop Icons */}
       {desktopIcons.map((icon) => (
