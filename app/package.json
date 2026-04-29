@@ -14,7 +14,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:smoke": "node scripts/smoke.mjs",
-    "test:probe": "node scripts/probe-phase2.mjs"
+    "test:probe": "node scripts/probe-phase2.mjs",
+    "audit:radius": "node scripts/audit-radius.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

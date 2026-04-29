@@ -1,0 +1,10 @@
+{
+  "_doc": "Allowlist for scripts/audit-radius.mjs. Two layers — `files` exempts whole files (use sparingly, prefer per-line escape comments). `lines` maps repo-relative paths to arrays of 1-based line numbers. Per-line escape `// audit:radius-allow <reason>` is preferred for in-source intent.",
+  "files": [],
+  "lines": {
+    "src/index.css": [128],
+    "src/components/ui/scroll-area.tsx": [21],
+    "src/components/ui/chart.tsx": [207, 297],
+    "src/components/ui/tooltip.tsx": [55]
+  }
+}

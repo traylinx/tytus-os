@@ -1335,7 +1335,7 @@ const PodTab: FC<PodTabProps> = ({ agent, ready, client, onError, isPinned, onTo
       {/* Env pane (manifest A.exist A3.5) — opens beside / above the
           job stream and survives across actions. Operator-tier users
           can flip "Reveal secrets" to see real values. */}
-      {envOpen && (
+      {envOpen && daemon.state && (
         <PodEnvPane
           client={client}
           podId={agent.pod_id}
