@@ -80,6 +80,45 @@ describe("daemon client — GET /api/state", () => {
     expect(r.error.code).toBe("auth_required");
   });
 
+  // Phase 8 — pin against the captured error-401.json / error-403.json
+  // fixtures. The Provider-relayed paths (per-pod logs / doctor / soon
+  // env) bubble these statuses up; we want to be sure the existing
+  // auth_required mapping survives a refactor.
+  it("maps fixture error-401.json to auth_required", async () => {
+    const fixture = (await import("@/test/fixtures/error-401.json")).default;
+    const { fetch } = makeFakeFetch([
+      {
+        method: "GET",
+        path: "/api/state",
+        status: 401,
+        body: fixture,
+      },
+    ]);
+    const client = createDaemonClient({ fetch });
+    const r = await client.getState();
+    expect(r.ok).toBe(false);
+    if (r.ok) return;
+    expect(r.error.code).toBe("auth_required");
+  });
+
+  it("maps fixture error-403.json to auth_required", async () => {
+    const fixture = (await import("@/test/fixtures/error-403.json")).default;
+    const { fetch } = makeFakeFetch([
+      {
+        method: "POST",
+        path: "/api/install",
+        status: 403,
+        body: fixture,
+      },
+    ]);
+    const client = createDaemonClient({ fetch });
+    const r = await client.postInstall("nemoclaw", "02");
+    expect(r.ok).toBe(false);
+    if (r.ok) return;
+    expect(r.error.code).toBe("auth_required");
+    expect(r.error.status).toBe(403);
+  });
+
   it("classifies 200 + ErrorEnvelope as logical_error", async () => {
     const { fetch } = makeFakeFetch([
       {
