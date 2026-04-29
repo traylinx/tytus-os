@@ -300,10 +300,17 @@ const isPodEnvVar = (v: unknown): v is PodEnvVar =>
   typeof v.value === "string" &&
   (v.source === undefined || typeof v.source === "string");
 
+// Codex review 2026-04-29: validate the optional fields too. Without
+// these checks a malformed daemon response (e.g. `agent_type: 42`)
+// passed the guard and crashed PodEnvPane when React tried to render
+// the badge text.
 const isPodEnv = (v: unknown): v is PodEnv =>
   isObject(v) &&
   Array.isArray(v.vars) &&
-  v.vars.every(isPodEnvVar);
+  v.vars.every(isPodEnvVar) &&
+  (v.pod_num === undefined || typeof v.pod_num === "number") &&
+  (v.agent_type === undefined || typeof v.agent_type === "string") &&
+  (v.reveal_secrets === undefined || typeof v.reveal_secrets === "boolean");
 
 // ---- conditional state result -------------------------------------------
 

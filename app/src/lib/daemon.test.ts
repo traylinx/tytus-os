@@ -451,6 +451,39 @@ describe("daemon client — other GETs", () => {
     expect(calls[0].url).toContain("reveal=secrets");
   });
 
+  it("getPodEnv rejects malformed responses (codex review tightening)", async () => {
+    // Daemon returning `agent_type: 42` used to slip past the guard
+    // and crash PodEnvPane when it rendered the badge. The tightened
+    // isPodEnv guard now refuses the body and surfaces a parse error.
+    const { fetch } = makeFakeFetch([
+      {
+        method: "GET",
+        path: "/api/pod/env?pod=02",
+        body: { pod_num: 2, agent_type: 42, vars: [] },
+      },
+    ]);
+    const r = await createDaemonClient({ fetch }).getPodEnv("02");
+    expect(r.ok).toBe(false);
+    if (r.ok) return;
+    expect(r.error.code).toBe("daemon_unhealthy");
+    expect(r.error.message).toContain("malformed /api/pod/env");
+  });
+
+  it("getPodEnv accepts a body with only the required `vars` array", async () => {
+    // Forward-compat: daemon may omit the optional pod_num/agent_type/
+    // reveal_secrets entirely (e.g. an older daemon). Guard must still
+    // accept that envelope.
+    const { fetch } = makeFakeFetch([
+      {
+        method: "GET",
+        path: "/api/pod/env?pod=02",
+        body: { vars: [] },
+      },
+    ]);
+    const r = await createDaemonClient({ fetch }).getPodEnv("02");
+    expect(r.ok).toBe(true);
+  });
+
   it("getPodEnv maps daemon 403 to auth_required (Operator gate)", async () => {
     const { fetch } = makeFakeFetch([
       {
