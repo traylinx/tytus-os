@@ -232,6 +232,73 @@ describe("useDaemonState", () => {
     expect(versionCalls).toBe(0);
   });
 
+  it("daemonVersionStatus stays 'loading' until first /api/state lands", async () => {
+    // Guard against UpgradeDaemonScreen flashing during boot. The hook
+    // must not commit to "supported" or "unsupported" before any state
+    // has been observed.
+    const { fetch } = makeFakeFetch([
+      { method: "GET", path: "/api/state", body: stateFixture },
+    ]);
+    const client = createDaemonClient({ fetch });
+    const { result } = renderHook(() =>
+      useDaemonState({ client, intervalMs: 60_000 }),
+    );
+    expect(result.current.daemonVersionStatus).toBe("loading");
+    await waitFor(() =>
+      expect(result.current.daemonVersionStatus).not.toBe("loading"),
+    );
+  });
+
+  it("daemonVersionStatus 'unsupported' when daemon omits version (old daemon)", async () => {
+    const { fetch } = makeFakeFetch([
+      { method: "GET", path: "/api/state", body: stateFixture },
+    ]);
+    const client = createDaemonClient({ fetch });
+    const { result } = renderHook(() =>
+      useDaemonState({ client, intervalMs: 60_000 }),
+    );
+    await waitFor(() => expect(result.current.state).not.toBeNull());
+    expect(result.current.daemonVersionStatus).toBe("unsupported");
+    expect(result.current.version).toBeNull();
+  });
+
+  it("daemonVersionStatus 'unsupported' when daemon below floor", async () => {
+    const oldDaemon = {
+      ...stateFixture,
+      daemon_version: "0.5.9",
+      daemon_started_at: 1714325847,
+      daemon_pid: 12345,
+    };
+    const { fetch } = makeFakeFetch([
+      { method: "GET", path: "/api/state", body: oldDaemon },
+    ]);
+    const client = createDaemonClient({ fetch });
+    const { result } = renderHook(() =>
+      useDaemonState({ client, intervalMs: 60_000 }),
+    );
+    await waitFor(() => expect(result.current.version).not.toBeNull());
+    expect(result.current.daemonVersionStatus).toBe("unsupported");
+  });
+
+  it("daemonVersionStatus 'supported' for fresh daemon at floor", async () => {
+    const newDaemon = {
+      ...stateFixture,
+      daemon_version: "0.6.0",
+      daemon_started_at: 1714325847,
+      daemon_pid: 12345,
+    };
+    const { fetch } = makeFakeFetch([
+      { method: "GET", path: "/api/state", body: newDaemon },
+    ]);
+    const client = createDaemonClient({ fetch });
+    const { result } = renderHook(() =>
+      useDaemonState({ client, intervalMs: 60_000 }),
+    );
+    await waitFor(() =>
+      expect(result.current.daemonVersionStatus).toBe("supported"),
+    );
+  });
+
   it("refresh() triggers a new poll", async () => {
     let callCount = 0;
     const wrap: typeof fetch = async () => {

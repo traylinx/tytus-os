@@ -7,6 +7,7 @@ import { OSProvider, useOS } from '@/hooks/useOSStore';
 import { DaemonClientProvider } from '@/hooks/useDaemonClient';
 import { DaemonStateProvider, useDaemonStateContext } from '@/hooks/useDaemonStateContext';
 import DaemonOfflineBanner from '@/components/DaemonOfflineBanner';
+import UpgradeDaemonScreen from '@/components/UpgradeDaemonScreen';
 import ZeroPodsOverlay from '@/components/ZeroPodsOverlay';
 import BootSequence from '@/components/BootSequence';
 import LoginScreen from '@/components/LoginScreen';
@@ -110,10 +111,25 @@ function AppShell() {
     };
   }, [dispatch, state.appLauncherOpen, state.notificationCenterOpen, state.isAltTabbing, state.activeWindowId]);
 
-  // Determine what to render
+  // Determine what to render. The upgrade gate sits between login
+  // and desktop: signing in still works against an old daemon (we
+  // want the user to be able to log out / sign back in if that's
+  // what unsticks them), but the Desktop is gated until the daemon
+  // version meets the floor.
   const showBoot = bootPhase !== 'complete' && !bootComplete;
   const showLogin = bootComplete && !auth.isAuthenticated;
-  const showDesktop = bootComplete && auth.isAuthenticated;
+  const showUpgrade =
+    bootComplete &&
+    auth.isAuthenticated &&
+    daemon.daemonVersionStatus === 'unsupported';
+  // Use === 'supported' (not !== 'unsupported') so the Desktop stays
+  // hidden during the 'loading' window before the first /api/state
+  // poll lands. Otherwise Desktop briefly flashes if bootComplete and
+  // auth resolve before daemon state is available.
+  const showDesktop =
+    bootComplete &&
+    auth.isAuthenticated &&
+    daemon.daemonVersionStatus === 'supported';
 
   return (
     <div className={state.theme.mode === 'light' ? 'light' : ''} style={{ width: '100vw', height: '100vh', overflow: 'hidden' }}>
@@ -129,6 +145,14 @@ function AppShell() {
 
       {/* Login Screen */}
       {showLogin && <LoginScreen />}
+
+      {/* Min-daemon-version upgrade gate (Phase 1, manifest §3 old-daemon compat) */}
+      {showUpgrade && (
+        <UpgradeDaemonScreen
+          detectedVersion={daemon.version?.daemon_version ?? null}
+          onRefresh={daemon.refresh}
+        />
+      )}
 
       {/* Desktop Shell */}
       {showDesktop && (

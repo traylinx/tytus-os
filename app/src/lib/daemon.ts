@@ -95,12 +95,50 @@ const isErrorEnvelope = (body: unknown): body is ErrorEnvelope =>
   "error" in body &&
   typeof (body as { error: unknown }).error === "string";
 
+// ---- idempotency keys --------------------------------------------------
+
+/**
+ * Mint a fresh `Idempotency-Key`. UUIDv4 from `crypto.randomUUID()`
+ * when available (browser, happy-dom test env, Node ≥ 19); fall back
+ * to a SipHash-quality random hex string built from `crypto.getRandomValues`
+ * — sufficient for keying a same-process daemon cache. Never returns
+ * an empty string. The key is opaque to the daemon — it just hashes it.
+ *
+ * Callers that want retry-safe semantics mint ONE key for a logical
+ * action and reuse it on retry. The fresh-key default exists so a
+ * single-shot POST still gets dedupe protection against React
+ * StrictMode double-effect-fires in dev (and against any double-click
+ * the UI doesn't already debounce).
+ */
+export const newIdempotencyKey = (): string => {
+  const c = (globalThis as { crypto?: Crypto }).crypto;
+  if (c?.randomUUID) return c.randomUUID();
+  if (c?.getRandomValues) {
+    const buf = new Uint8Array(16);
+    c.getRandomValues(buf);
+    return Array.from(buf, (b) => b.toString(16).padStart(2, "0")).join("");
+  }
+  // Last-ditch: time + math-random. Not unique-enough for crypto, but
+  // we only need it to be unique within one daemon TTL window for one
+  // user — which Math.random + Date.now() comfortably is.
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
+};
+
 // ---- request runner -----------------------------------------------------
 
 interface RequestOptions {
   method?: "GET" | "POST";
   body?: unknown;
   signal?: AbortSignal;
+  /**
+   * `Idempotency-Key` header value. When set, the daemon caches the
+   * response under this key (10 min TTL) and replays the cached body
+   * on subsequent requests carrying the same key — so a retry after
+   * a network blip can't double-spawn a `tytus restart` subprocess.
+   *
+   * Only attached on POST. GETs are already retry-safe.
+   */
+  idempotencyKey?: string;
 }
 
 interface RunDeps {
@@ -122,6 +160,9 @@ const runRequest = async <T>(
   if (opts.body !== undefined) {
     headers["Content-Type"] = "application/json";
     body = JSON.stringify(opts.body);
+  }
+  if (opts.method === "POST" && opts.idempotencyKey) {
+    headers["Idempotency-Key"] = opts.idempotencyKey;
   }
 
   let res: Response;
@@ -314,38 +355,74 @@ export interface DaemonClient {
   ): Promise<DaemonResult<SharedFoldersList>>;
 
   // POST
-  postLogout(signal?: AbortSignal): Promise<DaemonResult<null>>;
-  postDaemonStart(signal?: AbortSignal): Promise<DaemonResult<null>>;
-  postDaemonStop(signal?: AbortSignal): Promise<DaemonResult<null>>;
-  postDaemonRestart(signal?: AbortSignal): Promise<DaemonResult<null>>;
-  postConnect(signal?: AbortSignal): Promise<DaemonResult<null>>;
-  postDisconnect(signal?: AbortSignal): Promise<DaemonResult<null>>;
-  postTest(signal?: AbortSignal): Promise<DaemonResult<JobResponse>>;
-  postDoctor(signal?: AbortSignal): Promise<DaemonResult<JobResponse>>;
+  //
+  // Every destructive POST below accepts an optional `idempotencyKey`.
+  // Pass the same key on retry to dedupe against the daemon's request
+  // cache (10 min TTL, see web_server.rs `IDEM_TTL_SECS`). Omitting
+  // the key is fine for one-shot calls — the daemon just executes
+  // unconditionally.
+  postLogout(
+    signal?: AbortSignal,
+    idempotencyKey?: string,
+  ): Promise<DaemonResult<null>>;
+  postDaemonStart(
+    signal?: AbortSignal,
+    idempotencyKey?: string,
+  ): Promise<DaemonResult<null>>;
+  postDaemonStop(
+    signal?: AbortSignal,
+    idempotencyKey?: string,
+  ): Promise<DaemonResult<null>>;
+  postDaemonRestart(
+    signal?: AbortSignal,
+    idempotencyKey?: string,
+  ): Promise<DaemonResult<null>>;
+  postConnect(
+    signal?: AbortSignal,
+    idempotencyKey?: string,
+  ): Promise<DaemonResult<null>>;
+  postDisconnect(
+    signal?: AbortSignal,
+    idempotencyKey?: string,
+  ): Promise<DaemonResult<null>>;
+  postTest(
+    signal?: AbortSignal,
+    idempotencyKey?: string,
+  ): Promise<DaemonResult<JobResponse>>;
+  postDoctor(
+    signal?: AbortSignal,
+    idempotencyKey?: string,
+  ): Promise<DaemonResult<JobResponse>>;
   postLaunch(
     name: string,
     signal?: AbortSignal,
+    idempotencyKey?: string,
   ): Promise<DaemonResult<null>>;
   postInstall(
     agent_type: string,
     pod_id?: string,
     signal?: AbortSignal,
+    idempotencyKey?: string,
   ): Promise<DaemonResult<JobResponse>>;
   postOpenExternal(
     url: string,
     signal?: AbortSignal,
+    idempotencyKey?: string,
   ): Promise<DaemonResult<null>>;
   postPodOpen(
     podId: string,
     signal?: AbortSignal,
+    idempotencyKey?: string,
   ): Promise<DaemonResult<null>>;
   postPodRestart(
     podId: string,
     signal?: AbortSignal,
+    idempotencyKey?: string,
   ): Promise<DaemonResult<null>>;
   postPodRefreshCreds(
     podId: string,
     signal?: AbortSignal,
+    idempotencyKey?: string,
   ): Promise<DaemonResult<JobResponse>>;
   /**
    * Add a messenger channel binding to a pod. Token is sent in the
@@ -356,15 +433,18 @@ export interface DaemonClient {
     channel: string,
     token: string,
     signal?: AbortSignal,
+    idempotencyKey?: string,
   ): Promise<DaemonResult<null>>;
   postChannelsRemove(
     podId: string,
     channel: string,
     signal?: AbortSignal,
+    idempotencyKey?: string,
   ): Promise<DaemonResult<null>>;
   postFilesOpenDownloads(
     podId: string,
     signal?: AbortSignal,
+    idempotencyKey?: string,
   ): Promise<DaemonResult<null>>;
   /**
    * Open the macOS native folder picker. Returns the chosen POSIX
@@ -374,6 +454,7 @@ export interface DaemonClient {
    */
   postSharedFoldersPickFolder(
     signal?: AbortSignal,
+    idempotencyKey?: string,
   ): Promise<DaemonResult<{ path: string } | { cancelled: true }>>;
   /**
    * Bind a Mac folder to one or more pods via a Garage bucket. The
@@ -389,17 +470,21 @@ export interface DaemonClient {
       auto_sync?: boolean;
     },
     signal?: AbortSignal,
+    idempotencyKey?: string,
   ): Promise<DaemonResult<JobResponse>>;
   postSharedFoldersOpen(
     localPath: string,
     signal?: AbortSignal,
+    idempotencyKey?: string,
   ): Promise<DaemonResult<null>>;
   postSharedFoldersOpenCache(
     signal?: AbortSignal,
+    idempotencyKey?: string,
   ): Promise<DaemonResult<null>>;
   postSharedFoldersRunStreamed(
     action: "list" | "status" | "conflicts" | "refresh-all",
     signal?: AbortSignal,
+    idempotencyKey?: string,
   ): Promise<DaemonResult<JobResponse>>;
   /**
    * Per-pod streamed action. The daemon's allowlist (Phase 2 spike,
@@ -411,6 +496,7 @@ export interface DaemonClient {
     podId: string,
     action: string,
     signal?: AbortSignal,
+    idempotencyKey?: string,
   ): Promise<DaemonResult<JobResponse>>;
   /**
    * SIGTERM the child process behind a running job.
@@ -426,14 +512,17 @@ export interface DaemonClient {
   postJobCancel(
     jobId: string,
     signal?: AbortSignal,
+    idempotencyKey?: string,
   ): Promise<DaemonResult<JobCancelResult>>;
   postSettingsAutostartTray(
     enabled: boolean,
     signal?: AbortSignal,
+    idempotencyKey?: string,
   ): Promise<DaemonResult<null>>;
   postSettingsAutostartTunnel(
     enabled: boolean,
     signal?: AbortSignal,
+    idempotencyKey?: string,
   ): Promise<DaemonResult<null>>;
 
   // SSE — returned as URL; consumer attaches EventSource (used by useJobStream)
@@ -595,101 +684,101 @@ export const createDaemonClient = (
         expectShape(b, isSharedFolders, "malformed /api/shared-folders/list"),
       ),
 
-    postLogout: (signal) =>
-      runRequest(deps, "/api/logout", { method: "POST", signal }, noBody),
+    postLogout: (signal, idempotencyKey) =>
+      runRequest(deps, "/api/logout", { method: "POST", signal, idempotencyKey }, noBody),
 
-    postDaemonStart: (signal) =>
+    postDaemonStart: (signal, idempotencyKey) =>
       runRequest(
         deps,
         "/api/daemon/start",
-        { method: "POST", signal },
+        { method: "POST", signal, idempotencyKey },
         noBody,
       ),
 
-    postDaemonStop: (signal) =>
+    postDaemonStop: (signal, idempotencyKey) =>
       runRequest(
         deps,
         "/api/daemon/stop",
-        { method: "POST", signal },
+        { method: "POST", signal, idempotencyKey },
         noBody,
       ),
 
-    postDaemonRestart: (signal) =>
+    postDaemonRestart: (signal, idempotencyKey) =>
       runRequest(
         deps,
         "/api/daemon/restart",
-        { method: "POST", signal },
+        { method: "POST", signal, idempotencyKey },
         noBody,
       ),
 
-    postConnect: (signal) =>
-      runRequest(deps, "/api/connect", { method: "POST", signal }, noBody),
+    postConnect: (signal, idempotencyKey) =>
+      runRequest(deps, "/api/connect", { method: "POST", signal, idempotencyKey }, noBody),
 
-    postDisconnect: (signal) =>
-      runRequest(deps, "/api/disconnect", { method: "POST", signal }, noBody),
+    postDisconnect: (signal, idempotencyKey) =>
+      runRequest(deps, "/api/disconnect", { method: "POST", signal, idempotencyKey }, noBody),
 
-    postTest: (signal) =>
-      runRequest(deps, "/api/test", { method: "POST", signal }, (b) =>
+    postTest: (signal, idempotencyKey) =>
+      runRequest(deps, "/api/test", { method: "POST", signal, idempotencyKey }, (b) =>
         expectShape(b, isJobResponse, "malformed /api/test"),
       ),
 
-    postDoctor: (signal) =>
-      runRequest(deps, "/api/doctor", { method: "POST", signal }, (b) =>
+    postDoctor: (signal, idempotencyKey) =>
+      runRequest(deps, "/api/doctor", { method: "POST", signal, idempotencyKey }, (b) =>
         expectShape(b, isJobResponse, "malformed /api/doctor"),
       ),
 
-    postLaunch: (name, signal) =>
+    postLaunch: (name, signal, idempotencyKey) =>
       runRequest(
         deps,
         "/api/launch",
-        { method: "POST", body: { name }, signal },
+        { method: "POST", body: { name }, signal, idempotencyKey },
         noBody,
       ),
 
-    postInstall: (agent_type, pod_id, signal) => {
+    postInstall: (agent_type, pod_id, signal, idempotencyKey) => {
       const body: { agent_type: string; pod_id?: string } = { agent_type };
       if (pod_id !== undefined) body.pod_id = pod_id;
       return runRequest(
         deps,
         "/api/install",
-        { method: "POST", body, signal },
+        { method: "POST", body, signal, idempotencyKey },
         (b) => expectShape(b, isJobResponse, "malformed /api/install"),
       );
     },
 
-    postOpenExternal: (url, signal) =>
+    postOpenExternal: (url, signal, idempotencyKey) =>
       runRequest(
         deps,
         "/api/open-external",
-        { method: "POST", body: { url }, signal },
+        { method: "POST", body: { url }, signal, idempotencyKey },
         noBody,
       ),
 
-    postPodOpen: (podId, signal) =>
+    postPodOpen: (podId, signal, idempotencyKey) =>
       runRequest(
         deps,
         `/api/pod/open?pod=${encodeURIComponent(podId)}`,
-        { method: "POST", signal },
+        { method: "POST", signal, idempotencyKey },
         noBody,
       ),
 
-    postPodRestart: (podId, signal) =>
+    postPodRestart: (podId, signal, idempotencyKey) =>
       runRequest(
         deps,
         `/api/pod/restart?pod=${encodeURIComponent(podId)}`,
-        { method: "POST", signal },
+        { method: "POST", signal, idempotencyKey },
         noBody,
       ),
 
-    postPodRefreshCreds: (podId, signal) =>
+    postPodRefreshCreds: (podId, signal, idempotencyKey) =>
       runRequest(
         deps,
         `/api/pod/refresh-creds?pod=${encodeURIComponent(podId)}`,
-        { method: "POST", signal },
+        { method: "POST", signal, idempotencyKey },
         (b) => expectShape(b, isJobResponse, "malformed /api/pod/refresh-creds"),
       ),
 
-    postChannelsAdd: (podId, channel, token, signal) =>
+    postChannelsAdd: (podId, channel, token, signal, idempotencyKey) =>
       runRequest(
         deps,
         "/api/channels/add",
@@ -701,31 +790,32 @@ export const createDaemonClient = (
           // raw payload).
           body: { pod: podId, channel, token },
           signal,
+          idempotencyKey,
         },
         noBody,
       ),
 
-    postChannelsRemove: (podId, channel, signal) =>
+    postChannelsRemove: (podId, channel, signal, idempotencyKey) =>
       runRequest(
         deps,
         `/api/channels/remove?pod=${encodeURIComponent(podId)}&name=${encodeURIComponent(channel)}`,
-        { method: "POST", signal },
+        { method: "POST", signal, idempotencyKey },
         noBody,
       ),
 
-    postFilesOpenDownloads: (podId, signal) =>
+    postFilesOpenDownloads: (podId, signal, idempotencyKey) =>
       runRequest(
         deps,
         `/api/files/open-downloads?pod=${encodeURIComponent(podId)}`,
-        { method: "POST", signal },
+        { method: "POST", signal, idempotencyKey },
         noBody,
       ),
 
-    postSharedFoldersPickFolder: (signal) =>
+    postSharedFoldersPickFolder: (signal, idempotencyKey) =>
       runRequest(
         deps,
         "/api/shared-folders/pick-folder",
-        { method: "POST", signal },
+        { method: "POST", signal, idempotencyKey },
         (b) => {
           if (
             isObject(b) &&
@@ -740,11 +830,11 @@ export const createDaemonClient = (
         },
       ),
 
-    postSharedFoldersBind: (payload, signal) =>
+    postSharedFoldersBind: (payload, signal, idempotencyKey) =>
       runRequest(
         deps,
         "/api/shared-folders/bind",
-        { method: "POST", body: payload, signal },
+        { method: "POST", body: payload, signal, idempotencyKey },
         (b) =>
           expectShape(
             b,
@@ -753,27 +843,27 @@ export const createDaemonClient = (
           ),
       ),
 
-    postSharedFoldersOpen: (localPath, signal) =>
+    postSharedFoldersOpen: (localPath, signal, idempotencyKey) =>
       runRequest(
         deps,
         "/api/shared-folders/open",
-        { method: "POST", body: { local_path: localPath }, signal },
+        { method: "POST", body: { local_path: localPath }, signal, idempotencyKey },
         noBody,
       ),
 
-    postSharedFoldersOpenCache: (signal) =>
+    postSharedFoldersOpenCache: (signal, idempotencyKey) =>
       runRequest(
         deps,
         "/api/shared-folders/open-cache",
-        { method: "POST", signal },
+        { method: "POST", signal, idempotencyKey },
         noBody,
       ),
 
-    postSharedFoldersRunStreamed: (action, signal) =>
+    postSharedFoldersRunStreamed: (action, signal, idempotencyKey) =>
       runRequest(
         deps,
         `/api/shared-folders/run-streamed?action=${encodeURIComponent(action)}`,
-        { method: "POST", signal },
+        { method: "POST", signal, idempotencyKey },
         (b) =>
           expectShape(
             b,
@@ -782,35 +872,35 @@ export const createDaemonClient = (
           ),
       ),
 
-    postPodRunStreamed: (podId, action, signal) =>
+    postPodRunStreamed: (podId, action, signal, idempotencyKey) =>
       runRequest(
         deps,
         `/api/pod/${encodeURIComponent(podId)}/run-streamed`,
-        { method: "POST", body: { action }, signal },
+        { method: "POST", body: { action }, signal, idempotencyKey },
         (b) => expectShape(b, isJobResponse, "malformed /api/pod/run-streamed"),
       ),
 
-    postJobCancel: (jobId, signal) =>
+    postJobCancel: (jobId, signal, idempotencyKey) =>
       runRequest(
         deps,
         `/api/jobs/${encodeURIComponent(jobId)}/cancel`,
-        { method: "POST", signal },
+        { method: "POST", signal, idempotencyKey },
         (b) => expectShape(b, isJobCancelResult, "malformed /api/jobs/.../cancel"),
       ),
 
-    postSettingsAutostartTray: (enabled, signal) =>
+    postSettingsAutostartTray: (enabled, signal, idempotencyKey) =>
       runRequest(
         deps,
         "/api/settings/autostart-tray",
-        { method: "POST", body: { enabled }, signal },
+        { method: "POST", body: { enabled }, signal, idempotencyKey },
         noBody,
       ),
 
-    postSettingsAutostartTunnel: (enabled, signal) =>
+    postSettingsAutostartTunnel: (enabled, signal, idempotencyKey) =>
       runRequest(
         deps,
         "/api/settings/autostart-tunnel",
-        { method: "POST", body: { enabled }, signal },
+        { method: "POST", body: { enabled }, signal, idempotencyKey },
         noBody,
       ),
 

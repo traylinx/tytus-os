@@ -2,6 +2,10 @@ import { useEffect, useRef, useState } from "react";
 import type {
   DaemonClient,
 } from "@/lib/daemon";
+import {
+  isDaemonVersionSupported,
+  MIN_DAEMON_VERSION,
+} from "@/lib/version";
 import type {
   DaemonError,
   DaemonVersion,
@@ -38,6 +42,15 @@ export interface UseDaemonStateResult {
    * restart.
    */
   version: DaemonVersion | null;
+  /**
+   * Three-valued gate signal for the min-required-daemon-version
+   * check. Stays `"loading"` until the first /api/state response
+   * lands so we never flash UpgradeDaemonScreen during boot. After
+   * that, `"unsupported"` if the daemon is missing the version
+   * field (pre-piggyback) OR below `MIN_DAEMON_VERSION`; otherwise
+   * `"supported"`.
+   */
+  daemonVersionStatus: "loading" | "supported" | "unsupported";
   /** Force an immediate refresh (e.g. after user starts the daemon). */
   refresh: () => void;
 }
@@ -161,6 +174,21 @@ export const useDaemonState = (
     status === "offline" ||
     (status === "degraded" && failureCount >= bannerThreshold);
 
+  // Gate stays "loading" until we've seen any successful /api/state —
+  // tracked via `state !== null`, since the hook only sets state on
+  // a 200 (304 keeps the cached value). Once observed, the version
+  // field is authoritative: missing → unsupported, below floor →
+  // unsupported, at-or-above → supported.
+  const daemonVersionStatus: "loading" | "supported" | "unsupported" =
+    state === null
+      ? "loading"
+      : isDaemonVersionSupported(
+            version?.daemon_version ?? null,
+            MIN_DAEMON_VERSION,
+          )
+        ? "supported"
+        : "unsupported";
+
   return {
     state,
     error,
@@ -168,6 +196,7 @@ export const useDaemonState = (
     failureCount,
     bannerVisible,
     version,
+    daemonVersionStatus,
     refresh: () => setTick((t) => t + 1),
   };
 };
