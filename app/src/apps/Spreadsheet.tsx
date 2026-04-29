@@ -304,25 +304,25 @@ const Spreadsheet: React.FC = () => {
     <div className="flex flex-col h-full" style={{ background: 'var(--bg-window)' }} tabIndex={0} onKeyDown={handleKeyDown}>
       {/* Toolbar */}
       <div className="flex items-center gap-1 px-2 py-1.5 border-b shrink-0" style={{ borderColor: 'var(--border-subtle)', background: 'var(--bg-titlebar)' }}>
-        <button onClick={() => selectedCell && setCellStyle(selectedCell, { bold: !(currentCell?.style?.bold) })} className={`p-1.5 rounded hover:bg-[var(--bg-hover)] ${currentCell?.style?.bold ? 'text-[var(--accent-primary)]' : 'text-[var(--text-secondary)]'}`} title="Bold">
+        <button onClick={() => selectedCell && setCellStyle(selectedCell, { bold: !(currentCell?.style?.bold) })} className={`p-1.5 rounded-sm hover:bg-[var(--bg-hover)] ${currentCell?.style?.bold ? 'text-[var(--accent-primary)]' : 'text-[var(--text-secondary)]'}`} title="Bold">
           <Bold size={13} />
         </button>
-        <button onClick={() => selectedCell && setCellStyle(selectedCell, { italic: !(currentCell?.style?.italic) })} className={`p-1.5 rounded hover:bg-[var(--bg-hover)] ${currentCell?.style?.italic ? 'text-[var(--accent-primary)]' : 'text-[var(--text-secondary)]'}`} title="Italic">
+        <button onClick={() => selectedCell && setCellStyle(selectedCell, { italic: !(currentCell?.style?.italic) })} className={`p-1.5 rounded-sm hover:bg-[var(--bg-hover)] ${currentCell?.style?.italic ? 'text-[var(--accent-primary)]' : 'text-[var(--text-secondary)]'}`} title="Italic">
           <Italic size={13} />
         </button>
         <div className="w-px h-4 mx-1" style={{ background: 'var(--border-subtle)' }} />
-        <button onClick={() => selectedCell && setCellStyle(selectedCell, { bgColor: currentCell?.style?.bgColor ? undefined : 'rgba(124,77,255,0.2)' })} className="p-1.5 rounded hover:bg-[var(--bg-hover)] text-[var(--text-secondary)]" title="Background Color">
+        <button onClick={() => selectedCell && setCellStyle(selectedCell, { bgColor: currentCell?.style?.bgColor ? undefined : 'rgba(124,77,255,0.2)' })} className="p-1.5 rounded-sm hover:bg-[var(--bg-hover)] text-[var(--text-secondary)]" title="Background Color">
           <Paintbrush size={13} />
         </button>
         <div className="w-px h-4 mx-1" style={{ background: 'var(--border-subtle)' }} />
-        <button onClick={exportCSV} className="flex items-center gap-1 px-2 py-1 rounded hover:bg-[var(--bg-hover)] text-[var(--text-secondary)] text-xs">
+        <button onClick={exportCSV} className="flex items-center gap-1 px-2 py-1 rounded-sm hover:bg-[var(--bg-hover)] text-[var(--text-secondary)] text-xs">
           <Download size={12} /> CSV
         </button>
       </div>
 
       {/* Formula bar */}
       <div className="flex items-center gap-2 px-2 py-1.5 border-b shrink-0" style={{ borderColor: 'var(--border-subtle)', background: 'var(--bg-titlebar)' }}>
-        <div className="text-[10px] text-[var(--text-secondary)] px-2 py-0.5 rounded border shrink-0" style={{ borderColor: 'var(--border-default)', minWidth: 48, textAlign: 'center' }}>
+        <div className="text-[10px] text-[var(--text-secondary)] px-2 py-0.5 rounded-sm border shrink-0" style={{ borderColor: 'var(--border-default)', minWidth: 48, textAlign: 'center' }}>
           {selectedCell || ''}
         </div>
         <div className="flex-1 text-xs text-[var(--text-primary)] truncate px-2">
@@ -430,7 +430,7 @@ const Spreadsheet: React.FC = () => {
             )}
           </button>
         ))}
-        <button onClick={addSheet} className="p-1 rounded hover:bg-[var(--bg-hover)] text-[var(--text-secondary)]">
+        <button onClick={addSheet} className="p-1 rounded-sm hover:bg-[var(--bg-hover)] text-[var(--text-secondary)]">
           <Plus size={14} />
         </button>
       </div>

@@ -216,10 +216,10 @@ export default function MatrixRain() {
           <div className="flex items-center gap-2 px-3 py-2 border-b" style={{ borderColor: 'rgba(255,255,255,0.1)', background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)' }}>
             <Droplets size={14} style={{ color: colors.primary }} />
             <span className="text-xs font-medium flex-1" style={{ color: '#fff' }}>Matrix Rain</span>
-            <button onClick={() => setIsPlaying(!isPlaying)} className="p-1.5 rounded" style={{ color: '#fff' }}>
+            <button onClick={() => setIsPlaying(!isPlaying)} className="p-1.5 rounded-sm" style={{ color: '#fff' }}>
               {isPlaying ? <Pause size={12} /> : <Play size={12} />}
             </button>
-            <button onClick={toggleFullscreen} className="p-1.5 rounded" style={{ color: '#fff' }}>
+            <button onClick={toggleFullscreen} className="p-1.5 rounded-sm" style={{ color: '#fff' }}>
               {isFullscreen ? <Minimize size={12} /> : <Maximize size={12} />}
             </button>
           </div>

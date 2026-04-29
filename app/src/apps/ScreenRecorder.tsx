@@ -370,14 +370,14 @@ export default function ScreenRecorder() {
               </div>
               <button
                 onClick={() => downloadRecording(recording)}
-                className="flex items-center justify-center rounded hover:bg-[var(--bg-hover)] shrink-0"
+                className="flex items-center justify-center rounded-sm hover:bg-[var(--bg-hover)] shrink-0"
                 style={{ width: 28, height: 28 }}
               >
                 <Download size={14} style={{ color: 'var(--text-secondary)' }} />
               </button>
               <button
                 onClick={() => deleteRecording(recording.id)}
-                className="flex items-center justify-center rounded hover:bg-[var(--bg-hover)] shrink-0"
+                className="flex items-center justify-center rounded-sm hover:bg-[var(--bg-hover)] shrink-0"
                 style={{ width: 28, height: 28 }}
               >
                 <Trash2 size={14} style={{ color: 'var(--text-secondary)' }} />

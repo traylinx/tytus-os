@@ -104,7 +104,7 @@ const PodEnvPane: FC<Props> = ({ client, podId, tier, onClose, onError }) => {
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
           placeholder="Filter…"
-          className="ml-auto px-2 py-0.5 rounded text-[10px]"
+          className="ml-auto px-2 py-0.5 rounded-sm text-[10px]"
           style={{
             background: 'rgba(255,255,255,0.04)',
             color: 'var(--text-primary)',
@@ -116,7 +116,7 @@ const PodEnvPane: FC<Props> = ({ client, podId, tier, onClose, onError }) => {
           onClick={onRefresh}
           disabled={loading}
           aria-label="Refresh env"
-          className="px-2 py-0.5 rounded text-[10px] flex items-center gap-1 disabled:opacity-60"
+          className="px-2 py-0.5 rounded-sm text-[10px] flex items-center gap-1 disabled:opacity-60"
           style={{
             background: 'var(--bg-hover, rgba(255,255,255,0.04))',
             color: 'var(--text-secondary)',
@@ -135,7 +135,7 @@ const PodEnvPane: FC<Props> = ({ client, podId, tier, onClose, onError }) => {
                 ? 'Hide secret values'
                 : 'Show secret values (Operator tier)'
           }
-          className="px-2 py-0.5 rounded text-[10px] flex items-center gap-1 disabled:opacity-60"
+          className="px-2 py-0.5 rounded-sm text-[10px] flex items-center gap-1 disabled:opacity-60"
           style={{
             background: reveal ? 'rgba(255,193,7,0.10)' : 'var(--bg-hover, rgba(255,255,255,0.04))',
             color: reveal ? '#FFE082' : 'var(--text-secondary)',
@@ -148,7 +148,7 @@ const PodEnvPane: FC<Props> = ({ client, podId, tier, onClose, onError }) => {
         <button
           onClick={onClose}
           aria-label="Close env pane"
-          className="px-2 py-0.5 rounded text-[10px] transition-colors"
+          className="px-2 py-0.5 rounded-sm text-[10px] transition-colors"
           style={{
             background: 'var(--bg-hover, rgba(255,255,255,0.04))',
             color: 'var(--text-secondary)',
@@ -180,7 +180,7 @@ const PodEnvPane: FC<Props> = ({ client, podId, tier, onClose, onError }) => {
                   >
                     <td className="px-2 py-1 align-top whitespace-nowrap">
                       <span
-                        className="inline-block px-1.5 py-0.5 rounded text-[9px] uppercase tracking-wider"
+                        className="inline-block px-1.5 py-0.5 rounded-sm text-[9px] uppercase tracking-wider"
                         style={{
                           background: c.bg,
                           color: c.fg,

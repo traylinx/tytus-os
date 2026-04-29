@@ -217,7 +217,7 @@ const Notes: React.FC = () => {
                   onChange={e => setNewFolderName(e.target.value)}
                   onKeyDown={e => { if (e.key === 'Enter') createFolder(); if (e.key === 'Escape') setShowNewFolder(false); }}
                   placeholder="Folder name"
-                  className="flex-1 h-7 px-2 rounded text-xs text-[var(--text-primary)] outline-none placeholder:text-[var(--text-disabled)]"
+                  className="flex-1 h-7 px-2 rounded-sm text-xs text-[var(--text-primary)] outline-none placeholder:text-[var(--text-disabled)]"
                   style={{ background: 'var(--bg-input)', border: '1px solid var(--border-default)' }}
                   autoFocus
                 />
@@ -234,7 +234,7 @@ const Notes: React.FC = () => {
                       value={editFolderName}
                       onChange={e => setEditFolderName(e.target.value)}
                       onKeyDown={e => { if (e.key === 'Enter') renameFolder(f.id); if (e.key === 'Escape') setEditingFolder(null); }}
-                      className="flex-1 h-6 px-1 rounded text-xs text-[var(--text-primary)] outline-none"
+                      className="flex-1 h-6 px-1 rounded-sm text-xs text-[var(--text-primary)] outline-none"
                       style={{ background: 'var(--bg-input)', border: '1px solid var(--border-default)' }}
                       autoFocus
                     />
@@ -330,47 +330,47 @@ const Notes: React.FC = () => {
           <>
             {/* Editor toolbar */}
             <div className="flex items-center gap-1 px-2 py-1.5 border-b shrink-0" style={{ borderColor: 'var(--border-subtle)', background: 'var(--bg-titlebar)' }}>
-              <button onClick={() => execCmd('bold')} className="p-1.5 rounded hover:bg-[var(--bg-hover)] text-[var(--text-secondary)]" title="Bold">
+              <button onClick={() => execCmd('bold')} className="p-1.5 rounded-sm hover:bg-[var(--bg-hover)] text-[var(--text-secondary)]" title="Bold">
                 <Bold size={13} />
               </button>
-              <button onClick={() => execCmd('italic')} className="p-1.5 rounded hover:bg-[var(--bg-hover)] text-[var(--text-secondary)]" title="Italic">
+              <button onClick={() => execCmd('italic')} className="p-1.5 rounded-sm hover:bg-[var(--bg-hover)] text-[var(--text-secondary)]" title="Italic">
                 <Italic size={13} />
               </button>
-              <button onClick={() => execCmd('underline')} className="p-1.5 rounded hover:bg-[var(--bg-hover)] text-[var(--text-secondary)]" title="Underline">
+              <button onClick={() => execCmd('underline')} className="p-1.5 rounded-sm hover:bg-[var(--bg-hover)] text-[var(--text-secondary)]" title="Underline">
                 <Underline size={13} />
               </button>
               <div className="w-px h-4 mx-1" style={{ background: 'var(--border-subtle)' }} />
-              <button onClick={() => execCmd('insertUnorderedList')} className="p-1.5 rounded hover:bg-[var(--bg-hover)] text-[var(--text-secondary)]" title="Bullet List">
+              <button onClick={() => execCmd('insertUnorderedList')} className="p-1.5 rounded-sm hover:bg-[var(--bg-hover)] text-[var(--text-secondary)]" title="Bullet List">
                 <List size={13} />
               </button>
-              <button onClick={() => execCmd('insertOrderedList')} className="p-1.5 rounded hover:bg-[var(--bg-hover)] text-[var(--text-secondary)]" title="Numbered List">
+              <button onClick={() => execCmd('insertOrderedList')} className="p-1.5 rounded-sm hover:bg-[var(--bg-hover)] text-[var(--text-secondary)]" title="Numbered List">
                 <ListOrdered size={13} />
               </button>
               <div className="flex-1" />
               <button
                 onClick={() => updateNote(activeNote.id, { isFavorite: !activeNote.isFavorite })}
-                className={`p-1.5 rounded hover:bg-[var(--bg-hover)] ${activeNote.isFavorite ? 'text-[var(--accent-secondary)]' : 'text-[var(--text-secondary)]'}`}
+                className={`p-1.5 rounded-sm hover:bg-[var(--bg-hover)] ${activeNote.isFavorite ? 'text-[var(--accent-secondary)]' : 'text-[var(--text-secondary)]'}`}
                 title="Favorite"
               >
                 <Star size={13} className={activeNote.isFavorite ? 'fill-current' : ''} />
               </button>
               <button
                 onClick={() => updateNote(activeNote.id, { isPinned: !activeNote.isPinned })}
-                className={`p-1.5 rounded hover:bg-[var(--bg-hover)] ${activeNote.isPinned ? 'text-[var(--accent-primary)]' : 'text-[var(--text-secondary)]'}`}
+                className={`p-1.5 rounded-sm hover:bg-[var(--bg-hover)] ${activeNote.isPinned ? 'text-[var(--accent-primary)]' : 'text-[var(--text-secondary)]'}`}
                 title="Pin"
               >
                 📌
               </button>
               {activeNote.folderId === 'trash' ? (
-                <button onClick={() => restoreNote(activeNote.id)} className="p-1.5 rounded hover:bg-[var(--bg-hover)] text-[var(--accent-success)]" title="Restore">
+                <button onClick={() => restoreNote(activeNote.id)} className="p-1.5 rounded-sm hover:bg-[var(--bg-hover)] text-[var(--accent-success)]" title="Restore">
                   <Clock size={13} />
                 </button>
               ) : (
-                <button onClick={() => deleteNote(activeNote.id)} className="p-1.5 rounded hover:bg-[var(--bg-hover)] text-[var(--text-secondary)]" title="Delete">
+                <button onClick={() => deleteNote(activeNote.id)} className="p-1.5 rounded-sm hover:bg-[var(--bg-hover)] text-[var(--text-secondary)]" title="Delete">
                   <Trash2 size={13} />
                 </button>
               )}
-              <button onClick={() => permanentDelete(activeNote.id)} className="p-1.5 rounded hover:bg-[var(--bg-hover)] text-[var(--accent-error)]" title="Permanently Delete">
+              <button onClick={() => permanentDelete(activeNote.id)} className="p-1.5 rounded-sm hover:bg-[var(--bg-hover)] text-[var(--accent-error)]" title="Permanently Delete">
                 <X size={13} />
               </button>
             </div>

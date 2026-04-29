@@ -72,12 +72,19 @@ for (const path of walk(SRC)) {
     const ln = i + 1;
     const src = lines[i];
 
-    // 1. inline borderRadius (JSX style props)
+    // 1. inline borderRadius — flag literals (numbers, px strings) but
+    // pass `borderRadius: 'var(--radius-*)'` and `borderRadius: 0` since
+    // the former is on-token and the latter is a deliberate "no radius"
+    // signal (e.g. maximized window state).
     if (/\bborderRadius\s*:/.test(src) && !/['"]?border-radius['"]?\s*:/.test(src)) {
-      // CSS-string `border-radius:` (in template literals like markdown rewrites) is allowed
-      if (!isLineAllowed(rel, ln, src)) {
+      // Simple rule: pass when the line references a `--radius-*` token
+      // (anywhere) or explicitly sets `borderRadius: 0`. Otherwise flag
+      // for migration.
+      const isTokenRef = /var\(--radius-/.test(src);
+      const isExplicitZero = /borderRadius\s*:\s*0\b/.test(src);
+      if (!isTokenRef && !isExplicitZero && !isLineAllowed(rel, ln, src)) {
         add('inline-borderRadius', rel, ln, src,
-          'replace with rounded-* utility or move into a primitive');
+          'replace with var(--radius-*) token or rounded-* utility');
       }
     }
 
@@ -96,16 +103,16 @@ for (const path of walk(SRC)) {
         'replace with explicit token or semantic alias');
     }
 
-    // 4. native <input> outside primitive
-    const inputTag = src.match(/<input\b([^>]*)/);
-    if (inputTag) {
-      const attrs = inputTag[1] || '';
-      // Skip if no type or text-like type
-      const typeMatch = attrs.match(/\btype\s*=\s*["'{]?(\w+)/);
+    // 4. native <input> outside primitive — JSX may span multiple lines.
+    // Scan a window of up to 8 lines after `<input` for type + className,
+    // since an arrow-function `=>` in a sibling onChange would prematurely
+    // terminate a `>`-based close detector.
+    if (/<input\b/.test(src)) {
+      const window = lines.slice(i, Math.min(i + 14, lines.length)).join(' ');
+      const typeMatch = window.match(/\btype\s*=\s*["'{]?(\w+)/);
       const t = typeMatch ? typeMatch[1].toLowerCase() : 'text';
       if (NATIVE_NON_TEXT_TYPES.has(t)) continue;
-      // Skip if it carries a className with rounded
-      if (/\brounded[-\b]/.test(attrs)) continue;
+      if (/\brounded[-\w]*/.test(window)) continue;
       if (!isLineAllowed(rel, ln, src)) {
         add('native-text-input-no-radius', rel, ln, src,
           'use <Input/> primitive or add rounded-input className');

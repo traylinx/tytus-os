@@ -127,7 +127,7 @@ export default function MediaConverter() {
               <div className="flex items-center gap-2">
                 {getIcon(detectType(selectedFileFormat))}
                 <span className="text-sm" style={{ color: 'var(--text-primary)' }}>{selectedFileName}</span>
-                <span className="text-xs px-1.5 py-0.5 rounded" style={{ background: 'var(--bg-hover)', color: 'var(--text-secondary)' }}>{selectedFileFormat}</span>
+                <span className="text-xs px-1.5 py-0.5 rounded-sm" style={{ background: 'var(--bg-hover)', color: 'var(--text-secondary)' }}>{selectedFileFormat}</span>
               </div>
             ) : (
               <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>Select a media file from your file system</p>
@@ -141,12 +141,12 @@ export default function MediaConverter() {
             <div className="p-3 rounded-lg border" style={{ borderColor: 'var(--border-subtle)', background: 'var(--bg-panel)' }}>
               <div className="flex items-center justify-between mb-3">
                 <span className="text-xs font-medium" style={{ color: 'var(--text-primary)' }}>Output Settings</span>
-                <button onClick={() => setShowSettings(!showSettings)} className="p-0.5 rounded" style={{ color: 'var(--text-secondary)' }}><Settings2 size={12} /></button>
+                <button onClick={() => setShowSettings(!showSettings)} className="p-0.5 rounded-sm" style={{ color: 'var(--text-secondary)' }}><Settings2 size={12} /></button>
               </div>
               <div className="grid grid-cols-3 gap-2 mb-3">
                 <div>
                   <label className="text-[10px] block mb-1" style={{ color: 'var(--text-secondary)' }}>Format</label>
-                  <select value={outputFormat} onChange={e => setOutputFormat(e.target.value)} className="w-full px-2 py-1 rounded text-xs outline-none" style={{ background: 'var(--bg-input)', color: 'var(--text-primary)', border: '1px solid var(--border-subtle)' }}>
+                  <select value={outputFormat} onChange={e => setOutputFormat(e.target.value)} className="w-full px-2 py-1 rounded-sm text-xs outline-none" style={{ background: 'var(--bg-input)', color: 'var(--text-primary)', border: '1px solid var(--border-subtle)' }}>
                     {detectType(selectedFileFormat) === 'video' && VIDEO_FORMATS.map(f => <option key={f} value={f}>{f}</option>)}
                     {detectType(selectedFileFormat) === 'audio' && AUDIO_FORMATS.map(f => <option key={f} value={f}>{f}</option>)}
                     {detectType(selectedFileFormat) === 'image' && IMAGE_FORMATS.map(f => <option key={f} value={f}>{f}</option>)}
@@ -154,13 +154,13 @@ export default function MediaConverter() {
                 </div>
                 <div>
                   <label className="text-[10px] block mb-1" style={{ color: 'var(--text-secondary)' }}>Quality</label>
-                  <select value={quality} onChange={e => setQuality(e.target.value)} className="w-full px-2 py-1 rounded text-xs outline-none" style={{ background: 'var(--bg-input)', color: 'var(--text-primary)', border: '1px solid var(--border-subtle)' }}>
+                  <select value={quality} onChange={e => setQuality(e.target.value)} className="w-full px-2 py-1 rounded-sm text-xs outline-none" style={{ background: 'var(--bg-input)', color: 'var(--text-primary)', border: '1px solid var(--border-subtle)' }}>
                     {QUALITIES.map(q => <option key={q} value={q}>{q}</option>)}
                   </select>
                 </div>
                 <div>
                   <label className="text-[10px] block mb-1" style={{ color: 'var(--text-secondary)' }}>Resolution</label>
-                  <select value={resolution} onChange={e => setResolution(e.target.value)} className="w-full px-2 py-1 rounded text-xs outline-none" style={{ background: 'var(--bg-input)', color: 'var(--text-primary)', border: '1px solid var(--border-subtle)' }}>
+                  <select value={resolution} onChange={e => setResolution(e.target.value)} className="w-full px-2 py-1 rounded-sm text-xs outline-none" style={{ background: 'var(--bg-input)', color: 'var(--text-primary)', border: '1px solid var(--border-subtle)' }}>
                     {RESOLUTIONS.map(r => <option key={r} value={r}>{r}</option>)}
                   </select>
                 </div>
@@ -175,15 +175,15 @@ export default function MediaConverter() {
         {/* Format Support Info */}
         <div className="px-3 pb-3">
           <div className="grid grid-cols-3 gap-2 text-[10px]" style={{ color: 'var(--text-secondary)' }}>
-            <div className="p-2 rounded" style={{ background: 'var(--bg-panel)' }}>
+            <div className="p-2 rounded-sm" style={{ background: 'var(--bg-panel)' }}>
               <span className="font-medium block mb-1" style={{ color: 'var(--text-primary)' }}>Video</span>
               {VIDEO_FORMATS.join(', ')}
             </div>
-            <div className="p-2 rounded" style={{ background: 'var(--bg-panel)' }}>
+            <div className="p-2 rounded-sm" style={{ background: 'var(--bg-panel)' }}>
               <span className="font-medium block mb-1" style={{ color: 'var(--text-primary)' }}>Audio</span>
               {AUDIO_FORMATS.join(', ')}
             </div>
-            <div className="p-2 rounded" style={{ background: 'var(--bg-panel)' }}>
+            <div className="p-2 rounded-sm" style={{ background: 'var(--bg-panel)' }}>
               <span className="font-medium block mb-1" style={{ color: 'var(--text-primary)' }}>Image</span>
               {IMAGE_FORMATS.join(', ')}
             </div>
@@ -197,7 +197,7 @@ export default function MediaConverter() {
               <span className="text-xs font-medium block mb-2" style={{ color: 'var(--text-primary)' }}>Conversion History</span>
               <div className="space-y-2">
                 {jobs.map(job => (
-                  <div key={job.id} className="flex items-center gap-2 p-2 rounded" style={{ background: 'var(--bg-window)' }}>
+                  <div key={job.id} className="flex items-center gap-2 p-2 rounded-sm" style={{ background: 'var(--bg-window)' }}>
                     {getIcon(detectType(job.inputFormat))}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1">
@@ -213,9 +213,9 @@ export default function MediaConverter() {
                       </div>
                     </div>
                     {job.status === 'completed' && (
-                      <button className="p-1 rounded flex-shrink-0" style={{ color: 'var(--accent-primary)' }} title="Download"><Download size={12} /></button>
+                      <button className="p-1 rounded-sm flex-shrink-0" style={{ color: 'var(--accent-primary)' }} title="Download"><Download size={12} /></button>
                     )}
-                    <button onClick={() => deleteJob(job.id)} className="p-1 rounded flex-shrink-0" style={{ color: 'var(--text-disabled)' }}><X size={10} /></button>
+                    <button onClick={() => deleteJob(job.id)} className="p-1 rounded-sm flex-shrink-0" style={{ color: 'var(--text-disabled)' }}><X size={10} /></button>
                   </div>
                 ))}
               </div>
@@ -230,7 +230,7 @@ export default function MediaConverter() {
           <div className="rounded-lg shadow-xl overflow-hidden" style={{ width: '480px', maxHeight: '400px', background: 'var(--bg-window)' }}>
             <div className="flex items-center justify-between px-4 py-2 border-b" style={{ borderColor: 'var(--border-subtle)', background: 'var(--bg-panel)' }}>
               <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>Select Media File</span>
-              <button onClick={() => setShowFilePicker(false)} className="p-1 rounded"><X size={14} /></button>
+              <button onClick={() => setShowFilePicker(false)} className="p-1 rounded-sm"><X size={14} /></button>
             </div>
             <div className="overflow-auto custom-scrollbar p-2" style={{ maxHeight: '320px' }}>
               {mediaFiles.map(file => {

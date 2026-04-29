@@ -157,7 +157,7 @@ export default function RssReader() {
     return (
       <div className="flex flex-col h-full" style={{ background: 'var(--bg-window)' }}>
         <div className="flex items-center gap-2 px-3 py-2 border-b" style={{ borderColor: 'var(--border-subtle)', background: 'var(--bg-panel)' }}>
-          <button onClick={() => setViewArticle(null)} className="p-1 rounded" style={{ color: 'var(--text-secondary)' }}><ChevronLeft size={16} /></button>
+          <button onClick={() => setViewArticle(null)} className="p-1 rounded-sm" style={{ color: 'var(--text-secondary)' }}><ChevronLeft size={16} /></button>
           <span className="text-sm font-medium flex-1 truncate" style={{ color: 'var(--text-primary)' }}>{viewArticle.title}</span>
           {!readIds.has(viewArticle.id) ? (
             <button onClick={() => markRead(viewArticle.id)} className="flex items-center gap-1 px-2 py-1 rounded-md text-xs" style={{ color: 'var(--text-secondary)' }}><Check size={12} /> Mark Read</button>
@@ -190,7 +190,7 @@ export default function RssReader() {
         </button>
         {feeds.map(f => (
           <button key={f.id} onClick={() => setSelectedFeed(f.id)} className="flex items-center justify-between px-3 py-2 text-xs transition-colors" style={{ background: selectedFeed === f.id ? 'var(--bg-selected)' : 'transparent', color: selectedFeed === f.id ? 'var(--accent-primary)' : 'var(--text-primary)' }}>
-            <span className="flex items-center gap-1.5"><span className="w-5 h-5 rounded flex items-center justify-center text-[9px] font-bold flex-shrink-0" style={{ background: 'var(--accent-primary)', color: '#fff' }}>{f.icon}</span> {f.name}</span>
+            <span className="flex items-center gap-1.5"><span className="w-5 h-5 rounded-sm flex items-center justify-center text-[9px] font-bold flex-shrink-0" style={{ background: 'var(--accent-primary)', color: '#fff' }}>{f.icon}</span> {f.name}</span>
             <span className="px-1.5 py-0.5 rounded-full text-[10px]" style={{ background: 'var(--bg-hover)', color: 'var(--text-secondary)' }}>{feedUnreadCounts[f.id]}</span>
           </button>
         ))}
@@ -203,7 +203,7 @@ export default function RssReader() {
       <div className="flex-1 flex flex-col min-w-0">
         <div className="flex items-center gap-2 px-3 py-2 border-b" style={{ borderColor: 'var(--border-subtle)', background: 'var(--bg-panel)' }}>
           <span className="text-sm font-medium flex-1" style={{ color: 'var(--text-primary)' }}>{selectedFeed === 'all' ? 'All Articles' : feeds.find(f => f.id === selectedFeed)?.name}</span>
-          <button onClick={refreshFeeds} className={`p-1.5 rounded ${refreshing ? 'animate-spin' : ''}`} style={{ color: 'var(--text-secondary)' }}><RefreshCw size={14} /></button>
+          <button onClick={refreshFeeds} className={`p-1.5 rounded-sm ${refreshing ? 'animate-spin' : ''}`} style={{ color: 'var(--text-secondary)' }}><RefreshCw size={14} /></button>
         </div>
         <div className="flex-1 overflow-auto custom-scrollbar">
           {filteredArticles.length === 0 ? (
@@ -218,7 +218,7 @@ export default function RssReader() {
                     <h4 className={`text-sm truncate ${readIds.has(a.id) ? 'font-normal' : 'font-medium'}`} style={{ color: readIds.has(a.id) ? 'var(--text-secondary)' : 'var(--text-primary)' }}>{a.title}</h4>
                     <p className="text-xs mt-0.5 line-clamp-2" style={{ color: 'var(--text-disabled)' }}>{a.snippet}</p>
                     <div className="flex items-center gap-2 mt-1">
-                      <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: 'var(--bg-hover)', color: 'var(--text-secondary)' }}>{feeds.find(f => f.id === a.feedId)?.name}</span>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded-sm" style={{ background: 'var(--bg-hover)', color: 'var(--text-secondary)' }}>{feeds.find(f => f.id === a.feedId)?.name}</span>
                       <span className="text-[10px]" style={{ color: 'var(--text-disabled)' }}>{formatDate(a.date)}</span>
                     </div>
                   </div>
@@ -233,7 +233,7 @@ export default function RssReader() {
       {showAddFeed && (
         <div className="absolute inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.5)' }}>
           <div className="rounded-lg shadow-xl p-4" style={{ width: '360px', background: 'var(--bg-window)' }}>
-            <div className="flex items-center justify-between mb-3"><span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>Add RSS Feed</span><button onClick={() => setShowAddFeed(false)} className="p-1 rounded"><X size={14} /></button></div>
+            <div className="flex items-center justify-between mb-3"><span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>Add RSS Feed</span><button onClick={() => setShowAddFeed(false)} className="p-1 rounded-sm"><X size={14} /></button></div>
             <input value={newFeedName} onChange={e => setNewFeedName(e.target.value)} placeholder="Feed name" className="w-full px-2.5 py-1.5 rounded-md text-xs outline-none mb-2" style={{ background: 'var(--bg-input)', color: 'var(--text-primary)', border: '1px solid var(--border-subtle)' }} />
             <input value={newFeedUrl} onChange={e => setNewFeedUrl(e.target.value)} placeholder="Feed URL (e.g., https://example.com/feed.xml)" className="w-full px-2.5 py-1.5 rounded-md text-xs outline-none mb-3" style={{ background: 'var(--bg-input)', color: 'var(--text-primary)', border: '1px solid var(--border-subtle)' }} />
             <button onClick={addFeed} className="w-full py-1.5 rounded-md text-xs font-medium" style={{ background: 'var(--accent-primary)', color: '#fff' }}>Add Feed</button>

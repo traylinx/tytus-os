@@ -758,7 +758,7 @@ const DownloadsTab: FC<{ agent: Agent; client: DaemonClient }> = ({
             folder, scoped per pod.
           </div>
           <div
-            className="mt-3 inline-block font-mono text-[11px] px-2.5 py-1.5 rounded"
+            className="mt-3 inline-block font-mono text-[11px] px-2.5 py-1.5 rounded-sm"
             style={{
               background: 'rgba(255,255,255,0.04)',
               border: '1px solid var(--border-subtle)',
@@ -1454,7 +1454,7 @@ const BindFolderModal: FC<BindFolderModalProps> = ({
             onClick={onCancel}
             disabled={inFlight}
             aria-label="Close"
-            className="p-1 rounded transition-colors disabled:opacity-60"
+            className="p-1 rounded-sm transition-colors disabled:opacity-60"
             style={{ color: 'var(--text-secondary)' }}
           >
             <X size={14} />

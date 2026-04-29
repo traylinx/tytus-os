@@ -1,10 +1,38 @@
 {
   "_doc": "Allowlist for scripts/audit-radius.mjs. Two layers — `files` exempts whole files (use sparingly, prefer per-line escape comments). `lines` maps repo-relative paths to arrays of 1-based line numbers. Per-line escape `// audit:radius-allow <reason>` is preferred for in-source intent.",
-  "files": [],
+  "files": [
+    "src/apps/Chess.tsx",
+    "src/apps/Sudoku.tsx",
+    "src/apps/Tetris.tsx",
+    "src/apps/TicTacToe.tsx",
+    "src/apps/Minesweeper.tsx",
+    "src/apps/Game2048.tsx",
+    "src/apps/Pong.tsx",
+    "src/apps/Solitaire.tsx",
+    "src/apps/Memory.tsx",
+    "src/apps/Snake.tsx",
+    "src/apps/AsciiArt.tsx",
+    "src/apps/Whiteboard.tsx",
+    "src/apps/Drawing.tsx",
+    "src/apps/ColorPicker.tsx",
+    "src/apps/ColorPalette.tsx",
+    "src/apps/MarkdownPreview.tsx",
+    "src/apps/RegexTester.tsx"
+  ],
+  "_files_doc": "Geometry-by-design surfaces — game boards (cells, dice, pieces, cards), ASCII/canvas/whiteboard drawing apps, color swatches and color-input UI, and rendered-markdown/regex-template strings are intentionally outside the radius token system. They encode their own visual semantics or render user content rather than OS chrome.",
   "lines": {
     "src/index.css": [128],
     "src/components/ui/scroll-area.tsx": [21],
     "src/components/ui/chart.tsx": [207, 297],
-    "src/components/ui/tooltip.tsx": [55]
+    "src/components/ui/tooltip.tsx": [55],
+    "src/apps/ScreenRecorder.tsx": [401, 408],
+    "src/apps/Channels.tsx": [639],
+    "src/apps/DocumentViewer.tsx": [192],
+    "src/apps/Notes.tsx": [379],
+    "src/apps/Settings.tsx": [943],
+    "src/apps/Spreadsheet.tsx": [375],
+    "src/apps/Terminal.tsx": [371],
+    "src/apps/TextEditor.tsx": [252],
+    "src/components/CommandPalette.tsx": [306]
   }
 }

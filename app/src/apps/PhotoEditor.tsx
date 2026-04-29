@@ -181,14 +181,14 @@ export default function PhotoEditor() {
       <div className="flex flex-col shrink-0 overflow-y-auto custom-scrollbar" style={{ width: 220, background: 'var(--bg-titlebar)', borderRight: '1px solid var(--border-subtle)' }}>
         {/* Toolbar */}
         <div className="flex items-center gap-1 px-2 py-2 shrink-0" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-          <button onClick={undo} disabled={historyIndex <= 0} className="flex items-center justify-center rounded hover:bg-[var(--bg-hover)] disabled:opacity-30" style={{ width: 28, height: 28 }}>
+          <button onClick={undo} disabled={historyIndex <= 0} className="flex items-center justify-center rounded-sm hover:bg-[var(--bg-hover)] disabled:opacity-30" style={{ width: 28, height: 28 }}>
             <Undo size={14} style={{ color: 'var(--text-secondary)' }} />
           </button>
-          <button onClick={redo} disabled={historyIndex >= history.length - 1} className="flex items-center justify-center rounded hover:bg-[var(--bg-hover)] disabled:opacity-30" style={{ width: 28, height: 28 }}>
+          <button onClick={redo} disabled={historyIndex >= history.length - 1} className="flex items-center justify-center rounded-sm hover:bg-[var(--bg-hover)] disabled:opacity-30" style={{ width: 28, height: 28 }}>
             <Redo size={14} style={{ color: 'var(--text-secondary)' }} />
           </button>
           <div style={{ width: 1, height: 16, background: 'var(--border-subtle)', margin: '0 2px' }} />
-          <button onClick={exportImage} className="flex items-center justify-center rounded hover:bg-[var(--bg-hover)]" style={{ width: 28, height: 28 }}>
+          <button onClick={exportImage} className="flex items-center justify-center rounded-sm hover:bg-[var(--bg-hover)]" style={{ width: 28, height: 28 }}>
             <Download size={14} style={{ color: 'var(--accent-primary)' }} />
           </button>
         </div>
@@ -262,11 +262,11 @@ export default function PhotoEditor() {
         {/* Top Toolbar */}
         <div className="flex items-center justify-between px-3 py-1.5 shrink-0" style={{ background: 'var(--bg-titlebar)', borderBottom: '1px solid var(--border-subtle)' }}>
           <div className="flex items-center gap-1">
-            <button onClick={() => setZoom((z) => Math.max(0.1, z - 0.1))} className="flex items-center justify-center rounded hover:bg-[var(--bg-hover)]" style={{ width: 28, height: 28 }}>
+            <button onClick={() => setZoom((z) => Math.max(0.1, z - 0.1))} className="flex items-center justify-center rounded-sm hover:bg-[var(--bg-hover)]" style={{ width: 28, height: 28 }}>
               <ZoomOut size={14} style={{ color: 'var(--text-secondary)' }} />
             </button>
             <span style={{ fontSize: '11px', color: 'var(--text-secondary)', minWidth: 36, textAlign: 'center' }}>{Math.round(zoom * 100)}%</span>
-            <button onClick={() => setZoom((z) => Math.min(5, z + 0.1))} className="flex items-center justify-center rounded hover:bg-[var(--bg-hover)]" style={{ width: 28, height: 28 }}>
+            <button onClick={() => setZoom((z) => Math.min(5, z + 0.1))} className="flex items-center justify-center rounded-sm hover:bg-[var(--bg-hover)]" style={{ width: 28, height: 28 }}>
               <ZoomIn size={14} style={{ color: 'var(--text-secondary)' }} />
             </button>
           </div>

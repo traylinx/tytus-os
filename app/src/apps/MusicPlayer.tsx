@@ -267,7 +267,7 @@ export default function MusicPlayer() {
           style={{
             height: '55%',
             background: 'var(--bg-titlebar)',
-            borderRadius: '12px 12px 0 0',
+            borderRadius: 'var(--radius-lg) var(--radius-lg) 0 0',
             boxShadow: '0 -4px 16px rgba(0,0,0,0.3)',
           }}
         >

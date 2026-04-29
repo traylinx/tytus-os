@@ -312,7 +312,7 @@ export default function Weather() {
     <div className="flex flex-col h-full custom-scrollbar overflow-y-auto" style={{ background: 'var(--bg-window)' }}>
       {/* Search Bar */}
       <div className="flex items-center gap-2 px-4 py-3 shrink-0" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-        <form onSubmit={handleSearch} className="flex-1 flex items-center gap-2 px-3" style={{ height: 36, borderRadius: 18, background: 'var(--bg-input)', border: '1px solid var(--border-default)' }}>
+        <form onSubmit={handleSearch} className="flex-1 flex items-center gap-2 px-3" style={{ height: 36, borderRadius: 'var(--radius-full)', background: 'var(--bg-input)', border: '1px solid var(--border-default)' }}>
           <Search size={14} style={{ color: 'var(--text-disabled)', flexShrink: 0 }} />
           <input
             type="text"
@@ -396,7 +396,7 @@ export default function Weather() {
               <span className="w-12 shrink-0" style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-primary)' }}>{day.day}</span>
               <WeatherIcon condition={day.condition} size={22} />
               <span className="w-8 text-right shrink-0" style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{convert(day.low)}°</span>
-              <div className="flex-1 relative" style={{ height: 4, background: 'var(--border-subtle)', borderRadius: 2 }}>
+              <div className="flex-1 relative" style={{ height: 4, background: 'var(--border-subtle)', borderRadius: 'var(--radius-sm)' }}>
                 <div
                   className="absolute h-full rounded-full"
                   style={{

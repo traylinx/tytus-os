@@ -117,7 +117,7 @@ export default function ImageGallery() {
     <div className="h-full flex flex-col" style={{ background: 'var(--bg-window)' }}>
       {/* Toolbar */}
       <div className="flex items-center gap-2 px-3 py-1.5 shrink-0" style={{ background: 'var(--bg-titlebar)', borderBottom: '1px solid var(--border-subtle)' }}>
-        <button onClick={() => fileInputRef.current?.click()} className="flex items-center gap-1 px-2.5 py-1 rounded text-xs font-medium" style={{ background: 'var(--accent-primary)', color: 'white' }}>
+        <button onClick={() => fileInputRef.current?.click()} className="flex items-center gap-1 px-2.5 py-1 rounded-sm text-xs font-medium" style={{ background: 'var(--accent-primary)', color: 'white' }}>
           <Plus size={12} /> Add Images
         </button>
         <input ref={fileInputRef} type="file" accept="image/*" multiple onChange={handleFileUpload} className="hidden" />
@@ -125,10 +125,10 @@ export default function ImageGallery() {
         <div className="w-px h-5 mx-1" style={{ background: 'var(--border-subtle)' }} />
 
         {/* View toggle */}
-        <button onClick={() => setViewMode('grid')} className="p-1 rounded" style={{ background: viewMode === 'grid' ? 'var(--bg-active)' : 'transparent' }}>
+        <button onClick={() => setViewMode('grid')} className="p-1 rounded-sm" style={{ background: viewMode === 'grid' ? 'var(--bg-active)' : 'transparent' }}>
           <LayoutGrid size={14} style={{ color: viewMode === 'grid' ? 'var(--accent-primary)' : 'var(--text-secondary)' }} />
         </button>
-        <button onClick={() => setViewMode('masonry')} className="p-1 rounded" style={{ background: viewMode === 'masonry' ? 'var(--bg-active)' : 'transparent' }}>
+        <button onClick={() => setViewMode('masonry')} className="p-1 rounded-sm" style={{ background: viewMode === 'masonry' ? 'var(--bg-active)' : 'transparent' }}>
           <LayoutList size={14} style={{ color: viewMode === 'masonry' ? 'var(--accent-primary)' : 'var(--text-secondary)' }} />
         </button>
 
@@ -138,7 +138,7 @@ export default function ImageGallery() {
         <select
           value={sortMode}
           onChange={(e) => setSortMode(e.target.value as SortMode)}
-          className="text-xs px-1 py-0.5 rounded outline-none"
+          className="text-xs px-1 py-0.5 rounded-sm outline-none"
           style={{ background: 'var(--bg-input)', color: 'var(--text-primary)', border: '1px solid var(--border-default)' }}
         >
           <option value="date">Date</option>
@@ -150,7 +150,7 @@ export default function ImageGallery() {
         <select
           value={filterMode}
           onChange={(e) => setFilterMode(e.target.value as FilterMode)}
-          className="text-xs px-1 py-0.5 rounded outline-none"
+          className="text-xs px-1 py-0.5 rounded-sm outline-none"
           style={{ background: 'var(--bg-input)', color: 'var(--text-primary)', border: '1px solid var(--border-default)' }}
         >
           <option value="all">All</option>
@@ -166,7 +166,7 @@ export default function ImageGallery() {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search..."
-            className="text-xs px-1.5 py-0.5 rounded outline-none w-28"
+            className="text-xs px-1.5 py-0.5 rounded-sm outline-none w-28"
             style={{ background: 'var(--bg-input)', color: 'var(--text-primary)', border: '1px solid var(--border-default)' }}
           />
         </div>
@@ -181,7 +181,7 @@ export default function ImageGallery() {
           <div className="flex flex-col items-center justify-center h-full gap-3">
             <Image size={48} className="text-[var(--text-disabled)]" />
             <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>No images found</p>
-            <button onClick={() => fileInputRef.current?.click()} className="flex items-center gap-1 px-3 py-1.5 rounded text-xs" style={{ background: 'var(--accent-primary)', color: 'white' }}>
+            <button onClick={() => fileInputRef.current?.click()} className="flex items-center gap-1 px-3 py-1.5 rounded-sm text-xs" style={{ background: 'var(--accent-primary)', color: 'white' }}>
               <Plus size={12} /> Upload Images
             </button>
           </div>
@@ -207,7 +207,7 @@ export default function ImageGallery() {
                 </div>
                 <button
                   onClick={(e) => { e.stopPropagation(); deleteImage(img.id); }}
-                  className="absolute top-1 right-1 p-1 rounded bg-black/40 text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                  className="absolute top-1 right-1 p-1 rounded-sm bg-black/40 text-white opacity-0 group-hover:opacity-100 transition-opacity"
                 >
                   <Trash2 size={10} />
                 </button>

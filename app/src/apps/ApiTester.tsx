@@ -225,7 +225,7 @@ export default function ApiTester() {
         <select
           value={method}
           onChange={(e) => setMethod(e.target.value as HttpMethod)}
-          className="text-xs font-semibold px-2 py-1.5 rounded outline-none"
+          className="text-xs font-semibold px-2 py-1.5 rounded-sm outline-none"
           style={{ background: 'var(--bg-input)', color: METHOD_COLORS[method], border: '1px solid var(--border-default)', width: 90 }}
         >
           {Object.keys(METHOD_COLORS).map((m) => <option key={m} value={m}>{m}</option>)}
@@ -234,18 +234,18 @@ export default function ApiTester() {
           value={url}
           onChange={(e) => setUrl(e.target.value)}
           placeholder="https://api.example.com/users"
-          className="flex-1 px-3 py-1.5 rounded text-xs outline-none"
+          className="flex-1 px-3 py-1.5 rounded-sm text-xs outline-none"
           style={{ background: 'var(--bg-input)', color: 'var(--text-primary)', border: '1px solid var(--border-default)', fontFamily: "'JetBrains Mono', monospace" }}
         />
         <button
           onClick={sendRequest}
           disabled={loading || !url}
-          className="flex items-center gap-1 px-4 py-1.5 rounded text-xs font-medium disabled:opacity-50 transition-all"
+          className="flex items-center gap-1 px-4 py-1.5 rounded-sm text-xs font-medium disabled:opacity-50 transition-all"
           style={{ background: 'var(--accent-primary)', color: 'white' }}
         >
           <Send size={13} /> {loading ? 'Sending...' : 'Send'}
         </button>
-        <button onClick={saveRequest} className="p-1.5 rounded hover:bg-[var(--bg-hover)]" title="Save request">
+        <button onClick={saveRequest} className="p-1.5 rounded-sm hover:bg-[var(--bg-hover)]" title="Save request">
           <Star size={14} style={{ color: 'var(--text-secondary)' }} />
         </button>
       </div>
@@ -269,7 +269,7 @@ export default function ApiTester() {
               </button>
             ))}
             <div className="ml-auto flex items-center gap-1">
-              <button onClick={() => setShowSaved((v) => !v)} className="flex items-center gap-1 text-xs px-2 py-0.5 rounded hover:bg-[var(--bg-hover)]">
+              <button onClick={() => setShowSaved((v) => !v)} className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-sm hover:bg-[var(--bg-hover)]">
                 <Save size={10} /> Saved
               </button>
             </div>
@@ -286,20 +286,20 @@ export default function ApiTester() {
                       value={p.key}
                       onChange={(e) => updateParam(p.id, 'key', e.target.value)}
                       placeholder="Key"
-                      className="flex-1 px-2 py-1 rounded text-xs outline-none"
+                      className="flex-1 px-2 py-1 rounded-sm text-xs outline-none"
                       style={{ background: 'var(--bg-input)', color: 'var(--text-primary)', border: '1px solid var(--border-default)' }}
                     />
                     <input
                       value={p.value}
                       onChange={(e) => updateParam(p.id, 'value', e.target.value)}
                       placeholder="Value"
-                      className="flex-1 px-2 py-1 rounded text-xs outline-none"
+                      className="flex-1 px-2 py-1 rounded-sm text-xs outline-none"
                       style={{ background: 'var(--bg-input)', color: 'var(--text-primary)', border: '1px solid var(--border-default)' }}
                     />
-                    <button onClick={() => removeParam(p.id)} className="p-1 rounded hover:bg-[var(--bg-hover)]"><Trash2 size={12} /></button>
+                    <button onClick={() => removeParam(p.id)} className="p-1 rounded-sm hover:bg-[var(--bg-hover)]"><Trash2 size={12} /></button>
                   </div>
                 ))}
-                <button onClick={addParam} className="flex items-center gap-1 text-xs px-2 py-1 rounded hover:bg-[var(--bg-hover)] mt-1">
+                <button onClick={addParam} className="flex items-center gap-1 text-xs px-2 py-1 rounded-sm hover:bg-[var(--bg-hover)] mt-1">
                   <Plus size={12} /> Add Parameter
                 </button>
               </div>
@@ -314,20 +314,20 @@ export default function ApiTester() {
                       value={h.key}
                       onChange={(e) => updateHeader(h.id, 'key', e.target.value)}
                       placeholder="Header"
-                      className="flex-1 px-2 py-1 rounded text-xs outline-none"
+                      className="flex-1 px-2 py-1 rounded-sm text-xs outline-none"
                       style={{ background: 'var(--bg-input)', color: 'var(--text-primary)', border: '1px solid var(--border-default)' }}
                     />
                     <input
                       value={h.value}
                       onChange={(e) => updateHeader(h.id, 'value', e.target.value)}
                       placeholder="Value"
-                      className="flex-1 px-2 py-1 rounded text-xs outline-none"
+                      className="flex-1 px-2 py-1 rounded-sm text-xs outline-none"
                       style={{ background: 'var(--bg-input)', color: 'var(--text-primary)', border: '1px solid var(--border-default)' }}
                     />
-                    <button onClick={() => removeHeader(h.id)} className="p-1 rounded hover:bg-[var(--bg-hover)]"><Trash2 size={12} /></button>
+                    <button onClick={() => removeHeader(h.id)} className="p-1 rounded-sm hover:bg-[var(--bg-hover)]"><Trash2 size={12} /></button>
                   </div>
                 ))}
-                <button onClick={addHeader} className="flex items-center gap-1 text-xs px-2 py-1 rounded hover:bg-[var(--bg-hover)] mt-1">
+                <button onClick={addHeader} className="flex items-center gap-1 text-xs px-2 py-1 rounded-sm hover:bg-[var(--bg-hover)] mt-1">
                   <Plus size={12} /> Add Header
                 </button>
               </div>
@@ -339,7 +339,7 @@ export default function ApiTester() {
                 onChange={(e) => setBody(e.target.value)}
                 placeholder="Request body (JSON, text, etc.)"
                 spellCheck={false}
-                className="w-full h-full min-h-[200px] resize-none outline-none p-3 rounded text-xs custom-scrollbar"
+                className="w-full h-full min-h-[200px] resize-none outline-none p-3 rounded-sm text-xs custom-scrollbar"
                 style={{ background: 'var(--bg-input)', color: 'var(--text-primary)', border: '1px solid var(--border-default)', fontFamily: "'JetBrains Mono', monospace" }}
               />
             )}
@@ -353,7 +353,7 @@ export default function ApiTester() {
                 <button
                   key={i}
                   onClick={() => loadEndpoint(ep)}
-                  className="flex items-center gap-2 text-xs px-2 py-1 rounded hover:bg-[var(--bg-hover)] text-left"
+                  className="flex items-center gap-2 text-xs px-2 py-1 rounded-sm hover:bg-[var(--bg-hover)] text-left"
                 >
                   <span className="font-semibold" style={{ color: METHOD_COLORS[ep.method] }}>{ep.method}</span>
                   <span className="truncate" style={{ color: 'var(--text-secondary)' }}>{ep.url}</span>
@@ -370,12 +370,12 @@ export default function ApiTester() {
             <div className="flex-1 overflow-auto p-3 custom-scrollbar">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs font-semibold" style={{ color: 'var(--text-secondary)' }}>SAVED REQUESTS</span>
-                <button onClick={() => setShowSaved(false)} className="text-xs px-2 py-0.5 rounded hover:bg-[var(--bg-hover)]">Close</button>
+                <button onClick={() => setShowSaved(false)} className="text-xs px-2 py-0.5 rounded-sm hover:bg-[var(--bg-hover)]">Close</button>
               </div>
               {savedRequests.map((req) => (
                 <div
                   key={req.id}
-                  className="flex items-center gap-2 p-2 rounded mb-1 cursor-pointer hover:bg-[var(--bg-hover)]"
+                  className="flex items-center gap-2 p-2 rounded-sm mb-1 cursor-pointer hover:bg-[var(--bg-hover)]"
                   onClick={() => { loadSaved(req); setShowSaved(false); }}
                 >
                   <span className="text-xs font-semibold" style={{ color: METHOD_COLORS[req.method] }}>{req.method}</span>
@@ -396,7 +396,7 @@ export default function ApiTester() {
                   </span>
                   <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>{response.time}ms</span>
                   <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>{prettyBody.length} chars</span>
-                  <button onClick={copyResponse} className="ml-auto flex items-center gap-1 text-xs px-2 py-0.5 rounded hover:bg-[var(--bg-hover)]">
+                  <button onClick={copyResponse} className="ml-auto flex items-center gap-1 text-xs px-2 py-0.5 rounded-sm hover:bg-[var(--bg-hover)]">
                     <Copy size={10} /> {copied ? 'Copied!' : 'Copy'}
                   </button>
                 </div>

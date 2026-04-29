@@ -107,12 +107,12 @@ const UpgradeDaemonScreen = memo(function UpgradeDaemonScreen({
           style={{ color: "var(--text-secondary, rgba(255,255,255,0.75))" }}
         >
           TytusOS needs at least{" "}
-          <code className="font-mono text-xs px-1 py-0.5 rounded"
+          <code className="font-mono text-xs px-1 py-0.5 rounded-sm"
                 style={{ background: "var(--bg-code, rgba(255,255,255,0.08))" }}>
             tytus-tray {MIN_DAEMON_VERSION}
           </code>{" "}
           to render correctly. Detected:{" "}
-          <code className="font-mono text-xs px-1 py-0.5 rounded"
+          <code className="font-mono text-xs px-1 py-0.5 rounded-sm"
                 style={{ background: "var(--bg-code, rgba(255,255,255,0.08))" }}>
             {detectedVersion ?? "unknown (pre-version daemon)"}
           </code>
@@ -127,7 +127,7 @@ const UpgradeDaemonScreen = memo(function UpgradeDaemonScreen({
             Upgrade in one line
           </span>
           <div
-            className="font-mono text-xs p-3 rounded flex items-start gap-3"
+            className="font-mono text-xs p-3 rounded-sm flex items-start gap-3"
             style={{
               background: "var(--bg-code, rgba(0,0,0,0.4))",
               color: "var(--text-primary, #fff)",
@@ -139,7 +139,7 @@ const UpgradeDaemonScreen = memo(function UpgradeDaemonScreen({
             <button
               onClick={onCopy}
               aria-label="Copy upgrade command"
-              className="flex-shrink-0 p-1.5 rounded hover:bg-white/10 transition-colors"
+              className="flex-shrink-0 p-1.5 rounded-sm hover:bg-white/10 transition-colors"
               style={{ color: "var(--text-secondary)" }}
             >
               {copied ? <Check size={14} /> : <Copy size={14} />}

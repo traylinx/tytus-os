@@ -226,7 +226,7 @@ const Calendar: React.FC = () => {
               <button
                 key={e.id}
                 onClick={() => { setCurrentDate(new Date(e.date + 'T00:00:00')); setView('day'); }}
-                className="flex items-start gap-2 w-full py-1.5 text-left hover:bg-[var(--bg-hover)] rounded px-1 transition-colors"
+                className="flex items-start gap-2 w-full py-1.5 text-left hover:bg-[var(--bg-hover)] rounded-sm px-1 transition-colors"
               >
                 <div className="w-2 h-2 rounded-full mt-1 shrink-0" style={{ background: e.color }} />
                 <div className="min-w-0">
@@ -250,13 +250,13 @@ const Calendar: React.FC = () => {
             </h2>
           </div>
           <div className="flex items-center gap-1">
-            <button onClick={navigatePrev} className="p-1.5 rounded hover:bg-[var(--bg-hover)] text-[var(--text-secondary)]">
+            <button onClick={navigatePrev} className="p-1.5 rounded-sm hover:bg-[var(--bg-hover)] text-[var(--text-secondary)]">
               <ChevronLeft size={16} />
             </button>
-            <button onClick={goToday} className="px-3 py-1.5 rounded text-xs font-medium hover:bg-[var(--bg-hover)] text-[var(--text-primary)]">
+            <button onClick={goToday} className="px-3 py-1.5 rounded-sm text-xs font-medium hover:bg-[var(--bg-hover)] text-[var(--text-primary)]">
               Today
             </button>
-            <button onClick={navigateNext} className="p-1.5 rounded hover:bg-[var(--bg-hover)] text-[var(--text-secondary)]">
+            <button onClick={navigateNext} className="p-1.5 rounded-sm hover:bg-[var(--bg-hover)] text-[var(--text-secondary)]">
               <ChevronRight size={16} />
             </button>
             <div className="w-px h-5 mx-2" style={{ background: 'var(--border-subtle)' }} />
@@ -264,7 +264,7 @@ const Calendar: React.FC = () => {
               <button
                 key={v}
                 onClick={() => setView(v)}
-                className="px-3 py-1.5 rounded text-xs capitalize font-medium transition-colors"
+                className="px-3 py-1.5 rounded-sm text-xs capitalize font-medium transition-colors"
                 style={{
                   background: view === v ? 'var(--accent-primary)' : 'transparent',
                   color: view === v ? 'white' : 'var(--text-primary)',
@@ -315,7 +315,7 @@ const Calendar: React.FC = () => {
                         <div
                           key={e.id}
                           onClick={ev => { ev.stopPropagation(); setViewingEvent(e); }}
-                          className="text-[10px] truncate px-1 py-0.5 rounded"
+                          className="text-[10px] truncate px-1 py-0.5 rounded-sm"
                           style={{ background: e.color + '20', color: e.color, borderLeft: `2px solid ${e.color}` }}
                         >
                           {e.title}
@@ -365,7 +365,7 @@ const Calendar: React.FC = () => {
                         <button
                           key={e.id}
                           onClick={() => setViewingEvent(e)}
-                          className="absolute inset-x-0.5 top-0.5 bottom-0.5 rounded text-[10px] px-1 text-left truncate"
+                          className="absolute inset-x-0.5 top-0.5 bottom-0.5 rounded-sm text-[10px] px-1 text-left truncate"
                           style={{ background: e.color + '30', color: e.color, borderLeft: `2px solid ${e.color}` }}
                         >
                           {e.title}
@@ -395,7 +395,7 @@ const Calendar: React.FC = () => {
                       <button
                         key={e.id}
                         onClick={() => setViewingEvent(e)}
-                        className="block w-full text-left px-3 py-2 rounded mx-1 mb-1 text-xs"
+                        className="block w-full text-left px-3 py-2 rounded-sm mx-1 mb-1 text-xs"
                         style={{ background: e.color + '20', color: e.color, borderLeft: `3px solid ${e.color}` }}
                       >
                         <span className="font-semibold">{e.title}</span>

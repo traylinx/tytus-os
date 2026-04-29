@@ -455,7 +455,7 @@ const ColumnsSkeleton: FC = () => (
     {[0, 1].map((col) => (
       <div key={col}>
         <div
-          className="h-3 w-20 mb-3 rounded"
+          className="h-3 w-20 mb-3 rounded-sm"
           style={{ background: 'var(--border-subtle)' }}
         />
         <div className="flex flex-col gap-2">
@@ -494,7 +494,7 @@ const ErrorBlock: FC<{ message: string; onRetry: () => void }> = ({
       </div>
       <button
         onClick={onRetry}
-        className="text-[11px] px-2 py-0.5 rounded transition-colors"
+        className="text-[11px] px-2 py-0.5 rounded-sm transition-colors"
         style={{
           color: '#FFCDD2',
           background: 'rgba(255,255,255,0.05)',
@@ -620,7 +620,7 @@ const AddChannelModal: FC<AddChannelModalProps> = ({
           <button
             onClick={onCancel}
             aria-label="Close"
-            className="p-1 rounded transition-colors"
+            className="p-1 rounded-sm transition-colors"
             style={{ color: 'var(--text-secondary)' }}
           >
             <X size={14} />

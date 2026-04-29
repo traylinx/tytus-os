@@ -162,7 +162,7 @@ export default function Reminders() {
         <div className="p-3 border-b" style={{ borderColor: 'var(--border-subtle)', background: 'var(--bg-panel)' }}>
           <div className="flex items-center justify-between mb-2">
             <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{editingId ? 'Edit' : 'New'} Reminder</span>
-            <button onClick={() => { setShowForm(false); resetForm(); }} className="p-1 rounded"><X size={14} style={{ color: 'var(--text-secondary)' }} /></button>
+            <button onClick={() => { setShowForm(false); resetForm(); }} className="p-1 rounded-sm"><X size={14} style={{ color: 'var(--text-secondary)' }} /></button>
           </div>
           <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Reminder title..." className="w-full px-2.5 py-1.5 rounded-md text-sm mb-2 outline-none" style={{ background: 'var(--bg-input)', color: 'var(--text-primary)', border: '1px solid var(--border-subtle)' }} />
           <div className="flex gap-2 mb-2">
@@ -172,7 +172,7 @@ export default function Reminders() {
           <div className="flex items-center gap-2 mb-2">
             <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>Priority:</span>
             {(['low', 'medium', 'high'] as const).map(p => (
-              <button key={p} onClick={() => setPriority(p)} className="flex items-center gap-1 px-2 py-0.5 rounded text-xs capitalize transition-colors" style={{ background: priority === p ? PRIORITY_COLORS[p].bg : 'transparent', color: priority === p ? PRIORITY_COLORS[p].text : 'var(--text-secondary)', border: `1px solid ${priority === p ? PRIORITY_COLORS[p].border : 'transparent'}` }}>
+              <button key={p} onClick={() => setPriority(p)} className="flex items-center gap-1 px-2 py-0.5 rounded-sm text-xs capitalize transition-colors" style={{ background: priority === p ? PRIORITY_COLORS[p].bg : 'transparent', color: priority === p ? PRIORITY_COLORS[p].text : 'var(--text-secondary)', border: `1px solid ${priority === p ? PRIORITY_COLORS[p].border : 'transparent'}` }}>
                 <Flag size={10} /> {p}
               </button>
             ))}
@@ -209,13 +209,13 @@ export default function Reminders() {
                       <span className="flex items-center gap-0.5 text-xs" style={{ color: 'var(--text-disabled)' }}>
                         <Clock size={10} /> {r.time}
                       </span>
-                      <span className="text-xs px-1 rounded" style={{ background: pc.bg, color: pc.text }}>{r.priority}</span>
+                      <span className="text-xs px-1 rounded-sm" style={{ background: pc.bg, color: pc.text }}>{r.priority}</span>
                       {isOverdue && <AlertCircle size={10} style={{ color: 'var(--accent-error)' }} />}
                     </div>
                   </div>
                   <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button onClick={() => startEdit(r)} className="p-1 rounded" style={{ color: 'var(--text-secondary)' }}><Edit2 size={12} /></button>
-                    <button onClick={() => deleteReminder(r.id)} className="p-1 rounded" style={{ color: 'var(--accent-error)' }}><Trash2 size={12} /></button>
+                    <button onClick={() => startEdit(r)} className="p-1 rounded-sm" style={{ color: 'var(--text-secondary)' }}><Edit2 size={12} /></button>
+                    <button onClick={() => deleteReminder(r.id)} className="p-1 rounded-sm" style={{ color: 'var(--accent-error)' }}><Trash2 size={12} /></button>
                   </div>
                 </div>
               );

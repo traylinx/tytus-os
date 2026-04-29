@@ -341,7 +341,7 @@ const ClockApp: React.FC = () => {
                   type="number"
                   value={alarmHour}
                   onChange={e => setAlarmHour(Math.max(0, Math.min(23, Number(e.target.value))))}
-                  className="w-16 h-10 text-center rounded text-lg text-[var(--text-primary)] outline-none"
+                  className="w-16 h-10 text-center rounded-sm text-lg text-[var(--text-primary)] outline-none"
                   style={{ background: 'var(--bg-input)', border: '1px solid var(--border-default)' }}
                 />
                 <span className="text-xl text-[var(--text-primary)]">:</span>
@@ -349,7 +349,7 @@ const ClockApp: React.FC = () => {
                   type="number"
                   value={String(alarmMinute).padStart(2, '0')}
                   onChange={e => setAlarmMinute(Math.max(0, Math.min(59, Number(e.target.value))))}
-                  className="w-16 h-10 text-center rounded text-lg text-[var(--text-primary)] outline-none"
+                  className="w-16 h-10 text-center rounded-sm text-lg text-[var(--text-primary)] outline-none"
                   style={{ background: 'var(--bg-input)', border: '1px solid var(--border-default)' }}
                 />
               </div>
@@ -357,7 +357,7 @@ const ClockApp: React.FC = () => {
                 value={alarmLabel}
                 onChange={e => setAlarmLabel(e.target.value)}
                 placeholder="Label"
-                className="w-full h-8 px-3 rounded text-xs text-[var(--text-primary)] outline-none mb-2 placeholder:text-[var(--text-disabled)]"
+                className="w-full h-8 px-3 rounded-sm text-xs text-[var(--text-primary)] outline-none mb-2 placeholder:text-[var(--text-disabled)]"
                 style={{ background: 'var(--bg-input)', border: '1px solid var(--border-default)' }}
               />
               <div className="flex gap-1 mb-3">
@@ -376,8 +376,8 @@ const ClockApp: React.FC = () => {
                 ))}
               </div>
               <div className="flex gap-2">
-                <button onClick={() => setShowAddAlarm(false)} className="px-3 py-1.5 rounded text-xs text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]">Cancel</button>
-                <button onClick={addAlarm} className="px-4 py-1.5 rounded text-xs font-medium text-white" style={{ background: 'var(--accent-primary)' }}>Save</button>
+                <button onClick={() => setShowAddAlarm(false)} className="px-3 py-1.5 rounded-sm text-xs text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]">Cancel</button>
+                <button onClick={addAlarm} className="px-4 py-1.5 rounded-sm text-xs font-medium text-white" style={{ background: 'var(--accent-primary)' }}>Save</button>
               </div>
             </div>
           )}
@@ -440,7 +440,7 @@ const ClockApp: React.FC = () => {
               <button
                 key={m}
                 onClick={() => { setTimerRunning(false); setTimerHours(0); setTimerMinutes(m); setTimerSeconds(0); setTimerLeft(m * 60); }}
-                className="px-2.5 py-1 rounded text-[10px] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] transition-colors"
+                className="px-2.5 py-1 rounded-sm text-[10px] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] transition-colors"
                 style={{ border: '1px solid var(--border-default)' }}
               >
                 {m}m
@@ -455,7 +455,7 @@ const ClockApp: React.FC = () => {
                 type="number"
                 value={timerHours}
                 onChange={e => { setTimerHours(Number(e.target.value)); if (!timerRunning) setTimerLeft(Number(e.target.value) * 3600 + timerMinutes * 60 + timerSeconds); }}
-                className="w-14 h-10 text-center rounded text-sm text-[var(--text-primary)] outline-none"
+                className="w-14 h-10 text-center rounded-sm text-sm text-[var(--text-primary)] outline-none"
                 style={{ background: 'var(--bg-input)', border: '1px solid var(--border-default)' }}
               />
               <div className="text-[10px] text-[var(--text-secondary)]">HRS</div>
@@ -466,7 +466,7 @@ const ClockApp: React.FC = () => {
                 type="number"
                 value={timerMinutes}
                 onChange={e => { setTimerMinutes(Number(e.target.value)); if (!timerRunning) setTimerLeft(timerHours * 3600 + Number(e.target.value) * 60 + timerSeconds); }}
-                className="w-14 h-10 text-center rounded text-sm text-[var(--text-primary)] outline-none"
+                className="w-14 h-10 text-center rounded-sm text-sm text-[var(--text-primary)] outline-none"
                 style={{ background: 'var(--bg-input)', border: '1px solid var(--border-default)' }}
               />
               <div className="text-[10px] text-[var(--text-secondary)]">MIN</div>
@@ -477,7 +477,7 @@ const ClockApp: React.FC = () => {
                 type="number"
                 value={timerSeconds}
                 onChange={e => { setTimerSeconds(Number(e.target.value)); if (!timerRunning) setTimerLeft(timerHours * 3600 + timerMinutes * 60 + Number(e.target.value)); }}
-                className="w-14 h-10 text-center rounded text-sm text-[var(--text-primary)] outline-none"
+                className="w-14 h-10 text-center rounded-sm text-sm text-[var(--text-primary)] outline-none"
                 style={{ background: 'var(--bg-input)', border: '1px solid var(--border-default)' }}
               />
               <div className="text-[10px] text-[var(--text-secondary)]">SEC</div>

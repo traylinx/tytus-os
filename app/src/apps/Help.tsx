@@ -267,7 +267,7 @@ const RunPanel: FC<RunPanelProps> = ({ kind }) => {
               {done && (
                 <button
                   onClick={() => setJob(null)}
-                  className="px-2 py-0.5 rounded text-[10px] transition-colors"
+                  className="px-2 py-0.5 rounded-sm text-[10px] transition-colors"
                   style={{
                     background: 'var(--bg-hover, rgba(255,255,255,0.04))',
                     color: 'var(--text-secondary)',
@@ -466,7 +466,7 @@ const LogsPanel: FC = () => {
           background: '#0A0A0A',
           color: '#CFCFCF',
           margin: 16,
-          borderRadius: 6,
+          borderRadius: 'var(--radius-sm)',
           border: '1px solid var(--border-subtle)',
         }}
       >
