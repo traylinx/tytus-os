@@ -8,6 +8,8 @@ import {
   Trash2, Lock, Check, Folder,
   Download,
 } from 'lucide-react';
+import { useCurrentWindowArgs } from '@/hooks/useCurrentWindow';
+import OpenedFileBanner from '@/components/OpenedFileBanner';
 import { useFileSystem } from '@/hooks/useFileSystem';
 
 interface ArchiveEntry {
@@ -155,8 +157,18 @@ const ArchiveManager: React.FC = () => {
     return result;
   };
 
+  const launchedWith = useCurrentWindowArgs();
+
   return (
-    <div className="flex h-full" style={{ background: 'var(--bg-window)' }}>
+    <div className="flex flex-col h-full" style={{ background: 'var(--bg-window)' }}>
+      {launchedWith?.file && (
+        <OpenedFileBanner
+          file={launchedWith.file}
+          podId={launchedWith.podId}
+          appName="Archive Manager"
+        />
+      )}
+      <div className="flex flex-1 min-h-0">
       {/* Sidebar - Archive list */}
       <div className="w-56 shrink-0 border-r flex flex-col" style={{ borderColor: 'var(--border-subtle)', background: 'var(--bg-titlebar)' }}>
         <div className="p-2">
@@ -352,6 +364,7 @@ const ArchiveManager: React.FC = () => {
             )}
           </div>
         )}
+      </div>
       </div>
     </div>
   );

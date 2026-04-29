@@ -4,6 +4,8 @@ import {
   ChevronLeft, ChevronRight, Type, Eye
 } from 'lucide-react';
 import { useFileSystem } from '@/hooks/useFileSystem';
+import { useCurrentWindowArgs } from '@/hooks/useCurrentWindow';
+import OpenedFileBanner from '@/components/OpenedFileBanner';
 
 interface DocumentViewerProps {
   fileNodeId?: string;
@@ -146,8 +148,17 @@ export default function DocumentViewer({ fileNodeId }: DocumentViewerProps) {
     );
   }, [fs.nodes]);
 
+  const launchedWith = useCurrentWindowArgs();
+
   return (
     <div className="flex flex-col h-full" style={{ background: 'var(--bg-window)' }}>
+      {launchedWith?.file && (
+        <OpenedFileBanner
+          file={launchedWith.file}
+          podId={launchedWith.podId}
+          appName="Document Viewer"
+        />
+      )}
       {/* Toolbar */}
       <div className="flex items-center gap-1 px-2 py-1.5 border-b" style={{ borderColor: 'var(--border-subtle)', background: 'var(--bg-panel)' }}>
         <button onClick={() => setShowFilePicker(true)} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-sm transition-colors" style={{ color: 'var(--text-primary)' }} onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-hover)')} onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>

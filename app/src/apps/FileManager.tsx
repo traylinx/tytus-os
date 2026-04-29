@@ -63,8 +63,10 @@ import { useDaemonStateContext } from '@/hooks/useDaemonStateContext';
 import { useJobStream } from '@/hooks/useJobStream';
 import { useHashRoute } from '@/hooks/useHashRoute';
 import { navigate } from '@/lib/router';
+import { getFileAssociation } from '@/hooks/useFileSystem';
 import type { Agent, Binding } from '@/types/daemon';
 import type { DaemonClient } from '@/lib/daemon';
+import type { ContextMenuItem } from '@/types';
 
 type TabId = 'inbox' | 'downloads' | 'shared';
 
@@ -384,13 +386,84 @@ const TabStrip: FC<{
 // InboxTab — auto-fires ls-inbox on mount + on pod switch
 // ============================================================
 
+/**
+ * Phase 7 cont — open-with hooks for Image / Document / Archive.
+ *
+ * Inbox rows arrive as raw `ls` output ("photo.png 245K Apr 28 14:22" or
+ * just "photo.png"); we take the first whitespace-separated token as
+ * the file name. Returns null when the extension has no association in
+ * FILE_ASSOCIATIONS (then no menu opens), or when the matched app is
+ * not Image / Document / Archive (TextEditor, CodeEditor, … each have
+ * their own pre-existing default-open path elsewhere).
+ */
+const OPEN_WITH_VIEWERS: ReadonlyArray<{
+  appId: string;
+  label: string;
+  icon: string;
+}> = [
+  { appId: 'imageviewer', label: 'Open with Image Viewer', icon: 'Image' },
+  { appId: 'documentviewer', label: 'Open with Document Viewer', icon: 'File' },
+  { appId: 'archivemanager', label: 'Open with Archive Manager', icon: 'Package' },
+];
+
+export const buildFileOpenWithMenu = (
+  filename: string,
+): ContextMenuItem[] | null => {
+  const assoc = getFileAssociation(filename);
+  if (!assoc) return null;
+  if (!OPEN_WITH_VIEWERS.some((v) => v.appId === assoc.appId)) return null;
+  return [
+    {
+      id: 'open-with-default',
+      label: OPEN_WITH_VIEWERS.find((v) => v.appId === assoc.appId)!.label,
+      icon: OPEN_WITH_VIEWERS.find((v) => v.appId === assoc.appId)!.icon,
+      action: `OPEN_APP_WITH_FILE:${assoc.appId}`,
+    },
+  ];
+};
+
+export const inboxLineToFilename = (line: string): string => {
+  const trimmed = line.trim();
+  if (!trimmed) return '';
+  // Take the first whitespace-separated token. `ls -l` output starts with
+  // mode bits, so prefer the LAST token if it contains a `.` and the line
+  // has multiple tokens — that's the filename in `ls -l`. Bare `ls` output
+  // is single-token, so the first-token branch covers that.
+  const parts = trimmed.split(/\s+/);
+  if (parts.length === 1) return parts[0];
+  const last = parts[parts.length - 1];
+  if (last.includes('.')) return last;
+  return parts[0];
+};
+
 const InboxTab: FC<{ agent: Agent; client: DaemonClient }> = ({
   agent,
   client,
 }) => {
+  const { dispatch } = useOS();
   const [job, setJob] = useState<{ id: string } | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitErr, setSubmitErr] = useState<string | null>(null);
+
+  const onFileContext = useCallback(
+    (e: React.MouseEvent, line: string) => {
+      const filename = inboxLineToFilename(line);
+      if (!filename) return;
+      const items = buildFileOpenWithMenu(filename);
+      if (!items) return;
+      e.preventDefault();
+      e.stopPropagation();
+      dispatch({
+        type: 'SHOW_CONTEXT_MENU',
+        x: e.clientX,
+        y: e.clientY,
+        menuType: 'file',
+        items,
+        contextData: { file: filename, podId: agent.pod_id },
+      });
+    },
+    [dispatch, agent.pod_id],
+  );
 
   const onRefresh = useCallback(async () => {
     setSubmitting(true);
@@ -571,7 +644,9 @@ const InboxTab: FC<{ agent: Agent; client: DaemonClient }> = ({
               {lines.map((line, i) => (
                 <li
                   key={`${i}-${line}`}
-                  className="flex items-center gap-2 py-0.5"
+                  className="flex items-center gap-2 py-0.5 cursor-default"
+                  onContextMenu={(e) => onFileContext(e, line)}
+                  title="Right-click for Open with…"
                 >
                   <FileText
                     size={12}

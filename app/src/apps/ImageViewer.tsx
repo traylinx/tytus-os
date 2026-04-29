@@ -6,6 +6,8 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import {
   ZoomIn, ZoomOut, Maximize2, ChevronLeft, ChevronRight, Play, Square, Info, X, RotateCcw
 } from 'lucide-react';
+import { useCurrentWindowArgs } from '@/hooks/useCurrentWindow';
+import OpenedFileBanner from '@/components/OpenedFileBanner';
 
 // ---- Types ----
 interface ImageItem {
@@ -106,9 +108,17 @@ export default function ImageViewer() {
   };
 
   const zoomPercent = Math.round(zoom * 100);
+  const launchedWith = useCurrentWindowArgs();
 
   return (
     <div className="flex flex-col h-full relative" style={{ background: '#0A0A0A' }}>
+      {launchedWith?.file && (
+        <OpenedFileBanner
+          file={launchedWith.file}
+          podId={launchedWith.podId}
+          appName="Image Viewer"
+        />
+      )}
       {/* Top Toolbar */}
       <div
         className="absolute top-0 left-0 right-0 z-20 flex items-center justify-between px-3 transition-opacity"

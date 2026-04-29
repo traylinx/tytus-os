@@ -69,7 +69,12 @@ const generateId = () => Math.random().toString(36).slice(2) + Date.now().toStri
 
 const TOP_PANEL_HEIGHT = 28;
 
-const createWindow = (state: OSState, appId: string, title?: string): Window => {
+const createWindow = (
+  state: OSState,
+  appId: string,
+  title?: string,
+  args?: import('@/types').WindowArgs,
+): Window => {
   const app = getAppById(appId);
   if (!app) throw new Error(`Unknown app: ${appId}`);
   const id = generateId();
@@ -95,6 +100,7 @@ const createWindow = (state: OSState, appId: string, title?: string): Window => 
     zIndex: state.nextZIndex,
     icon: app.icon,
     createdAt: Date.now(),
+    args,
   };
 };
 
@@ -236,7 +242,7 @@ function osReducer(state: OSState, action: OSAction): OSState {
     }
 
     case 'OPEN_WINDOW': {
-      const win = createWindow(state, action.appId, action.title);
+      const win = createWindow(state, action.appId, action.title, action.args);
       const newWindows = state.windows.map((w) => ({ ...w, isFocused: false }));
       const updatedDock = state.dockItems.map((d) =>
         d.appId === action.appId ? { ...d, isOpen: true, isFocused: true, bounce: true } : { ...d, isFocused: false }

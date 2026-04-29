@@ -116,11 +116,36 @@ const ContextMenu = memo(function ContextMenu() {
   );
 });
 
-function handleMenuAction(action: string, _state: unknown, dispatch: React.Dispatch<import('@/types').OSAction>) {
+function handleMenuAction(
+  action: string,
+  state: import('@/types').OSState | unknown,
+  dispatch: React.Dispatch<import('@/types').OSAction>,
+) {
   const [cmd, ...args] = action.split(':');
   switch (cmd) {
     case 'OPEN_APP': {
       if (args[0]) dispatch({ type: 'OPEN_WINDOW', appId: args[0] });
+      break;
+    }
+    case 'OPEN_APP_WITH_FILE': {
+      // Phase 7 cont — file open-with hooks. The caller (Files →
+      // right-click) stashes `{ file, podId }` in
+      // contextMenu.contextData; we forward it as window args so each
+      // viewer can render an OpenedFileBanner. The contextData is
+      // shaped by the caller — we accept undefined values silently.
+      const appId = args[0];
+      if (!appId) break;
+      const data =
+        (state as { contextMenu?: { contextData?: Record<string, unknown> } })
+          ?.contextMenu?.contextData ?? {};
+      const file = typeof data.file === 'string' ? data.file : undefined;
+      const podId = typeof data.podId === 'string' ? data.podId : undefined;
+      dispatch({
+        type: 'OPEN_WINDOW',
+        appId,
+        title: file ? `${appId} — ${file}` : undefined,
+        args: file ? { file, podId } : undefined,
+      });
       break;
     }
     case 'NEW_FOLDER':
