@@ -72,7 +72,7 @@ import {
   revealSecret,
   revealTokenUrl,
 } from '@/lib/secrets';
-import type { Agent, IncludedPod } from '@/types/daemon';
+import type { Agent, AgentStatus, IncludedPod } from '@/types/daemon';
 import type { DaemonClient } from '@/lib/daemon';
 
 type SortMode = 'attention' | 'pod_id';
@@ -89,6 +89,28 @@ interface FleetRow {
 type ReadyState = {
   status: 'probing' | 'ready' | 'not_ready' | 'probe_failed' | 'included';
   reason?: string;
+};
+
+/**
+ * Bridge from the server-derived AgentStatus enum (≥ 0.7.0 daemons)
+ * to the local ReadyState shape this component already renders. Lets
+ * us drop /api/pod/ready polling without rewriting FleetView /
+ * TabStrip / PodTab — they keep consuming readyByPod as before.
+ */
+const agentStatusToReadyState = (s: AgentStatus): ReadyState => {
+  switch (s) {
+    case 'ready':
+      return { status: 'ready' };
+    case 'starting':
+      return { status: 'not_ready', reason: 'Starting' };
+    case 'unhealthy':
+      return { status: 'not_ready', reason: 'Unhealthy' };
+    case 'stopped':
+      return { status: 'probe_failed', reason: 'Container down' };
+    case 'unknown':
+    default:
+      return { status: 'probing' };
+  }
 };
 
 const STATUS_RANK: Record<ReadyState['status'], number> = {
@@ -169,9 +191,14 @@ const PodInspector: FC = () => {
     return out;
   }, [daemon.state]);
 
-  // Probe /api/pod/ready for every agent row whenever rows change or
-  // the user clicks Refresh. Included pods are tagged 'included'
-  // without a probe — the daemon doesn't surface readiness for them.
+  // Per-pod readiness. Two paths:
+  //   - New daemons (≥ 0.7.0) emit `agent.status` directly on
+  //     state.agents[]; we map it server-side and skip the probe
+  //     entirely. Drops 15 HTTP requests per poll on Operator-tier.
+  //   - Old daemons omit it; we fall back to the /api/pod/ready probe
+  //     loop (one per agent on each rows-change / Refresh click).
+  // Included pods are tagged 'included' without a probe — the daemon
+  // doesn't surface readiness for them.
   useEffect(() => {
     if (rows.length === 0) return;
     let cancelled = false;
@@ -181,6 +208,9 @@ const PodInspector: FC = () => {
       for (const r of rows) {
         if (r.kind === 'included') {
           next.set(r.pod_id, { status: 'included' });
+        } else if (r.agent?.status !== undefined) {
+          // Daemon already classified — no probe needed.
+          next.set(r.pod_id, agentStatusToReadyState(r.agent.status));
         } else if (!next.has(r.pod_id)) {
           next.set(r.pod_id, { status: 'probing' });
         }
@@ -188,8 +218,10 @@ const PodInspector: FC = () => {
       return next;
     });
 
+    // Only probe agents whose state.agents[].status is missing —
+    // i.e. running against a pre-0.7.0 daemon.
     const promises = rows
-      .filter((r) => r.kind === 'agent')
+      .filter((r) => r.kind === 'agent' && r.agent?.status === undefined)
       .map(async (r) => {
         const probe = await client.getPodReady(r.pod_id);
         if (cancelled) return;

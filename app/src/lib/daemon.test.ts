@@ -33,6 +33,45 @@ describe("daemon client — GET /api/state", () => {
     expect(maskSecret(r.value.agents[0].user_key)).toBe("●●●●…CTED");
   });
 
+  it("agent.status is read through when daemon emits it (≥0.7.0)", async () => {
+    // Phase 2 cont — pin the wire shape: a daemon that includes
+    // `status: "ready"` (or any AgentStatus variant) on each agent
+    // surfaces unchanged through the parser. Old daemons that omit
+    // it still parse fine — covered implicitly by the fixture
+    // (which has no `status` field).
+    const stateWithStatus = {
+      ...stateFixture,
+      agents: stateFixture.agents.map((a, i) => ({
+        ...a,
+        status: i === 0 ? "ready" : "starting",
+      })),
+    };
+    const { fetch } = makeFakeFetch([
+      { method: "GET", path: "/api/state", body: stateWithStatus },
+    ]);
+    const client = createDaemonClient({ fetch });
+    const r = await client.getState();
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.value.agents[0].status).toBe("ready");
+    expect(r.value.agents[1].status).toBe("starting");
+  });
+
+  it("agent.status absent on old-daemon fixture stays undefined (no fabrication)", async () => {
+    const { fetch } = makeFakeFetch([
+      { method: "GET", path: "/api/state", body: stateFixture },
+    ]);
+    const client = createDaemonClient({ fetch });
+    const r = await client.getState();
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    // Important: parser must NOT default to "unknown" or any other
+    // string. Consumers (PodInspector, Settings PodCard) branch on
+    // `agent.status === undefined` to decide whether to fall back
+    // to /api/pod/ready polling.
+    expect(r.value.agents[0].status).toBeUndefined();
+  });
+
   it("classifies network failure as daemon_offline", async () => {
     const fetch = networkErrorFetch(new TypeError("fetch failed"));
     const client = createDaemonClient({ fetch });
