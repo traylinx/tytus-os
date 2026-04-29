@@ -406,6 +406,66 @@ describe("daemon client — other GETs", () => {
     const r = await createDaemonClient({ fetch }).getSharedFolders();
     expect(r.ok).toBe(true);
   });
+
+  it("getPodEnv defaults to redacted (no reveal query param)", async () => {
+    const body = {
+      pod_num: 2,
+      agent_type: "nemoclaw",
+      reveal_secrets: false,
+      vars: [
+        { key: "TYTUS_POD_ID", value: "02", source: "runtime" },
+        { key: "OPENAI_API_KEY", value: "<redacted>", source: "channels" },
+      ],
+    };
+    const { fetch, calls } = makeFakeFetch([
+      { method: "GET", path: "/api/pod/env?pod=02", body },
+    ]);
+    const r = await createDaemonClient({ fetch }).getPodEnv("02");
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.value.reveal_secrets).toBe(false);
+    expect(r.value.vars).toHaveLength(2);
+    // The reveal=secrets query param must NOT be present on the redacted call
+    // — sending it would 403 for non-Operator users.
+    expect(calls[0].url).not.toContain("reveal=secrets");
+  });
+
+  it("getPodEnv passes reveal=secrets when revealSecrets=true", async () => {
+    const body = {
+      pod_num: 2,
+      agent_type: "nemoclaw",
+      reveal_secrets: true,
+      vars: [{ key: "OPENAI_API_KEY", value: "sk-real", source: "channels" }],
+    };
+    const { fetch, calls } = makeFakeFetch([
+      {
+        method: "GET",
+        path: "/api/pod/env?pod=02&reveal=secrets",
+        body,
+      },
+    ]);
+    const r = await createDaemonClient({ fetch }).getPodEnv("02", true);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.value.reveal_secrets).toBe(true);
+    expect(calls[0].url).toContain("reveal=secrets");
+  });
+
+  it("getPodEnv maps daemon 403 to auth_required (Operator gate)", async () => {
+    const { fetch } = makeFakeFetch([
+      {
+        method: "GET",
+        path: "/api/pod/env?pod=02&reveal=secrets",
+        status: 403,
+        body: { error: "plan_required", code: "auth_required" },
+      },
+    ]);
+    const r = await createDaemonClient({ fetch }).getPodEnv("02", true);
+    expect(r.ok).toBe(false);
+    if (r.ok) return;
+    expect(r.error.code).toBe("auth_required");
+    expect(r.error.status).toBe(403);
+  });
 });
 
 describe("daemon client — POSTs", () => {

@@ -58,7 +58,9 @@ import {
   KeyRound,
   Star,
   ScrollText,
+  Variable,
 } from 'lucide-react';
+import PodEnvPane from '@/components/PodEnvPane';
 import { useOS } from '@/hooks/useOSStore';
 import { useDaemonClient } from '@/hooks/useDaemonClient';
 import { useDaemonStateContext } from '@/hooks/useDaemonStateContext';
@@ -946,6 +948,7 @@ const PodTab: FC<PodTabProps> = ({ agent, ready, client, onError, isPinned, onTo
   // re-running its inverse).
   const [confirmUninstall, setConfirmUninstall] = useState(false);
   const [confirmRevoke, setConfirmRevoke] = useState(false);
+  const [envOpen, setEnvOpen] = useState(false);
 
   const onOpenAgent = useCallback(async () => {
     setSubmittingAction('open');
@@ -1298,6 +1301,12 @@ const PodTab: FC<PodTabProps> = ({ agent, ready, client, onError, isPinned, onTo
             disabled={activeJob !== null && !streamDone}
             onClick={onShowLogs}
           />
+          <ActionButton
+            label={envOpen ? 'Hide env' : 'Env'}
+            icon={<Variable size={12} />}
+            title="Show the agent container's effective environment with each variable's source"
+            onClick={() => setEnvOpen((v) => !v)}
+          />
         </div>
 
         <div className="flex flex-wrap gap-2 mt-3 pt-3" style={{ borderTop: '1px solid var(--border-subtle)' }}>
@@ -1322,6 +1331,19 @@ const PodTab: FC<PodTabProps> = ({ agent, ready, client, onError, isPinned, onTo
           />
         </div>
       </div>
+
+      {/* Env pane (manifest A.exist A3.5) — opens beside / above the
+          job stream and survives across actions. Operator-tier users
+          can flip "Reveal secrets" to see real values. */}
+      {envOpen && (
+        <PodEnvPane
+          client={client}
+          podId={agent.pod_id}
+          tier={daemon.state.tier}
+          onClose={() => setEnvOpen(false)}
+          onError={onError}
+        />
+      )}
 
       {/* Live job stream — appears below actions when one runs */}
       {activeJob && (
