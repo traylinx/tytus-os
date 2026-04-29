@@ -107,7 +107,7 @@ const Dock = memo(function Dock() {
           onClick={() => isTrash ? handleTrashClick() : handleAppClick(appId)}
           aria-label={isTrash ? 'Trash' : app?.name || appId}
           title={isTrash ? 'Trash' : app?.name || appId}
-          className="w-10 h-10 rounded-[10px] flex items-center justify-center transition-all"
+          className="w-10 h-10 rounded-md flex items-center justify-center transition-all"
           style={{
             background: isHovered ? 'var(--bg-hover)' : 'transparent',
             transform: isBouncing ? 'translateY(-6px)' : 'scale(1)',
@@ -147,7 +147,7 @@ const Dock = memo(function Dock() {
         background: 'rgba(45,45,45,0.75)',
         backdropFilter: 'blur(20px)',
         WebkitBackdropFilter: 'blur(20px)',
-        borderRadius: 16,
+        borderRadius: 'var(--radius-xl)',
         border: '1px solid var(--border-subtle)',
         animation: 'dockSlideUp 300ms cubic-bezier(0, 0, 0.2, 1)',
         scrollbarWidth: 'none',  // hide scrollbar; user scrolls via wheel/swipe
@@ -158,7 +158,7 @@ const Dock = memo(function Dock() {
         onClick={handleShowApps}
         aria-label="Show applications"
         title="Show applications"
-        className="w-10 h-10 rounded-[10px] flex items-center justify-center hover:bg-[var(--bg-hover)] transition-all"
+        className="w-10 h-10 rounded-md flex items-center justify-center hover:bg-[var(--bg-hover)] transition-all"
         style={{
           background: state.appLauncherOpen ? 'var(--bg-active)' : 'transparent',
         }}

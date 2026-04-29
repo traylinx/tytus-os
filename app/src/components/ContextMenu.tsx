@@ -54,7 +54,7 @@ const ContextMenu = memo(function ContextMenu() {
         minWidth: 180,
         maxWidth: 280,
         background: 'var(--bg-context-menu)',
-        borderRadius: 8,
+        borderRadius: 'var(--radius-md)',
         border: '1px solid var(--border-default)',
         boxShadow: 'var(--shadow-lg)',
         animation: 'ctxAppear 120ms cubic-bezier(0, 0, 0.2, 1)',
@@ -77,7 +77,7 @@ const ContextMenu = memo(function ContextMenu() {
             className="w-full flex items-center gap-2.5 px-3 h-8 text-sm transition-colors"
             style={{
               color: item.disabled ? 'var(--text-disabled)' : 'var(--text-primary)',
-              borderRadius: 4,
+              borderRadius: 'var(--radius-sm)',
               margin: '0 4px',
               width: 'calc(100% - 8px)',
               cursor: item.disabled ? 'not-allowed' : 'pointer',

@@ -203,7 +203,8 @@ const WindowFrame = memo(function WindowFrame({ window: win, children }: WindowF
         width: win.size.width,
         height: win.size.height,
         zIndex: win.zIndex,
-        borderRadius: 12,
+        // Window radius — token from src/index.css (rounded-lg = 12px).
+        borderRadius: 'var(--radius-lg)',
       };
 
   return (
@@ -229,7 +230,7 @@ const WindowFrame = memo(function WindowFrame({ window: win, children }: WindowF
         style={{
           height: 36,
           background: isFocused ? '#1A1A1A' : '#141414',
-          borderRadius: isMaximized ? 0 : '12px 12px 0 0',
+          borderRadius: isMaximized ? 0 : 'var(--radius-lg) var(--radius-lg) 0 0',
           transition: 'background 150ms ease',
           cursor: isMaximized ? 'default' : isDragging ? 'grabbing' : 'grab',
           userSelect: 'none',
@@ -275,7 +276,7 @@ const WindowFrame = memo(function WindowFrame({ window: win, children }: WindowF
             onClick={handleClose}
             onMouseDown={(e) => e.stopPropagation()}
             className="w-9 h-9 flex items-center justify-center text-[var(--text-secondary)] transition-colors"
-            style={{ borderRadius: isMaximized ? 0 : '0 12px 0 0' }}
+            style={{ borderRadius: isMaximized ? 0 : '0 var(--radius-lg) 0 0' }}
             onMouseEnter={(e) => {
               e.currentTarget.style.background = '#F44336';
               e.currentTarget.style.color = 'white';
@@ -297,7 +298,7 @@ const WindowFrame = memo(function WindowFrame({ window: win, children }: WindowF
         className="relative z-10 flex-1 overflow-hidden"
         style={{
           background: 'var(--bg-window)',
-          borderRadius: isMaximized ? 0 : '0 0 12px 12px',
+          borderRadius: isMaximized ? 0 : '0 0 var(--radius-lg) var(--radius-lg)',
         }}
       >
         {children}
