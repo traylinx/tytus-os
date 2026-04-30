@@ -12,6 +12,7 @@ import type {
   DaemonStatus,
   DaemonVersion,
   ErrorEnvelope,
+  FileCopyMoveBody,
   FileList,
   FileListEntry,
   FileMutationSource,
@@ -608,6 +609,16 @@ export interface DaemonClient {
     signal?: AbortSignal,
     idempotencyKey?: string,
   ): Promise<DaemonResult<null>>;
+  postFilesCopy(
+    params: FileCopyMoveBody,
+    signal?: AbortSignal,
+    idempotencyKey?: string,
+  ): Promise<DaemonResult<null>>;
+  postFilesMove(
+    params: FileCopyMoveBody,
+    signal?: AbortSignal,
+    idempotencyKey?: string,
+  ): Promise<DaemonResult<null>>;
   postFilesUpload(
     params: FileUploadBody,
     signal?: AbortSignal,
@@ -1165,6 +1176,22 @@ export const createDaemonClient = (
       runRequest(
         deps,
         "/api/files/delete",
+        { method: "POST", body: params, signal, idempotencyKey },
+        noBody,
+      ),
+
+    postFilesCopy: (params, signal, idempotencyKey) =>
+      runRequest(
+        deps,
+        "/api/files/copy",
+        { method: "POST", body: params, signal, idempotencyKey },
+        noBody,
+      ),
+
+    postFilesMove: (params, signal, idempotencyKey) =>
+      runRequest(
+        deps,
+        "/api/files/move",
         { method: "POST", body: params, signal, idempotencyKey },
         noBody,
       ),

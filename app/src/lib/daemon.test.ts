@@ -1131,6 +1131,51 @@ describe("daemon client — POSTs", () => {
     });
   });
 
+  it("postFilesCopy sends same-root copy payload", async () => {
+    let observed: unknown = undefined;
+    const { fetch } = makeFakeFetch([
+      {
+        method: "POST",
+        path: "/api/files/copy",
+        body: { ok: true },
+        expect: (init) => {
+          observed = init?.body ? JSON.parse(init.body as string) : null;
+        },
+      },
+    ]);
+    const r = await createDaemonClient({ fetch }).postFilesCopy({
+      source: "tytus-home",
+      path: "Inbox/a.txt",
+      destination_path: "Projects",
+      new_name: "a-copy.txt",
+    });
+    expect(r.ok).toBe(true);
+    expect(observed).toEqual({
+      source: "tytus-home",
+      path: "Inbox/a.txt",
+      destination_path: "Projects",
+      new_name: "a-copy.txt",
+    });
+  });
+
+  it("postFilesMove sends same-root move payload", async () => {
+    const { fetch, calls } = makeFakeFetch([
+      {
+        method: "POST",
+        path: "/api/files/move",
+        body: { ok: true },
+      },
+    ]);
+    const r = await createDaemonClient({ fetch }).postFilesMove({
+      source: "shared",
+      binding: 0,
+      path: "Inbox/a.txt",
+      destination_path: "Outbox",
+    });
+    expect(r.ok).toBe(true);
+    expect(calls[0]?.url).toBe("/api/files/move");
+  });
+
   it("filesDownloadUrl encodes source, binding, and path", () => {
     const url = createDaemonClient({ baseUrl: "http://127.0.0.1:4242" }).filesDownloadUrl({
       source: "shared",

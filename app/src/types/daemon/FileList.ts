@@ -28,3 +28,8 @@ export interface FileUploadBody extends FileMutationSource {
   name: string;
   content_base64: string;
 }
+
+export interface FileCopyMoveBody extends FileMutationSource {
+  destination_path?: string;
+  new_name?: string;
+}

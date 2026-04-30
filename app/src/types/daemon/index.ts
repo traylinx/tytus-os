@@ -40,4 +40,5 @@ export type {
   FileList,
   FileMutationSource,
   FileUploadBody,
+  FileCopyMoveBody,
 } from "./FileList";

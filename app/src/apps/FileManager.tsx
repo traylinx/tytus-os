@@ -47,6 +47,8 @@ import {
   Inbox,
   Download,
   Upload,
+  Copy as CopyIcon,
+  MoveRight,
   AlertTriangle,
   Box,
   Rocket,
@@ -447,6 +449,12 @@ const arrayBufferToBase64 = (buffer: ArrayBuffer): string => {
   return btoa(binary);
 };
 
+const copyName = (name: string): string => {
+  const idx = name.lastIndexOf(".");
+  if (idx <= 0) return `${name} copy`;
+  return `${name.slice(0, idx)} copy${name.slice(idx)}`;
+};
+
 const FileBrowser: FC<{ agents: Agent[]; client: DaemonClient }> = ({
   agents,
   client,
@@ -463,6 +471,7 @@ const FileBrowser: FC<{ agents: Agent[]; client: DaemonClient }> = ({
   const [refreshNonce, setRefreshNonce] = useState(0);
   const [mutationBusy, setMutationBusy] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [dragActive, setDragActive] = useState(false);
   const uploadInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
@@ -657,29 +666,67 @@ const FileBrowser: FC<{ agents: Agent[]; client: DaemonClient }> = ({
     a.remove();
   };
 
+  const copyOrMoveEntry = async (entry: FileListEntry, op: "copy" | "move") => {
+    if (!activeSource || activeSource.readonly || entry.kind !== "file") return;
+    const destination_path = window.prompt(
+      `${op === "copy" ? "Copy" : "Move"} into folder path (relative to ${rootLabel})`,
+      path,
+    );
+    if (destination_path === null) return;
+    const defaultName = op === "copy" ? copyName(entry.name) : entry.name;
+    const new_name = window.prompt(
+      `${op === "copy" ? "Copy" : "Move"} as`,
+      defaultName,
+    );
+    if (!new_name?.trim()) return;
+    setMutationBusy(true);
+    setErr(null);
+    const payload = {
+      ...mutationPayload(entry.path),
+      destination_path: joinPath(activeSource.path ?? "", destination_path.trim()),
+      new_name: new_name.trim(),
+    };
+    const r =
+      op === "copy"
+        ? await client.postFilesCopy(payload)
+        : await client.postFilesMove(payload);
+    setMutationBusy(false);
+    if (!r.ok) {
+      setErr(r.error.message);
+      return;
+    }
+    refresh();
+  };
+
   const uploadFiles = async (fileList: FileList | null) => {
     if (!activeSource || activeSource.readonly || !fileList?.length) return;
     setUploading(true);
     setErr(null);
-    for (const file of Array.from(fileList)) {
-      if (file.size > MAX_BROWSER_TRANSFER_BYTES) {
-        setErr(`${file.name} exceeds the 100 MiB transfer cap.`);
-        break;
+    try {
+      for (const file of Array.from(fileList)) {
+        if (file.size > MAX_BROWSER_TRANSFER_BYTES) {
+          setErr(`${file.name} exceeds the 100 MiB transfer cap.`);
+          break;
+        }
+        const content_base64 = arrayBufferToBase64(await file.arrayBuffer());
+        const r = await client.postFilesUpload({
+          ...mutationPayload(path),
+          name: file.name,
+          content_base64,
+        });
+        if (!r.ok) {
+          setErr(`${file.name}: ${r.error.message}`);
+          break;
+        }
       }
-      const content_base64 = arrayBufferToBase64(await file.arrayBuffer());
-      const r = await client.postFilesUpload({
-        ...mutationPayload(path),
-        name: file.name,
-        content_base64,
-      });
-      if (!r.ok) {
-        setErr(`${file.name}: ${r.error.message}`);
-        break;
-      }
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Upload failed");
+    } finally {
+      if (uploadInputRef.current) uploadInputRef.current.value = "";
+      setUploading(false);
+      setDragActive(false);
+      refresh();
     }
-    if (uploadInputRef.current) uploadInputRef.current.value = "";
-    setUploading(false);
-    refresh();
   };
 
   const filtered = entries.filter((entry) =>
@@ -857,7 +904,46 @@ const FileBrowser: FC<{ agents: Agent[]; client: DaemonClient }> = ({
           </div>
         )}
 
-        <div className="flex-1 overflow-y-auto custom-scrollbar p-3">
+        <div
+          className="relative flex-1 overflow-y-auto custom-scrollbar p-3"
+          onDragEnter={(e) => {
+            if (activeSource?.readonly) return;
+            e.preventDefault();
+            setDragActive(true);
+          }}
+          onDragOver={(e) => {
+            if (activeSource?.readonly) return;
+            e.preventDefault();
+            e.dataTransfer.dropEffect = "copy";
+            setDragActive(true);
+          }}
+          onDragLeave={(e) => {
+            if (e.currentTarget.contains(e.relatedTarget as Node | null)) return;
+            setDragActive(false);
+          }}
+          onDrop={(e) => {
+            if (activeSource?.readonly) return;
+            e.preventDefault();
+            void uploadFiles(e.dataTransfer.files);
+          }}
+        >
+          {dragActive && !activeSource?.readonly && (
+            <div
+              className="absolute inset-3 z-10 rounded-lg flex flex-col items-center justify-center pointer-events-none"
+              style={{
+                background: "rgba(124,77,255,0.16)",
+                border: "1px dashed var(--accent-primary)",
+                color: "var(--text-primary)",
+                backdropFilter: "blur(3px)",
+              }}
+            >
+              <Upload size={26} className="mb-2 text-[var(--accent-primary)]" />
+              <div className="text-sm font-semibold">Drop files to upload</div>
+              <div className="text-[11px] text-[var(--text-secondary)] mt-1">
+                100 MiB max per file · current folder
+              </div>
+            </div>
+          )}
           {loading ? (
             <div className="h-full flex items-center justify-center text-sm text-[var(--text-secondary)] gap-2">
               <Loader2 size={16} className="animate-spin" /> Loading folder…
@@ -878,7 +964,7 @@ const FileBrowser: FC<{ agents: Agent[]; client: DaemonClient }> = ({
           ) : (
             <div className="rounded-lg overflow-hidden border border-[var(--border-subtle)]">
               <div
-                className="grid grid-cols-[1fr_96px_130px_140px] gap-3 px-3 py-2 text-[11px] uppercase tracking-wider text-[var(--text-secondary)]"
+                className="grid grid-cols-[1fr_96px_130px_188px] gap-3 px-3 py-2 text-[11px] uppercase tracking-wider text-[var(--text-secondary)]"
                 style={{ background: "rgba(255,255,255,0.03)" }}
               >
                 <span>Name</span>
@@ -893,7 +979,7 @@ const FileBrowser: FC<{ agents: Agent[]; client: DaemonClient }> = ({
                     if (entry.kind === "dir")
                       setPath(joinPath(path, entry.name));
                   }}
-                  className="w-full grid grid-cols-[1fr_96px_130px_140px] gap-3 px-3 py-2 text-left text-xs border-t border-[var(--border-subtle)] hover:bg-[var(--bg-hover)]"
+                  className="w-full grid grid-cols-[1fr_96px_130px_188px] gap-3 px-3 py-2 text-left text-xs border-t border-[var(--border-subtle)] hover:bg-[var(--bg-hover)]"
                 >
                   <span className="flex items-center gap-2 min-w-0 text-[var(--text-primary)]">
                     {entry.kind === "dir" ? (
@@ -930,6 +1016,22 @@ const FileBrowser: FC<{ agents: Agent[]; client: DaemonClient }> = ({
                           title="Download"
                         >
                           <Download size={12} />
+                        </button>
+                        <button
+                          onClick={() => void copyOrMoveEntry(entry, "copy")}
+                          disabled={mutationBusy || uploading || entry.kind !== "file"}
+                          className="p-1 rounded-md disabled:opacity-40 hover:bg-[var(--bg-hover)]"
+                          title="Copy"
+                        >
+                          <CopyIcon size={12} />
+                        </button>
+                        <button
+                          onClick={() => void copyOrMoveEntry(entry, "move")}
+                          disabled={mutationBusy || uploading || entry.kind !== "file"}
+                          className="p-1 rounded-md disabled:opacity-40 hover:bg-[var(--bg-hover)]"
+                          title="Move"
+                        >
+                          <MoveRight size={12} />
                         </button>
                         <button
                           onClick={() => void renameEntry(entry)}
