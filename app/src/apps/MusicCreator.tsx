@@ -1766,6 +1766,7 @@ export default function MusicCreator() {
       let useLyrics = lyrics.trim();
       let resolvedTitle = songName.trim();
       let resolvedStyle = style.trim();
+      let generatedLyrics: Awaited<ReturnType<typeof callLyrics>> | null = null;
 
       if (!useLyrics && !instrumental) {
         if (!theme.trim()) {
@@ -1773,10 +1774,10 @@ export default function MusicCreator() {
           return;
         }
         setPhase('lyrics');
-        const ly = await callLyrics(effectiveEndpoint, theme.trim(), controller.signal);
-        useLyrics = ly.lyrics;
-        if (!resolvedTitle) resolvedTitle = ly.song_title;
-        if (!resolvedStyle) resolvedStyle = ly.style_tags;
+        generatedLyrics = await callLyrics(effectiveEndpoint, theme.trim(), controller.signal);
+        useLyrics = generatedLyrics.lyrics;
+        if (!resolvedTitle) resolvedTitle = generatedLyrics.song_title;
+        if (!resolvedStyle) resolvedStyle = generatedLyrics.style_tags;
       } else if (!useLyrics && instrumental) {
         // Instrumental still needs SOMETHING in the lyrics field — the
         // upstream MiniMax music model rejects empty lyrics with
@@ -1784,14 +1785,17 @@ export default function MusicCreator() {
         // set. Send a structural placeholder; it never gets vocalized
         // because the instrumental flag suppresses singing.
         useLyrics = '[Intro]\n[Instrumental]\n[Outro]';
+      }
+
+      if (generatedLyrics) {
         // Mirror the generated text into the form so the user sees
         // exactly what we got back. Critical for lyrics-only mode where
         // there's no audio to listen to — without this the form looked
         // empty after generation finished.
-        setLyrics(ly.lyrics);
+        setLyrics(generatedLyrics.lyrics);
         if (resolvedTitle && !songName.trim()) setSongName(resolvedTitle);
         if (resolvedStyle && !style.trim()) setStyle(resolvedStyle);
-        if (ly.usedFallback) {
+        if (generatedLyrics.usedFallback) {
           // Surface the fallback so the user knows their primary lyrics
           // model errored and a chat model picked up. Yellow banner,
           // dismissable. Doesn't block generation.
