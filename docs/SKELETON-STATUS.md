@@ -1,6 +1,6 @@
 # Skeleton Status
 
-A snapshot of what's working in TytusOS as of **2026-04-28**, end of Phases 1–7 (shipped same session). 71/71 vitest tests green.
+A snapshot of what's working in Tytus OS as of **2026-04-28**, end of Phases 1–7 (shipped same session). 71/71 vitest tests green.
 
 ## Verified (52/52 apps green)
 
@@ -76,7 +76,7 @@ summary: 52 pass · 0 fail · 52 total
 |---|---|
 | 4-phase boot animation | ✅ (~4s) |
 | Logo, progress bar, transition | ✅ |
-| TytusOS branding (no UbuntuOS leftovers) | ✅ (verified by grep) |
+| Tytus OS branding (no UbuntuOS leftovers) | ✅ (verified by grep) |
 | Login screen with blurred wallpaper | ✅ |
 | Unlock button (any password) | ✅ |
 | Log in as Guest | ✅ |
@@ -246,7 +246,7 @@ summary: 52 pass · 0 fail · 52 total
 
 ## What this status doc gates
 
-TytusOS v1 (Phases 1–7) is **complete enough** to:
+Tytus OS v1 (Phases 1–7) is **complete enough** to:
 
 - ✅ Replace Tytus Tower for end users (Settings + Pod Inspector + Channels + Files + Help all native)
 - ✅ Ship to Operator-tier customers — all daemon-wired surfaces working, 71/71 tests green

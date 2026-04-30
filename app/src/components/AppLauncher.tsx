@@ -7,9 +7,11 @@ import { useOS } from '@/hooks/useOSStore';
 import { getAppById } from '@/apps/registry';
 import { useDemoApps } from '@/hooks/useDemoApps';
 import { useDaemonStateContext } from '@/hooks/useDaemonStateContext';
+import { getFrequentApps } from '@/lib/repo/appLaunches';
 import { Search, X, ChevronUp, ChevronDown } from 'lucide-react';
 import * as Icons from 'lucide-react';
 import type { LucideProps } from 'lucide-react';
+import type { AppDefinition } from '@/types';
 import { useI18n } from '@/i18n';
 
 const DynamicIcon = ({ name, ...props }: { name: string } & LucideProps) => {
@@ -34,6 +36,7 @@ const AppLauncher = memo(function AppLauncher() {
   const gridRef = useRef<HTMLDivElement>(null);
   const [canScrollUp, setCanScrollUp] = useState(false);
   const [canScrollDown, setCanScrollDown] = useState(false);
+  const [scoredFrequent, setScoredFrequent] = useState<AppDefinition[]>([]);
 
   // Watch the grid's scroll position so we can show / hide arrow buttons
   useEffect(() => {
@@ -65,6 +68,13 @@ const AppLauncher = memo(function AppLauncher() {
       /* eslint-disable-next-line react-hooks/set-state-in-effect -- opening launcher resets transient search state. */
       setSearchQuery('');
       setTimeout(() => inputRef.current?.focus(), 100);
+      // Load scored frequent apps from usage history
+      getFrequentApps(8).then((scored) => {
+        const resolved = scored
+          .map((s) => getAppById(s.appId))
+          .filter(Boolean) as AppDefinition[];
+        setScoredFrequent(resolved);
+      });
     }
   }, [appLauncherOpen]);
 
@@ -124,10 +134,13 @@ const AppLauncher = memo(function AppLauncher() {
     }
   }, [showDemoApps, activeCategory]);
 
-  const frequentApps = dockItems
-    .filter((d) => d.isPinned)
-    .map((d) => getAppById(d.appId))
-    .filter(Boolean);
+  // Frequent apps: scored by usage, with pinned dock items as fallback
+  const frequentApps = scoredFrequent.length > 0
+    ? scoredFrequent
+    : dockItems
+        .filter((d) => d.isPinned)
+        .map((d) => getAppById(d.appId))
+        .filter(Boolean) as AppDefinition[];
 
   if (!appLauncherOpen) return null;
 
@@ -143,6 +156,7 @@ const AppLauncher = memo(function AppLauncher() {
         WebkitBackdropFilter: 'blur(24px)',
         animation: 'launcherFade 300ms ease',
         paddingTop: 32,
+        paddingBottom: 80,
       }}
       onClick={(e) => {
         if (e.target === e.currentTarget) dispatch({ type: 'SET_APP_LAUNCHER', open: false });
@@ -189,22 +203,22 @@ const AppLauncher = memo(function AppLauncher() {
 
       {/* Frequent apps (only when not searching) */}
       {!searchQuery && frequentApps.length > 0 && (
-        <div className="mt-6 w-[480px] max-w-[90vw]"
+        <div className="mt-6 w-[1000px] max-w-[90vw]"
           style={{ animation: 'searchSlideDown 300ms ease 200ms both' }}
         >
           <p className="text-[10px] text-[var(--text-secondary)] uppercase tracking-[0.1em] mb-3">{t('appLauncher.frequentlyUsed')}</p>
           <div className="flex gap-4">
             {frequentApps.slice(0, 6).map((app) => (
               <button
-                key={app!.id}
-                onClick={() => handleLaunch(app!.id)}
+                key={app.id}
+                onClick={() => handleLaunch(app.id)}
                 className="flex flex-col items-center gap-1 w-16 group"
               >
                 <div className="w-12 h-12 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform"
                   style={{ background: 'var(--bg-hover)' }}>
-                  <DynamicIcon name={app!.icon} size={24} className="text-[var(--text-primary)]" />
+                  <DynamicIcon name={app.icon} size={24} className="text-[var(--text-primary)]" />
                 </div>
-                <span className="text-[10px] text-[var(--text-primary)] text-center truncate max-w-[64px]">{t(`app.${app!.id}.name`)}</span>
+                <span className="text-[10px] text-[var(--text-primary)] text-center truncate max-w-[64px]">{t(`app.${app.id}.name`)}</span>
               </button>
             ))}
           </div>
@@ -214,7 +228,7 @@ const AppLauncher = memo(function AppLauncher() {
       {/* Category tabs */}
       {!searchQuery && (
         <div
-          className="flex items-center gap-0 mt-6 overflow-x-auto max-w-[90vw]"
+          className="flex items-center gap-0 mt-4 overflow-x-auto max-w-[90vw]"
           style={{ animation: 'searchSlideDown 300ms ease 250ms both' }}
         >
           {visibleCategories.map((cat) => (
@@ -234,7 +248,7 @@ const AppLauncher = memo(function AppLauncher() {
       )}
 
       {/* App grid wrapper — scroll buttons sit absolutely above/below */}
-      <div className="relative mt-6 w-[720px] max-w-[90vw]" style={{ maxHeight: 'calc(100vh - 220px)' }}>
+      <div className="relative mt-4 w-[1000px] max-w-[90vw]" style={{ flex: 1, minHeight: 0 }}>
         {canScrollUp && (
           <button
             onClick={() => scrollGrid('up')}
@@ -269,9 +283,8 @@ const AppLauncher = memo(function AppLauncher() {
       {/* App grid */}
       <div
         ref={gridRef}
-        className="overflow-y-auto custom-scrollbar"
+        className="h-full overflow-y-auto custom-scrollbar"
         style={{
-          maxHeight: 'calc(100vh - 220px)',
           display: 'grid',
           gridTemplateColumns: 'repeat(auto-fill, minmax(80px, 1fr))',
           gap: 16,

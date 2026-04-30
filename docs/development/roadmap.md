@@ -95,7 +95,7 @@ Six phases, strangler-port. The full architectural decision lives at [INTEGRATIO
 
 ## Deferred (Phase 8 candidates)
 
-1. **Per-pod logs SSE tail** — daemon gap. `/api/logs?name=pod-NN` doesn't exist, and the run-streamed allowlist lacks a `logs` action. Needs a tytus-cli daemon change before TytusOS can wire it.
+1. **Per-pod logs SSE tail** — daemon gap. `/api/logs?name=pod-NN` doesn't exist, and the run-streamed allowlist lacks a `logs` action. Needs a tytus-cli daemon change before Tytus OS can wire it.
 2. **Tower removal in tytus-cli** — manifest Q7 trigger gate: "no Tower bundle linked from any tray menu for 14 days." Not yet armed; can ripout after the gate fires.
 3. **Desktop pin v2** — manifest §2.5 says "user icons cannot be displaced by pin." Current Phase 7 simplification accepts visual overlap; v2 needs reserved-zone reflow + collision-aware grid.
 
@@ -115,7 +115,7 @@ Six phases, strangler-port. The full architectural decision lives at [INTEGRATIO
 
 - An app store / installable third-party apps (out of scope for v1)
 - Cross-tab sync via BroadcastChannel (interesting; not load-bearing)
-- A native desktop wrapper (Tauri / Electron) — TytusOS is web-first
+- A native desktop wrapper (Tauri / Electron) — Tytus OS is web-first
 - Mobile responsive layout — desktop OS metaphor only
 - Offline-first / PWA — possible later, not Phase 1–6
 

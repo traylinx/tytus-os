@@ -1,11 +1,12 @@
 // ============================================================
-// App.tsx — Main TytusOS Shell
+// App.tsx — Main Tytus OS Shell
 // ============================================================
 
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { OSProvider, useOS } from '@/hooks/useOSStore';
 import { DaemonClientProvider } from '@/hooks/useDaemonClient';
 import { DaemonStateProvider, useDaemonStateContext } from '@/hooks/useDaemonStateContext';
+import { logLaunch } from '@/lib/repo/appLaunches';
 import DaemonOfflineBanner from '@/components/DaemonOfflineBanner';
 import UpgradeDaemonScreen from '@/components/UpgradeDaemonScreen';
 import ZeroPodsOverlay from '@/components/ZeroPodsOverlay';
@@ -42,6 +43,17 @@ function AppShell() {
       dispatch({ type: 'SET_THEME', theme: { wallpaper: DEFAULT_TYTUS_WALLPAPER } });
     }
   }, [dispatch, state.theme.wallpaper]);
+
+  // Log every app launch for "Frequently Used" scoring.
+  // Watches window count — when a new window appears, log its appId.
+  const prevWindowCountRef = useRef(state.windows.length);
+  useEffect(() => {
+    if (state.windows.length > prevWindowCountRef.current) {
+      const newest = state.windows[state.windows.length - 1];
+      if (newest) logLaunch(newest.appId);
+    }
+    prevWindowCountRef.current = state.windows.length;
+  }, [state.windows]);
 
   // Boot sequence
   useEffect(() => {

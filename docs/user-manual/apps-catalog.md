@@ -1,6 +1,6 @@
 # Apps Catalog
 
-Every app installed in TytusOS today. The Tytus surfaces (Pod Inspector, Settings, Help, Chat, Files, Channels, Browser) are now wired to the daemon — no more placeholders.
+Every app installed in Tytus OS today. The Tytus surfaces (Pod Inspector, Settings, Help, Chat, Files, Channels, Browser) are now wired to the daemon — no more placeholders.
 
 ## System (8)
 
@@ -81,7 +81,7 @@ The 11 Games plus **ASCII Art** and **Matrix Rain** are gated by the **Show demo
 
 ## Shell-level surfaces
 
-Beyond windowed apps, TytusOS now exposes pod state directly from the shell:
+Beyond windowed apps, Tytus OS now exposes pod state directly from the shell:
 
 - **Top Panel — Daemon status pill** — green / yellow / red / grey. Click opens **Settings → Daemon**.
 - **Top Panel — Fleet Health chip** (next to the daemon pill) — pod count + active jobs, color-coded. Click opens **Pod Inspector**.

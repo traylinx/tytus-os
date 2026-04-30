@@ -49,7 +49,7 @@ const loadTasks = (): Task[] => {
   } catch { /* ignore */ }
   const today = new Date().toISOString().split('T')[0];
   return [
-    { id: generateId(), title: 'Explore the TytusOS desktop', completed: false, dueDate: today, priority: 'high', tags: ['welcome'], projectId: 'inbox', createdAt: Date.now() },
+    { id: generateId(), title: 'Explore the Tytus OS desktop', completed: false, dueDate: today, priority: 'high', tags: ['welcome'], projectId: 'inbox', createdAt: Date.now() },
     { id: generateId(), title: 'Try the terminal app', completed: false, dueDate: today, priority: 'medium', tags: ['welcome'], projectId: 'inbox', createdAt: Date.now() - 10000 },
     { id: generateId(), title: 'Customize your settings', completed: true, dueDate: today, priority: 'low', tags: [], projectId: 'inbox', createdAt: Date.now() - 20000 },
   ];

@@ -1,7 +1,7 @@
 {
-  "name": "tytusOS",
-  "short_name": "tytusOS",
-  "description": "tytusOS",
+  "name": "Tytus OS",
+  "short_name": "Tytus OS",
+  "description": "Tytus OS",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#FAFAFA",

@@ -1,6 +1,6 @@
 # State Management
 
-TytusOS uses a single React `useReducer` wrapped in a Context provider. No Redux, no Zustand, no Jotai. Why: every action and slice is < 100 lines; the reducer fits on one screen; there's no async middleware to layer.
+Tytus OS uses a single React `useReducer` wrapped in a Context provider. No Redux, no Zustand, no Jotai. Why: every action and slice is < 100 lines; the reducer fits on one screen; there's no async middleware to layer.
 
 ## The store
 

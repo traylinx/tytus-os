@@ -31,6 +31,7 @@ import {
   ListChecks,
   ShieldCheck,
 } from "lucide-react";
+import LogPane from "@/components/LogPane";
 import { useOS } from "@/hooks/useOSStore";
 import { useDaemonClient } from "@/hooks/useDaemonClient";
 import { useDaemonStateContext } from "@/hooks/useDaemonStateContext";
@@ -351,7 +352,7 @@ const Settings: React.FC = () => {
       setOfficialLanguageErr(null);
       try {
         if (!isOfficialLanguageUrl(pack.url))
-          throw new Error("pack URL is not in the official TytusOS GitHub org");
+          throw new Error("pack URL is not in the official Tytus OS GitHub org");
         const response = await fetch(pack.url, { cache: "no-store" });
         if (!response.ok) throw new Error(`pack HTTP ${response.status}`);
         const text = await response.text();
@@ -525,7 +526,7 @@ const Settings: React.FC = () => {
         title: "Software Update",
         message:
           r.value.status === "update_available"
-            ? `TytusOS ${r.value.latest_version} is available.`
+            ? `Tytus OS ${r.value.latest_version} is available.`
             : r.value.detail,
         isRead: false,
       });
@@ -800,7 +801,7 @@ const Settings: React.FC = () => {
               )}
               <div className="text-[11px] text-[var(--text-secondary)]">
                 Sign-in is initiated from the Tytus tray menu (
-                <strong>Sign in</strong>). TytusOS will pick up the new session
+                <strong>Sign in</strong>). Tytus OS will pick up the new session
                 automatically.
               </div>
             </div>
@@ -919,7 +920,7 @@ const Settings: React.FC = () => {
                   </div>
                   <div className="text-[11px] text-[var(--text-secondary)] mt-0.5">
                     Runs <code className="font-mono">tytus configure</code> in
-                    the internal TytusOS terminal.
+                    the internal Tytus OS terminal.
                   </div>
                   {configureErr && (
                     <div
@@ -934,7 +935,7 @@ const Settings: React.FC = () => {
                       className="text-xs mt-2"
                       style={{ color: "var(--accent-success)" }}
                     >
-                      Configure flow started in the internal TytusOS Terminal.
+                      Configure flow started in the internal Tytus OS Terminal.
                     </div>
                   )}
                 </div>
@@ -1552,7 +1553,7 @@ const Settings: React.FC = () => {
                   Private AI shell
                 </div>
                 <div className="text-xs text-[var(--text-secondary)] mt-1">
-                  TytusOS shows daemon/pod state from your local Tytus daemon.
+                  Tytus OS shows daemon/pod state from your local Tytus daemon.
                   Browser-side telemetry and fake device controls are
                   intentionally not exposed.
                 </div>
@@ -1586,9 +1587,9 @@ const Settings: React.FC = () => {
           updateStatus?.installed_version ?? daemonVersion;
         const updateStatusLabel =
           updateStatus?.status === "update_available"
-            ? `TytusOS ${updateStatus.latest_version} available`
+            ? `Tytus OS ${updateStatus.latest_version} available`
             : updateStatus?.status === "up_to_date"
-              ? "TytusOS is up to date"
+              ? "Tytus OS is up to date"
               : "Local build installed";
         const updateStatusColor =
           updateStatus?.status === "update_available"
@@ -1608,13 +1609,13 @@ const Settings: React.FC = () => {
               >
                 <img
                   src="/brand/tytusos-mark-64.png"
-                  alt="tytusOS"
+                  alt="Tytus OS"
                   width={64}
                   height={64}
                 />
               </div>
               <div className="text-xl font-semibold text-[var(--text-primary)]">
-                TytusOS
+                Tytus OS
               </div>
               <div className="text-sm text-[var(--text-secondary)]">
                 Web shell for your private AI pod
@@ -1637,7 +1638,7 @@ const Settings: React.FC = () => {
                     Software Update
                   </div>
                   <div className="text-xs text-[var(--text-secondary)]">
-                    Installed TytusOS {softwareVersion}
+                    Installed Tytus OS {softwareVersion}
                   </div>
                 </div>
                 <button
@@ -3100,10 +3101,6 @@ const InstallWizard: React.FC<InstallWizardProps> = ({
     stream.status === "failed" ||
     stream.status === "lost";
   const isInstalling = isStreaming && !isDone;
-  const linesRendered = useMemo(
-    () => stream.lines.slice(-200).join("\n"),
-    [stream.lines],
-  );
   const knownPodId = useMemo(
     () => extractInstallPodId(stream.donePayload, stream.lines),
     [stream.donePayload, stream.lines],
@@ -3385,23 +3382,18 @@ const InstallWizard: React.FC<InstallWizardProps> = ({
                   )}
                 </div>
               )}
-              <div
-                className="rounded-md p-3 font-mono text-[11px] leading-relaxed whitespace-pre-wrap"
-                style={{
-                  background: "var(--terminal-bg)",
-                  color: "var(--terminal-text)",
-                  minHeight: 200,
-                  maxHeight: 360,
-                  overflowY: "auto",
-                }}
+              <LogPane
+                lines={stream.lines}
+                status={stream.status}
+                exitCode={stream.exitCode}
+                failMessage={stream.failMessage}
+                title="Install log"
+                emptyText="Connecting to install stream…"
+                maxLines={200}
+                minHeight={200}
+                maxHeight={360}
+                className="rounded-md"
               >
-                {stream.lines.length === 0 &&
-                  stream.status === "subscribing" && (
-                    <span className="text-[var(--text-secondary)]">
-                      Connecting to install stream…
-                    </span>
-                  )}
-                {linesRendered}
                 {stream.status === "success" && (
                   <div className="mt-2 text-[var(--terminal-text)]">
                     ✓ Install complete —{" "}
@@ -3458,7 +3450,7 @@ const InstallWizard: React.FC<InstallWizardProps> = ({
                     )}
                   </div>
                 )}
-              </div>
+              </LogPane>
             </div>
           )}
 
@@ -4195,62 +4187,18 @@ const DiagnosticStreamPane: React.FC<{
   status: JobStatus;
   lines: string[];
   exitCode: number | null;
-}> = ({ action, status, lines, exitCode }) => {
-  const visibleLines = lines
-    .filter((line) => line.trim().length > 0)
-    .slice(-80);
-  const color =
-    status === "success"
-      ? "#A5D6A7"
-      : status === "failed"
-        ? "#FF8A80"
-        : status === "lost"
-          ? "#FFB74D"
-          : "#9E9E9E";
-  return (
-    <div
-      className="rounded-lg overflow-hidden"
-      style={{
-        background: "#0A0A0A",
-        border: "1px solid var(--border-subtle)",
-      }}
-    >
-      <div
-        className="px-3 py-2 flex items-center gap-2 text-[11px]"
-        style={{
-          background: "rgba(255,255,255,0.02)",
-          borderBottom: "1px solid var(--border-subtle)",
-        }}
-      >
-        {status === "streaming" || status === "subscribing" ? (
-          <Loader2
-            size={11}
-            className="animate-spin text-[var(--accent-primary)]"
-          />
-        ) : status === "success" ? (
-          <Check size={11} style={{ color }} />
-        ) : (
-          <AlertTriangle size={11} style={{ color }} />
-        )}
-        <span className="text-[var(--text-secondary)]">
-          {action} ·{" "}
-          <span style={{ color }}>
-            {status}
-            {exitCode !== null && ` (exit ${exitCode})`}
-          </span>
-        </span>
-      </div>
-      <pre
-        className="m-0 p-3 text-[11px] leading-relaxed overflow-auto max-h-64"
-        style={{ color: "#E0E0E0" }}
-      >
-        {visibleLines.length > 0
-          ? visibleLines.join("\n")
-          : "Waiting for output…"}
-      </pre>
-    </div>
-  );
-};
+}> = ({ action, status, lines, exitCode }) => (
+  <LogPane
+    title={action}
+    status={status}
+    lines={lines}
+    exitCode={exitCode}
+    maxLines={80}
+    maxHeight={256}
+    emptyText="Waiting for output…"
+    filterBlank
+  />
+);
 
 const Row: React.FC<{ label: string; value: string }> = ({ label, value }) => (
   <div className="px-4 py-2.5 flex items-center justify-between">

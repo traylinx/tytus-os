@@ -215,6 +215,6 @@ export const languagePackExample = {
   author: 'Community',
   strings: {
     'settings.appearance.language.title': 'Langue',
-    'settings.appearance.language.description': 'Choisissez la langue de TytusOS.',
+    'settings.appearance.language.description': 'Choisissez la langue de Tytus OS.',
   },
 };

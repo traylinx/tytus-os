@@ -44,7 +44,7 @@ const createDefaultFS = (): FileSystemState => {
   nodes[readmeId] = {
     id: readmeId, name: 'welcome.txt', type: 'file', parentId: documentsId,
     createdAt: Date.now(), modifiedAt: Date.now(),
-    content: 'Welcome to TytusOS!\n\nThis is a web-based Linux desktop environment.\nExplore the apps and enjoy the experience.',
+    content: 'Welcome to Tytus OS!\n\nThis is a web-based Linux desktop environment.\nExplore the apps and enjoy the experience.',
     size: 96,
   };
 
@@ -62,23 +62,43 @@ const createDefaultFS = (): FileSystemState => {
 export const initialFileSystem = createDefaultFS();
 
 // ---- File Associations ----
+//
+// Single source of truth for "what app + icon does this extension get?".
+// The icon name is whatever Lucide exports — `<DynamicIcon name=...>` looks
+// it up at render time, so adding an entry here automatically lights up
+// the right glyph on Desktop, Files, TextEditor recents, etc.
 export const FILE_ASSOCIATIONS: FileAssociation[] = [
   { extension: '.txt', appId: 'texteditor', icon: 'FileText', mimeType: 'text/plain' },
   { extension: '.md', appId: 'markdownpreview', icon: 'FileCode', mimeType: 'text/markdown' },
   { extension: '.json', appId: 'jsonformatter', icon: 'Braces', mimeType: 'application/json' },
   { extension: '.js', appId: 'codeeditor', icon: 'Code2', mimeType: 'text/javascript' },
   { extension: '.ts', appId: 'codeeditor', icon: 'Code2', mimeType: 'text/typescript' },
+  { extension: '.tsx', appId: 'codeeditor', icon: 'Code2', mimeType: 'text/typescript' },
   { extension: '.html', appId: 'codeeditor', icon: 'Code2', mimeType: 'text/html' },
   { extension: '.css', appId: 'codeeditor', icon: 'Code2', mimeType: 'text/css' },
   { extension: '.py', appId: 'codeeditor', icon: 'Code2', mimeType: 'text/x-python' },
-  { extension: '.jpg', appId: 'imageviewer', icon: 'Image', mimeType: 'image/jpeg' },
-  { extension: '.png', appId: 'imageviewer', icon: 'Image', mimeType: 'image/png' },
-  { extension: '.gif', appId: 'imageviewer', icon: 'Image', mimeType: 'image/gif' },
-  { extension: '.mp3', appId: 'musicplayer', icon: 'Music', mimeType: 'audio/mpeg' },
-  { extension: '.mp4', appId: 'videoplayer', icon: 'PlayCircle', mimeType: 'video/mp4' },
-  { extension: '.pdf', appId: 'documentviewer', icon: 'File', mimeType: 'application/pdf' },
+  { extension: '.jpg', appId: 'imageviewer', icon: 'FileImage', mimeType: 'image/jpeg' },
+  { extension: '.jpeg', appId: 'imageviewer', icon: 'FileImage', mimeType: 'image/jpeg' },
+  { extension: '.png', appId: 'imageviewer', icon: 'FileImage', mimeType: 'image/png' },
+  { extension: '.gif', appId: 'imageviewer', icon: 'FileImage', mimeType: 'image/gif' },
+  { extension: '.svg', appId: 'imageviewer', icon: 'FileImage', mimeType: 'image/svg+xml' },
+  { extension: '.webp', appId: 'imageviewer', icon: 'FileImage', mimeType: 'image/webp' },
+  { extension: '.mp3', appId: 'musicplayer', icon: 'FileAudio', mimeType: 'audio/mpeg' },
+  { extension: '.wav', appId: 'musicplayer', icon: 'FileAudio', mimeType: 'audio/wav' },
+  { extension: '.ogg', appId: 'musicplayer', icon: 'FileAudio', mimeType: 'audio/ogg' },
+  { extension: '.flac', appId: 'musicplayer', icon: 'FileAudio', mimeType: 'audio/flac' },
+  { extension: '.m4a', appId: 'musicplayer', icon: 'FileAudio', mimeType: 'audio/m4a' },
+  { extension: '.aac', appId: 'musicplayer', icon: 'FileAudio', mimeType: 'audio/aac' },
+  { extension: '.mp4', appId: 'videoplayer', icon: 'FileVideo', mimeType: 'video/mp4' },
+  { extension: '.webm', appId: 'videoplayer', icon: 'FileVideo', mimeType: 'video/webm' },
+  { extension: '.mov', appId: 'videoplayer', icon: 'FileVideo', mimeType: 'video/quicktime' },
+  { extension: '.pdf', appId: 'documentviewer', icon: 'FileType', mimeType: 'application/pdf' },
   { extension: '.zip', appId: 'archivemanager', icon: 'Package', mimeType: 'application/zip' },
+  { extension: '.tar', appId: 'archivemanager', icon: 'Package', mimeType: 'application/x-tar' },
+  { extension: '.gz', appId: 'archivemanager', icon: 'Package', mimeType: 'application/gzip' },
   { extension: '.csv', appId: 'spreadsheet', icon: 'Table2', mimeType: 'text/csv' },
+  { extension: '.xls', appId: 'spreadsheet', icon: 'Table2', mimeType: 'application/vnd.ms-excel' },
+  { extension: '.xlsx', appId: 'spreadsheet', icon: 'Table2', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' },
 ];
 
 export const getFileAssociation = (filename: string): FileAssociation | undefined => {
@@ -86,19 +106,49 @@ export const getFileAssociation = (filename: string): FileAssociation | undefine
   return FILE_ASSOCIATIONS.find((a) => a.extension === ext);
 };
 
+// Resolve a Lucide icon name from a file name. Includes a couple of
+// compound-extension shortcuts so things like Music Creator's
+// `Sangre.lyrics.txt` get a notebook glyph instead of the generic .txt
+// FileText icon — small thing, big impact on desktop legibility.
+export const getIconForFileName = (filename: string): string => {
+  const lower = filename.toLowerCase();
+  if (lower.endsWith('.lyrics.txt')) return 'NotebookText';
+  if (lower.endsWith('.song.json') || lower.endsWith('.recipe.json')) return 'FileMusic';
+  return getFileAssociation(filename)?.icon ?? 'File';
+};
+
 const FS_STORAGE_KEY = 'tytus_filesystem';
+const VFS_BROADCAST = 'tytus.vfs.changed';
+
+// Cross-instance sync. Multiple windows mount their own useFileSystem();
+// previously a write in app A was invisible to app B until remount. We now
+// (a) write the same state to localStorage, (b) emit a same-tab CustomEvent
+// so other hook instances pick it up immediately, and (c) listen for the
+// browser's `storage` event for other tabs.
+//
+// `lastSerialized` is a module-level guard so a hook that just wrote the
+// state doesn't ping-pong against its own broadcast.
+let lastSerialized = '';
 
 function loadFS(): FileSystemState {
   try {
     const saved = localStorage.getItem(FS_STORAGE_KEY);
-    if (saved) return JSON.parse(saved) as FileSystemState;
+    if (saved) {
+      lastSerialized = saved;
+      return JSON.parse(saved) as FileSystemState;
+    }
   } catch { /* ignore */ }
   return createDefaultFS();
 }
 
 function saveFS(state: FileSystemState) {
   try {
-    localStorage.setItem(FS_STORAGE_KEY, JSON.stringify(state));
+    const serialized = JSON.stringify(state);
+    if (serialized === lastSerialized) return;
+    lastSerialized = serialized;
+    localStorage.setItem(FS_STORAGE_KEY, serialized);
+    // Same-tab broadcast — `storage` only fires across tabs.
+    window.dispatchEvent(new CustomEvent(VFS_BROADCAST));
   } catch { /* ignore */ }
 }
 
@@ -109,6 +159,30 @@ export function useFileSystem() {
   useEffect(() => {
     saveFS(fs);
   }, [fs]);
+
+  // Subscribe to in-tab + cross-tab updates. We only refresh when the
+  // serialized payload differs from what we last wrote, otherwise we'd
+  // clobber pending React updates with our own echo.
+  useEffect(() => {
+    const refresh = () => {
+      try {
+        const saved = localStorage.getItem(FS_STORAGE_KEY);
+        if (!saved || saved === lastSerialized) return;
+        lastSerialized = saved;
+        const next = JSON.parse(saved) as FileSystemState;
+        setFs(next);
+      } catch { /* ignore */ }
+    };
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === FS_STORAGE_KEY) refresh();
+    };
+    window.addEventListener(VFS_BROADCAST, refresh);
+    window.addEventListener('storage', onStorage);
+    return () => {
+      window.removeEventListener(VFS_BROADCAST, refresh);
+      window.removeEventListener('storage', onStorage);
+    };
+  }, []);
 
   const getChildren = useCallback(
     (parentId: string): FileSystemNode[] =>
@@ -135,12 +209,19 @@ export function useFileSystem() {
   );
 
   const createFile = useCallback(
-    (parentId: string, name: string, content = '') => {
+    (
+      parentId: string,
+      name: string,
+      content = '',
+      opts: { mimeType?: string; refTrackId?: string } = {},
+    ) => {
       const id = generateId();
       const node: FileSystemNode = {
         id, name, type: 'file', parentId,
         createdAt: Date.now(), modifiedAt: Date.now(),
         content, size: new Blob([content]).size,
+        ...(opts.mimeType ? { mimeType: opts.mimeType } : {}),
+        ...(opts.refTrackId ? { refTrackId: opts.refTrackId } : {}),
       };
       setFs((prev) => ({
         ...prev,
@@ -149,6 +230,55 @@ export function useFileSystem() {
       return id;
     },
     []
+  );
+
+  // Music Creator + future apps need to write into well-known folders
+  // without knowing the per-install random ids. Walks Home/user/<name>
+  // (creates the folder if missing) and returns its id. Cheap on hit,
+  // amortised over the session.
+  const ensureUserFolder = useCallback(
+    (folderName: 'Music' | 'Documents' | 'Desktop' | 'Downloads' | 'Pictures' | 'Videos'): string => {
+      let userFolderId: string | null = null;
+      let homeId: string | null = null;
+      let rootId: string | null = null;
+      for (const node of Object.values(fs.nodes)) {
+        if (node.parentId === null) rootId = node.id;
+      }
+      if (rootId) {
+        for (const node of Object.values(fs.nodes)) {
+          if (node.parentId === rootId && node.name === 'home') homeId = node.id;
+        }
+      }
+      if (homeId) {
+        for (const node of Object.values(fs.nodes)) {
+          if (node.parentId === homeId && node.name === 'user') userFolderId = node.id;
+        }
+      }
+      if (!userFolderId) {
+        // Brand-new install: just dump into the closest folder we can find.
+        return rootId ?? Object.keys(fs.nodes)[0] ?? '';
+      }
+      for (const node of Object.values(fs.nodes)) {
+        if (node.parentId === userFolderId && node.name === folderName) return node.id;
+      }
+      const id = generateId();
+      const node: FileSystemNode = {
+        id, name: folderName, type: 'folder', parentId: userFolderId,
+        createdAt: Date.now(), modifiedAt: Date.now(),
+      };
+      setFs((prev) => ({ ...prev, nodes: { ...prev.nodes, [id]: node } }));
+      return id;
+    },
+    [fs.nodes]
+  );
+
+  // Find a file by exact name within a parent. Used so MusicCreator can
+  // overwrite the previous lyrics file for a track instead of piling up
+  // duplicates each time the user regenerates lyrics.
+  const findChildByName = useCallback(
+    (parentId: string, name: string): FileSystemNode | undefined =>
+      Object.values(fs.nodes).find((n) => n.parentId === parentId && n.name === name),
+    [fs.nodes]
   );
 
   const createFolder = useCallback(
@@ -326,5 +456,7 @@ export function useFileSystem() {
     emptyTrash,
     getTrashItems,
     findNodeByPath,
+    ensureUserFolder,
+    findChildByName,
   };
 }

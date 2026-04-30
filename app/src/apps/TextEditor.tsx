@@ -7,7 +7,16 @@ import {
   FileText, FolderOpen, Save, Search, X, Plus, WrapText,
   Hash, ZoomIn, ZoomOut,
 } from 'lucide-react';
-import { useFileSystem } from '@/hooks/useFileSystem';
+import * as Icons from 'lucide-react';
+import type { LucideProps } from 'lucide-react';
+import { useFileSystem, getIconForFileName } from '@/hooks/useFileSystem';
+import { useCurrentWindowArgs } from '@/hooks/useCurrentWindow';
+
+const FileIcon = ({ name, ...props }: { name: string } & LucideProps) => {
+  const iconName = getIconForFileName(name);
+  const Comp = (Icons as unknown as Record<string, React.ComponentType<LucideProps>>)[iconName];
+  return Comp ? <Comp {...props} /> : <Icons.File {...props} />;
+};
 
 interface OpenFile {
   id: string;
@@ -61,6 +70,9 @@ const getFileExt = (name: string): string => {
 
 const TextEditor: React.FC = () => {
   const { fs, readFile, writeFile, createFile } = useFileSystem();
+  const args = useCurrentWindowArgs();
+  const editorArgs = args?.editor;
+  const seededRef = useRef(false);
   const [files, setFiles] = useState<OpenFile[]>([]);
   const [activeFileId, setActiveFileId] = useState<string | null>(null);
   const [showOpen, setShowOpen] = useState(false);
@@ -73,6 +85,12 @@ const TextEditor: React.FC = () => {
     try { return JSON.parse(localStorage.getItem('texteditor_recent') || '[]'); } catch { return []; }
   });
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  // Refs let us mirror the textarea's scroll position to the syntax
+  // overlay + the line-number gutter without re-rendering on every
+  // scroll tick. translateY beats scrollTop for the gutter because
+  // the gutter is `overflow-hidden` and would otherwise be locked.
+  const overlayRef = useRef<HTMLDivElement>(null);
+  const gutterInnerRef = useRef<HTMLDivElement>(null);
 
   const activeFile = files.find(f => f.id === activeFileId) || null;
   const lines = useMemo(() => activeFile ? activeFile.content.split('\n') : [], [activeFile]);
@@ -92,6 +110,11 @@ const TextEditor: React.FC = () => {
   const openFileById = (nodeId: string) => {
     const node = fs.nodes[nodeId];
     if (!node || node.type !== 'file') return;
+    // Hard refuse on non-text files. The textarea can't render audio /
+    // video / binary, so opening them would just display garbage. Music
+    // Creator shortcut nodes carry refTrackId — same deal.
+    if (node.refTrackId) return;
+    if (node.mimeType && !node.mimeType.startsWith('text/') && node.mimeType !== 'application/json' && node.mimeType !== 'application/xml') return;
     const content = readFile(nodeId) || '';
     const existing = files.find(f => f.id === nodeId);
     if (existing) {
@@ -149,6 +172,45 @@ const TextEditor: React.FC = () => {
     setFiles(prev => prev.map(f => f.id === activeFile.id ? { ...f, cursorLine: line, cursorCol: col } : f));
   };
 
+  // Pre-load buffer when launched with args.editor (e.g. Music Creator
+  // → "Open in Text Editor"). Runs once per window mount: a window
+  // re-renders constantly, but the seed must only fire on first mount
+  // or we'd push duplicate buffers each tick.
+  useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect */
+    if (seededRef.current || !editorArgs) return;
+    seededRef.current = true;
+
+    if (editorArgs.nodeId) {
+      const node = fs.nodes[editorArgs.nodeId];
+      if (node && node.type === 'file') {
+        const content = node.content ?? '';
+        setFiles((prev) =>
+          prev.some((f) => f.id === node.id)
+            ? prev
+            : [...prev, { id: node.id, name: node.name, content, isModified: false, cursorLine: 1, cursorCol: 1 }],
+        );
+        setActiveFileId(node.id);
+        return;
+      }
+    }
+
+    // No persistent node — open as an unsaved buffer. Save will land it
+    // in Documents via the existing saveActiveFile path.
+    const id = `new-${Date.now()}`;
+    const file: OpenFile = {
+      id,
+      name: editorArgs.fileName || 'Untitled.txt',
+      content: editorArgs.initialContent ?? '',
+      isModified: Boolean(editorArgs.initialContent),
+      cursorLine: 1,
+      cursorCol: 1,
+    };
+    setFiles((prev) => [...prev, file]);
+    setActiveFileId(id);
+    /* eslint-enable react-hooks/set-state-in-effect */
+  }, [editorArgs, fs.nodes]);
+
   // Keyboard shortcuts
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
@@ -199,7 +261,18 @@ const TextEditor: React.FC = () => {
   };
 
   // Open dialog file list
-  const allFiles = Object.values(fs.nodes).filter(n => n.type === 'file');
+  // Only text-shaped files are openable here. An audio/video/binary node
+  // (e.g. a Music Creator track shortcut with refTrackId) would render as
+  // garbage in the textarea — filter them out so the dialog stays useful.
+  const isTextish = (name: string, mime?: string): boolean => {
+    if (mime?.startsWith('text/')) return true;
+    if (mime && (mime === 'application/json' || mime === 'application/xml' || mime === 'application/javascript')) return true;
+    const lower = name.toLowerCase();
+    return /\.(txt|md|markdown|json|xml|csv|tsv|js|jsx|ts|tsx|css|scss|html|htm|py|rb|go|rs|java|c|cpp|h|sh|yml|yaml|toml|ini|env|log|lyrics\.txt)$/.test(lower);
+  };
+  const allFiles = Object.values(fs.nodes).filter(
+    (n) => n.type === 'file' && !n.refTrackId && isTextish(n.name, n.mimeType),
+  );
   const getFilePath = (node: typeof allFiles[0]): string => {
     const parts: string[] = [];
     let current: typeof node | undefined = node;
@@ -254,7 +327,7 @@ const TextEditor: React.FC = () => {
             value={findQuery}
             onChange={e => setFindQuery(e.target.value)}
             placeholder="Find..."
-            className="flex-1 bg-transparent text-xs text-[var(--text-primary)] outline-none placeholder:text-[var(--text-disabled)]"
+            className="flex-1 rounded-input bg-transparent text-xs text-[var(--text-primary)] outline-none placeholder:text-[var(--text-disabled)]"
           />
           <button onClick={() => setShowFind(false)} className="text-[var(--text-secondary)] hover:text-[var(--text-primary)]">
             <X size={14} />
@@ -262,14 +335,19 @@ const TextEditor: React.FC = () => {
         </div>
       )}
 
-      {/* Tabs */}
+      {/* Tabs — outer is a div+role="tab" so the close affordance can be a
+          real <button> without nesting. Avoids the React validateDOMNesting
+          warning while keeping keyboard click semantics. */}
       {files.length > 0 && (
         <div className="flex items-center gap-0 border-b overflow-x-auto custom-scrollbar" style={{ borderColor: 'var(--border-subtle)', background: 'var(--bg-titlebar)' }}>
           {files.map(f => (
-            <button
+            <div
               key={f.id}
+              role="tab"
+              tabIndex={0}
               onClick={() => setActiveFileId(f.id)}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs border-r min-w-0 shrink-0 transition-colors"
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setActiveFileId(f.id); } }}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs border-r min-w-0 shrink-0 transition-colors cursor-pointer outline-none"
               style={{
                 borderColor: 'var(--border-subtle)',
                 background: activeFileId === f.id ? 'var(--bg-window)' : 'transparent',
@@ -277,23 +355,29 @@ const TextEditor: React.FC = () => {
                 borderBottom: activeFileId === f.id ? '2px solid var(--accent-primary)' : '2px solid transparent',
               }}
             >
-              <FileText size={12} />
+              <FileIcon name={f.name} size={12} />
               <span className="truncate max-w-[120px]">{f.isModified ? '● ' : ''}{f.name}</span>
               <button
+                type="button"
                 onClick={e => { e.stopPropagation(); closeFile(f.id); }}
                 className="ml-1 hover:text-[var(--accent-error)]"
+                aria-label={`Close ${f.name}`}
               >
                 <X size={12} />
               </button>
-            </button>
+            </div>
           ))}
         </div>
       )}
 
-      {/* Editor area */}
+      {/* Editor area — single scroller (the textarea). Both the line-number
+          gutter and the syntax-highlight overlay are pure visual layers:
+          they don't scroll themselves, they translate by -scrollTop on
+          each onScroll tick. Avoids the previous "two scrollbars" bug. */}
       {activeFile ? (
         <div className="flex-1 flex overflow-hidden relative">
-          {/* Line numbers */}
+          {/* Line numbers — outer is overflow-hidden, inner div translates
+              with the textarea's scrollTop. */}
           {showLineNumbers && (
             <div
               className="shrink-0 overflow-hidden py-2 text-right select-none"
@@ -306,31 +390,39 @@ const TextEditor: React.FC = () => {
                 fontFamily: "'JetBrains Mono', monospace",
               }}
             >
-              {lines.map((_, i) => (
-                <div
-                  key={i}
-                  className="px-2"
-                  style={{
-                    color: i + 1 === activeFile.cursorLine ? 'var(--text-primary)' : 'var(--text-disabled)',
-                    fontWeight: i + 1 === activeFile.cursorLine ? 600 : 400,
-                  }}
-                >
-                  {i + 1}
-                </div>
-              ))}
+              <div ref={gutterInnerRef} style={{ willChange: 'transform' }}>
+                {lines.map((_, i) => (
+                  <div
+                    key={i}
+                    className="px-2"
+                    style={{
+                      color: i + 1 === activeFile.cursorLine ? 'var(--text-primary)' : 'var(--text-disabled)',
+                      fontWeight: i + 1 === activeFile.cursorLine ? 600 : 400,
+                    }}
+                  >
+                    {i + 1}
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 
-          {/* Textarea + highlight overlay */}
-          <div className="flex-1 relative overflow-auto custom-scrollbar">
+          {/* Textarea owns all scroll. The highlight overlay lives behind
+              the (transparent-text) textarea and slides with it. */}
+          <div className="flex-1 relative overflow-hidden">
             <textarea
               ref={textareaRef}
               value={activeFile.content}
               onChange={e => updateContent(e.target.value)}
               onKeyUp={handleCursorChange}
               onClick={handleCursorChange}
+              onScroll={(e) => {
+                const top = (e.currentTarget as HTMLTextAreaElement).scrollTop;
+                if (overlayRef.current) overlayRef.current.style.transform = `translateY(${-top}px)`;
+                if (gutterInnerRef.current) gutterInnerRef.current.style.transform = `translateY(${-top}px)`;
+              }}
               spellCheck={false}
-              className="absolute inset-0 w-full h-full resize-none outline-none bg-transparent text-transparent caret-[var(--text-primary)] p-2 z-10"
+              className="absolute inset-0 w-full h-full resize-none outline-none bg-transparent text-transparent caret-[var(--text-primary)] p-2 z-10 custom-scrollbar"
               style={{
                 fontSize,
                 lineHeight: `${fontSize + 6}px`,
@@ -339,8 +431,10 @@ const TextEditor: React.FC = () => {
                 tabSize: 4,
               }}
             />
-            {/* Syntax highlight overlay */}
+            {/* Syntax highlight overlay — non-scrolling; scrollTop synced
+                from the textarea's onScroll above. */}
             <div
+              ref={overlayRef}
               className="absolute inset-0 pointer-events-none p-2"
               style={{
                 fontSize,
@@ -349,6 +443,7 @@ const TextEditor: React.FC = () => {
                 whiteSpace: wordWrap ? 'pre-wrap' : 'pre',
                 tabSize: 4,
                 color: 'var(--text-primary)',
+                willChange: 'transform',
               }}
             >
               {fileExt && HIGHLIGHT_PATTERNS[fileExt]
@@ -385,13 +480,14 @@ const TextEditor: React.FC = () => {
               {recentFiles.slice(0, 5).map(rf => {
                 const node = fs.nodes[rf];
                 if (!node) return null;
+                if (!isTextish(node.name, node.mimeType)) return null;
                 return (
                   <button
                     key={rf}
                     onClick={() => openFileById(rf)}
                     className="flex items-center gap-2 w-full px-3 py-1.5 rounded-sm text-xs text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
                   >
-                    <FileText size={12} /> {node.name}
+                    <FileIcon name={node.name} size={12} /> {node.name}
                   </button>
                 );
               })}
@@ -430,7 +526,7 @@ const TextEditor: React.FC = () => {
                   onClick={() => openFileById(f.id)}
                   className="flex items-center gap-2 w-full px-3 py-2 rounded-sm text-xs text-[var(--text-primary)] hover:bg-[var(--bg-hover)]"
                 >
-                  <FileText size={14} className="text-[var(--text-secondary)]" />
+                  <FileIcon name={f.name} size={14} className="text-[var(--text-secondary)]" />
                   <span className="flex-1 text-left">{f.name}</span>
                   <span className="text-[var(--text-disabled)]">{getFilePath(f)}</span>
                 </button>

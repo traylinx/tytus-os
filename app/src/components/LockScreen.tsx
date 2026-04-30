@@ -52,7 +52,7 @@ const LockScreen = memo(function LockScreen() {
       >
         <img
           src="/favicons/android-chrome-192x192.png"
-          alt="tytusOS"
+          alt="Tytus OS"
           width={82}
           height={82}
           className="block rounded-2xl mb-5"

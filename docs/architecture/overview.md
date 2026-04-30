@@ -1,6 +1,6 @@
 # Architecture Overview
 
-TytusOS is a single-page React app pretending to be an operating system.
+Tytus OS is a single-page React app pretending to be an operating system.
 
 ## Stack
 
@@ -20,7 +20,7 @@ TytusOS is a single-page React app pretending to be an operating system.
 
 ```
 app/
-├── index.html                  entry, <title>TytusOS</title>
+├── index.html                  entry, <title>Tytus OS</title>
 ├── public/
 │   ├── favicon.svg             dual-orb logo
 │   └── wallpaper-default.jpg
@@ -103,7 +103,7 @@ Every component reads state from `useOS()` and dispatches actions back through t
 
 ## Today's network surface
 
-**Zero.** TytusOS has no fetch / WebSocket / EventSource code outside the API Tester (which only fires when a user clicks "Send" on a URL they typed).
+**Zero.** Tytus OS has no fetch / WebSocket / EventSource code outside the API Tester (which only fires when a user clicks "Send" on a URL they typed).
 
 Phase 2 introduces:
 - `lib/daemon.ts` — typed `fetch` wrapper for `tytus-cli` daemon

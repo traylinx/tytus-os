@@ -46,16 +46,23 @@ import {
   ExternalLink,
   Inbox,
   Download,
+  Upload,
   AlertTriangle,
   Box,
   Rocket,
   FolderSync,
   FolderOpen,
   HardDriveDownload,
+  Home,
+  ChevronRight,
+  ArrowUp,
+  Search,
   Plus,
   Link as LinkIcon,
   Check,
   X,
+  Pencil,
+  Trash2,
 } from "lucide-react";
 import { useOS, useNotifications } from "@/hooks/useOSStore";
 import { useDaemonClient } from "@/hooks/useDaemonClient";
@@ -68,10 +75,10 @@ import {
   inboxLineToFilename,
   isMissingInboxDiagnostic,
 } from "@/apps/fileManagerOpenWith";
-import type { Agent, Binding } from "@/types/daemon";
+import type { Agent, Binding, FileListEntry } from "@/types/daemon";
 import type { DaemonClient } from "@/lib/daemon";
 
-type TabId = "inbox" | "downloads" | "shared";
+type TabId = "browse" | "inbox" | "downloads" | "shared";
 
 const FileManager: FC = () => {
   const { dispatch } = useOS();
@@ -86,7 +93,7 @@ const FileManager: FC = () => {
   // Selected pod — defaults to first allocated agent. Cleared if
   // the agent disappears (e.g. revoked from another surface).
   const [selectedPodId, setSelectedPodId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<TabId>("inbox");
+  const [activeTab, setActiveTab] = useState<TabId>("browse");
 
   // Tray route consumer — fires once per nonce/full route when the shell
   // dispatches `#/pod/NN/files`.
@@ -112,7 +119,7 @@ const FileManager: FC = () => {
       return;
     }
     setSelectedPodId(filesArgs.podId);
-    setActiveTab(filesArgs.tab ?? "inbox");
+    setActiveTab(filesArgs.tab ?? "browse");
   }, [addNotification, agents, filesArgs, windowArgs?.routeNonce]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
@@ -190,7 +197,7 @@ const FileManager: FC = () => {
 
   // Sidebar greys out (still visible) when Shared is active —
   // the user understands shared folders are global, not pod-scoped.
-  const sidebarDisabled = activeTab === "shared";
+  const sidebarDisabled = activeTab === "shared" || activeTab === "browse";
 
   return (
     <div
@@ -212,7 +219,9 @@ const FileManager: FC = () => {
         <div className="flex-1 flex flex-col min-w-0">
           <TabStrip activeTab={activeTab} onSelect={setActiveTab} />
           <div className="flex-1 overflow-hidden flex flex-col">
-            {activeTab === "shared" ? (
+            {activeTab === "browse" ? (
+              <FileBrowser agents={agents} client={client} />
+            ) : activeTab === "shared" ? (
               <SharedTab agents={agents} client={client} />
             ) : !selectedAgent ? (
               <div className="flex-1 flex items-center justify-center text-sm text-[var(--text-secondary)]">
@@ -240,6 +249,7 @@ const Header: FC<{
   activeTab: TabId;
 }> = ({ podId, agentType, activeTab }) => {
   const isShared = activeTab === "shared";
+  const isBrowse = activeTab === "browse";
   return (
     <div
       className="px-5 py-3 flex items-center gap-3 flex-shrink-0"
@@ -247,21 +257,27 @@ const Header: FC<{
     >
       {isShared ? (
         <FolderSync size={18} className="text-[var(--accent-primary)]" />
+      ) : isBrowse ? (
+        <Home size={18} className="text-[var(--accent-primary)]" />
       ) : (
         <Folder size={18} className="text-[var(--accent-primary)]" />
       )}
       <div className="flex-1 min-w-0">
         <div className="text-sm font-semibold text-[var(--text-primary)]">
-          {isShared
-            ? "Files — Shared folders"
-            : `Files${podId ? ` — Pod ${podId}` : ""}`}
+          {isBrowse
+            ? "Files — Browser"
+            : isShared
+              ? "Files — Shared folders"
+              : `Files${podId ? ` — Pod ${podId}` : ""}`}
         </div>
         <div className="text-[11px] text-[var(--text-secondary)] truncate">
-          {isShared
-            ? "Bindings are account-scoped, synced across all your pods"
-            : podId
-              ? `Inbox + Downloads · ${agentType ?? "agent"}`
-              : "Per-pod inbox and local Downloads folder"}
+          {isBrowse
+            ? "Browse Tytus Home, shared folders, and pod workspaces"
+            : isShared
+              ? "Bindings are account-scoped, synced across all your pods"
+              : podId
+                ? `Inbox + Downloads · ${agentType ?? "agent"}`
+                : "Per-pod inbox and local Downloads folder"}
         </div>
       </div>
     </div>
@@ -351,6 +367,7 @@ const TabStrip: FC<{
   onSelect: (tab: TabId) => void;
 }> = ({ activeTab, onSelect }) => {
   const tabs: { id: TabId; label: string; icon: React.ReactNode }[] = [
+    { id: "browse", label: "Browse", icon: <Home size={12} /> },
     { id: "inbox", label: "Inbox", icon: <Inbox size={12} /> },
     { id: "downloads", label: "Downloads", icon: <Download size={12} /> },
     { id: "shared", label: "Shared", icon: <FolderSync size={12} /> },
@@ -384,6 +401,577 @@ const TabStrip: FC<{
           </button>
         );
       })}
+    </div>
+  );
+};
+
+type BrowserSource = {
+  id: string;
+  label: string;
+  detail: string;
+  source: string;
+  path?: string;
+  pod?: string;
+  binding?: number;
+  readonly?: boolean;
+};
+
+const formatBytes = (size: number): string => {
+  if (size < 1024) return `${size} B`;
+  if (size < 1024 * 1024) return `${Math.round(size / 1024)} KB`;
+  return `${(size / 1024 / 1024).toFixed(1)} MB`;
+};
+
+const parentPath = (path: string): string => {
+  const clean = path.replace(/^\/+|\/+$/g, "");
+  if (!clean) return "";
+  const parts = clean.split("/");
+  parts.pop();
+  return parts.join("/");
+};
+
+const joinPath = (base: string, child: string): string => {
+  const clean = base.replace(/^\/+|\/+$/g, "");
+  return clean ? `${clean}/${child}` : child;
+};
+
+const MAX_BROWSER_TRANSFER_BYTES = 100 * 1024 * 1024;
+
+const arrayBufferToBase64 = (buffer: ArrayBuffer): string => {
+  const bytes = new Uint8Array(buffer);
+  const chunkSize = 0x8000;
+  let binary = "";
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+  }
+  return btoa(binary);
+};
+
+const FileBrowser: FC<{ agents: Agent[]; client: DaemonClient }> = ({
+  agents,
+  client,
+}) => {
+  const [bindings, setBindings] = useState<Binding[]>([]);
+  const [sourceId, setSourceId] = useState("tytus-home");
+  const [path, setPath] = useState("");
+  const [entries, setEntries] = useState<FileListEntry[]>([]);
+  const [rootPath, setRootPath] = useState("");
+  const [rootLabel, setRootLabel] = useState("Tytus Home");
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
+  const [refreshNonce, setRefreshNonce] = useState(0);
+  const [mutationBusy, setMutationBusy] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const uploadInputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    client.getSharedFolders().then((r) => {
+      if (cancelled) return;
+      if (r.ok) setBindings(r.value.bindings);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [client]);
+
+  const sources = useMemo<BrowserSource[]>(() => {
+    const base: BrowserSource[] = [
+      {
+        id: "tytus-home",
+        label: "Tytus Home",
+        detail: "~/Tytus",
+        source: "tytus-home",
+      },
+      {
+        id: "home-inbox",
+        label: "Inbox",
+        detail: "~/Tytus/Inbox",
+        source: "tytus-home",
+        path: "Inbox",
+      },
+      {
+        id: "home-outbox",
+        label: "Outbox",
+        detail: "~/Tytus/Outbox",
+        source: "tytus-home",
+        path: "Outbox",
+      },
+      {
+        id: "home-downloads",
+        label: "Downloads",
+        detail: "~/Tytus/Downloads",
+        source: "tytus-home",
+        path: "Downloads",
+      },
+      {
+        id: "home-projects",
+        label: "Projects",
+        detail: "~/Tytus/Projects",
+        source: "tytus-home",
+        path: "Projects",
+      },
+    ];
+    for (const [i, binding] of bindings.entries()) {
+      base.push({
+        id: `shared-${i}`,
+        label: `Shared · ${binding.bucket}`,
+        detail: binding.local_path,
+        source: "shared",
+        binding: i,
+      });
+    }
+    for (const agent of agents) {
+      base.push({
+        id: `pod-${agent.pod_id}`,
+        label: `Pod ${agent.pod_id} workspace`,
+        detail: "/app/workspace",
+        source: "pod-workspace",
+        pod: agent.pod_id,
+        readonly: true,
+      });
+    }
+    return base;
+  }, [agents, bindings]);
+
+  const activeSource = sources.find((s) => s.id === sourceId) ?? sources[0];
+
+  const mutationPayload = useCallback(
+    (targetPath: string) => ({
+      source: activeSource?.source ?? "tytus-home",
+      binding: activeSource?.binding,
+      path: joinPath(activeSource?.path ?? "", targetPath),
+    }),
+    [activeSource],
+  );
+
+  const refresh = useCallback(() => setRefreshNonce((n) => n + 1), []);
+
+  useEffect(() => {
+    if (!activeSource) return;
+    let cancelled = false;
+    const effectivePath = joinPath(activeSource.path ?? "", path);
+    const load = async () => {
+      setLoading(true);
+      setErr(null);
+      const r = await client.getFilesList({
+        source: activeSource.source,
+        path: effectivePath,
+        pod: activeSource.pod,
+        binding: activeSource.binding,
+      });
+      if (cancelled) return;
+      setLoading(false);
+      if (!r.ok) {
+        setErr(r.error.message);
+        setEntries([]);
+        return;
+      }
+      setRootLabel(r.value.root_label);
+      setRootPath(r.value.root_path);
+      const prefix = activeSource.path ?? "";
+      const visible = prefix
+        ? r.value.entries.map((entry) => ({
+            ...entry,
+            path: entry.path.startsWith(`${prefix}/`)
+              ? entry.path.slice(prefix.length + 1)
+              : entry.path,
+          }))
+        : r.value.entries;
+      setEntries(visible);
+    };
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeSource, client, path, refreshNonce]);
+
+  const selectSource = (id: string) => {
+    setSourceId(id);
+    setPath("");
+    setQuery("");
+  };
+
+  const createFolder = async () => {
+    if (!activeSource || activeSource.readonly) return;
+    const name = window.prompt("New folder name");
+    if (!name?.trim()) return;
+    setMutationBusy(true);
+    setErr(null);
+    const r = await client.postFilesMkdir({
+      ...mutationPayload(path),
+      name: name.trim(),
+    });
+    setMutationBusy(false);
+    if (!r.ok) {
+      setErr(r.error.message);
+      return;
+    }
+    refresh();
+  };
+
+  const renameEntry = async (entry: FileListEntry) => {
+    if (!activeSource || activeSource.readonly) return;
+    const nextName = window.prompt("Rename to", entry.name);
+    if (!nextName?.trim() || nextName.trim() === entry.name) return;
+    setMutationBusy(true);
+    setErr(null);
+    const r = await client.postFilesRename({
+      ...mutationPayload(entry.path),
+      new_name: nextName.trim(),
+    });
+    setMutationBusy(false);
+    if (!r.ok) {
+      setErr(r.error.message);
+      return;
+    }
+    refresh();
+  };
+
+  const deleteEntry = async (entry: FileListEntry) => {
+    if (!activeSource || activeSource.readonly) return;
+    const ok = window.confirm(
+      `Delete ${entry.kind === "dir" ? "folder" : "file"} "${entry.name}"?\n\nFolders must be empty. This cannot be undone.`,
+    );
+    if (!ok) return;
+    setMutationBusy(true);
+    setErr(null);
+    const r = await client.postFilesDelete(mutationPayload(entry.path));
+    setMutationBusy(false);
+    if (!r.ok) {
+      setErr(r.error.message);
+      return;
+    }
+    refresh();
+  };
+
+  const downloadEntry = (entry: FileListEntry) => {
+    if (entry.kind !== "file") return;
+    const a = document.createElement("a");
+    a.href = client.filesDownloadUrl(mutationPayload(entry.path));
+    a.download = entry.name;
+    a.rel = "noopener";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  };
+
+  const uploadFiles = async (fileList: FileList | null) => {
+    if (!activeSource || activeSource.readonly || !fileList?.length) return;
+    setUploading(true);
+    setErr(null);
+    for (const file of Array.from(fileList)) {
+      if (file.size > MAX_BROWSER_TRANSFER_BYTES) {
+        setErr(`${file.name} exceeds the 100 MiB transfer cap.`);
+        break;
+      }
+      const content_base64 = arrayBufferToBase64(await file.arrayBuffer());
+      const r = await client.postFilesUpload({
+        ...mutationPayload(path),
+        name: file.name,
+        content_base64,
+      });
+      if (!r.ok) {
+        setErr(`${file.name}: ${r.error.message}`);
+        break;
+      }
+    }
+    if (uploadInputRef.current) uploadInputRef.current.value = "";
+    setUploading(false);
+    refresh();
+  };
+
+  const filtered = entries.filter((entry) =>
+    entry.name.toLowerCase().includes(query.toLowerCase()),
+  );
+
+  const crumbs = path ? path.split("/").filter(Boolean) : [];
+
+  return (
+    <div className="flex flex-1 min-h-0">
+      <div
+        className="w-60 shrink-0 overflow-y-auto custom-scrollbar"
+        style={{
+          background: "var(--bg-sidebar, rgba(255,255,255,0.02))",
+          borderRight: "1px solid var(--border-subtle)",
+        }}
+      >
+        <div className="px-4 py-3 text-[10px] uppercase tracking-wider text-[var(--text-secondary)]">
+          Sources
+        </div>
+        {sources.map((source) => {
+          const active = source.id === sourceId;
+          return (
+            <button
+              key={source.id}
+              onClick={() => selectSource(source.id)}
+              className="w-full px-4 py-2.5 flex items-center gap-2 text-left transition-colors"
+              style={{
+                background: active ? "rgba(124,77,255,0.16)" : "transparent",
+                color: active ? "var(--accent-primary)" : "var(--text-primary)",
+              }}
+            >
+              {source.source === "pod-workspace" ? (
+                <Box size={15} />
+              ) : source.source === "shared" ? (
+                <FolderSync size={15} />
+              ) : (
+                <Folder size={15} />
+              )}
+              <span className="min-w-0">
+                <span className="block text-xs font-medium truncate">
+                  {source.label}
+                </span>
+                <span className="block text-[10px] text-[var(--text-secondary)] truncate">
+                  {source.detail}
+                </span>
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="flex-1 flex flex-col min-w-0">
+        <div
+          className="px-4 py-2.5 flex items-center gap-3 border-b"
+          style={{ borderColor: "var(--border-subtle)" }}
+        >
+          <button
+            onClick={() => setPath(parentPath(path))}
+            disabled={!path}
+            className="p-1.5 rounded-md disabled:opacity-40"
+            style={{
+              background: "var(--bg-hover, rgba(255,255,255,0.04))",
+              color: "var(--text-primary)",
+            }}
+            title="Up"
+          >
+            <ArrowUp size={14} />
+          </button>
+          <button
+            onClick={refresh}
+            disabled={loading}
+            className="p-1.5 rounded-md disabled:opacity-40"
+            style={{
+              background: "var(--bg-hover, rgba(255,255,255,0.04))",
+              color: "var(--text-primary)",
+            }}
+            title="Refresh"
+          >
+            <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
+          </button>
+          {!activeSource?.readonly && (
+            <button
+              onClick={createFolder}
+              disabled={mutationBusy || uploading}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs disabled:opacity-50"
+              style={{
+                background: "var(--accent-primary)",
+                color: "white",
+              }}
+            >
+              {mutationBusy ? (
+                <Loader2 size={13} className="animate-spin" />
+              ) : (
+                <Plus size={13} />
+              )}
+              New folder
+            </button>
+          )}
+          {!activeSource?.readonly && (
+            <>
+              <input
+                ref={uploadInputRef}
+                type="file"
+                multiple
+                className="hidden"
+                onChange={(e) => void uploadFiles(e.currentTarget.files)}
+              />
+              <button
+                onClick={() => uploadInputRef.current?.click()}
+                disabled={mutationBusy || uploading}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs disabled:opacity-50"
+                style={{
+                  background: "var(--bg-hover, rgba(255,255,255,0.04))",
+                  color: "var(--text-primary)",
+                  border: "1px solid var(--border-default)",
+                }}
+              >
+                {uploading ? (
+                  <Loader2 size={13} className="animate-spin" />
+                ) : (
+                  <Upload size={13} />
+                )}
+                Upload
+              </button>
+            </>
+          )}
+          <div className="flex-1 min-w-0 flex items-center gap-1 text-xs text-[var(--text-secondary)] truncate">
+            <span className="font-semibold text-[var(--text-primary)]">
+              {rootLabel}
+            </span>
+            {crumbs.map((crumb, i) => (
+              <span
+                key={`${i}-${crumb}`}
+                className="flex items-center gap-1 min-w-0"
+              >
+                <ChevronRight size={12} />
+                <button
+                  className="hover:text-[var(--text-primary)] truncate"
+                  onClick={() => setPath(crumbs.slice(0, i + 1).join("/"))}
+                >
+                  {crumb}
+                </button>
+              </span>
+            ))}
+          </div>
+          <div
+            className="w-56 flex items-center gap-2 px-2 py-1.5 rounded-md"
+            style={{
+              background: "rgba(0,0,0,0.20)",
+              border: "1px solid var(--border-subtle)",
+            }}
+          >
+            <Search size={13} className="text-[var(--text-secondary)]" />
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search…"
+              className="w-full bg-transparent outline-none text-xs text-[var(--text-primary)] placeholder:text-[var(--text-secondary)]"
+            />
+          </div>
+        </div>
+
+        {err && (
+          <div
+            className="m-4 p-3 rounded-md text-xs flex items-start gap-2"
+            style={{
+              background: "rgba(244,67,54,0.10)",
+              border: "1px solid rgba(244,67,54,0.30)",
+              color: "#FFCDD2",
+            }}
+          >
+            <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+            {err}
+          </div>
+        )}
+
+        <div className="flex-1 overflow-y-auto custom-scrollbar p-3">
+          {loading ? (
+            <div className="h-full flex items-center justify-center text-sm text-[var(--text-secondary)] gap-2">
+              <Loader2 size={16} className="animate-spin" /> Loading folder…
+            </div>
+          ) : filtered.length === 0 ? (
+            <div className="h-full flex flex-col items-center justify-center text-center text-[var(--text-secondary)]">
+              <FolderOpen
+                size={28}
+                className="mb-2 text-[var(--accent-primary)]"
+              />
+              <div className="text-sm">Folder is empty.</div>
+              <div className="text-[11px] mt-1 max-w-[360px]">
+                {activeSource?.readonly
+                  ? "This pod workspace is read-only from Files for now. Use Terminal for writes."
+                  : "Use Upload or New folder to add content here."}
+              </div>
+            </div>
+          ) : (
+            <div className="rounded-lg overflow-hidden border border-[var(--border-subtle)]">
+              <div
+                className="grid grid-cols-[1fr_96px_130px_140px] gap-3 px-3 py-2 text-[11px] uppercase tracking-wider text-[var(--text-secondary)]"
+                style={{ background: "rgba(255,255,255,0.03)" }}
+              >
+                <span>Name</span>
+                <span>Size</span>
+                <span>Modified</span>
+                <span>Actions</span>
+              </div>
+              {filtered.map((entry) => (
+                <div
+                  key={`${entry.kind}:${entry.path}`}
+                  onDoubleClick={() => {
+                    if (entry.kind === "dir")
+                      setPath(joinPath(path, entry.name));
+                  }}
+                  className="w-full grid grid-cols-[1fr_96px_130px_140px] gap-3 px-3 py-2 text-left text-xs border-t border-[var(--border-subtle)] hover:bg-[var(--bg-hover)]"
+                >
+                  <span className="flex items-center gap-2 min-w-0 text-[var(--text-primary)]">
+                    {entry.kind === "dir" ? (
+                      <Folder size={14} />
+                    ) : (
+                      <FileText size={14} />
+                    )}
+                    <span className="truncate">{entry.name}</span>
+                    {entry.readonly && (
+                      <span className="text-[10px] text-[var(--text-secondary)]">
+                        read-only
+                      </span>
+                    )}
+                  </span>
+                  <span className="text-[var(--text-secondary)] font-mono">
+                    {entry.kind === "dir" ? "—" : formatBytes(entry.size)}
+                  </span>
+                  <span className="text-[var(--text-secondary)] truncate">
+                    {entry.modified_at
+                      ? new Date(entry.modified_at * 1000).toLocaleDateString()
+                      : "—"}
+                  </span>
+                  <span className="flex items-center gap-1">
+                    {activeSource?.readonly ? (
+                      <span className="text-[10px] text-[var(--text-secondary)]">
+                        —
+                      </span>
+                    ) : (
+                      <>
+                        <button
+                          onClick={() => downloadEntry(entry)}
+                          disabled={mutationBusy || uploading || entry.kind !== "file"}
+                          className="p-1 rounded-md disabled:opacity-40 hover:bg-[var(--bg-hover)]"
+                          title="Download"
+                        >
+                          <Download size={12} />
+                        </button>
+                        <button
+                          onClick={() => void renameEntry(entry)}
+                          disabled={mutationBusy || uploading}
+                          className="p-1 rounded-md disabled:opacity-40 hover:bg-[var(--bg-hover)]"
+                          title="Rename"
+                        >
+                          <Pencil size={12} />
+                        </button>
+                        <button
+                          onClick={() => void deleteEntry(entry)}
+                          disabled={mutationBusy || uploading}
+                          className="p-1 rounded-md disabled:opacity-40 hover:bg-[var(--bg-hover)]"
+                          title="Delete"
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      </>
+                    )}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div
+          className="px-4 py-2 text-[11px] text-[var(--text-secondary)] flex items-center justify-between border-t"
+          style={{ borderColor: "var(--border-subtle)" }}
+        >
+          <span>
+            {filtered.length} item{filtered.length === 1 ? "" : "s"} ·{" "}
+            {rootPath}
+            {path ? `/${path}` : ""}
+          </span>
+          <span>
+            {activeSource?.readonly
+              ? "Read-only pod source"
+              : "Safe root-anchored source"}
+          </span>
+        </div>
+      </div>
     </div>
   );
 };

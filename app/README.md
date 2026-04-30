@@ -1,4 +1,4 @@
-# TytusOS — desktop shell
+# Tytus OS — desktop shell
 
 The visual layer of Tytus. A web-OS metaphor (Boot → Login → Desktop + Dock + WindowManager) that hosts pod-management apps and replaces the legacy Tytus Tower bundled in `tytus-cli`.
 
@@ -24,7 +24,7 @@ No telemetry, no analytics, no external SDKs. The dev server proxies `/api/*` to
 | Terminal | 6 | Real shell into pod containers via `tytus exec` |
 | Browser | 6 | Open pod URLs, agent docs, GitHub |
 
-Every other "OS app" you might have seen in the seed (games, calculator, calendar, etc.) was deleted on 2026-04-28 — TytusOS is a product surface, not a Linux replica.
+Every other "OS app" you might have seen in the seed (games, calculator, calendar, etc.) was deleted on 2026-04-28 — Tytus OS is a product surface, not a Linux replica.
 
 ## Run
 
@@ -45,7 +45,7 @@ Full docs live one level up in [`../docs/`](../docs/README.md):
 
 ## Phase plan
 
-See [`../INTEGRATION-DEEPDIVE.md`](../INTEGRATION-DEEPDIVE.md) and [`../docs/development/roadmap.md`](../docs/development/roadmap.md). Six phases, strangler-port from Tytus Tower into TytusOS native apps. The `tytus-cli` daemon (~40 endpoints, SSE jobs, tray fragment deep-links) is the load-bearing contract — the OS frontend talks to it; nothing about the daemon changes.
+See [`../INTEGRATION-DEEPDIVE.md`](../INTEGRATION-DEEPDIVE.md) and [`../docs/development/roadmap.md`](../docs/development/roadmap.md). Six phases, strangler-port from Tytus Tower into Tytus OS native apps. The `tytus-cli` daemon (~40 endpoints, SSE jobs, tray fragment deep-links) is the load-bearing contract — the OS frontend talks to it; nothing about the daemon changes.
 
 ## Layout
 

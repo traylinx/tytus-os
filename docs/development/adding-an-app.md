@@ -1,6 +1,6 @@
 # Adding an App
 
-End-to-end: from "I want a Pomodoro timer in TytusOS" to a fully wired, dock-pinnable, launcher-discoverable app.
+End-to-end: from "I want a Pomodoro timer in Tytus OS" to a fully wired, dock-pinnable, launcher-discoverable app.
 
 ## 1. Create the component
 

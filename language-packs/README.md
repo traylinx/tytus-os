@@ -1,9 +1,9 @@
-# TytusOS Language Packs
+# Tytus OS Language Packs
 
-TytusOS supports two install paths:
+Tytus OS supports two install paths:
 
 1. Bundled languages shipped with the app (`en`, `es`).
-2. Official downloadable packs from the TytusOS GitHub catalog.
+2. Official downloadable packs from the Tytus OS GitHub catalog.
 
 The app intentionally does **not** accept arbitrary language-pack URLs. The catalog URL is pinned in `Settings.tsx`:
 

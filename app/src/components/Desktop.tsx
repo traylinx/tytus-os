@@ -3,7 +3,8 @@
 // ============================================================
 
 import { useCallback, memo, useState, useRef, useEffect } from 'react';
-import { useOS } from '@/hooks/useOSStore';
+import { useOS, useNotifications } from '@/hooks/useOSStore';
+import { useFileSystem, getIconForFileName } from '@/hooks/useFileSystem';
 import { usePinnedPods } from '@/hooks/usePinnedPods';
 import { useDaemonStateContext } from '@/hooks/useDaemonStateContext';
 import { navigate } from '@/lib/router';
@@ -11,6 +12,21 @@ import * as Icons from 'lucide-react';
 import { Box, Star } from 'lucide-react';
 import type { LucideProps } from 'lucide-react';
 import { useI18n } from '@/i18n';
+
+// Cross-app DnD MIME — must match the one declared in MusicCreator.
+// Kept duplicated here (instead of pulled from a shared lib) because the
+// Desktop has no other reason to depend on MusicCreator's source file
+// and importing it would force the app's whole module graph into the
+// always-mounted Desktop component.
+const MIME_TRACK = 'application/x-juli3ta-track';
+interface DraggedTrackPayload {
+  id: string;
+  title: string;
+  styleTags?: string;
+  lyricsPreview?: string;
+  durationMs?: number;
+  audioDataUrl?: string;
+}
 
 const DynamicIcon = ({ name, ...props }: { name: string } & LucideProps) => {
   const IconComp = (Icons as unknown as unknown as Record<string, React.ComponentType<LucideProps>>)[name];
@@ -50,10 +66,18 @@ interface DragState {
 const ICON_SIZE = 64; // visual footprint used for bounds clamping
 const DRAG_THRESHOLD = 5; // px of pointer travel before we consider it a drag
 
+const sanitize = (s: string): string => {
+  const trimmed = (s || 'untitled').trim().replace(/[\\/:*?"<>|]/g, '').slice(0, 80);
+  return trimmed || 'untitled';
+};
+
 const Desktop = memo(function Desktop() {
   const { state, dispatch } = useOS();
   const { t } = useI18n();
   const { desktopIcons } = state;
+  const fsApi = useFileSystem();
+  const { addNotification } = useNotifications();
+  const [dropHover, setDropHover] = useState(false);
   // Force re-render only on the icon currently being dragged so the
   // visual style (opacity 0.5) follows. We don't store position in state.
   const [draggingId, setDraggingId] = useState<string | null>(null);
@@ -104,9 +128,20 @@ const Desktop = memo(function Desktop() {
       if (dragRef.current?.suppressNextClick) return;
       if (icon.appId) {
         dispatch({ type: 'OPEN_WINDOW', appId: icon.appId });
+        return;
+      }
+      // File-shaped icons resolve to a VFS node + the right viewer app.
+      if (icon.fileSystemNodeId) {
+        const node = fsApi.getNodeById(icon.fileSystemNodeId);
+        if (!node) return;
+        if (node.refTrackId) {
+          dispatch({ type: 'OPEN_OR_FOCUS_WINDOW', appId: 'musicplayer', args: { music: { trackId: node.refTrackId } } });
+        } else if (node.name.endsWith('.txt') || node.name.endsWith('.md') || (node.mimeType ?? '').startsWith('text/')) {
+          dispatch({ type: 'OPEN_OR_FOCUS_WINDOW', appId: 'texteditor', args: { editor: { nodeId: node.id } } });
+        }
       }
     },
-    [dispatch]
+    [dispatch, fsApi]
   );
 
   // Window-level handlers — installed on mousedown, removed on mouseup
@@ -183,6 +218,122 @@ const Desktop = memo(function Desktop() {
     dragRef.current = null;
   }, [handleWindowMouseMove, handleWindowMouseUp]);
 
+  // ── Drop handlers ─────────────────────────────────────────
+  // The desktop accepts tracks (from Music Creator), plain text (from
+  // Text Editor or the OS clipboard), and OS-level files. Each drop
+  // creates a real VFS file in ~/Desktop AND a desktop icon pointing at
+  // it, so the user can re-open / drag onwards just like macOS.
+  const findDesktopFolderId = useCallback((): string => fsApi.ensureUserFolder('Desktop'), [fsApi]);
+
+  const placeIcon = useCallback((nodeId: string, name: string, iconName: string) => {
+    // Snap to the next free grid slot below the reserved pods zone (4×2)
+    // — start at column 0 row 2 and walk left-to-right, top-to-bottom.
+    const used = new Set(state.desktopIcons.map((i) => `${i.position.x},${i.position.y}`));
+    let placed = false;
+    let x = 16, y = 16 + 2 * GRID_Y;
+    for (let row = 2; row < 8 && !placed; row++) {
+      for (let col = 0; col < 8 && !placed; col++) {
+        const px = 16 + col * GRID_X;
+        const py = 16 + row * GRID_Y;
+        if (!used.has(`${px},${py}`)) { x = px; y = py; placed = true; }
+      }
+    }
+    dispatch({
+      type: 'ADD_DESKTOP_ICON',
+      icon: {
+        name,
+        icon: iconName,
+        fileSystemNodeId: nodeId,
+        position: { x, y },
+        isSelected: false,
+      },
+    });
+  }, [dispatch, state.desktopIcons]);
+
+  const handleDesktopDragOver = useCallback((e: React.DragEvent) => {
+    const types = Array.from(e.dataTransfer.types);
+    if (types.includes(MIME_TRACK) || types.includes('text/plain') || types.includes('Files')) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'copy';
+      if (!dropHover) setDropHover(true);
+    }
+  }, [dropHover]);
+
+  const handleDesktopDragLeave = useCallback((e: React.DragEvent) => {
+    if (e.currentTarget === e.target) setDropHover(false);
+  }, []);
+
+  const handleDesktopDrop = useCallback(async (e: React.DragEvent) => {
+    setDropHover(false);
+
+    // Track payload (Music Creator) — make a Music shortcut on Desktop.
+    const trackRaw = e.dataTransfer.getData(MIME_TRACK);
+    if (trackRaw) {
+      e.preventDefault();
+      try {
+        const payload = JSON.parse(trackRaw) as DraggedTrackPayload;
+        const baseName = sanitize(payload.title.replace(/\s*\((lyrics|cover)\)\s*$/, ''));
+        const desktopId = findDesktopFolderId();
+        if (!desktopId) return;
+        const isAudio = Boolean(payload.audioDataUrl);
+        const fileName = isAudio ? `${baseName}.mp3` : `${baseName}.lyrics.txt`;
+        const existing = fsApi.findChildByName(desktopId, fileName);
+        const nodeId = existing
+          ? existing.id
+          : (isAudio
+              ? fsApi.createFile(desktopId, fileName, '', { mimeType: 'audio/mpeg', refTrackId: payload.id })
+              : fsApi.createFile(desktopId, fileName, payload.lyricsPreview ?? '', { mimeType: 'text/plain' }));
+        if (!existing) placeIcon(nodeId, fileName, getIconForFileName(fileName));
+        addNotification({
+          appId: 'desktop',
+          appName: 'Desktop',
+          appIcon: isAudio ? 'Music' : 'FileText',
+          title: t('desktop.notify.dropTitle'),
+          message: t('desktop.notify.dropBody', { name: fileName }),
+          isRead: false,
+        });
+      } catch {
+        // ignore malformed payload
+      }
+      return;
+    }
+
+    // Plain text — drop into Desktop as a .txt file.
+    const text = e.dataTransfer.getData('text/plain');
+    if (text && text.trim()) {
+      e.preventDefault();
+      const desktopId = findDesktopFolderId();
+      if (!desktopId) return;
+      const stamp = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+      const fileName = `note-${stamp}-${Math.random().toString(36).slice(2, 5)}.txt`;
+      const nodeId = fsApi.createFile(desktopId, fileName, text, { mimeType: 'text/plain' });
+      placeIcon(nodeId, fileName, getIconForFileName(fileName));
+      addNotification({
+        appId: 'desktop',
+        appName: 'Desktop',
+        appIcon: 'FileText',
+        title: t('desktop.notify.dropTitle'),
+        message: t('desktop.notify.dropBody', { name: fileName }),
+        isRead: false,
+      });
+      return;
+    }
+
+    // OS file drop (real File objects) — read text-shaped ones into VFS.
+    if (e.dataTransfer.files.length > 0) {
+      e.preventDefault();
+      const desktopId = findDesktopFolderId();
+      if (!desktopId) return;
+      for (const file of Array.from(e.dataTransfer.files)) {
+        const isText = file.type.startsWith('text/') || file.name.endsWith('.txt') || file.name.endsWith('.md');
+        if (!isText) continue;
+        const content = await file.text();
+        const nodeId = fsApi.createFile(desktopId, file.name, content, { mimeType: file.type || 'text/plain' });
+        placeIcon(nodeId, file.name, getIconForFileName(file.name));
+      }
+    }
+  }, [findDesktopFolderId, fsApi, placeIcon, addNotification, t]);
+
   const handleDesktopContextMenu = useCallback(
     (e: React.MouseEvent) => {
       e.preventDefault();
@@ -214,8 +365,14 @@ const Desktop = memo(function Desktop() {
       style={{
         top: 28,
         bottom: 68, // matches dock lift+height (6 + 56 + 6 buffer)
+        outline: dropHover ? '2px dashed rgba(124,77,255,0.55)' : 'none',
+        outlineOffset: -8,
+        transition: 'outline-color 120ms ease',
       }}
       onContextMenu={handleDesktopContextMenu}
+      onDragOver={handleDesktopDragOver}
+      onDragLeave={handleDesktopDragLeave}
+      onDrop={handleDesktopDrop}
       onClick={() => {
         // After a drag ends, ignore the click so the user's selection
         // isn't cleared the moment they release the mouse.

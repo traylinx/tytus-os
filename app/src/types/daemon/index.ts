@@ -27,6 +27,17 @@ export type {
 } from "./PodReadiness";
 export type { Binding, SharedFoldersList } from "./Binding";
 export type { PodEnv, PodEnvVar, EnvVarSource } from "./PodEnv";
-export type { StoreApp, StoreAppCheckResult, StoreAppCheckResponse } from "./StoreApp";
+export type {
+  StoreApp,
+  StoreAppCheckResult,
+  StoreAppCheckResponse,
+} from "./StoreApp";
 export type { DaemonResult, DaemonError, DaemonErrorCode } from "./Result";
 export { ok, err } from "./Result";
+export type {
+  FileEntryKind,
+  FileListEntry,
+  FileList,
+  FileMutationSource,
+  FileUploadBody,
+} from "./FileList";

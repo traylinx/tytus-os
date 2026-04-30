@@ -295,7 +295,7 @@ const TopPanel = memo(function TopPanel() {
             title="Tytus menu"
             className="h-7 w-8 rounded-md hover:bg-[var(--chrome-hover)] transition-colors flex items-center justify-center shrink-0"
           >
-            <img src={BRAND_MARK} alt="tytusOS" width={24} height={24} className="block" />
+            <img src={BRAND_MARK} alt="Tytus OS" width={24} height={24} className="block" />
           </button>
 
           {sysMenuOpen && (

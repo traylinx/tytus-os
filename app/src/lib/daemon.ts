@@ -12,6 +12,10 @@ import type {
   DaemonStatus,
   DaemonVersion,
   ErrorEnvelope,
+  FileList,
+  FileListEntry,
+  FileMutationSource,
+  FileUploadBody,
   IncludedPod,
   JobCancelResult,
   JobResponse,
@@ -284,8 +288,13 @@ const isStoreApps = (v: unknown): v is StoreApp[] =>
   );
 
 const isStoreAppCheckResponse = (v: unknown): v is StoreAppCheckResponse =>
-  isObject(v) && Array.isArray(v.results) && v.results.every(
-    (r: unknown) => isObject(r) && typeof r.id === "string" && typeof r.installed === "boolean",
+  isObject(v) &&
+  Array.isArray(v.results) &&
+  v.results.every(
+    (r: unknown) =>
+      isObject(r) &&
+      typeof r.id === "string" &&
+      typeof r.installed === "boolean",
   );
 
 const isChannels = (v: unknown): v is ChannelsResponse =>
@@ -344,6 +353,25 @@ const isPodReadiness = (v: unknown): v is PodReadiness =>
   v.stages.every(isPodReadinessStage) &&
   (typeof v.last_checked_at === "number" ||
     typeof v.last_checked_at === "string");
+
+const isFileListEntry = (v: unknown): v is FileListEntry =>
+  isObject(v) &&
+  typeof v.name === "string" &&
+  typeof v.path === "string" &&
+  (v.kind === "file" || v.kind === "dir") &&
+  typeof v.size === "number" &&
+  (v.modified_at === null || typeof v.modified_at === "number") &&
+  typeof v.readonly === "boolean";
+
+const isFileList = (v: unknown): v is FileList =>
+  isObject(v) &&
+  typeof v.source === "string" &&
+  typeof v.path === "string" &&
+  typeof v.root_label === "string" &&
+  typeof v.root_path === "string" &&
+  Array.isArray(v.entries) &&
+  v.entries.every(isFileListEntry) &&
+  typeof v.readonly === "boolean";
 
 const isSharedFolders = (v: unknown): v is SharedFoldersList =>
   isObject(v) && Array.isArray(v.bindings);
@@ -453,6 +481,10 @@ export interface DaemonClient {
     revealSecrets?: boolean,
     signal?: AbortSignal,
   ): Promise<DaemonResult<PodEnv>>;
+  getFilesList(
+    params: { source: string; path?: string; pod?: string; binding?: number },
+    signal?: AbortSignal,
+  ): Promise<DaemonResult<FileList>>;
   getSharedFolders(
     signal?: AbortSignal,
   ): Promise<DaemonResult<SharedFoldersList>>;
@@ -561,6 +593,27 @@ export interface DaemonClient {
     signal?: AbortSignal,
     idempotencyKey?: string,
   ): Promise<DaemonResult<null>>;
+  postFilesMkdir(
+    params: FileMutationSource & { name: string },
+    signal?: AbortSignal,
+    idempotencyKey?: string,
+  ): Promise<DaemonResult<null>>;
+  postFilesRename(
+    params: FileMutationSource & { new_name: string },
+    signal?: AbortSignal,
+    idempotencyKey?: string,
+  ): Promise<DaemonResult<null>>;
+  postFilesDelete(
+    params: FileMutationSource,
+    signal?: AbortSignal,
+    idempotencyKey?: string,
+  ): Promise<DaemonResult<null>>;
+  postFilesUpload(
+    params: FileUploadBody,
+    signal?: AbortSignal,
+    idempotencyKey?: string,
+  ): Promise<DaemonResult<null>>;
+  filesDownloadUrl(params: FileMutationSource): string;
   postWorkspaceOpen(
     signal?: AbortSignal,
     idempotencyKey?: string,
@@ -801,7 +854,8 @@ export const createDaemonClient = (
           body: JSON.stringify({ app_ids: appIds }),
           signal,
         },
-        (b) => expectShape(b, isStoreAppCheckResponse, "malformed /api/apps/check"),
+        (b) =>
+          expectShape(b, isStoreAppCheckResponse, "malformed /api/apps/check"),
       ),
 
     getChannels: (podId, signal) =>
@@ -849,6 +903,21 @@ export const createDaemonClient = (
         `/api/pod/env?pod=${encodeURIComponent(podId)}${reveal}`,
         { signal },
         (b) => expectShape(b, isPodEnv, "malformed /api/pod/env"),
+      );
+    },
+
+    getFilesList: (params, signal) => {
+      const q = new URLSearchParams();
+      q.set("source", params.source);
+      if (params.path) q.set("path", params.path);
+      if (params.pod) q.set("pod", params.pod);
+      if (params.binding !== undefined)
+        q.set("binding", String(params.binding));
+      return runRequest(
+        deps,
+        `/api/files/list?${q.toString()}`,
+        { signal },
+        (b) => expectShape(b, isFileList, "malformed /api/files/list"),
       );
     },
 
@@ -1075,6 +1144,46 @@ export const createDaemonClient = (
         { method: "POST", signal, idempotencyKey },
         noBody,
       ),
+
+    postFilesMkdir: (params, signal, idempotencyKey) =>
+      runRequest(
+        deps,
+        "/api/files/mkdir",
+        { method: "POST", body: params, signal, idempotencyKey },
+        noBody,
+      ),
+
+    postFilesRename: (params, signal, idempotencyKey) =>
+      runRequest(
+        deps,
+        "/api/files/rename",
+        { method: "POST", body: params, signal, idempotencyKey },
+        noBody,
+      ),
+
+    postFilesDelete: (params, signal, idempotencyKey) =>
+      runRequest(
+        deps,
+        "/api/files/delete",
+        { method: "POST", body: params, signal, idempotencyKey },
+        noBody,
+      ),
+
+    postFilesUpload: (params, signal, idempotencyKey) =>
+      runRequest(
+        deps,
+        "/api/files/upload",
+        { method: "POST", body: params, signal, idempotencyKey },
+        noBody,
+      ),
+
+    filesDownloadUrl: (params) => {
+      const q = new URLSearchParams();
+      q.set("source", params.source);
+      if (params.path) q.set("path", params.path);
+      if (params.binding !== undefined) q.set("binding", String(params.binding));
+      return `${baseUrl}/api/files/download?${q.toString()}`;
+    },
 
     postWorkspaceOpen: (signal, idempotencyKey) =>
       runRequest(

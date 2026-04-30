@@ -37,6 +37,7 @@ import ImageViewer from './ImageViewer';
 import ImageGallery from './ImageGallery';
 import PhotoEditor from './PhotoEditor';
 import MusicPlayer from './MusicPlayer';
+import MusicCreator from './MusicCreator';
 import VideoPlayer from './VideoPlayer';
 import VoiceRecorder from './VoiceRecorder';
 import ScreenRecorder from './ScreenRecorder';
@@ -115,6 +116,7 @@ const AppRouter: FC<AppRouterProps> = ({ appId }) => {
     case 'imagegallery': return <ImageGallery />;
     case 'photoeditor': return <PhotoEditor />;
     case 'musicplayer': return <MusicPlayer />;
+    case 'musiccreator': return <MusicCreator />;
     case 'videoplayer': return <VideoPlayer />;
     case 'voicerecorder': return <VoiceRecorder />;
     case 'screenrecorder': return <ScreenRecorder />;

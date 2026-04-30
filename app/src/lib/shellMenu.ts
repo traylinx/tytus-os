@@ -71,7 +71,7 @@ const helpGroup = (): ShellMenuGroup => ({
 });
 
 export const desktopShellMenu = (): ShellMenuModel => ({
-  appLabel: 'TytusOS',
+  appLabel: 'Tytus OS',
   groups: [
     {
       id: 'apps',

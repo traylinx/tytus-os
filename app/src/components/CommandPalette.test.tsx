@@ -16,7 +16,7 @@ import { makeFakeFetch } from "@/test/fakeFetch";
 import { stateFixture } from "@/test/fixtures";
 
 // Cmd+K dispatcher tests. The CommandPalette is the "spotlight" in
-// TytusOS — wrong keyboard handling here means the palette either
+// Tytus OS — wrong keyboard handling here means the palette either
 // silently breaks (wrong shortcut wins) or hijacks something else.
 
 const renderPalette = () => {

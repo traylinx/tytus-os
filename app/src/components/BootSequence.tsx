@@ -108,7 +108,7 @@ const BootSequence = memo(function BootSequence({ onComplete }: { onComplete: ()
           >
             <img
               src="/favicons/android-chrome-192x192.png"
-              alt="tytusOS"
+              alt="Tytus OS"
               width={96}
               height={96}
               className="block rounded-3xl"
@@ -123,7 +123,7 @@ const BootSequence = memo(function BootSequence({ onComplete }: { onComplete: ()
               transition: 'all 400ms cubic-bezier(0, 0, 0.2, 1) 400ms',
             }}
           >
-            tytusOS
+            Tytus OS
           </h1>
 
           {phase >= PHASE_LOADING && (

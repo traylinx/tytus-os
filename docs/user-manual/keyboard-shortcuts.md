@@ -1,6 +1,6 @@
 # Keyboard Shortcuts
 
-Every shortcut TytusOS responds to today.
+Every shortcut Tytus OS responds to today.
 
 ## System
 
@@ -39,12 +39,12 @@ These apps have their own keyboard shortcuts inside their windows — check each
 
 ## OS reservations
 
-The browser intercepts a handful of shortcuts before TytusOS sees them:
+The browser intercepts a handful of shortcuts before Tytus OS sees them:
 
 - `Ctrl+T` — opens a browser tab
 - `Ctrl+N` — opens a browser window
 - `Ctrl+R` / **F5** — reloads the page (you'll lose unsaved app state)
-- `⌘+W` (Mac browser) — closes the browser tab. **Use Ctrl+W instead** (TytusOS listens on Ctrl, not ⌘).
+- `⌘+W` (Mac browser) — closes the browser tab. **Use Ctrl+W instead** (Tytus OS listens on Ctrl, not ⌘).
 
 ## Coming later
 

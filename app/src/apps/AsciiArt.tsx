@@ -186,7 +186,7 @@ export default function AsciiArt() {
     setDrawGrid(Array.from({ length: 20 }, () => Array.from({ length: 40 }, () => ' ')));
   }, []);
 
-  const sampleTexts = ['HELLO', 'WORLD', 'TytusOS', 'ASCII', 'CODE'];
+  const sampleTexts = ['HELLO', 'WORLD', 'Tytus OS', 'ASCII', 'CODE'];
 
   return (
     <div className="h-full flex flex-col" style={{ background: 'var(--bg-window)' }}>

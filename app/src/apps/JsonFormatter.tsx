@@ -232,7 +232,7 @@ export default function JsonFormatter() {
 
   const loadSample = useCallback(() => {
     const sample = {
-      name: 'TytusOS',
+      name: 'Tytus OS',
       version: '1.0.0',
       description: 'A web-based Linux desktop environment',
       features: ['File Manager', 'Terminal', 'Code Editor', 'Browser'],

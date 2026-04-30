@@ -16,7 +16,7 @@ import { stateFixture } from "@/test/fixtures";
 import type { FC, ReactNode } from "react";
 
 // Manifest §2.4 — the desktop overlay is the entry point for users
-// who land in TytusOS without any allocated pods. Gating logic is
+// who land in Tytus OS without any allocated pods. Gating logic is
 // safety-critical: if we render it when shouldn't, we block working
 // users; if we don't render it when we should, the new-user flow has
 // no obvious next step.

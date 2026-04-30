@@ -1,6 +1,6 @@
 # Theming
 
-TytusOS supports dark and light modes plus 8 accent colors. The implementation is pure CSS — no theme-provider, no JS recomputation.
+Tytus OS supports dark and light modes plus 8 accent colors. The implementation is pure CSS — no theme-provider, no JS recomputation.
 
 ## How it works
 

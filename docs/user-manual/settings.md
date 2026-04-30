@@ -41,7 +41,7 @@ OS-feel preferences. Most are decorative on the web today.
 | **Users** | (decorative) |
 | **Default Apps** | (decorative) |
 | **Privacy** | (decorative) |
-| **About** | TytusOS build info |
+| **About** | Tytus OS build info |
 
 ## Appearance
 

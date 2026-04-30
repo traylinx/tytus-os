@@ -1,11 +1,11 @@
-# TytusOS Documentation
+# Tytus OS Documentation
 
-Everything you need to use, understand, contribute to, or extend TytusOS.
+Everything you need to use, understand, contribute to, or extend Tytus OS.
 
 The same files power the in-OS **Help** app — keep them parseable, voice-consistent, and self-contained.
 
 ## User manual
-For people running TytusOS.
+For people running Tytus OS.
 
 | Doc | What it covers |
 |---|---|
@@ -18,7 +18,7 @@ For people running TytusOS.
 | [settings.md](user-manual/settings.md) | Appearance, display, sound, power, accent color |
 | [apps-catalog.md](user-manual/apps-catalog.md) | All 52 built-in apps, one line each |
 | [troubleshooting.md](user-manual/troubleshooting.md) | Common issues + how to fix |
-| [about.md](user-manual/about.md) | What TytusOS is, where it's going |
+| [about.md](user-manual/about.md) | What Tytus OS is, where it's going |
 
 ## Architecture
 For contributors and curious users.
@@ -32,7 +32,7 @@ For contributors and curious users.
 | [theming.md](architecture/theming.md) | CSS variables, dark/light, accent colors |
 
 ## Development
-For people working on TytusOS itself.
+For people working on Tytus OS itself.
 
 | Doc | What it covers |
 |---|---|
@@ -42,5 +42,5 @@ For people working on TytusOS itself.
 | [roadmap.md](development/roadmap.md) | The 6-phase strangler-port plan into Tytus daemon |
 
 ## Reference
-- [INTEGRATION-DEEPDIVE.md](../INTEGRATION-DEEPDIVE.md) — original architecture decision (Tytus Tower → TytusOS migration)
+- [INTEGRATION-DEEPDIVE.md](../INTEGRATION-DEEPDIVE.md) — original architecture decision (Tytus Tower → Tytus OS migration)
 - [GitHub repo](https://github.com/traylinx/tytus-os) (private)

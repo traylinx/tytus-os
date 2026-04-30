@@ -60,6 +60,7 @@ import {
   ScrollText,
   Variable,
 } from "lucide-react";
+import LogPane from "@/components/LogPane";
 import PodEnvPane from "@/components/PodEnvPane";
 import AilGatewayCard from "@/components/AilGatewayCard";
 import { useOS } from "@/hooks/useOSStore";
@@ -1719,22 +1720,16 @@ const PodTab: FC<PodTabProps> = ({
               </div>
             )}
           </div>
-          <pre
-            className="font-mono text-[11px] leading-relaxed whitespace-pre-wrap p-3"
-            style={{
-              color: "var(--terminal-text)",
-              maxHeight: 300,
-              overflowY: "auto",
-              margin: 0,
-            }}
-          >
-            {stream.lines.length === 0 && stream.status === "subscribing" && (
-              <span className="text-[var(--text-secondary)]">
-                Connecting to job stream…
-              </span>
-            )}
-            {stream.lines.slice(-200).join("\n")}
-          </pre>
+          <LogPane
+            lines={stream.lines}
+            status={stream.status}
+            exitCode={stream.exitCode}
+            failMessage={stream.failMessage}
+            emptyText="Connecting to job stream…"
+            maxLines={200}
+            maxHeight={300}
+            className="rounded-none border-0"
+          />
         </div>
       )}
 

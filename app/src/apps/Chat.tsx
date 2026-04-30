@@ -2,7 +2,7 @@
 // Chat — pod launcher (no inline chat by design)
 // ============================================================
 //
-// TytusOS does not ship its own chat UI. People already have great
+// Tytus OS does not ship its own chat UI. People already have great
 // messengers (Telegram / Discord / Slack / iMessage / Matrix) and
 // dedicated AI clients (Cursor / Claude Code / OpenCode / API Tester).
 // The Chat app's job is to send users *to* those tools, with the right

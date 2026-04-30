@@ -4,7 +4,7 @@ import { defaultShellMenuForApp, desktopShellMenu } from './shellMenu';
 describe('shell menu defaults', () => {
   it('uses Tytus desktop menu when no window is focused', () => {
     const menu = desktopShellMenu();
-    expect(menu.appLabel).toBe('TytusOS');
+    expect(menu.appLabel).toBe('Tytus OS');
     expect(menu.groups.map((g) => g.label)).toEqual(['Apps', 'Pods', 'Channels', 'Files', 'Settings', 'Help']);
   });
 

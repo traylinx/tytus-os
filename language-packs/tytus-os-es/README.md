@@ -1,6 +1,6 @@
-# TytusOS Spanish Language Pack
+# Tytus OS Spanish Language Pack
 
-Install through TytusOS → Settings → Languages → Import language pack → select `tytus-os.es.json`.
+Install through Tytus OS → Settings → Languages → Import language pack → select `tytus-os.es.json`.
 
 This directory is intentionally shaped so it can be split into its own GitHub repo later:
 

@@ -1,6 +1,6 @@
 # Windows
 
-Every app in TytusOS runs in a window. Windows behave like a real OS: drag, resize, focus, minimize, maximize, restore.
+Every app in Tytus OS runs in a window. Windows behave like a real OS: drag, resize, focus, minimize, maximize, restore.
 
 ## Anatomy
 

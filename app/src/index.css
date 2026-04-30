@@ -295,6 +295,19 @@
     overflow: hidden;
   }
 
+  /* Invisible scrollbar — content still scrolls (mouse wheel, trackpad,
+     keyboard) but no visible track or thumb. Use when chrome would
+     compete with dense content (forms, sticky bars, gallery walls). */
+  .invisible-scrollbar {
+    scrollbar-width: none;          /* Firefox */
+    -ms-overflow-style: none;       /* IE/old Edge */
+  }
+  .invisible-scrollbar::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+    display: none;
+  }
+
   /* Animations */
   @keyframes fadeIn {
     from { opacity: 0; }

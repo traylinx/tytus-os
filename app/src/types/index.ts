@@ -1,5 +1,5 @@
 // ============================================================
-// TytusOS — Core Type Definitions
+// Tytus OS — Core Type Definitions
 // ============================================================
 
 export interface Position {
@@ -60,6 +60,18 @@ export interface WindowArgs {
   apiTester?: {
     collection?: 'ail';
   };
+  /** Text Editor pre-load. `nodeId` opens an existing VFS file. `initialContent`
+   * (with optional `fileName`) opens a fresh untitled buffer — Save lands it in
+   * Documents. Used by Music Creator to push generated lyrics into the editor. */
+  editor?: {
+    nodeId?: string;
+    fileName?: string;
+    initialContent?: string;
+  };
+  /** Music Player play intent — `trackId` resolves against the SQLite gallery. */
+  music?: {
+    trackId?: string;
+  };
 }
 
 export interface Window {
@@ -115,6 +127,12 @@ export interface FileSystemNode {
   content?: string;
   size?: number;
   isHidden?: boolean;
+  /** Optional MIME hint — drives icon + open-with for non-text files. */
+  mimeType?: string;
+  /** Shortcut to a SQLite-stored Music Creator track. The VFS node is just
+   * a metadata stub; audio bytes live in `music_creator_tracks.audio_data_url`.
+   * Lets `.mp3` files exist on Desktop without bloating localStorage. */
+  refTrackId?: string;
 }
 
 export interface TrashItemMetadata {

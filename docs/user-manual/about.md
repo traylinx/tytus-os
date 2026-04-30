@@ -1,10 +1,10 @@
-# About TytusOS
+# About Tytus OS
 
-TytusOS is the desktop interface for [**Tytus**](https://tytus.traylinx.com), a private AI pod product by Traylinx. It runs in a browser tab and looks like a real OS — boot, login, desktop, dock, draggable windows.
+Tytus OS is the desktop interface for [**Tytus**](https://tytus.traylinx.com), a private AI pod product by Traylinx. It runs in a browser tab and looks like a real OS — boot, login, desktop, dock, draggable windows.
 
 ## What problem it solves
 
-Operating an AI pod today means juggling a tray icon, a hidden web page (Tytus Tower), and a scattered set of CLI commands. TytusOS unifies all of that into a single coherent surface — the way a Mac unifies "files I can see + apps I can launch + system settings I can change" into one desktop.
+Operating an AI pod today means juggling a tray icon, a hidden web page (Tytus Tower), and a scattered set of CLI commands. Tytus OS unifies all of that into a single coherent surface — the way a Mac unifies "files I can see + apps I can launch + system settings I can change" into one desktop.
 
 ## What's in v1
 
@@ -37,7 +37,7 @@ Full plan: [roadmap.md](../development/roadmap.md). Original architecture decisi
 
 ## Naming
 
-- **TytusOS** (one word) — this product
+- **Tytus OS** (one word) — this product
 - **Tytus** — the AI-pod product family
 - **Traylinx** — the company / brand
 - **Wannolot** — the internal codename for the pod-orchestration tier (you'll see it in commits)

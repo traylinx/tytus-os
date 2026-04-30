@@ -24,7 +24,7 @@ import sqlite3InitModule, {
   type Database,
   type Sqlite3Static,
 } from '@sqlite.org/sqlite-wasm';
-import { SCHEMA_V1, SCHEMA_VERSION } from './schema';
+import { SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_VERSION } from './schema';
 
 declare const self: DedicatedWorkerGlobalScope;
 
@@ -82,6 +82,8 @@ const openDb = async (): Promise<{ persistent: boolean; libVersion: string }> =>
 
   // Idempotent schema apply, then bump user_version.
   db.exec(SCHEMA_V1);
+  db.exec(SCHEMA_V2);
+  db.exec(SCHEMA_V3);
   db.exec(`PRAGMA user_version = ${SCHEMA_VERSION}`);
 
   return { persistent, libVersion: sqlite3.version.libVersion };

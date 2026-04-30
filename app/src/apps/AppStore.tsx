@@ -1,7 +1,7 @@
 import { type FC, useEffect, useState, useMemo } from 'react';
 import { Store, Search, CheckCircle2, Download, ExternalLink, Package, Loader2, AlertCircle } from 'lucide-react';
 import { useDaemonClient } from '@/hooks/useDaemonClient';
-import type { StoreApp, StoreAppCheckResult } from '@/types/daemon';
+import type { StoreApp } from '@/types/daemon';
 
 const CATEGORIES = ['All', 'Developer Tools', 'AI & ML', 'Communication'] as const;
 
@@ -104,14 +104,14 @@ const AppStore: FC = () => {
 
       {/* Search + Categories */}
       <div className="px-4 pt-3 pb-2 shrink-0" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-        <div className="flex items-center gap-2 mb-3" style={{ background: 'var(--bg-input)', borderRadius: 8, padding: '6px 10px', border: '1px solid var(--border-default)' }}>
+        <div className="flex items-center gap-2 mb-3 rounded-input" style={{ background: 'var(--bg-input)', padding: '6px 10px', border: '1px solid var(--border-default)' }}>
           <Search size={14} style={{ color: 'var(--text-disabled)' }} />
           <input
             type="text"
             placeholder="Search apps…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="bg-transparent outline-none flex-1"
+            className="bg-transparent outline-none flex-1 rounded-input"
             style={{ fontSize: 13, color: 'var(--text-primary)' }}
           />
         </div>
@@ -202,7 +202,7 @@ const AppCard: FC<{ app: StoreApp; installed: boolean }> = ({ app, installed }) 
 
       {installCmd && !installed && (
         <div
-          className="px-2 py-1.5 rounded"
+          className="px-2 py-1.5 rounded-md"
           style={{ background: 'var(--bg-input)', fontSize: 11, fontFamily: "'JetBrains Mono', monospace", color: 'var(--text-primary)', wordBreak: 'break-all' }}
         >
           {installCmd}

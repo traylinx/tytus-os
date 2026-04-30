@@ -413,6 +413,65 @@ describe("daemon client — other GETs", () => {
     ).toBe(true);
   });
 
+  it("getFilesList parses Tytus Home entries and encodes params", async () => {
+    const body = {
+      source: "tytus-home",
+      path: "Projects",
+      root_label: "Tytus Home",
+      root_path: "/Users/sebastian/Tytus",
+      readonly: false,
+      entries: [
+        {
+          name: "README.md",
+          path: "Projects/README.md",
+          kind: "file",
+          size: 42,
+          modified_at: 1777540000,
+          readonly: false,
+        },
+      ],
+    };
+    const { fetch, calls } = makeFakeFetch([
+      {
+        method: "GET",
+        path: "/api/files/list?source=tytus-home&path=Projects",
+        body,
+      },
+    ]);
+    const r = await createDaemonClient({ fetch }).getFilesList({
+      source: "tytus-home",
+      path: "Projects",
+    });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.value.entries[0].name).toBe("README.md");
+    expect(calls[0].url).toContain("source=tytus-home");
+  });
+
+  it("getFilesList supports pod workspace query", async () => {
+    const body = {
+      source: "pod-workspace",
+      path: "",
+      root_label: "Pod 02 workspace",
+      root_path: "/app/workspace",
+      readonly: true,
+      entries: [],
+    };
+    const { fetch, calls } = makeFakeFetch([
+      {
+        method: "GET",
+        path: "/api/files/list?source=pod-workspace&pod=02",
+        body,
+      },
+    ]);
+    const r = await createDaemonClient({ fetch }).getFilesList({
+      source: "pod-workspace",
+      pod: "02",
+    });
+    expect(r.ok).toBe(true);
+    expect(calls[0].url).toContain("pod=02");
+  });
+
   it("getSharedFolders parses fixture", async () => {
     const { fetch } = makeFakeFetch([
       {
@@ -973,6 +1032,114 @@ describe("daemon client — POSTs", () => {
     const r = await createDaemonClient({ fetch }).postConfigure();
     expect(r.ok).toBe(true);
     expect(calls[0]?.url).toBe("/api/configure");
+  });
+
+  it("postFilesMkdir sends a root-anchored file mutation", async () => {
+    let observed: unknown = undefined;
+    const { fetch } = makeFakeFetch([
+      {
+        method: "POST",
+        path: "/api/files/mkdir",
+        body: { ok: true },
+        expect: (init) => {
+          observed = init?.body ? JSON.parse(init.body as string) : null;
+        },
+      },
+    ]);
+    const r = await createDaemonClient({ fetch }).postFilesMkdir({
+      source: "tytus-home",
+      path: "Projects",
+      name: "Demo",
+    });
+    expect(r.ok).toBe(true);
+    expect(observed).toEqual({
+      source: "tytus-home",
+      path: "Projects",
+      name: "Demo",
+    });
+  });
+
+  it("postFilesRename sends shared binding mutations without pod fields", async () => {
+    let observed: unknown = undefined;
+    const { fetch } = makeFakeFetch([
+      {
+        method: "POST",
+        path: "/api/files/rename",
+        body: { ok: true },
+        expect: (init) => {
+          observed = init?.body ? JSON.parse(init.body as string) : null;
+        },
+      },
+    ]);
+    const r = await createDaemonClient({ fetch }).postFilesRename({
+      source: "shared",
+      binding: 0,
+      path: "old.txt",
+      new_name: "new.txt",
+    });
+    expect(r.ok).toBe(true);
+    expect(observed).toEqual({
+      source: "shared",
+      binding: 0,
+      path: "old.txt",
+      new_name: "new.txt",
+    });
+  });
+
+  it("postFilesDelete targets /api/files/delete", async () => {
+    const { fetch, calls } = makeFakeFetch([
+      {
+        method: "POST",
+        path: "/api/files/delete",
+        body: { ok: true },
+      },
+    ]);
+    const r = await createDaemonClient({ fetch }).postFilesDelete({
+      source: "tytus-home",
+      path: "Inbox/stale.txt",
+    });
+    expect(r.ok).toBe(true);
+    expect(calls[0]?.url).toBe("/api/files/delete");
+  });
+
+  it("postFilesUpload sends browser-native upload payload", async () => {
+    let observed: unknown = undefined;
+    const { fetch } = makeFakeFetch([
+      {
+        method: "POST",
+        path: "/api/files/upload",
+        body: { ok: true },
+        expect: (init) => {
+          observed = init?.body ? JSON.parse(init.body as string) : null;
+        },
+      },
+    ]);
+    const r = await createDaemonClient({ fetch }).postFilesUpload({
+      source: "shared",
+      binding: 1,
+      path: "Inbox",
+      name: "hello.txt",
+      content_base64: "aGVsbG8=",
+    });
+    expect(r.ok).toBe(true);
+    expect(observed).toEqual({
+      source: "shared",
+      binding: 1,
+      path: "Inbox",
+      name: "hello.txt",
+      content_base64: "aGVsbG8=",
+    });
+  });
+
+  it("filesDownloadUrl encodes source, binding, and path", () => {
+    const url = createDaemonClient({ baseUrl: "http://127.0.0.1:4242" }).filesDownloadUrl({
+      source: "shared",
+      binding: 2,
+      path: "Reports/final report.pdf",
+    });
+    expect(url).toBe(
+      "http://127.0.0.1:4242/api/files/download?source=shared&path=Reports%2Ffinal+report.pdf&binding=2",
+    );
   });
 
   it("postInstall sends {agent_type} and returns job_id", async () => {

@@ -1,5 +1,5 @@
 // ============================================================
-// AIL LLM Gateway card — TytusOS port of Tower's "Always
+// AIL LLM Gateway card — Tytus OS port of Tower's "Always
 // Included" panel. Surfaces the included AIL pod as the
 // product's default LLM endpoint with full copy-config /
 // snippet / open-in affordances.

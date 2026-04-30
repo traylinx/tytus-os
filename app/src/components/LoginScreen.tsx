@@ -2,7 +2,7 @@
 // LoginScreen — Auth bridge to the Tytus daemon
 // ============================================================
 //
-// The daemon owns auth (device-auth via Sentinel). TytusOS can start the
+// The daemon owns auth (device-auth via Sentinel). Tytus OS can start the
 // same device-auth flow as the tray, then polls /api/state until the daemon
 // sees fresh credentials and unlocks the desktop.
 
@@ -81,7 +81,7 @@ const LoginScreen = memo(function LoginScreen() {
         <div className="mb-5">
           <img
             src="/favicons/android-chrome-192x192.png"
-            alt="tytusOS"
+            alt="Tytus OS"
             width={82}
             height={82}
             className="block rounded-2xl"
@@ -139,7 +139,7 @@ const LoginScreen = memo(function LoginScreen() {
               }}
             >
               {starting ? <Loader2 size={16} className="animate-spin" /> : <LogIn size={16} />}
-              {starting ? "Opening secure sign in…" : "Sign in with TytusOS"}
+              {starting ? "Opening secure sign in…" : "Sign in with Tytus OS"}
             </button>
 
             {loginUrl && (

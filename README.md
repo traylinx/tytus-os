@@ -5,8 +5,8 @@ The next-generation Tytus desktop UI. A web-OS shell that replaces the legacy "T
 ```
 services/tytus-os/
 ├── docs/                       ← user manual + architecture + dev guide
-├── INTEGRATION-DEEPDIVE.md     ← architecture decision (Tytus Tower → TytusOS)
-└── app/                        ← TytusOS web shell (Vite/React/TS/Tailwind)
+├── INTEGRATION-DEEPDIVE.md     ← architecture decision (Tytus Tower → Tytus OS)
+└── app/                        ← Tytus OS web shell (Vite/React/TS/Tailwind)
     └── README.md
 ```
 
@@ -50,7 +50,7 @@ The same files will load into the in-OS **Help** app once Phase 4 wires it up.
 
 ## Phase plan
 
-A 6-phase strangler-port from Tytus Tower into TytusOS native apps. Daemon API frozen. Tray bridges preserved. See [docs/development/roadmap.md](docs/development/roadmap.md) and [INTEGRATION-DEEPDIVE.md](INTEGRATION-DEEPDIVE.md).
+A 6-phase strangler-port from Tytus Tower into Tytus OS native apps. Daemon API frozen. Tray bridges preserved. See [docs/development/roadmap.md](docs/development/roadmap.md) and [INTEGRATION-DEEPDIVE.md](INTEGRATION-DEEPDIVE.md).
 
 **Shipped 2026-04-28:**
 - ✅ Phase 1 — Foundation (boot/login/desktop/dock/window manager + 52 apps)

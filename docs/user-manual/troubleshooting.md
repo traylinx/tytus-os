@@ -4,7 +4,7 @@ Common issues and how to fix them.
 
 ## Boot screen never finishes
 
-**Symptom:** the TytusOS logo + progress bar stays forever.
+**Symptom:** the Tytus OS logo + progress bar stays forever.
 
 **Cause:** JavaScript error during boot (rare). The boot phase machine is `off → logo → loading → transition → desktop`; an early error stalls it.
 
@@ -69,7 +69,7 @@ The browser requires explicit microphone / screen permission. Click **Allow** wh
 
 Click into the game window first to focus it. Keyboard events go to the focused window. Some games (Tetris, Snake, Pong) require window focus to receive arrow keys.
 
-## Boot logo says something other than "TytusOS"
+## Boot logo says something other than "Tytus OS"
 
 You're on a stale build. HMR usually picks up branding edits, but a hard reload (**⌘+Shift+R** / **Ctrl+Shift+F5**) forces a re-fetch.
 
@@ -88,7 +88,7 @@ location.reload();
 
 This wipes desktop icons, notes, todos, calendar, settings, recordings, all of it. The boot animation will run again.
 
-## Where does TytusOS store data?
+## Where does Tytus OS store data?
 
 Everything is in your browser's `localStorage`, keyed under `tytus_*`:
 
@@ -109,7 +109,7 @@ Everything is in your browser's `localStorage`, keyed under `tytus_*`:
 | `tytus_contacts` | (none — Contacts was dropped) |
 | ... | (more per app) |
 
-Nothing leaves your machine — TytusOS does not phone home. The only network requests are:
+Nothing leaves your machine — Tytus OS does not phone home. The only network requests are:
 - Vite dev server (during development)
 - Google Fonts CDN (Inter + JetBrains Mono webfonts)
 - Whatever you explicitly send via API Tester or Browser

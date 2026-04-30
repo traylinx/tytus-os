@@ -7,7 +7,7 @@
  * restart invalidates every in-flight `job_id` since the registry
  * is in-memory only.
  *
- * `daemon_version` is the `tytus-tray` crate version. Future TytusOS
+ * `daemon_version` is the `tytus-tray` crate version. Future Tytus OS
  * builds compare it against a min-required value to surface "your
  * tray is too old" instead of failing with an opaque 404 on a route
  * that hasn't shipped yet.

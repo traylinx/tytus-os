@@ -154,7 +154,7 @@ const Browser: FC = () => {
           </h2>
           <p className="text-[11px] text-[var(--text-secondary)] mt-0.5 leading-relaxed">
             Hands URLs and registered launchers off to your host's default
-            browser. TytusOS doesn't render remote pages itself.
+            browser. Tytus OS doesn't render remote pages itself.
           </p>
         </div>
       </div>

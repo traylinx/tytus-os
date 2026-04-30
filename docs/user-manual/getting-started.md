@@ -1,6 +1,6 @@
 # Getting Started
 
-TytusOS is a web-based desktop. It runs entirely in your browser and looks like a real operating system: boot screen, login, desktop, dock, draggable windows, app launcher, notifications.
+Tytus OS is a web-based desktop. It runs entirely in your browser and looks like a real operating system: boot screen, login, desktop, dock, draggable windows, app launcher, notifications.
 
 ## First launch
 
@@ -14,7 +14,7 @@ Open **http://localhost:4242** in your browser.
 
 You'll see four phases:
 
-1. **Boot** (~4s) — black screen with the TytusOS logo (purple/orange/pink dual orb), then a progress bar, then a circle-iris transition reveals the wallpaper.
+1. **Boot** (~4s) — black screen with the Tytus OS logo (purple/orange/pink dual orb), then a progress bar, then a circle-iris transition reveals the wallpaper.
 2. **Login** — blurred wallpaper with a centered card. Click **Unlock** (any password works at this stage) or **Log in as Guest**.
 3. **Desktop** — wallpaper, top panel, icons on the left, dock at the bottom.
 4. **Apps** — click any icon or use the launcher.
@@ -56,7 +56,7 @@ Full reference: [keyboard-shortcuts.md](keyboard-shortcuts.md).
 
 ## What's not real (yet)
 
-TytusOS today is a **shell** — it looks and feels like an OS, but most apps are visual placeholders or use fake (browser-local) data. The real magic lands when TytusOS connects to your private AI pod via the `tytus-cli` daemon. That's the [phase plan](../development/roadmap.md).
+Tytus OS today is a **shell** — it looks and feels like an OS, but most apps are visual placeholders or use fake (browser-local) data. The real magic lands when Tytus OS connects to your private AI pod via the `tytus-cli` daemon. That's the [phase plan](../development/roadmap.md).
 
 What *is* real today:
 - All window management (drag, resize, focus, min/max/restore, Alt+Tab)

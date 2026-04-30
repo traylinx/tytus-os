@@ -595,7 +595,7 @@
     {
       "file": "src/apps/Browser.tsx",
       "kind": "text",
-      "text": "Hands URLs and registered launchers off to your host's default browser. TytusOS doesn't render remote pages itself."
+      "text": "Hands URLs and registered launchers off to your host's default browser. Tytus OS doesn't render remote pages itself."
     },
     {
       "file": "src/apps/Browser.tsx",
@@ -1750,7 +1750,7 @@
     {
       "file": "src/apps/Help.tsx",
       "kind": "text",
-      "text": "TytusOS"
+      "text": "Tytus OS"
     },
     {
       "file": "src/apps/Help.tsx",
@@ -3045,7 +3045,7 @@
     {
       "file": "src/apps/Settings.tsx",
       "kind": "text",
-      "text": "TytusOS shows daemon/pod state from your local Tytus daemon. Browser-side telemetry and fake device controls are intentionally not exposed."
+      "text": "Tytus OS shows daemon/pod state from your local Tytus daemon. Browser-side telemetry and fake device controls are intentionally not exposed."
     },
     {
       "file": "src/apps/Settings.tsx",
@@ -3060,7 +3060,7 @@
     {
       "file": "src/apps/Settings.tsx",
       "kind": "text",
-      "text": "TytusOS"
+      "text": "Tytus OS"
     },
     {
       "file": "src/apps/Settings.tsx",
@@ -3385,7 +3385,7 @@
     {
       "file": "src/apps/Settings.tsx",
       "kind": "text",
-      "text": "). TytusOS will pick up the new session automatically."
+      "text": "). Tytus OS will pick up the new session automatically."
     },
     {
       "file": "src/apps/Settings.tsx",
@@ -3435,7 +3435,7 @@
     {
       "file": "src/apps/Settings.tsx",
       "kind": "text",
-      "text": "in the internal TytusOS terminal."
+      "text": "in the internal Tytus OS terminal."
     },
     {
       "file": "src/apps/Settings.tsx",
@@ -3445,7 +3445,7 @@
     {
       "file": "src/apps/Settings.tsx",
       "kind": "text",
-      "text": "Configure flow started in the internal TytusOS Terminal."
+      "text": "Configure flow started in the internal Tytus OS Terminal."
     },
     {
       "file": "src/apps/Settings.tsx",
@@ -4080,7 +4080,7 @@
     {
       "file": "src/components/BootSequence.tsx",
       "kind": "text",
-      "text": "tytusOS"
+      "text": "Tytus OS"
     },
     {
       "file": "src/components/BootSequence.tsx",
@@ -4485,7 +4485,7 @@
     {
       "file": "src/components/UpgradeDaemonScreen.tsx",
       "kind": "text",
-      "text": "below — TytusOS will poll the daemon again. You can also sign out from this screen if re-authenticating is what's needed."
+      "text": "below — Tytus OS will poll the daemon again. You can also sign out from this screen if re-authenticating is what's needed."
     },
     {
       "file": "src/components/UpgradeDaemonScreen.tsx",

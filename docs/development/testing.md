@@ -1,6 +1,6 @@
 # Testing
 
-TytusOS has two automated test passes today, both Playwright-based:
+Tytus OS has two automated test passes today, both Playwright-based:
 
 | Script | What it does | When to run |
 |---|---|---|
@@ -122,7 +122,7 @@ For UI you can't easily script (visual polish, animation feel, font rendering):
 1. `npm run dev`
 2. Open in real browsers: Chrome, Safari, Firefox
 3. Walk the smoke flow manually
-4. Resize the window to mobile width — note: TytusOS is desktop-only by design, mobile is unsupported
+4. Resize the window to mobile width — note: Tytus OS is desktop-only by design, mobile is unsupported
 
 ## Future testing layers
 

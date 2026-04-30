@@ -29,6 +29,7 @@ import {
   AlertTriangle,
   ExternalLink,
 } from 'lucide-react';
+import LogPane from '@/components/LogPane';
 import { useDaemonClient } from '@/hooks/useDaemonClient';
 import { useDaemonStateContext } from '@/hooks/useDaemonStateContext';
 import { useCurrentWindowArgs } from '@/hooks/useCurrentWindow';
@@ -322,22 +323,16 @@ const RunPanel: FC<RunPanelProps> = ({ kind, autoRun, routeNonce }) => {
                 </button>
               )}
             </div>
-            <pre
-              className="font-mono text-[11px] leading-relaxed whitespace-pre-wrap p-3"
-              style={{
-                color: 'var(--terminal-text)',
-                margin: 0,
-                maxHeight: 'calc(100vh - 320px)',
-                overflowY: 'auto',
-              }}
-            >
-              {stream.lines.length === 0 && stream.status === 'subscribing' && (
-                <span className="text-[var(--text-secondary)]">
-                  Connecting to job stream…
-                </span>
-              )}
-              {stream.lines.slice(-500).join('\n')}
-            </pre>
+            <LogPane
+              lines={stream.lines}
+              status={stream.status}
+              exitCode={stream.exitCode}
+              failMessage={stream.failMessage}
+              emptyText="Connecting to job stream…"
+              maxLines={500}
+              maxHeight="calc(100vh - 320px)"
+              className="rounded-none border-0"
+            />
           </div>
         )}
       </div>
@@ -697,7 +692,7 @@ const AboutPanel: FC = () => {
           <span className="text-2xl font-bold text-white">T</span>
         </div>
         <div className="text-base font-semibold text-[var(--text-primary)]">
-          TytusOS
+          Tytus OS
         </div>
         <div className="text-xs text-[var(--text-secondary)] mt-0.5">
           Web shell for your private AI pod

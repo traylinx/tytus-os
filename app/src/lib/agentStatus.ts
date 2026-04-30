@@ -2,7 +2,7 @@
 // agentStatus — server-derived → UI presentation mapping
 // ============================================================
 //
-// Phase 2 of TytusOS Remaining (cont.) sprint. The daemon now emits
+// Phase 2 of Tytus OS Remaining (cont.) sprint. The daemon now emits
 // `state.agents[].status: AgentStatus` directly (≥ 0.7.0). The
 // rendering surfaces (Pod Inspector + Settings PodCard) historically
 // derived a 5-state ReadyState from `/api/pod/ready` polling. This

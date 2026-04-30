@@ -1,33 +1,30 @@
 // ============================================================
-// Video Player — File picker, playback controls, fullscreen
+// Video Player — real <video> playback (no longer a fake skeleton)
 // ============================================================
+//
+// Loads local video files via the file picker. Supports drag-and-drop,
+// fullscreen, keyboard shortcuts, playback speed, and a horizontal
+// thumbnail playlist for swapping between recently-loaded files.
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import {
-  Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Maximize, Minimize, Settings, Film
+  Play, Pause, SkipBack, SkipForward, Volume2, VolumeX,
+  Maximize, Minimize, Settings, Film, Upload, Trash2,
 } from 'lucide-react';
 
 // ---- Types ----
-interface VideoFile {
+interface VideoEntry {
   id: string;
   name: string;
-  duration: number;
   size: string;
+  src: string;          // object URL
 }
-
-// ---- Demo Videos ----
-const DEMO_VIDEOS: VideoFile[] = [
-  { id: '1', name: 'Nature Documentary.mp4', duration: 765, size: '1.2 GB' },
-  { id: '2', name: 'Tutorial - Getting Started.mp4', duration: 512, size: '850 MB' },
-  { id: '3', name: 'Concert Highlights.mp4', duration: 920, size: '2.1 GB' },
-  { id: '4', name: 'Movie Trailer.mp4', duration: 150, size: '320 MB' },
-  { id: '5', name: 'Time Lapse - City.mp4', duration: 315, size: '680 MB' },
-];
 
 const SPEED_OPTIONS = [0.5, 0.75, 1, 1.25, 1.5, 2];
 
 // ---- Helpers ----
 const formatTime = (seconds: number): string => {
+  if (!Number.isFinite(seconds) || seconds < 0) return '0:00';
   const h = Math.floor(seconds / 3600);
   const m = Math.floor((seconds % 3600) / 60);
   const s = Math.floor(seconds % 60);
@@ -35,41 +32,187 @@ const formatTime = (seconds: number): string => {
   return `${m}:${s.toString().padStart(2, '0')}`;
 };
 
+const formatBytes = (b: number): string => {
+  if (b < 1024 * 1024) return `${(b / 1024).toFixed(0)} KB`;
+  if (b < 1024 * 1024 * 1024) return `${(b / 1024 / 1024).toFixed(1)} MB`;
+  return `${(b / 1024 / 1024 / 1024).toFixed(2)} GB`;
+};
+
 // ---- Main Video Player ----
 export default function VideoPlayer() {
-  const [currentVideo, setCurrentVideo] = useState<VideoFile | null>(null);
+  const videoContainerRef = useRef<HTMLDivElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const objectUrlsRef = useRef<string[]>([]);
+  const controlsTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const [playlist, setPlaylist] = useState<VideoEntry[]>([]);
+  const [currentIndex, setCurrentIndex] = useState<number | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
   const [volume, setVolume] = useState(0.7);
+  const [muted, setMuted] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const [showSpeedMenu, setShowSpeedMenu] = useState(false);
   const [showControls, setShowControls] = useState(true);
-  const playlist = DEMO_VIDEOS;
-  const controlsTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const videoContainerRef = useRef<HTMLDivElement>(null);
-  const progressInterval = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
 
-  const currentDuration = currentVideo?.duration || 0;
+  const currentVideo = currentIndex !== null ? playlist[currentIndex] : null;
 
-  // Simulated playback
+  // ── Cleanup object URLs on unmount ────────────────────────────────
   useEffect(() => {
-    if (isPlaying && currentVideo) {
-      progressInterval.current = setInterval(() => {
-        setCurrentTime((prev) => {
-          const next = prev + playbackSpeed;
-          if (next >= currentDuration) {
-            setIsPlaying(false);
-            return currentDuration;
-          }
-          return next;
-        });
-      }, 1000);
-    }
-    return () => { if (progressInterval.current) clearInterval(progressInterval.current); };
-  }, [isPlaying, currentVideo, playbackSpeed, currentDuration]);
+    return () => {
+      for (const url of objectUrlsRef.current) URL.revokeObjectURL(url);
+    };
+  }, []);
 
-  // Auto-hide controls
+  // ── Wire up real video events ─────────────────────────────────────
+  useEffect(() => {
+    const v = videoRef.current;
+    if (!v) return;
+    const onTime = () => setCurrentTime(v.currentTime);
+    const onLoaded = () => setDuration(v.duration || 0);
+    const onEnded = () => setIsPlaying(false);
+    const onErr = () => setError('Unable to play this video.');
+    v.addEventListener('timeupdate', onTime);
+    v.addEventListener('loadedmetadata', onLoaded);
+    v.addEventListener('ended', onEnded);
+    v.addEventListener('error', onErr);
+    return () => {
+      v.removeEventListener('timeupdate', onTime);
+      v.removeEventListener('loadedmetadata', onLoaded);
+      v.removeEventListener('ended', onEnded);
+      v.removeEventListener('error', onErr);
+    };
+  }, [currentVideo?.src]);
+
+  // ── Volume / playback speed sync ──────────────────────────────────
+  useEffect(() => {
+    if (videoRef.current) {
+      videoRef.current.volume = volume;
+      videoRef.current.muted = muted;
+    }
+  }, [volume, muted]);
+
+  useEffect(() => {
+    if (videoRef.current) videoRef.current.playbackRate = playbackSpeed;
+  }, [playbackSpeed, currentVideo?.src]);
+
+  // ── Fullscreen change listener ────────────────────────────────────
+  useEffect(() => {
+    const onFs = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener('fullscreenchange', onFs);
+    return () => document.removeEventListener('fullscreenchange', onFs);
+  }, []);
+
+  // ── File handling ─────────────────────────────────────────────────
+  const handlePickFiles = () => fileInputRef.current?.click();
+
+  const ingestFiles = useCallback((files: FileList | File[]) => {
+    const list = Array.from(files).filter((f) => f.type.startsWith('video/'));
+    if (list.length === 0) return;
+    const added: VideoEntry[] = list.map((file) => {
+      const url = URL.createObjectURL(file);
+      objectUrlsRef.current.push(url);
+      return {
+        id: `v_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+        name: file.name,
+        size: formatBytes(file.size),
+        src: url,
+      };
+    });
+    setPlaylist((prev) => {
+      const next = [...prev, ...added];
+      // Auto-select first newly-imported video if nothing's currently playing.
+      if (currentIndex === null) {
+        setCurrentIndex(prev.length); // first new index
+        setIsPlaying(true);
+      }
+      return next;
+    });
+  }, [currentIndex]);
+
+  const handleFiles = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) ingestFiles(e.target.files);
+    e.target.value = '';
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    if (e.dataTransfer.files.length > 0) ingestFiles(e.dataTransfer.files);
+  };
+
+  const handleRemove = (idx: number) => {
+    setPlaylist((prev) => {
+      const removed = prev[idx];
+      const next = prev.filter((_, i) => i !== idx);
+      if (removed) {
+        URL.revokeObjectURL(removed.src);
+        objectUrlsRef.current = objectUrlsRef.current.filter((u) => u !== removed.src);
+      }
+      if (idx === currentIndex) {
+        setIsPlaying(false);
+        setCurrentIndex(next.length > 0 ? 0 : null);
+      } else if (currentIndex !== null && idx < currentIndex) {
+        setCurrentIndex((c) => (c === null ? null : c - 1));
+      }
+      return next;
+    });
+  };
+
+  // ── Controls ──────────────────────────────────────────────────────
+  const togglePlay = useCallback(() => {
+    const v = videoRef.current;
+    if (!v) return;
+    setError(null);
+    if (v.paused) {
+      v.play().then(() => setIsPlaying(true)).catch((e: Error) => {
+        setError(e.message || 'Playback failed.');
+        setIsPlaying(false);
+      });
+    } else {
+      v.pause();
+      setIsPlaying(false);
+    }
+  }, []);
+
+  const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const t = Number(e.target.value);
+    setCurrentTime(t);
+    if (videoRef.current) videoRef.current.currentTime = t;
+  };
+
+  const skip = (delta: number) => {
+    if (!videoRef.current) return;
+    videoRef.current.currentTime = Math.max(0, Math.min(duration, videoRef.current.currentTime + delta));
+  };
+
+  const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newVol = Number(e.target.value);
+    setVolume(newVol);
+    if (newVol > 0 && muted) setMuted(false);
+  };
+
+  const toggleFullscreen = useCallback(() => {
+    if (!document.fullscreenElement) {
+      videoContainerRef.current?.requestFullscreen().catch(() => undefined);
+    } else {
+      document.exitFullscreen().catch(() => undefined);
+    }
+  }, []);
+
+  const selectVideo = (idx: number) => {
+    setCurrentIndex(idx);
+    setCurrentTime(0);
+    setIsPlaying(true);
+    setTimeout(() => videoRef.current?.play().catch(() => undefined), 50);
+  };
+
+  // Auto-hide controls during playback
   const handleMouseMove = useCallback(() => {
     setShowControls(true);
     if (controlsTimeout.current) clearTimeout(controlsTimeout.current);
@@ -78,46 +221,22 @@ export default function VideoPlayer() {
     }, 3000);
   }, [isPlaying]);
 
-  const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setCurrentTime(Number(e.target.value));
-  };
-
-  const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setVolume(Number(e.target.value));
-  };
-
-  const toggleFullscreen = useCallback(() => {
-    if (!document.fullscreenElement) {
-      videoContainerRef.current?.requestFullscreen();
-      setIsFullscreen(true);
-    } else {
-      document.exitFullscreen();
-      setIsFullscreen(false);
-    }
-  }, []);
-
-  const selectVideo = (video: VideoFile) => {
-    setCurrentVideo(video);
-    setCurrentTime(0);
-    setIsPlaying(true);
-  };
-
   // Keyboard shortcuts
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.code === 'Space' && e.target === document.body) {
-        e.preventDefault();
-        setIsPlaying((p) => !p);
-      }
-      if (e.code === 'ArrowRight') setCurrentTime((t) => Math.min(t + 5, currentDuration));
-      if (e.code === 'ArrowLeft') setCurrentTime((t) => Math.max(t - 5, 0));
+      if (e.target !== document.body && !(e.target instanceof HTMLDivElement)) return;
+      if (e.code === 'Space') { e.preventDefault(); togglePlay(); }
+      if (e.code === 'ArrowRight') skip(5);
+      if (e.code === 'ArrowLeft') skip(-5);
       if (e.code === 'ArrowUp') setVolume((v) => Math.min(v + 0.1, 1));
       if (e.code === 'ArrowDown') setVolume((v) => Math.max(v - 0.1, 0));
       if (e.code === 'KeyF') toggleFullscreen();
+      if (e.code === 'KeyM') setMuted((m) => !m);
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [currentDuration, toggleFullscreen]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [togglePlay, toggleFullscreen, duration]);
 
   return (
     <div
@@ -125,109 +244,155 @@ export default function VideoPlayer() {
       className="flex flex-col h-full relative"
       style={{ background: '#000' }}
       onMouseMove={handleMouseMove}
+      onDragEnter={(e) => { e.preventDefault(); setIsDragging(true); }}
+      onDragOver={(e) => e.preventDefault()}
+      onDragLeave={(e) => { if (e.currentTarget === e.target) setIsDragging(false); }}
+      onDrop={handleDrop}
     >
+      {/* Drag-overlay highlight */}
+      {isDragging && (
+        <div
+          className="absolute inset-0 z-30 flex items-center justify-center pointer-events-none"
+          style={{
+            background: 'rgba(124, 77, 255, 0.15)',
+            border: '2px dashed var(--accent-primary)',
+          }}
+        >
+          <div style={{ fontSize: 14, color: 'white', fontWeight: 600 }}>
+            Drop video files to add
+          </div>
+        </div>
+      )}
+
       {/* Video Display Area */}
       <div className="flex-1 flex items-center justify-center relative" style={{ background: '#0A0A0A' }}>
         {!currentVideo ? (
-          /* No video selected */
-          <div className="flex flex-col items-center justify-center gap-4">
-            <Film size={64} style={{ color: 'var(--text-disabled)' }} />
-            <p style={{ fontSize: '14px', color: 'var(--text-secondary)' }}>Select a video to play</p>
-            <div className="flex flex-col gap-2 mt-2" style={{ maxWidth: 300, width: '100%' }}>
-              {playlist.map((video) => (
-                <button
-                  key={video.id}
-                  onClick={() => selectVideo(video)}
-                  className="flex items-center gap-3 px-4 py-3 rounded-lg transition-all hover:bg-[var(--bg-hover)] text-left"
-                  style={{ background: 'var(--bg-window)', border: '1px solid var(--border-subtle)' }}
-                >
-                  <Film size={20} style={{ color: 'var(--accent-primary)', flexShrink: 0 }} />
-                  <div className="flex-1 min-w-0">
-                    <div className="truncate" style={{ fontSize: '13px', color: 'var(--text-primary)' }}>{video.name}</div>
-                    <div style={{ fontSize: '11px', color: 'var(--text-disabled)' }}>{formatTime(video.duration)} · {video.size}</div>
-                  </div>
-                  <Play size={16} style={{ color: 'var(--accent-primary)' }} />
-                </button>
-              ))}
-            </div>
-          </div>
-        ) : (
-          /* Video playing */
-          <>
-            {/* Placeholder for video content */}
+          /* Empty state */
+          <div className="flex flex-col items-center justify-center gap-4 px-8 text-center">
             <div
-              className="w-full h-full flex items-center justify-center"
-              style={{ background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)' }}
-              onClick={() => setIsPlaying((p) => !p)}
+              className="flex items-center justify-center rounded-2xl"
+              style={{
+                width: 88, height: 88,
+                background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))',
+                opacity: 0.5,
+              }}
             >
-              <div className="flex flex-col items-center gap-3">
-                <Film size={48} style={{ color: 'rgba(255,255,255,0.2)' }} />
-                <span style={{ fontSize: '14px', color: 'rgba(255,255,255,0.3)' }}>{currentVideo.name}</span>
-                {!isPlaying && (
-                  <button
-                    onClick={(e) => { e.stopPropagation(); setIsPlaying(true); }}
-                    className="flex items-center justify-center rounded-full"
-                    style={{ width: 64, height: 64, background: 'rgba(0,0,0,0.6)' }}
-                  >
-                    <Play size={32} style={{ color: 'white' }} />
-                  </button>
-                )}
+              <Film size={40} style={{ color: 'white' }} />
+            </div>
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>
+                No video loaded
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4, maxWidth: 320 }}>
+                Pick a video file from your computer or drag one into this window. Supports mp4, webm, mov, mkv.
               </div>
             </div>
+            <button
+              onClick={handlePickFiles}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg transition-all hover:scale-[1.02]"
+              style={{
+                background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))',
+                color: 'white',
+                fontSize: 13,
+                fontWeight: 600,
+              }}
+            >
+              <Upload size={14} />
+              Open video file
+            </button>
+          </div>
+        ) : (
+          <>
+            {/* Real video element */}
+            <video
+              ref={videoRef}
+              src={currentVideo.src}
+              className="w-full h-full"
+              style={{ background: '#000', objectFit: 'contain' }}
+              onClick={togglePlay}
+              playsInline
+            />
+
+            {/* Centered play button when paused */}
+            {!isPlaying && (
+              <button
+                onClick={togglePlay}
+                className="absolute flex items-center justify-center rounded-full transition-transform hover:scale-110"
+                style={{
+                  width: 72, height: 72,
+                  background: 'rgba(0,0,0,0.6)',
+                  border: '2px solid rgba(255,255,255,0.4)',
+                }}
+              >
+                <Play size={36} style={{ color: 'white', marginLeft: 4 }} />
+              </button>
+            )}
+
+            {/* Error banner */}
+            {error && (
+              <div
+                className="absolute top-4 left-1/2 -translate-x-1/2 px-3 py-1.5 rounded-md"
+                style={{ fontSize: 11, color: '#ff8a80', background: 'rgba(0,0,0,0.7)' }}
+              >
+                {error}
+              </div>
+            )}
 
             {/* Controls Overlay */}
             {showControls && (
               <div
                 className="absolute bottom-0 left-0 right-0 flex flex-col gap-1 px-3 pb-3 pt-8 transition-opacity"
-                style={{ background: 'linear-gradient(transparent, rgba(0,0,0,0.8))' }}
+                style={{ background: 'linear-gradient(transparent, rgba(0,0,0,0.85))' }}
               >
-                {/* Progress bar */}
                 <input
                   type="range"
                   min={0}
-                  max={currentDuration}
+                  max={duration || 1}
+                  step={0.01}
                   value={currentTime}
                   onChange={handleSeek}
                   className="w-full cursor-pointer"
                   style={{ accentColor: 'var(--accent-primary)', height: 4 }}
                 />
-                {/* Control buttons */}
                 <div className="flex items-center justify-between mt-1">
                   <div className="flex items-center gap-2">
-                    <button onClick={() => setIsPlaying((p) => !p)} className="flex items-center justify-center rounded-full hover:bg-[rgba(255,255,255,0.1)]" style={{ width: 36, height: 36 }}>
-                      {isPlaying ? <Pause size={20} style={{ color: 'white' }} /> : <Play size={20} style={{ color: 'white' }} className="ml-0.5" />}
+                    <button onClick={togglePlay} className="flex items-center justify-center rounded-full hover:bg-[rgba(255,255,255,0.1)]" style={{ width: 36, height: 36 }}>
+                      {isPlaying
+                        ? <Pause size={20} style={{ color: 'white' }} />
+                        : <Play size={20} style={{ color: 'white' }} className="ml-0.5" />}
                     </button>
-                    <button onClick={() => setCurrentTime((t) => Math.max(t - 10, 0))} className="flex items-center justify-center rounded-full hover:bg-[rgba(255,255,255,0.1)]" style={{ width: 28, height: 28 }}>
+                    <button onClick={() => skip(-10)} className="flex items-center justify-center rounded-full hover:bg-[rgba(255,255,255,0.1)]" style={{ width: 28, height: 28 }} title="Back 10s">
                       <SkipBack size={16} style={{ color: 'white' }} />
                     </button>
-                    <button onClick={() => setCurrentTime((t) => Math.min(t + 10, currentDuration))} className="flex items-center justify-center rounded-full hover:bg-[rgba(255,255,255,0.1)]" style={{ width: 28, height: 28 }}>
+                    <button onClick={() => skip(10)} className="flex items-center justify-center rounded-full hover:bg-[rgba(255,255,255,0.1)]" style={{ width: 28, height: 28 }} title="Forward 10s">
                       <SkipForward size={16} style={{ color: 'white' }} />
                     </button>
-                    <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.8)', marginLeft: 8 }}>
-                      {formatTime(currentTime)} / {formatTime(currentDuration)}
+                    <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.85)', marginLeft: 8, fontVariantNumeric: 'tabular-nums' }}>
+                      {formatTime(currentTime)} / {formatTime(duration)}
                     </span>
                   </div>
 
                   <div className="flex items-center gap-2">
-                    {/* Volume */}
-                    <button onClick={() => setVolume((v) => v === 0 ? 0.7 : 0)} className="flex items-center justify-center rounded-full hover:bg-[rgba(255,255,255,0.1)]" style={{ width: 28, height: 28 }}>
-                      {volume === 0 ? <VolumeX size={16} style={{ color: 'white' }} /> : <Volume2 size={16} style={{ color: 'white' }} />}
+                    <button onClick={() => setMuted((m) => !m)} className="flex items-center justify-center rounded-full hover:bg-[rgba(255,255,255,0.1)]" style={{ width: 28, height: 28 }}>
+                      {muted || volume === 0
+                        ? <VolumeX size={16} style={{ color: 'white' }} />
+                        : <Volume2 size={16} style={{ color: 'white' }} />}
                     </button>
                     <input
                       type="range"
                       min={0}
                       max={1}
                       step={0.01}
-                      value={volume}
+                      value={muted ? 0 : volume}
                       onChange={handleVolumeChange}
                       style={{ width: 60, accentColor: 'white', height: 3 }}
                     />
-                    {/* Speed */}
                     <div className="relative">
                       <button
                         onClick={() => setShowSpeedMenu((s) => !s)}
                         className="flex items-center justify-center rounded-full hover:bg-[rgba(255,255,255,0.1)]"
                         style={{ width: 28, height: 28 }}
+                        title={`${playbackSpeed}x`}
                       >
                         <Settings size={16} style={{ color: 'white' }} />
                       </button>
@@ -249,8 +414,10 @@ export default function VideoPlayer() {
                         </div>
                       )}
                     </div>
-                    {/* Fullscreen */}
-                    <button onClick={toggleFullscreen} className="flex items-center justify-center rounded-full hover:bg-[rgba(255,255,255,0.1)]" style={{ width: 28, height: 28 }}>
+                    <button onClick={handlePickFiles} className="flex items-center justify-center rounded-full hover:bg-[rgba(255,255,255,0.1)]" style={{ width: 28, height: 28 }} title="Add files">
+                      <Upload size={16} style={{ color: 'white' }} />
+                    </button>
+                    <button onClick={toggleFullscreen} className="flex items-center justify-center rounded-full hover:bg-[rgba(255,255,255,0.1)]" style={{ width: 28, height: 28 }} title="Fullscreen (F)">
                       {isFullscreen ? <Minimize size={16} style={{ color: 'white' }} /> : <Maximize size={16} style={{ color: 'white' }} />}
                     </button>
                   </div>
@@ -261,37 +428,66 @@ export default function VideoPlayer() {
         )}
       </div>
 
-      {/* Playlist sidebar (when video selected) */}
-      {currentVideo && (
+      {/* Playlist strip — only when at least one video is loaded */}
+      {playlist.length > 0 && (
         <div
-          className="shrink-0 overflow-x-auto custom-scrollbar"
+          className="shrink-0 overflow-x-auto invisible-scrollbar"
           style={{
             height: 80,
             background: 'var(--bg-titlebar)',
             borderTop: '1px solid var(--border-subtle)',
           }}
         >
-          <div className="flex gap-2 p-2">
-            {playlist.map((video) => (
-              <button
+          <div className="flex gap-2 p-2 h-full items-center">
+            {playlist.map((video, i) => (
+              <div
                 key={video.id}
-                onClick={() => selectVideo(video)}
-                className="flex items-center gap-2 px-3 py-2 rounded-lg transition-all shrink-0"
+                className="flex items-center gap-2 px-3 py-2 rounded-lg shrink-0 group cursor-pointer"
+                onClick={() => selectVideo(i)}
                 style={{
-                  background: video.id === currentVideo.id ? 'var(--bg-selected)' : 'var(--bg-hover)',
-                  border: video.id === currentVideo.id ? '1px solid var(--accent-primary)' : '1px solid var(--border-subtle)',
+                  background: i === currentIndex ? 'var(--bg-selected)' : 'var(--bg-hover)',
+                  border: i === currentIndex ? '1px solid var(--accent-primary)' : '1px solid var(--border-subtle)',
                 }}
               >
                 <Film size={16} style={{ color: 'var(--accent-primary)', flexShrink: 0 }} />
                 <div className="text-left">
-                  <div className="truncate" style={{ fontSize: '12px', color: 'var(--text-primary)', maxWidth: 140 }}>{video.name}</div>
-                  <div style={{ fontSize: '10px', color: 'var(--text-disabled)' }}>{formatTime(video.duration)}</div>
+                  <div className="truncate" style={{ fontSize: '12px', color: 'var(--text-primary)', maxWidth: 160 }}>{video.name}</div>
+                  <div style={{ fontSize: '10px', color: 'var(--text-disabled)' }}>{video.size}</div>
                 </div>
-              </button>
+                <button
+                  onClick={(e) => { e.stopPropagation(); handleRemove(i); }}
+                  className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded-md hover:bg-[var(--bg-hover)]"
+                  style={{ color: 'var(--text-secondary)' }}
+                  title="Remove"
+                >
+                  <Trash2 size={12} />
+                </button>
+              </div>
             ))}
+            <button
+              onClick={handlePickFiles}
+              className="flex items-center gap-2 px-3 py-2 rounded-lg shrink-0 transition-all hover:bg-[var(--bg-hover)]"
+              style={{
+                fontSize: 12,
+                color: 'var(--text-secondary)',
+                border: '1px dashed var(--border-subtle)',
+              }}
+            >
+              <Upload size={14} />
+              Add
+            </button>
           </div>
         </div>
       )}
+
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="video/*"
+        multiple
+        onChange={handleFiles}
+        style={{ display: 'none' }}
+      />
     </div>
   );
 }

@@ -1,43 +1,86 @@
 // ============================================================
-// Voice Recorder — Record, playback, waveform visualization
+// Voice Recorder — real microphone capture (no longer a fake skeleton)
 // ============================================================
+//
+// Uses the browser's MediaRecorder + getUserMedia to capture real audio
+// and stores it as base64-encoded webm in localStorage so:
+//   1. Recordings survive reloads.
+//   2. Music Creator's Cover mode can pick from these recordings to
+//      build "cover samples" (auto-trimmed to MiniMax's 6 s–6 min
+//      window with the most musical section selected).
+//
+// Storage key: `tytus.voice-recorder.recordings`
+// Schema is intentionally compatible with what Music Creator expects.
 
 import { useState, useRef, useEffect, memo } from 'react';
 import {
-  Mic, Play, Pause, Square, Trash2, Download
+  Mic, Play, Pause, Square, Trash2, Download, AlertCircle,
 } from 'lucide-react';
 
 // ---- Types ----
-interface Recording {
+export interface VoiceRecording {
   id: string;
   name: string;
-  duration: number;
-  date: number;
-  waveformData: number[];
+  durationMs: number;
+  createdAt: number;
+  // Base64-encoded webm/opus blob from MediaRecorder.
+  audioDataUrl: string;
+  mimeType: string;
 }
 
-type RecorderState = 'idle' | 'recording' | 'paused' | 'playing';
+const STORAGE_KEY = 'tytus.voice-recorder.recordings';
 
-// ---- Waveform Visualizer ----
-const WaveformVisualizer = memo(function WaveformVisualizer({ isActive, isPlaying, waveformData }: { isActive: boolean; isPlaying?: boolean; waveformData?: number[] }) {
+const loadRecordings = (): VoiceRecording[] => {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? (parsed as VoiceRecording[]) : [];
+  } catch {
+    return [];
+  }
+};
+
+const saveRecordings = (list: VoiceRecording[]): void => {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
+  } catch (e) {
+    console.warn('Voice recordings storage failed:', e);
+  }
+};
+
+// ---- Live waveform driven by AnalyserNode RMS ----
+const WaveformVisualizer = memo(function WaveformVisualizer({
+  analyser,
+  active,
+}: { analyser: AnalyserNode | null; active: boolean }) {
   const [bars, setBars] = useState<number[]>(Array(40).fill(4));
+  const rafRef = useRef<number | null>(null);
 
   useEffect(() => {
-    if (!isActive) {
-      if (waveformData && isPlaying) {
-        // Replay the recorded waveform
-        setBars(waveformData);
-      } else {
-        setBars(Array(40).fill(4));
-      }
+    if (!active || !analyser) {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      queueMicrotask(() => setBars(Array(40).fill(4)));
       return;
     }
-
-    const interval = setInterval(() => {
-      setBars(Array.from({ length: 40 }, () => Math.random() * 60 + 8));
-    }, 80);
-    return () => clearInterval(interval);
-  }, [isActive, isPlaying, waveformData]);
+    const buf = new Uint8Array(analyser.frequencyBinCount);
+    const tick = () => {
+      analyser.getByteFrequencyData(buf);
+      // 40 visible bars; sample evenly across the FFT bins.
+      const step = Math.floor(buf.length / 40);
+      const next: number[] = [];
+      for (let i = 0; i < 40; i++) {
+        const v = buf[i * step] || 0;
+        next.push(4 + (v / 255) * 64);
+      }
+      setBars(next);
+      rafRef.current = requestAnimationFrame(tick);
+    };
+    rafRef.current = requestAnimationFrame(tick);
+    return () => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    };
+  }, [analyser, active]);
 
   return (
     <div className="flex items-end justify-center gap-1" style={{ height: 80 }}>
@@ -48,39 +91,8 @@ const WaveformVisualizer = memo(function WaveformVisualizer({ isActive, isPlayin
           style={{
             width: 4,
             height: h,
-            background: isPlaying
-              ? 'linear-gradient(to top, var(--accent-primary), var(--accent-primary-hover))'
-              : 'linear-gradient(to top, #4CAF50, #81C784)',
+            background: 'linear-gradient(to top, #4CAF50, #81C784)',
             opacity: 0.5 + (i / 40) * 0.5,
-          }}
-        />
-      ))}
-    </div>
-  );
-});
-
-// ---- Audio Level Meter ----
-const AudioLevelMeter = memo(function AudioLevelMeter({ isRecording }: { isRecording: boolean }) {
-  const [level, setLevel] = useState(0);
-
-  useEffect(() => {
-    if (!isRecording) { setLevel(0); return; }
-    const interval = setInterval(() => {
-      setLevel(Math.random() * 100);
-    }, 50);
-    return () => clearInterval(interval);
-  }, [isRecording]);
-
-  return (
-    <div className="flex items-center gap-0.5" style={{ height: 24 }}>
-      {Array.from({ length: 20 }).map((_, i) => (
-        <div
-          key={i}
-          className="rounded-full transition-all"
-          style={{
-            width: 3,
-            height: Math.min(24, Math.max(4, (level / 100) * 24 * (i / 20))),
-            background: level > 80 ? 'var(--accent-error)' : level > 50 ? 'var(--accent-warning)' : 'var(--accent-success)',
           }}
         />
       ))}
@@ -90,132 +102,208 @@ const AudioLevelMeter = memo(function AudioLevelMeter({ isRecording }: { isRecor
 
 // ---- Helpers ----
 const formatTime = (seconds: number): string => {
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
+  if (!Number.isFinite(seconds) || seconds < 0) seconds = 0;
+  const m = Math.floor(seconds / 60);
   const s = Math.floor(seconds % 60);
-  if (h > 0) return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
 };
 
-const generateWaveform = () => Array.from({ length: 40 }, () => Math.random() * 60 + 8);
+const blobToDataUrl = (blob: Blob): Promise<string> =>
+  new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(typeof r.result === 'string' ? r.result : '');
+    r.onerror = () => reject(r.error);
+    r.readAsDataURL(blob);
+  });
 
-// ---- Main Voice Recorder ----
+// ---- Main ----
 export default function VoiceRecorder() {
-  const [recorderState, setRecorderState] = useState<RecorderState>('idle');
-  const [elapsed, setElapsed] = useState(0);
-  const [recordings, setRecordings] = useState<Recording[]>(() => {
-    try {
-      const saved = localStorage.getItem('tytus_recordings');
-      return saved ? JSON.parse(saved) : [];
-    } catch { return []; }
-    });
+  const [recordings, setRecordings] = useState<VoiceRecording[]>(() => loadRecordings());
+  const [recording, setRecording] = useState(false);
+  const [paused, setPaused] = useState(false);
+  const [elapsedMs, setElapsedMs] = useState(0);
   const [playingId, setPlayingId] = useState<string | null>(null);
-  const [playTime, setPlayTime] = useState(0);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const playTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [analyser, setAnalyser] = useState<AnalyserNode | null>(null);
 
-  // Persist recordings
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+  const streamRef = useRef<MediaStream | null>(null);
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const startTimestampRef = useRef<number>(0);
+  const accumulatedBeforePauseRef = useRef<number>(0);
+  const tickerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const playbackAudioRef = useRef<HTMLAudioElement | null>(null);
+
+  // Persist whenever the list changes.
   useEffect(() => {
-    localStorage.setItem('tytus_recordings', JSON.stringify(recordings));
+    saveRecordings(recordings);
   }, [recordings]);
 
-  // Recording timer
+  // Cleanup on unmount.
   useEffect(() => {
-    if (recorderState === 'recording') {
-      timerRef.current = setInterval(() => {
-        setElapsed((prev) => prev + 1);
-      }, 1000);
-    } else {
-      if (timerRef.current) clearInterval(timerRef.current);
-    }
-    return () => { if (timerRef.current) clearInterval(timerRef.current); };
-  }, [recorderState]);
+    return () => {
+      streamRef.current?.getTracks().forEach((t) => t.stop());
+      audioCtxRef.current?.close().catch(() => undefined);
+      if (tickerRef.current) clearInterval(tickerRef.current);
+    };
+  }, []);
 
-  // Playback timer
-  useEffect(() => {
-    if (recorderState === 'playing' && playingId) {
-      const recording = recordings.find((r) => r.id === playingId);
-      if (!recording) return;
-      playTimerRef.current = setInterval(() => {
-        setPlayTime((prev) => {
-          if (prev >= recording.duration) {
-            setRecorderState('idle');
-            setPlayingId(null);
-            return 0;
+  const startRecording = async () => {
+    setError(null);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = stream;
+
+      // Set up the analyser for the live waveform.
+      const AudioCtor = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      const ctx = new AudioCtor();
+      const source = ctx.createMediaStreamSource(stream);
+      const analyserNode = ctx.createAnalyser();
+      analyserNode.fftSize = 256;
+      source.connect(analyserNode);
+      audioCtxRef.current = ctx;
+      setAnalyser(analyserNode);
+
+      // Pick the best-supported mime type. Webm/opus is universally
+      // available in Chromium-family browsers; Safari falls back to mp4.
+      const mimeCandidates = [
+        'audio/webm;codecs=opus',
+        'audio/webm',
+        'audio/mp4',
+        'audio/ogg;codecs=opus',
+      ];
+      const mime = mimeCandidates.find((m) => MediaRecorder.isTypeSupported(m)) || '';
+      const mr = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
+      chunksRef.current = [];
+      mr.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) chunksRef.current.push(e.data);
+      };
+      mr.onstop = async () => {
+        try {
+          const blob = new Blob(chunksRef.current, {
+            type: chunksRef.current[0]?.type || mime || 'audio/webm',
+          });
+          if (blob.size === 0) {
+            setError('Recording was empty.');
+            return;
           }
-          return prev + 1;
-        });
-      }, 1000);
-    }
-    return () => { if (playTimerRef.current) clearInterval(playTimerRef.current); };
-  }, [recorderState, playingId, recordings]);
+          const dataUrl = await blobToDataUrl(blob);
+          const duration = accumulatedBeforePauseRef.current;
+          const rec: VoiceRecording = {
+            id: `r_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+            name: `Recording ${recordings.length + 1}`,
+            durationMs: duration,
+            createdAt: Date.now(),
+            audioDataUrl: dataUrl,
+            mimeType: blob.type,
+          };
+          setRecordings((prev) => [rec, ...prev]);
+        } catch (err) {
+          setError(`Could not save recording: ${(err as Error).message}`);
+        } finally {
+          // Always release the mic.
+          streamRef.current?.getTracks().forEach((t) => t.stop());
+          streamRef.current = null;
+          audioCtxRef.current?.close().catch(() => undefined);
+          audioCtxRef.current = null;
+          setAnalyser(null);
+        }
+      };
+      mr.start(250); // 250ms chunks for smooth stop
+      mediaRecorderRef.current = mr;
 
-  const startRecording = () => {
-    setRecorderState('recording');
-    setElapsed(0);
+      accumulatedBeforePauseRef.current = 0;
+      startTimestampRef.current = Date.now();
+      setElapsedMs(0);
+      setRecording(true);
+      setPaused(false);
+
+      tickerRef.current = setInterval(() => {
+        setElapsedMs(accumulatedBeforePauseRef.current + (Date.now() - startTimestampRef.current));
+      }, 100);
+    } catch (e) {
+      setError((e as Error).message || 'Microphone access denied.');
+      streamRef.current?.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
+    }
   };
 
   const pauseRecording = () => {
-    setRecorderState('paused');
+    const mr = mediaRecorderRef.current;
+    if (!mr || mr.state !== 'recording') return;
+    mr.pause();
+    accumulatedBeforePauseRef.current += Date.now() - startTimestampRef.current;
+    setPaused(true);
   };
 
   const resumeRecording = () => {
-    setRecorderState('recording');
+    const mr = mediaRecorderRef.current;
+    if (!mr || mr.state !== 'paused') return;
+    mr.resume();
+    startTimestampRef.current = Date.now();
+    setPaused(false);
   };
 
   const stopRecording = () => {
-    if (elapsed > 0) {
-      const newRecording: Recording = {
-        id: Math.random().toString(36).slice(2),
-        name: `Recording ${recordings.length + 1}`,
-        duration: elapsed,
-        date: Date.now(),
-        waveformData: generateWaveform(),
-      };
-      setRecordings((prev) => [newRecording, ...prev]);
+    const mr = mediaRecorderRef.current;
+    if (!mr) return;
+    if (mr.state === 'recording') {
+      accumulatedBeforePauseRef.current += Date.now() - startTimestampRef.current;
     }
-    setRecorderState('idle');
-    setElapsed(0);
+    mr.stop();
+    if (tickerRef.current) clearInterval(tickerRef.current);
+    setRecording(false);
+    setPaused(false);
+    setElapsedMs(0);
   };
 
-  const playRecording = (recording: Recording) => {
-    if (playingId === recording.id && recorderState === 'playing') {
-      setRecorderState('idle');
+  const togglePlay = (rec: VoiceRecording) => {
+    if (playingId === rec.id) {
+      playbackAudioRef.current?.pause();
       setPlayingId(null);
-      setPlayTime(0);
-    } else {
-      setPlayingId(recording.id);
-      setRecorderState('playing');
-      setPlayTime(0);
+      return;
     }
+    if (playbackAudioRef.current) {
+      playbackAudioRef.current.pause();
+    }
+    const audio = new Audio(rec.audioDataUrl);
+    audio.onended = () => setPlayingId(null);
+    audio.onerror = () => { setPlayingId(null); setError('Cannot play this recording.'); };
+    audio.play().catch((e: Error) => {
+      setError(e.message || 'Playback blocked.');
+      setPlayingId(null);
+    });
+    playbackAudioRef.current = audio;
+    setPlayingId(rec.id);
   };
 
   const deleteRecording = (id: string) => {
     setRecordings((prev) => prev.filter((r) => r.id !== id));
     if (playingId === id) {
+      playbackAudioRef.current?.pause();
       setPlayingId(null);
-      setRecorderState('idle');
-      setPlayTime(0);
     }
   };
 
-  const downloadRecording = (recording: Recording) => {
-    // Simulated download - create a text blob as placeholder
-    const blob = new Blob([`Simulated audio recording: ${recording.name}\nDuration: ${formatTime(recording.duration)}`], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
+  const downloadRecording = (rec: VoiceRecording) => {
     const a = document.createElement('a');
-    a.href = url;
-    a.download = `${recording.name}.webm`;
+    a.href = rec.audioDataUrl;
+    // Pick file extension from the mime type.
+    const ext = rec.mimeType.includes('mp4') ? 'm4a'
+      : rec.mimeType.includes('ogg') ? 'ogg'
+      : 'webm';
+    a.download = `${rec.name}.${ext}`;
     a.click();
-    URL.revokeObjectURL(url);
   };
 
-  const statusLabel = recorderState === 'idle' ? 'Ready to record' :
-    recorderState === 'recording' ? 'Recording...' :
-    recorderState === 'paused' ? 'Paused' :
-    'Playing';
+  const renameRecording = (id: string, name: string) => {
+    setRecordings((prev) => prev.map((r) => r.id === id ? { ...r, name: name.trim() || r.name } : r));
+  };
 
-  const currentWaveform = playingId ? recordings.find((r) => r.id === playingId)?.waveformData : undefined;
+  const statusLabel = recording
+    ? (paused ? 'Paused' : 'Recording…')
+    : (playingId ? 'Playing' : 'Ready to record');
 
   return (
     <div className="flex flex-col h-full" style={{ background: 'var(--bg-window)' }}>
@@ -224,51 +312,44 @@ export default function VoiceRecorder() {
         className="flex flex-col items-center justify-center gap-4 px-6 py-5 shrink-0"
         style={{ background: 'var(--bg-titlebar)', borderBottom: '1px solid var(--border-subtle)' }}
       >
-        <WaveformVisualizer
-          isActive={recorderState === 'recording'}
-          isPlaying={recorderState === 'playing'}
-          waveformData={currentWaveform}
-        />
+        <WaveformVisualizer analyser={analyser} active={recording && !paused} />
 
-        {/* Audio Level Meter */}
-        {recorderState === 'recording' && <AudioLevelMeter isRecording={true} />}
-
-        {/* Timer */}
-        <div style={{ fontSize: '36px', fontWeight: 300, color: 'var(--text-primary)', fontVariantNumeric: 'tabular-nums' }}>
-          {formatTime(recorderState === 'playing' ? playTime : elapsed)}
+        <div style={{ fontSize: 36, fontWeight: 300, color: 'var(--text-primary)', fontVariantNumeric: 'tabular-nums' }}>
+          {formatTime(elapsedMs / 1000)}
         </div>
 
-        {/* Status */}
-        <div style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
+        <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
           {statusLabel}
-          {recorderState === 'recording' && (
+          {recording && !paused && (
             <span className="inline-flex items-center gap-1.5 ml-2">
-              <span className="w-2 h-2 rounded-full animate-pulse" style={{ background: 'var(--accent-error)' }} />
-              <span style={{ fontSize: '11px', color: 'var(--accent-error)' }}>REC</span>
+              <span className="w-2 h-2 rounded-full animate-pulse" style={{ background: '#ef4444' }} />
+              <span style={{ fontSize: 11, color: '#ef4444' }}>REC</span>
             </span>
           )}
         </div>
 
         {/* Controls */}
         <div className="flex items-center gap-4">
-          {recorderState === 'idle' ? (
+          {!recording ? (
             <button
               onClick={startRecording}
               className="flex items-center justify-center rounded-full transition-all hover:scale-105"
               style={{
                 width: 64, height: 64,
-                background: 'var(--accent-error)', color: 'white',
-                boxShadow: '0 0 20px rgba(244,67,54,0.3)',
+                background: '#ef4444', color: 'white',
+                boxShadow: '0 0 20px rgba(239,68,68,0.35)',
               }}
+              title="Start recording"
             >
               <Mic size={28} />
             </button>
-          ) : recorderState === 'recording' ? (
+          ) : !paused ? (
             <>
               <button
                 onClick={pauseRecording}
                 className="flex items-center justify-center rounded-full transition-all hover:scale-105"
-                style={{ width: 48, height: 48, background: 'var(--bg-hover)', color: 'var(--text-primary)', border: '1px solid var(--border-default)' }}
+                style={{ width: 48, height: 48, background: 'var(--bg-hover)', color: 'var(--text-primary)', border: '1px solid var(--border-subtle)' }}
+                title="Pause"
               >
                 <Pause size={20} />
               </button>
@@ -276,100 +357,103 @@ export default function VoiceRecorder() {
                 onClick={stopRecording}
                 className="flex items-center justify-center rounded-full transition-all hover:scale-105"
                 style={{
-                  width: 64, height: 64,
-                  background: 'var(--accent-error)', color: 'white',
+                  width: 64, height: 64, background: '#ef4444', color: 'white',
                   animation: 'pulse 1s infinite',
                 }}
+                title="Stop"
               >
                 <Square size={24} />
               </button>
             </>
-          ) : recorderState === 'paused' ? (
+          ) : (
             <>
               <button
                 onClick={resumeRecording}
                 className="flex items-center justify-center rounded-full transition-all hover:scale-105"
                 style={{ width: 48, height: 48, background: 'var(--accent-primary)', color: 'white' }}
+                title="Resume"
               >
                 <Play size={20} className="ml-0.5" />
               </button>
               <button
                 onClick={stopRecording}
                 className="flex items-center justify-center rounded-full transition-all hover:scale-105"
-                style={{ width: 64, height: 64, background: 'var(--accent-error)', color: 'white' }}
+                style={{ width: 64, height: 64, background: '#ef4444', color: 'white' }}
+                title="Stop"
               >
                 <Square size={24} />
               </button>
             </>
-          ) : (
-            <button
-              onClick={() => { setRecorderState('idle'); setPlayingId(null); setPlayTime(0); }}
-              className="flex items-center justify-center rounded-full transition-all hover:scale-105"
-              style={{ width: 48, height: 48, background: 'var(--accent-error)', color: 'white' }}
-            >
-              <Square size={20} />
-            </button>
           )}
         </div>
+
+        {error && (
+          <div
+            className="flex items-center gap-2 px-3 py-1.5 rounded-md mt-1"
+            style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)' }}
+          >
+            <AlertCircle size={12} style={{ color: '#ff8a80' }} />
+            <span style={{ fontSize: 11, color: '#ff8a80' }}>{error}</span>
+          </div>
+        )}
       </div>
 
       {/* Recordings List */}
-      <div className="flex-1 overflow-y-auto custom-scrollbar">
+      <div className="flex-1 overflow-y-auto invisible-scrollbar" style={{ paddingBottom: 96 }}>
         {recordings.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full gap-2">
+          <div className="flex flex-col items-center justify-center h-full gap-2 px-8 text-center">
             <Mic size={32} style={{ color: 'var(--text-disabled)' }} />
-            <span style={{ fontSize: '12px', color: 'var(--text-disabled)' }}>No recordings yet</span>
+            <span style={{ fontSize: 12, color: 'var(--text-disabled)' }}>No recordings yet</span>
+            <span style={{ fontSize: 11, color: 'var(--text-disabled)', maxWidth: 280 }}>
+              Tap the mic to capture audio. Recordings can be reused as cover samples in Juli3ta.
+            </span>
           </div>
         ) : (
-          recordings.map((recording) => (
+          recordings.map((rec) => (
             <div
-              key={recording.id}
+              key={rec.id}
               className="flex items-center gap-3 px-4 py-3 transition-all"
               style={{ borderBottom: '1px solid var(--border-subtle)' }}
             >
               <button
-                onClick={() => playRecording(recording)}
+                onClick={() => togglePlay(rec)}
                 className="flex items-center justify-center rounded-full transition-all shrink-0"
                 style={{
                   width: 36, height: 36,
-                  background: playingId === recording.id && recorderState === 'playing' ? 'var(--accent-primary)' : 'var(--bg-hover)',
-                  color: playingId === recording.id && recorderState === 'playing' ? 'white' : 'var(--text-secondary)',
+                  background: playingId === rec.id ? 'var(--accent-primary)' : 'var(--bg-hover)',
+                  color: playingId === rec.id ? 'white' : 'var(--text-secondary)',
                 }}
               >
-                {playingId === recording.id && recorderState === 'playing' ? <Pause size={16} /> : <Play size={16} className="ml-0.5" />}
+                {playingId === rec.id ? <Pause size={16} /> : <Play size={16} className="ml-0.5" />}
               </button>
 
               <div className="flex-1 min-w-0">
-                <div className="truncate" style={{ fontSize: '13px', color: 'var(--text-primary)' }}>{recording.name}</div>
-                <div className="flex items-center gap-2">
-                  <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>{formatTime(recording.duration)}</span>
-                  <span style={{ fontSize: '11px', color: 'var(--text-disabled)' }}>{new Date(recording.date).toLocaleDateString()}</span>
+                <input
+                  defaultValue={rec.name}
+                  onBlur={(e) => renameRecording(rec.id, e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+                  className="bg-transparent outline-none focus:ring-1 focus:ring-[var(--accent-primary)] rounded-input px-1 -ml-1"
+                  style={{ fontSize: 13, color: 'var(--text-primary)', width: '100%' }}
+                />
+                <div className="flex items-center gap-2 mt-0.5">
+                  <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{formatTime(rec.durationMs / 1000)}</span>
+                  <span style={{ fontSize: 11, color: 'var(--text-disabled)' }}>{new Date(rec.createdAt).toLocaleDateString()}</span>
                 </div>
-                {/* Mini waveform */}
-                {playingId === recording.id && recorderState === 'playing' && (
-                  <div className="flex items-end gap-px mt-1" style={{ height: 16 }}>
-                    {recording.waveformData.slice(0, 30).map((h, i) => (
-                      <div
-                        key={i}
-                        className="rounded-full"
-                        style={{ width: 2, height: Math.max(2, h * 0.25), background: 'var(--accent-primary)', opacity: 0.6 }}
-                      />
-                    ))}
-                  </div>
-                )}
               </div>
 
               <button
-                onClick={() => downloadRecording(recording)}
+                onClick={() => downloadRecording(rec)}
                 className="flex items-center justify-center rounded-lg hover:bg-[var(--bg-hover)] shrink-0"
                 style={{ width: 28, height: 28 }}
+                title="Download"
               >
                 <Download size={14} style={{ color: 'var(--text-secondary)' }} />
               </button>
               <button
-                onClick={() => deleteRecording(recording.id)}
+                onClick={() => deleteRecording(rec.id)}
                 className="flex items-center justify-center rounded-lg hover:bg-[var(--bg-hover)] shrink-0"
                 style={{ width: 28, height: 28 }}
+                title="Delete"
               >
                 <Trash2 size={14} style={{ color: 'var(--text-secondary)' }} />
               </button>

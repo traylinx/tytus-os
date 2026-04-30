@@ -106,7 +106,7 @@ const UpgradeDaemonScreen = memo(function UpgradeDaemonScreen({
           className="text-sm leading-relaxed"
           style={{ color: "var(--text-secondary, rgba(255,255,255,0.75))" }}
         >
-          TytusOS needs at least{" "}
+          Tytus OS needs at least{" "}
           <code className="font-mono text-xs px-1 py-0.5 rounded-sm"
                 style={{ background: "var(--bg-code, rgba(255,255,255,0.08))" }}>
             tytus-tray {MIN_DAEMON_VERSION}
@@ -160,7 +160,7 @@ const UpgradeDaemonScreen = memo(function UpgradeDaemonScreen({
           className="text-xs"
           style={{ color: "var(--text-tertiary, rgba(255,255,255,0.55))" }}
         >
-          Already upgraded? Click <strong>Re-check</strong> below — TytusOS
+          Already upgraded? Click <strong>Re-check</strong> below — Tytus OS
           will poll the daemon again. You can also sign out from this
           screen if re-authenticating is what's needed.
         </p>

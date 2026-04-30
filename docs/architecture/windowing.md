@@ -1,6 +1,6 @@
 # Windowing
 
-The window manager is the single most important part of TytusOS. If windows don't behave like windows, nothing else matters.
+The window manager is the single most important part of Tytus OS. If windows don't behave like windows, nothing else matters.
 
 ## Two pieces
 

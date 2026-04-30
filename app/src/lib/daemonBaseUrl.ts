@@ -1,6 +1,6 @@
 // Discover the daemon HTTP base URL.
 //
-// - Production (TytusOS served by the daemon): empty string => same-origin
+// - Production (Tytus OS served by the daemon): empty string => same-origin
 //   relative URLs (`/api/...`). The daemon is the SPA's host, so cookies
 //   and the same-origin guard align naturally.
 //
@@ -10,7 +10,7 @@
 //
 // - Tests / Storybook: pass an explicit baseUrl to createDaemonClient.
 //
-// The function exists so future deployments (TytusOS hosted off-host) can
+// The function exists so future deployments (Tytus OS hosted off-host) can
 // swap discovery without touching the client.
 
 export const getDaemonBaseUrl = (): string => {

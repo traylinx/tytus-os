@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.0.1",
   "type": "module",
-  "description": "TytusOS \u2014 desktop shell for your private AI pod.",
+  "description": "Tytus OS \u2014 desktop shell for your private AI pod.",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",

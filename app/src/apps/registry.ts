@@ -137,6 +137,10 @@ export const APP_REGISTRY: AppDefinition[] = [
     description: 'Audio player with playlist.',
     defaultSize: { width: 520, height: 440 }, minSize: { width: 360, height: 320 } },
 
+  { id: 'musiccreator', name: 'Music Creator', icon: 'Disc3', category: 'Media',
+    description: 'Generate full songs with AI lyrics + music. Powered by your pod.',
+    defaultSize: { width: 880, height: 640 }, minSize: { width: 720, height: 520 } },
+
   { id: 'videoplayer', name: 'Video Player', icon: 'PlayCircle', category: 'Media',
     description: 'Video player with controls.',
     defaultSize: { width: 640, height: 440 }, minSize: { width: 400, height: 280 } },

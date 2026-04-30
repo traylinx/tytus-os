@@ -1,6 +1,6 @@
-# TytusOS SQLite Storage Sprint
+# Tytus OS SQLite Storage Sprint
 
-**Owner:** Sebastian / TytusOS  
+**Owner:** Sebastian / Tytus OS  
 **Drafted:** 2026-04-30  
 **Status:** Proposal — review before implementation
 
@@ -8,7 +8,7 @@
 
 ## 1. Why SQLite
 
-Today every TytusOS app persists state via `localStorage` (window geometry, desktop icons, API Tester collections / layout / history, etc.). This is fine for kilobytes of key-value data but it caps out for:
+Today every Tytus OS app persists state via `localStorage` (window geometry, desktop icons, API Tester collections / layout / history, etc.). This is fine for kilobytes of key-value data but it caps out for:
 
 - **Larger corpora** — request history, brain notes, file index, terminal sessions. localStorage has a 5–10MB per-origin limit and is sync-blocking.
 - **Queries** — no `WHERE`, no `ORDER BY`, no joins. Every consumer hand-rolls in-memory filtering.
@@ -150,7 +150,7 @@ CREATE INDEX IF NOT EXISTS idx_api_items_collection
 |---|---|
 | OPFS unavailable in user's browser | Fall back to localStorage with toast; repos route via `getDb() ?? legacyStore` |
 | WASM blob bundle size (+~850KB to first load) | Lazy-load: import the SQLite WASM module on first `getDb()` call, not at app entry. Apps that don't touch the DB pay nothing |
-| `BEGIN IMMEDIATE` lock contention with multiple windows | OPFS is per-origin so multiple TytusOS windows share. Use short txns + retry on `SQLITE_BUSY`. Same pattern as makakoo-core's `busy_timeout = 5000` |
+| `BEGIN IMMEDIATE` lock contention with multiple windows | OPFS is per-origin so multiple Tytus OS windows share. Use short txns + retry on `SQLITE_BUSY`. Same pattern as makakoo-core's `busy_timeout = 5000` |
 | User wipes site data → DB gone | Add an Export/Import button in System Settings (Phase 6). Until then, document that local-only data is local-only |
 | Schema mistakes are forever in v1 | Land Phase 1 + Phase 2 behind a feature flag for one week of dogfooding before deleting the localStorage path |
 

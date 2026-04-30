@@ -24,7 +24,7 @@ const AppPlaceholder = memo(function AppPlaceholder({ appId }: AppPlaceholderPro
         <DynamicIcon name={app?.icon || 'Box'} size={28} />
       </div>
       <h2 className="text-lg font-semibold mb-1">{app?.name ?? appId}</h2>
-      <p className="text-xs opacity-60 mb-5 max-w-sm">{app?.description ?? 'TytusOS app — placeholder.'}</p>
+      <p className="text-xs opacity-60 mb-5 max-w-sm">{app?.description ?? 'Tytus OS app — placeholder.'}</p>
       <div className="text-[10px] tracking-widest uppercase px-3 py-1 rounded-full"
         style={{ background: 'rgba(255,255,255,0.06)', color: 'var(--text-secondary)' }}>
         Wires up in Phase {phase}
