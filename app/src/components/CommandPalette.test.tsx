@@ -10,6 +10,7 @@ import CommandPalette from "@/components/CommandPalette";
 import { OSProvider } from "@/hooks/useOSStore";
 import { DaemonClientProvider } from "@/hooks/useDaemonClient";
 import { DaemonStateProvider } from "@/hooks/useDaemonStateContext";
+import { I18nProvider } from "@/i18n";
 import { createDaemonClient } from "@/lib/daemon";
 import { makeFakeFetch } from "@/test/fakeFetch";
 import { stateFixture } from "@/test/fixtures";
@@ -24,13 +25,15 @@ const renderPalette = () => {
   ]);
   const client = createDaemonClient({ fetch });
   return render(
-    <DaemonClientProvider client={client}>
-      <DaemonStateProvider intervalMs={60_000}>
-        <OSProvider>
-          <CommandPalette />
-        </OSProvider>
-      </DaemonStateProvider>
-    </DaemonClientProvider>,
+    <I18nProvider>
+      <DaemonClientProvider client={client}>
+        <DaemonStateProvider intervalMs={60_000}>
+          <OSProvider>
+            <CommandPalette />
+          </OSProvider>
+        </DaemonStateProvider>
+      </DaemonClientProvider>
+    </I18nProvider>,
   );
 };
 

@@ -7,6 +7,7 @@ import {
   daemonStatusFixture,
   launchersFixture,
   podReadyFixture,
+  podReadinessFixture,
   settingsFixture,
   sharedFoldersFixture,
   stateFixture,
@@ -82,9 +83,7 @@ describe("daemon client — GET /api/state", () => {
   });
 
   it("classifies AbortError as network_timeout", async () => {
-    const fetch = networkErrorFetch(
-      new DOMException("aborted", "AbortError"),
-    );
+    const fetch = networkErrorFetch(new DOMException("aborted", "AbortError"));
     const client = createDaemonClient({ fetch });
     const r = await client.getState();
     expect(r.ok).toBe(false);
@@ -393,6 +392,25 @@ describe("daemon client — other GETs", () => {
     expect(r.ok).toBe(true);
     if (!r.ok) return;
     expect(r.value.ready).toBe(true);
+  });
+
+  it("getPodReadiness parses fixture", async () => {
+    const { fetch } = makeFakeFetch([
+      {
+        method: "GET",
+        path: "/api/pods/02/readiness",
+        body: podReadinessFixture,
+      },
+    ]);
+    const r = await createDaemonClient({ fetch }).getPodReadiness("02");
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.value.open_enabled).toBe(true);
+    expect(
+      r.value.stages.some(
+        (s) => s.id === "tytus_bootstrap" && s.status === "ok",
+      ),
+    ).toBe(true);
   });
 
   it("getSharedFolders parses fixture", async () => {
@@ -737,6 +755,49 @@ describe("daemon client — POSTs", () => {
     expect(calls[0]?.url).toBe("/api/channels/remove?pod=02&name=telegram");
   });
 
+  it("postChannelsCatalog returns stdout/stderr diagnostic body", async () => {
+    const { fetch, calls } = makeFakeFetch([
+      {
+        method: "POST",
+        path: "/api/channels/catalog",
+        body: {
+          ok: true,
+          exit_code: 0,
+          stdout: "telegram\\nslack\\n",
+          stderr: "",
+        },
+      },
+    ]);
+    const r = await createDaemonClient({ fetch }).postChannelsCatalog();
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(calls[0]?.url).toBe("/api/channels/catalog");
+    expect(r.value.stdout).toContain("telegram");
+    expect(r.value.exit_code).toBe(0);
+  });
+
+  it("postChannelsCatalog preserves non-zero inline diagnostic body", async () => {
+    const { fetch } = makeFakeFetch([
+      {
+        method: "POST",
+        path: "/api/channels/catalog",
+        status: 500,
+        body: {
+          ok: false,
+          exit_code: 2,
+          stdout: "",
+          stderr: "catalog failed",
+        },
+      },
+    ]);
+    const r = await createDaemonClient({ fetch }).postChannelsCatalog();
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.value.ok).toBe(false);
+    expect(r.value.exit_code).toBe(2);
+    expect(r.value.stderr).toBe("catalog failed");
+  });
+
   it("postFilesOpenDownloads targets /api/files/open-downloads?pod=NN", async () => {
     const { fetch, calls } = makeFakeFetch([
       {
@@ -901,6 +962,19 @@ describe("daemon client — POSTs", () => {
     expect(r.value.job_id).toBe("abc-123");
   });
 
+  it("postConfigure targets /api/configure", async () => {
+    const { fetch, calls } = makeFakeFetch([
+      {
+        method: "POST",
+        path: "/api/configure",
+        body: { ok: true },
+      },
+    ]);
+    const r = await createDaemonClient({ fetch }).postConfigure();
+    expect(r.ok).toBe(true);
+    expect(calls[0]?.url).toBe("/api/configure");
+  });
+
   it("postInstall sends {agent_type} and returns job_id", async () => {
     let observed: unknown = undefined;
     const { fetch } = makeFakeFetch([
@@ -946,7 +1020,9 @@ describe("daemon client — POSTs", () => {
         body: { error: "invalid agent_type" },
       },
     ]);
-    const r = await createDaemonClient({ fetch }).postInstall("../../etc/passwd");
+    const r = await createDaemonClient({ fetch }).postInstall(
+      "../../etc/passwd",
+    );
     expect(r.ok).toBe(false);
     if (r.ok) return;
     expect(r.error.code).toBe("validation");

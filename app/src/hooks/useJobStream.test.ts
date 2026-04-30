@@ -24,6 +24,53 @@ describe("useJobStream", () => {
       "  [OK] state_file",
     ]);
     expect(result.current.exitCode).toBe(0);
+    expect(result.current.donePayload).toBeNull();
+    expect(result.current.failMessage).toBeNull();
+  });
+
+  it("collects log lines and resolves to success on install done", async () => {
+    const url = "/api/jobs/install/stream";
+    const payload = '{"pod_id":"02","agent_type":"openclaw"}';
+    const { Ctor } = makeFakeEventSource({
+      [url]: [
+        { type: "log", data: "Allocating pod…" },
+        { type: "log", data: payload },
+        { type: "done", data: payload },
+      ],
+    });
+    const { result } = renderHook(() =>
+      useJobStream({ url, EventSourceCtor: Ctor }),
+    );
+
+    await waitFor(() => expect(result.current.status).toBe("success"));
+    expect(result.current.lines).toEqual(["Allocating pod…", payload]);
+    expect(result.current.exitCode).toBe(0);
+    expect(result.current.donePayload).toEqual({
+      pod_id: "02",
+      agent_type: "openclaw",
+    });
+    expect(result.current.failMessage).toBeNull();
+  });
+
+  it("resolves to failed on install fail and exposes the message", async () => {
+    const url = "/api/jobs/install-fail/stream";
+    const { Ctor } = makeFakeEventSource({
+      [url]: [
+        { type: "log", data: "Allocating pod…" },
+        { type: "fail", data: "tytus exited with status exit status: 1" },
+      ],
+    });
+    const { result } = renderHook(() =>
+      useJobStream({ url, EventSourceCtor: Ctor }),
+    );
+
+    await waitFor(() => expect(result.current.status).toBe("failed"));
+    expect(result.current.lines).toEqual(["Allocating pod…"]);
+    expect(result.current.exitCode).toBeNull();
+    expect(result.current.donePayload).toBeNull();
+    expect(result.current.failMessage).toBe(
+      "tytus exited with status exit status: 1",
+    );
   });
 
   it("resolves to failed on non-zero exit", async () => {
@@ -39,6 +86,23 @@ describe("useJobStream", () => {
     );
     await waitFor(() => expect(result.current.status).toBe("failed"));
     expect(result.current.exitCode).toBe(2);
+    expect(result.current.donePayload).toBeNull();
+    expect(result.current.failMessage).toBeNull();
+  });
+
+  it("ignores EventSource error after terminal done", async () => {
+    const url = "/api/jobs/terminal-error/stream";
+    const { Ctor, instances } = makeFakeEventSource({});
+    const { result } = renderHook(() =>
+      useJobStream({ url, EventSourceCtor: Ctor }),
+    );
+
+    await waitFor(() => expect(instances[0]).toBeDefined());
+    instances[0].emit("done", '{"pod_id":"03"}');
+    instances[0].emitError();
+
+    await waitFor(() => expect(result.current.status).toBe("success"));
+    expect(result.current.donePayload).toEqual({ pod_id: "03" });
   });
 
   it("A19: late subscribe (no events, never exit) resolves to lost within deadline", async () => {
@@ -64,6 +128,8 @@ describe("useJobStream", () => {
     expect(result.current.status).toBe("subscribing");
     expect(result.current.lines).toEqual([]);
     expect(result.current.exitCode).toBeNull();
+    expect(result.current.donePayload).toBeNull();
+    expect(result.current.failMessage).toBeNull();
   });
 
   // Phase 4 cont — failure-SSE transcript fixture (manifest audit 03 §3).

@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.0.1",
   "type": "module",
-  "description": "TytusOS — desktop shell for your private AI pod.",
+  "description": "TytusOS \u2014 desktop shell for your private AI pod.",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
@@ -15,7 +15,9 @@
     "test:watch": "vitest",
     "test:smoke": "node scripts/smoke.mjs",
     "test:probe": "node scripts/probe-phase2.mjs",
-    "audit:radius": "node scripts/audit-radius.mjs"
+    "audit:radius": "node scripts/audit-radius.mjs",
+    "i18n:check": "node scripts/i18n-check.mjs",
+    "i18n:update-allowlist": "node scripts/i18n-check.mjs --write-allowlist"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
@@ -45,6 +47,9 @@
     "@radix-ui/react-toggle": "^1.1.10",
     "@radix-ui/react-toggle-group": "^1.1.11",
     "@radix-ui/react-tooltip": "^1.2.8",
+    "@sqlite.org/sqlite-wasm": "^3.53.0-build1",
+    "@xterm/addon-fit": "^0.11.0",
+    "@xterm/xterm": "^6.0.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",

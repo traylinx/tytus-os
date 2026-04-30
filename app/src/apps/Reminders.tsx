@@ -31,9 +31,9 @@ const saveReminders = (reminders: Reminder[]) => {
 };
 
 const PRIORITY_COLORS = {
-  low: { bg: 'rgba(76,175,80,0.15)', text: '#4CAF50', border: 'rgba(76,175,80,0.3)' },
-  medium: { bg: 'rgba(255,152,0,0.15)', text: '#FF9800', border: 'rgba(255,152,0,0.3)' },
-  high: { bg: 'rgba(244,67,54,0.15)', text: '#F44336', border: 'rgba(244,67,54,0.3)' },
+  low: { bg: 'rgba(76,175,80,0.15)', text: 'var(--accent-success)', border: 'rgba(76,175,80,0.3)' },
+  medium: { bg: 'rgba(255,152,0,0.15)', text: 'var(--accent-warning)', border: 'rgba(255,152,0,0.3)' },
+  high: { bg: 'rgba(244,67,54,0.15)', text: 'var(--accent-error)', border: 'rgba(244,67,54,0.3)' },
 };
 
 export default function Reminders() {

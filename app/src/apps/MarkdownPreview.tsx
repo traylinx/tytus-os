@@ -17,19 +17,19 @@ function markdownToHtml(md: string): string {
 
   // Code blocks
   html = html.replace(/```(\w*)\n([\s\S]*?)```/g, (_, _lang: string, code) => {
-    return `<pre style="background:#1A1A1A;padding:16px;border-radius:8px;overflow:auto;margin:12px 0"><code style="font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--text-primary)">${code.trim()}</code></pre>`;
+    return `<pre style="background:var(--bg-code);padding:16px;border-radius:8px;overflow:auto;margin:12px 0"><code style="font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--text-primary)">${code.trim()}</code></pre>`;
   });
 
   // Inline code
   html = html.replace(/`([^`]+)`/g, '<code style="background:rgba(124,77,255,0.1);padding:2px 6px;border-radius:4px;font-family:\'JetBrains Mono\',monospace;font-size:12px">$1</code>');
 
   // Headings
-  html = html.replace(/^###### (.*$)/gim, '<h6 style="font-size:13px;font-weight:600;margin:12px 0">$1</h6>');
-  html = html.replace(/^##### (.*$)/gim, '<h5 style="font-size:14px;font-weight:600;margin:12px 0">$1</h5>');
-  html = html.replace(/^#### (.*$)/gim, '<h4 style="font-size:16px;font-weight:600;margin:14px 0">$1</h4>');
-  html = html.replace(/^### (.*$)/gim, '<h3 style="font-size:20px;font-weight:600;margin:16px 0">$1</h3>');
-  html = html.replace(/^## (.*$)/gim, '<h2 style="font-size:24px;font-weight:600;margin:20px 0;padding-bottom:8px;border-bottom:1px solid var(--border-default)">$1</h2>');
-  html = html.replace(/^# (.*$)/gim, '<h1 style="font-size:32px;font-weight:700;margin:24px 0;padding-bottom:8px;border-bottom:2px solid var(--border-default)">$1</h1>');
+  html = html.replace(/^###### (.*$)/gim, '<h6 style="font-size:13px;font-weight:600;margin:12px 0;color:var(--text-primary)">$1</h6>');
+  html = html.replace(/^##### (.*$)/gim, '<h5 style="font-size:14px;font-weight:600;margin:12px 0;color:var(--text-primary)">$1</h5>');
+  html = html.replace(/^#### (.*$)/gim, '<h4 style="font-size:16px;font-weight:600;margin:14px 0;color:var(--text-primary)">$1</h4>');
+  html = html.replace(/^### (.*$)/gim, '<h3 style="font-size:20px;font-weight:600;margin:16px 0;color:var(--text-primary)">$1</h3>');
+  html = html.replace(/^## (.*$)/gim, '<h2 style="font-size:24px;font-weight:600;margin:20px 0;padding-bottom:8px;border-bottom:1px solid var(--border-default);color:var(--text-primary)">$1</h2>');
+  html = html.replace(/^# (.*$)/gim, '<h1 style="font-size:32px;font-weight:700;margin:24px 0;padding-bottom:8px;border-bottom:2px solid var(--border-default);color:var(--text-primary)">$1</h1>');
 
   // Bold & Italic
   html = html.replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>');
@@ -282,7 +282,7 @@ export default function MarkdownPreview() {
             ref={previewRef}
             onScroll={() => handleScroll('preview')}
             className="flex-1 overflow-auto p-6 custom-scrollbar"
-            style={{ background: 'var(--bg-window)' }}
+            style={{ background: 'var(--bg-window)', color: 'var(--text-primary)' }}
           >
             <div dangerouslySetInnerHTML={{ __html: html }} />
           </div>

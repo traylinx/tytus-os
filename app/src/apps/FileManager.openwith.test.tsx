@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   buildFileOpenWithMenu,
   inboxLineToFilename,
-} from "@/apps/FileManager";
+  isMissingInboxDiagnostic,
+} from "@/apps/fileManagerOpenWith";
 
 // Phase 7 cont — open-with hooks for Image / Document / Archive.
 
@@ -14,7 +15,9 @@ describe("inboxLineToFilename", () => {
 
   it("returns the last token of `ls -l`-style output when it has a dot", () => {
     expect(
-      inboxLineToFilename("-rw-r--r--  1 ubuntu  ubuntu  245K Apr 28 photo.png"),
+      inboxLineToFilename(
+        "-rw-r--r--  1 ubuntu  ubuntu  245K Apr 28 photo.png",
+      ),
     ).toBe("photo.png");
   });
 
@@ -58,5 +61,23 @@ describe("buildFileOpenWithMenu", () => {
   it("returns null for unknown extensions", () => {
     expect(buildFileOpenWithMenu("opaque.xyz")).toBeNull();
     expect(buildFileOpenWithMenu("noext")).toBeNull();
+  });
+});
+
+describe("isMissingInboxDiagnostic", () => {
+  it("recognizes old-pod missing inbox stderr as empty-state input", () => {
+    expect(
+      isMissingInboxDiagnostic(
+        "ls: cannot access '/app/workspace/inbox': No such file or directory",
+      ),
+    ).toBe(true);
+    expect(isMissingInboxDiagnostic("/app/workspace/inbox: not found")).toBe(
+      true,
+    );
+  });
+
+  it("does not classify real file rows as diagnostics", () => {
+    expect(isMissingInboxDiagnostic("photo.png 245K Apr 28 14:22")).toBe(false);
+    expect(isMissingInboxDiagnostic("README.md")).toBe(false);
   });
 });

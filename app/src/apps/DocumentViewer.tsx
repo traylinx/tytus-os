@@ -18,33 +18,33 @@ const EXTENSION_LANG: Record<string, string> = {
 
 const SYNTAX_PATTERNS: Record<string, { pattern: RegExp; color: string }[]> = {
   json: [
-    { pattern: /"[^"]*":/g, color: '#9CDCFE' },
-    { pattern: /"[^"]*"/g, color: '#CE9178' },
-    { pattern: /\b(true|false|null)\b/g, color: '#569CD6' },
-    { pattern: /-?\d+\.?\d*/g, color: '#B5CEA8' },
+    { pattern: /"[^"]*":/g, color: 'var(--syntax-json-key)' },
+    { pattern: /"[^"]*"/g, color: 'var(--syntax-json-string)' },
+    { pattern: /\b(true|false|null)\b/g, color: 'var(--syntax-json-bool)' },
+    { pattern: /-?\d+\.?\d*/g, color: 'var(--syntax-json-number)' },
   ],
   javascript: [
-    { pattern: /\b(const|let|var|function|return|if|else|for|while|import|export|from|class|new|this|try|catch|async|await)\b/g, color: '#569CD6' },
-    { pattern: /"[^"]*"|'[^']*'/g, color: '#CE9178' },
-    { pattern: /\b\d+\b/g, color: '#B5CEA8' },
-    { pattern: /\/\/.*$/gm, color: '#6A9955' },
-    { pattern: /\b(console|document|window|Math|JSON|Array|Object|String|Number)\b/g, color: '#4EC9B0' },
+    { pattern: /\b(const|let|var|function|return|if|else|for|while|import|export|from|class|new|this|try|catch|async|await)\b/g, color: 'var(--syntax-tag)' },
+    { pattern: /"[^"]*"|'[^']*'/g, color: 'var(--syntax-string)' },
+    { pattern: /\b\d+\b/g, color: 'var(--syntax-number)' },
+    { pattern: /\/\/.*$/gm, color: 'var(--syntax-comment)' },
+    { pattern: /\b(console|document|window|Math|JSON|Array|Object|String|Number)\b/g, color: 'var(--syntax-type)' },
   ],
   typescript: [
-    { pattern: /\b(const|let|var|function|return|if|else|for|while|import|export|from|class|new|this|try|catch|async|await|interface|type|extends|implements)\b/g, color: '#569CD6' },
-    { pattern: /"[^"]*"|'[^']*'/g, color: '#CE9178' },
-    { pattern: /\b\d+\b/g, color: '#B5CEA8' },
-    { pattern: /\/\/.*$/gm, color: '#6A9955' },
-    { pattern: /\b(console|document|window|Math|JSON|Array|Object|string|number|boolean)\b/g, color: '#4EC9B0' },
+    { pattern: /\b(const|let|var|function|return|if|else|for|while|import|export|from|class|new|this|try|catch|async|await|interface|type|extends|implements)\b/g, color: 'var(--syntax-tag)' },
+    { pattern: /"[^"]*"|'[^']*'/g, color: 'var(--syntax-string)' },
+    { pattern: /\b\d+\b/g, color: 'var(--syntax-number)' },
+    { pattern: /\/\/.*$/gm, color: 'var(--syntax-comment)' },
+    { pattern: /\b(console|document|window|Math|JSON|Array|Object|string|number|boolean)\b/g, color: 'var(--syntax-type)' },
   ],
   html: [
-    { pattern: /<[^>]+>/g, color: '#569CD6' },
-    { pattern: /"[^"]*"/g, color: '#CE9178' },
+    { pattern: /<[^>]+>/g, color: 'var(--syntax-tag)' },
+    { pattern: /"[^"]*"/g, color: 'var(--syntax-string)' },
   ],
   css: [
-    { pattern: /[.#][^{]+/g, color: '#D7BA7D' },
-    { pattern: /\b[a-z-]+(?=\s*:)/g, color: '#9CDCFE' },
-    { pattern: /:\s*[^;]+/g, color: '#CE9178' },
+    { pattern: /[.#][^{]+/g, color: 'var(--syntax-function)' },
+    { pattern: /\b[a-z-]+(?=\s*:)/g, color: 'var(--syntax-attribute)' },
+    { pattern: /:\s*[^;]+/g, color: 'var(--syntax-string)' },
   ],
 };
 

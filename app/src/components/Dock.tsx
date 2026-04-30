@@ -8,6 +8,7 @@ import { getAppById } from '@/apps/registry';
 import { LayoutGrid, Trash2 } from 'lucide-react';
 import * as Icons from 'lucide-react';
 import type { LucideProps } from 'lucide-react';
+import { useI18n } from '@/i18n';
 
 const DynamicIcon = ({ name, ...props }: { name: string } & LucideProps) => {
   const IconComp = (Icons as unknown as Record<string, React.ComponentType<LucideProps>>)[name];
@@ -16,6 +17,7 @@ const DynamicIcon = ({ name, ...props }: { name: string } & LucideProps) => {
 
 const Dock = memo(function Dock() {
   const { state, dispatch } = useOS();
+  const { t } = useI18n();
   const { dockItems } = state;
   const [bouncingItems, setBouncingItems] = useState<Set<string>>(new Set());
   const [hoveredApp, setHoveredApp] = useState<string | null>(null);
@@ -98,15 +100,15 @@ const Dock = memo(function Dock() {
               animation: 'tooltipAppear 100ms ease',
             }}
           >
-            {isTrash ? 'Trash' : app?.name || appId}
+            {isTrash ? t('dock.trash') : app ? t(`app.${app.id}.name`) : appId}
           </div>
         )}
 
         {/* Icon */}
         <button
           onClick={() => isTrash ? handleTrashClick() : handleAppClick(appId)}
-          aria-label={isTrash ? 'Trash' : app?.name || appId}
-          title={isTrash ? 'Trash' : app?.name || appId}
+          aria-label={isTrash ? t('dock.trash') : app ? t(`app.${app.id}.name`) : appId}
+          title={isTrash ? t('dock.trash') : app ? t(`app.${app.id}.name`) : appId}
           className="w-10 h-10 rounded-md flex items-center justify-center transition-all"
           style={{
             background: isHovered ? 'var(--bg-hover)' : 'transparent',
@@ -139,8 +141,12 @@ const Dock = memo(function Dock() {
   return (
     <div
       role="navigation"
-      aria-label="Application dock"
-      className="fixed left-1/2 -translate-x-1/2 z-[150] flex items-center gap-0.5 px-2 overflow-x-auto max-w-[calc(100vw-32px)]"
+      aria-label={t('dock.aria')}
+      // z-[5500] floats above any window: window zIndex starts at 100 and
+      // increments per focus, while the maximize flow now extends windows
+      // to the viewport bottom — the dock must always paint on top of
+      // them. Modal layers (z-[6000]) still win.
+      className="fixed left-1/2 -translate-x-1/2 z-[5500] flex items-center gap-0.5 px-2 overflow-x-auto max-w-[calc(100vw-32px)]"
       style={{
         bottom: 6,
         height: 56,
@@ -156,8 +162,8 @@ const Dock = memo(function Dock() {
       {/* Show Applications button */}
       <button
         onClick={handleShowApps}
-        aria-label="Show applications"
-        title="Show applications"
+        aria-label={t('dock.showApplications')}
+        title={t('dock.showApplications')}
         className="w-10 h-10 rounded-md flex items-center justify-center hover:bg-[var(--bg-hover)] transition-all"
         style={{
           background: state.appLauncherOpen ? 'var(--bg-active)' : 'transparent',

@@ -31,6 +31,14 @@ describe("parseHash", () => {
     expect(r.params.get("confirm")).toBe("1");
   });
 
+  it("parses /pod/<id> as overview", () => {
+    const r = parseHash("#/pod/02");
+    expect(r.kind).toBe("pod");
+    if (r.kind !== "pod") return;
+    expect(r.podId).toBe("02");
+    expect(r.action).toBe("overview");
+  });
+
   it("parses /settings root", () => {
     const r = parseHash("#/settings");
     expect(r.kind).toBe("settings");

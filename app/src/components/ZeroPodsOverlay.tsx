@@ -12,7 +12,7 @@
 // allocated from another surface and wants the UI to catch up.
 
 import { memo, useCallback } from "react";
-import { Rocket, Sparkles, RefreshCw } from "lucide-react";
+import { Sparkles, RefreshCw } from "lucide-react";
 import { useOS } from "@/hooks/useOSStore";
 import { useDaemonStateContext } from "@/hooks/useDaemonStateContext";
 import { navigate } from "@/lib/router";
@@ -39,11 +39,14 @@ const ZeroPodsOverlay = memo(function ZeroPodsOverlay() {
   if (!state || !state.logged_in) return null;
   if (state.agents.length > 0) return null;
 
-  // Suppress while any window is open — user is actively in an app and
-  // probably already on their way (e.g. inside Settings → Agents).
-  // The desktop will show the overlay again when they close all windows.
+  // Suppress while any window is open OR the AppLauncher / Notification
+  // Center is up — user is actively interacting with another surface and
+  // the welcome popup would block their actual target. The desktop will
+  // show the overlay again as soon as they close everything.
   const hasOpenWindow = osState.windows.some((w) => w.state !== "minimized");
   if (hasOpenWindow) return null;
+  if (osState.appLauncherOpen) return null;
+  if (osState.notificationCenterOpen) return null;
 
   return (
     <div
@@ -61,14 +64,14 @@ const ZeroPodsOverlay = memo(function ZeroPodsOverlay() {
           animation: "zeroPodsAppear 360ms cubic-bezier(0.34, 1.56, 0.64, 1)",
         }}
       >
-        <div
-          className="w-16 h-16 rounded-2xl flex items-center justify-center mb-4"
-          style={{
-            background: "linear-gradient(135deg, #7C4DFF, #4A148C)",
-            boxShadow: "0 8px 24px rgba(124,77,255,0.30)",
-          }}
-        >
-          <Rocket size={32} className="text-white" />
+        <div className="mb-5">
+          <img
+            src="/favicons/android-chrome-192x192.png"
+            alt=""
+            width={72}
+            height={72}
+            className="block rounded-2xl"
+          />
         </div>
 
         <h2 className="text-xl font-semibold text-[#E0E0E0]">

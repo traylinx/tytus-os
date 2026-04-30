@@ -78,4 +78,15 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  // @sqlite.org/sqlite-wasm ships pre-bundled — Vite's prebundle would
+  // strip its workers and break the WASM loader. Excluding here matches
+  // the package's official Vite setup. We use the OPFS SAH-Pool VFS so
+  // no COOP/COEP headers are required (keeps the tytus-cli tray HTTP
+  // server simple in production).
+  optimizeDeps: {
+    exclude: ['@sqlite.org/sqlite-wasm'],
+  },
+  worker: {
+    format: 'es',
+  },
 });

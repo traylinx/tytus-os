@@ -11,13 +11,22 @@ export type {
   ChannelOption,
   ConfiguredChannel,
 } from "./Channels";
+export type { ChannelsCatalogResult } from "./ChannelsCatalog";
 export type { JobResponse, JobCancelResult } from "./JobResponse";
 export type { DaemonVersion } from "./Version";
+export type { UpdateStatus, UpdateStatusKind } from "./UpdateStatus";
 export type { ErrorEnvelope } from "./ErrorEnvelope";
 export type { Launchers } from "./Launchers";
 export type { LogChunk } from "./Logs";
 export type { PodReady } from "./PodReady";
+export type {
+  PodReadiness,
+  PodReadinessOverall,
+  PodReadinessStage,
+  PodReadinessStageStatus,
+} from "./PodReadiness";
 export type { Binding, SharedFoldersList } from "./Binding";
 export type { PodEnv, PodEnvVar, EnvVarSource } from "./PodEnv";
+export type { StoreApp, StoreAppCheckResult, StoreAppCheckResponse } from "./StoreApp";
 export type { DaemonResult, DaemonError, DaemonErrorCode } from "./Result";
 export { ok, err } from "./Result";

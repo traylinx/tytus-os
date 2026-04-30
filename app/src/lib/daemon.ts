@@ -1,14 +1,10 @@
-import {
-  asSecret,
-} from "@/lib/secrets";
-import {
-  err,
-  ok,
-} from "@/types/daemon";
+import { asSecret } from "@/lib/secrets";
+import { err, ok } from "@/types/daemon";
 import type {
   Agent,
   Catalog,
   ChannelsResponse,
+  ChannelsCatalogResult,
   DaemonError,
   DaemonErrorCode,
   DaemonResult,
@@ -24,8 +20,13 @@ import type {
   PodEnv,
   PodEnvVar,
   PodReady,
+  PodReadiness,
+  PodReadinessStage,
   SharedFoldersList,
   StateSnapshot,
+  StoreApp,
+  StoreAppCheckResponse,
+  UpdateStatus,
 } from "@/types/daemon";
 
 // ---- wire shapes (Secret -> raw string) ---------------------------------
@@ -190,14 +191,14 @@ const runRequest = async <T>(
   const body2 = await tryJson(res);
 
   if (res.status >= 500) {
-    const message =
-      isErrorEnvelope(body2) ? body2.error : `daemon ${res.status}`;
+    const message = isErrorEnvelope(body2)
+      ? body2.error
+      : `daemon ${res.status}`;
     return err<T>(errorOf("internal_error", message, res.status));
   }
 
   if (res.status === 400) {
-    const message =
-      isErrorEnvelope(body2) ? body2.error : "bad request";
+    const message = isErrorEnvelope(body2) ? body2.error : "bad request";
     return err<T>(errorOf("validation", message, 400));
   }
 
@@ -222,9 +223,7 @@ const expectShape = <T>(
   guard: (b: unknown) => b is T,
   message: string,
 ): DaemonResult<T> =>
-  guard(body)
-    ? ok(body)
-    : err<T>(errorOf("daemon_unhealthy", message));
+  guard(body) ? ok(body) : err<T>(errorOf("daemon_unhealthy", message));
 
 const isObject = (v: unknown): v is Record<string, unknown> =>
   typeof v === "object" && v !== null;
@@ -251,6 +250,20 @@ const isSettings = (v: unknown): v is DaemonSettings =>
   typeof v.autostart_tray === "boolean" &&
   typeof v.autostart_tunnel === "boolean";
 
+const isUpdateStatus = (v: unknown): v is UpdateStatus =>
+  isObject(v) &&
+  typeof v.current_version === "string" &&
+  typeof v.installed_version === "string" &&
+  (v.latest_version === null || typeof v.latest_version === "string") &&
+  typeof v.channel === "string" &&
+  (v.status === "up_to_date" ||
+    v.status === "update_available" ||
+    v.status === "unknown") &&
+  typeof v.automatic_checks === "boolean" &&
+  (v.last_checked_at === null || typeof v.last_checked_at === "number") &&
+  (v.checked_at === null || typeof v.checked_at === "number") &&
+  typeof v.detail === "string";
+
 const isJobResponse = (v: unknown): v is JobResponse =>
   isObject(v) && typeof v.job_id === "string";
 
@@ -260,11 +273,33 @@ const isJobCancelResult = (v: unknown): v is JobCancelResult =>
 const isCatalog = (v: unknown): v is Catalog =>
   isObject(v) && typeof v.version === "string" && Array.isArray(v.agents);
 
+const isStoreApps = (v: unknown): v is StoreApp[] =>
+  Array.isArray(v) &&
+  v.every(
+    (a) =>
+      isObject(a) &&
+      typeof a.id === "string" &&
+      typeof a.name === "string" &&
+      typeof a.url === "string",
+  );
+
+const isStoreAppCheckResponse = (v: unknown): v is StoreAppCheckResponse =>
+  isObject(v) && Array.isArray(v.results) && v.results.every(
+    (r: unknown) => isObject(r) && typeof r.id === "string" && typeof r.installed === "boolean",
+  );
+
 const isChannels = (v: unknown): v is ChannelsResponse =>
   isObject(v) &&
   typeof v.pod_id === "string" &&
   Array.isArray(v.available) &&
   Array.isArray(v.configured);
+
+const isChannelsCatalogResult = (v: unknown): v is ChannelsCatalogResult =>
+  isObject(v) &&
+  typeof v.ok === "boolean" &&
+  typeof v.exit_code === "number" &&
+  typeof v.stdout === "string" &&
+  typeof v.stderr === "string";
 
 const isLaunchers = (v: unknown): v is Launchers =>
   isObject(v) &&
@@ -287,9 +322,28 @@ const isLogChunk = (v: unknown): v is LogChunk =>
 const isPodReady = (v: unknown): v is PodReady =>
   isObject(v) &&
   typeof v.ready === "boolean" &&
-  typeof v.status === "number" &&
+  (typeof v.status === "number" || typeof v.status === "string") &&
   typeof v.reason === "string" &&
-  typeof v.probe_url === "string";
+  (v.probe_url === undefined || typeof v.probe_url === "string");
+
+const isPodReadinessStage = (v: unknown): v is PodReadinessStage =>
+  isObject(v) &&
+  typeof v.id === "string" &&
+  typeof v.label === "string" &&
+  typeof v.status === "string" &&
+  (v.detail === null || typeof v.detail === "string");
+
+const isPodReadiness = (v: unknown): v is PodReadiness =>
+  isObject(v) &&
+  typeof v.pod_id === "string" &&
+  (v.agent === null || typeof v.agent === "string") &&
+  typeof v.overall === "string" &&
+  typeof v.open_enabled === "boolean" &&
+  typeof v.strict === "boolean" &&
+  Array.isArray(v.stages) &&
+  v.stages.every(isPodReadinessStage) &&
+  (typeof v.last_checked_at === "number" ||
+    typeof v.last_checked_at === "string");
 
 const isSharedFolders = (v: unknown): v is SharedFoldersList =>
   isObject(v) && Array.isArray(v.bindings);
@@ -325,6 +379,13 @@ export interface ConditionalStateResult {
   notModified: boolean;
 }
 
+export interface LoginStartResult {
+  verification_uri: string;
+  user_code: string;
+  expires_in: number;
+  opened_browser: boolean;
+}
+
 // ---- client -------------------------------------------------------------
 
 export interface DaemonClient {
@@ -355,7 +416,13 @@ export interface DaemonClient {
    */
   getVersion(signal?: AbortSignal): Promise<DaemonResult<DaemonVersion>>;
   getSettings(signal?: AbortSignal): Promise<DaemonResult<DaemonSettings>>;
+  getUpdateStatus(signal?: AbortSignal): Promise<DaemonResult<UpdateStatus>>;
   getCatalog(signal?: AbortSignal): Promise<DaemonResult<Catalog>>;
+  getStoreApps(signal?: AbortSignal): Promise<DaemonResult<StoreApp[]>>;
+  postStoreAppsCheck(
+    appIds: string[],
+    signal?: AbortSignal,
+  ): Promise<DaemonResult<StoreAppCheckResponse>>;
   getChannels(
     podId: string,
     signal?: AbortSignal,
@@ -370,6 +437,10 @@ export interface DaemonClient {
     podId: string,
     signal?: AbortSignal,
   ): Promise<DaemonResult<PodReady>>;
+  getPodReadiness(
+    podId: string,
+    signal?: AbortSignal,
+  ): Promise<DaemonResult<PodReadiness>>;
   /**
    * Per-pod env vars (manifest A.exist A3.5). The daemon proxies through
    * to Provider, which redacts secret-shaped keys unless the caller is
@@ -397,6 +468,10 @@ export interface DaemonClient {
     signal?: AbortSignal,
     idempotencyKey?: string,
   ): Promise<DaemonResult<null>>;
+  postLogin(
+    signal?: AbortSignal,
+    idempotencyKey?: string,
+  ): Promise<DaemonResult<LoginStartResult>>;
   postDaemonStart(
     signal?: AbortSignal,
     idempotencyKey?: string,
@@ -410,6 +485,10 @@ export interface DaemonClient {
     idempotencyKey?: string,
   ): Promise<DaemonResult<null>>;
   postConnect(
+    signal?: AbortSignal,
+    idempotencyKey?: string,
+  ): Promise<DaemonResult<null>>;
+  postConfigure(
     signal?: AbortSignal,
     idempotencyKey?: string,
   ): Promise<DaemonResult<null>>;
@@ -473,8 +552,16 @@ export interface DaemonClient {
     signal?: AbortSignal,
     idempotencyKey?: string,
   ): Promise<DaemonResult<null>>;
+  postChannelsCatalog(
+    signal?: AbortSignal,
+    idempotencyKey?: string,
+  ): Promise<DaemonResult<ChannelsCatalogResult>>;
   postFilesOpenDownloads(
     podId: string,
+    signal?: AbortSignal,
+    idempotencyKey?: string,
+  ): Promise<DaemonResult<null>>;
+  postWorkspaceOpen(
     signal?: AbortSignal,
     idempotencyKey?: string,
   ): Promise<DaemonResult<null>>;
@@ -556,6 +643,15 @@ export interface DaemonClient {
     signal?: AbortSignal,
     idempotencyKey?: string,
   ): Promise<DaemonResult<null>>;
+  postUpdateCheck(
+    signal?: AbortSignal,
+    idempotencyKey?: string,
+  ): Promise<DaemonResult<UpdateStatus>>;
+  postUpdateAutomaticChecks(
+    enabled: boolean,
+    signal?: AbortSignal,
+    idempotencyKey?: string,
+  ): Promise<DaemonResult<UpdateStatus>>;
 
   // SSE — returned as URL; consumer attaches EventSource (used by useJobStream)
   jobStreamUrl(jobId: string): string;
@@ -619,7 +715,9 @@ export const createDaemonClient = (
         });
       }
       if (res.status === 404) {
-        return err<ConditionalStateResult>(errorOf("not_found", "not found", 404));
+        return err<ConditionalStateResult>(
+          errorOf("not_found", "not found", 404),
+        );
       }
       if (res.status === 401 || res.status === 403) {
         return err<ConditionalStateResult>(
@@ -628,7 +726,9 @@ export const createDaemonClient = (
       }
       const body = await tryJson(res);
       if (res.status >= 500) {
-        const message = isErrorEnvelope(body) ? body.error : `daemon ${res.status}`;
+        const message = isErrorEnvelope(body)
+          ? body.error
+          : `daemon ${res.status}`;
         return err<ConditionalStateResult>(
           errorOf("internal_error", message, res.status),
         );
@@ -677,9 +777,31 @@ export const createDaemonClient = (
         expectShape(b, isSettings, "malformed /api/settings"),
       ),
 
+    getUpdateStatus: (signal) =>
+      runRequest(deps, "/api/update/status", { signal }, (b) =>
+        expectShape(b, isUpdateStatus, "malformed /api/update/status"),
+      ),
+
     getCatalog: (signal) =>
       runRequest(deps, "/api/catalog", { signal }, (b) =>
         expectShape(b, isCatalog, "malformed /api/catalog"),
+      ),
+
+    getStoreApps: (signal) =>
+      runRequest(deps, "/api/apps", { signal }, (b) =>
+        expectShape(b, isStoreApps, "malformed /api/apps"),
+      ),
+
+    postStoreAppsCheck: (appIds, signal) =>
+      runRequest(
+        deps,
+        "/api/apps/check",
+        {
+          method: "POST",
+          body: JSON.stringify({ app_ids: appIds }),
+          signal,
+        },
+        (b) => expectShape(b, isStoreAppCheckResponse, "malformed /api/apps/check"),
       ),
 
     getChannels: (podId, signal) =>
@@ -711,6 +833,15 @@ export const createDaemonClient = (
         (b) => expectShape(b, isPodReady, "malformed /api/pod/ready"),
       ),
 
+    getPodReadiness: (podId, signal) =>
+      runRequest(
+        deps,
+        `/api/pods/${encodeURIComponent(podId)}/readiness`,
+        { signal },
+        (b) =>
+          expectShape(b, isPodReadiness, "malformed /api/pods/:pod/readiness"),
+      ),
+
     getPodEnv: (podId, revealSecrets, signal) => {
       const reveal = revealSecrets ? "&reveal=secrets" : "";
       return runRequest(
@@ -727,7 +858,30 @@ export const createDaemonClient = (
       ),
 
     postLogout: (signal, idempotencyKey) =>
-      runRequest(deps, "/api/logout", { method: "POST", signal, idempotencyKey }, noBody),
+      runRequest(
+        deps,
+        "/api/logout",
+        { method: "POST", signal, idempotencyKey },
+        noBody,
+      ),
+
+    postLogin: (signal, idempotencyKey) =>
+      runRequest(
+        deps,
+        "/api/login",
+        { method: "POST", signal, idempotencyKey },
+        (b) =>
+          expectShape(
+            b,
+            (v): v is LoginStartResult =>
+              isObject(v) &&
+              typeof v.verification_uri === "string" &&
+              typeof v.user_code === "string" &&
+              typeof v.expires_in === "number" &&
+              typeof v.opened_browser === "boolean",
+            "malformed /api/login",
+          ),
+      ),
 
     postDaemonStart: (signal, idempotencyKey) =>
       runRequest(
@@ -754,19 +908,43 @@ export const createDaemonClient = (
       ),
 
     postConnect: (signal, idempotencyKey) =>
-      runRequest(deps, "/api/connect", { method: "POST", signal, idempotencyKey }, noBody),
+      runRequest(
+        deps,
+        "/api/connect",
+        { method: "POST", signal, idempotencyKey },
+        noBody,
+      ),
+
+    postConfigure: (signal, idempotencyKey) =>
+      runRequest(
+        deps,
+        "/api/configure",
+        { method: "POST", signal, idempotencyKey },
+        noBody,
+      ),
 
     postDisconnect: (signal, idempotencyKey) =>
-      runRequest(deps, "/api/disconnect", { method: "POST", signal, idempotencyKey }, noBody),
+      runRequest(
+        deps,
+        "/api/disconnect",
+        { method: "POST", signal, idempotencyKey },
+        noBody,
+      ),
 
     postTest: (signal, idempotencyKey) =>
-      runRequest(deps, "/api/test", { method: "POST", signal, idempotencyKey }, (b) =>
-        expectShape(b, isJobResponse, "malformed /api/test"),
+      runRequest(
+        deps,
+        "/api/test",
+        { method: "POST", signal, idempotencyKey },
+        (b) => expectShape(b, isJobResponse, "malformed /api/test"),
       ),
 
     postDoctor: (signal, idempotencyKey) =>
-      runRequest(deps, "/api/doctor", { method: "POST", signal, idempotencyKey }, (b) =>
-        expectShape(b, isJobResponse, "malformed /api/doctor"),
+      runRequest(
+        deps,
+        "/api/doctor",
+        { method: "POST", signal, idempotencyKey },
+        (b) => expectShape(b, isJobResponse, "malformed /api/doctor"),
       ),
 
     postLaunch: (name, signal, idempotencyKey) =>
@@ -817,7 +995,8 @@ export const createDaemonClient = (
         deps,
         `/api/pod/refresh-creds?pod=${encodeURIComponent(podId)}`,
         { method: "POST", signal, idempotencyKey },
-        (b) => expectShape(b, isJobResponse, "malformed /api/pod/refresh-creds"),
+        (b) =>
+          expectShape(b, isJobResponse, "malformed /api/pod/refresh-creds"),
       ),
 
     postChannelsAdd: (podId, channel, token, signal, idempotencyKey) =>
@@ -845,10 +1024,62 @@ export const createDaemonClient = (
         noBody,
       ),
 
+    postChannelsCatalog: async (signal, idempotencyKey) => {
+      const headers: Record<string, string> = {
+        Accept: "application/json",
+      };
+      if (idempotencyKey) headers["Idempotency-Key"] = idempotencyKey;
+      let res: Response;
+      try {
+        res = await f(`${baseUrl}/api/channels/catalog`, {
+          method: "POST",
+          headers,
+          signal,
+          credentials: "same-origin",
+        });
+      } catch (cause) {
+        return err<ChannelsCatalogResult>(classifyNetworkError(cause));
+      }
+      if (res.status === 404) {
+        return err<ChannelsCatalogResult>(
+          errorOf("not_found", "not found", 404),
+        );
+      }
+      if (res.status === 401 || res.status === 403) {
+        return err<ChannelsCatalogResult>(
+          errorOf("auth_required", "auth required", res.status),
+        );
+      }
+      const body = await tryJson(res);
+      if (isChannelsCatalogResult(body)) {
+        return ok(body);
+      }
+      if (isErrorEnvelope(body)) {
+        return err<ChannelsCatalogResult>(
+          errorOf(
+            res.status >= 500 ? "internal_error" : "logical_error",
+            body.error,
+            res.status,
+          ),
+        );
+      }
+      return err<ChannelsCatalogResult>(
+        errorOf("daemon_unhealthy", "malformed /api/channels/catalog"),
+      );
+    },
+
     postFilesOpenDownloads: (podId, signal, idempotencyKey) =>
       runRequest(
         deps,
         `/api/files/open-downloads?pod=${encodeURIComponent(podId)}`,
+        { method: "POST", signal, idempotencyKey },
+        noBody,
+      ),
+
+    postWorkspaceOpen: (signal, idempotencyKey) =>
+      runRequest(
+        deps,
+        "/api/workspace/open",
         { method: "POST", signal, idempotencyKey },
         noBody,
       ),
@@ -878,18 +1109,19 @@ export const createDaemonClient = (
         "/api/shared-folders/bind",
         { method: "POST", body: payload, signal, idempotencyKey },
         (b) =>
-          expectShape(
-            b,
-            isJobResponse,
-            "malformed /api/shared-folders/bind",
-          ),
+          expectShape(b, isJobResponse, "malformed /api/shared-folders/bind"),
       ),
 
     postSharedFoldersOpen: (localPath, signal, idempotencyKey) =>
       runRequest(
         deps,
         "/api/shared-folders/open",
-        { method: "POST", body: { local_path: localPath }, signal, idempotencyKey },
+        {
+          method: "POST",
+          body: { local_path: localPath },
+          signal,
+          idempotencyKey,
+        },
         noBody,
       ),
 
@@ -927,7 +1159,8 @@ export const createDaemonClient = (
         deps,
         `/api/jobs/${encodeURIComponent(jobId)}/cancel`,
         { method: "POST", signal, idempotencyKey },
-        (b) => expectShape(b, isJobCancelResult, "malformed /api/jobs/.../cancel"),
+        (b) =>
+          expectShape(b, isJobCancelResult, "malformed /api/jobs/.../cancel"),
       ),
 
     postSettingsAutostartTray: (enabled, signal, idempotencyKey) =>
@@ -944,6 +1177,23 @@ export const createDaemonClient = (
         "/api/settings/autostart-tunnel",
         { method: "POST", body: { enabled }, signal, idempotencyKey },
         noBody,
+      ),
+
+    postUpdateCheck: (signal, idempotencyKey) =>
+      runRequest(
+        deps,
+        "/api/update/check",
+        { method: "POST", signal, idempotencyKey },
+        (b) => expectShape(b, isUpdateStatus, "malformed /api/update/check"),
+      ),
+
+    postUpdateAutomaticChecks: (enabled, signal, idempotencyKey) =>
+      runRequest(
+        deps,
+        "/api/update/automatic",
+        { method: "POST", body: { enabled }, signal, idempotencyKey },
+        (b) =>
+          expectShape(b, isUpdateStatus, "malformed /api/update/automatic"),
       ),
 
     jobStreamUrl: (jobId) =>

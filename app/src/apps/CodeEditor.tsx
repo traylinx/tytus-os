@@ -56,25 +56,25 @@ function highlightCode(code: string, lang: string): string {
   let highlighted = escapeHtml(code);
 
   // Comments first
-  highlighted = highlighted.replace(commentPattern, '<span style="color:#6A9955">$1</span>');
+  highlighted = highlighted.replace(commentPattern, '<span style="color:var(--syntax-comment)">$1</span>');
 
   // Strings (avoid matching inside comments)
-  highlighted = highlighted.replace(strPattern, '<span style="color:#CE9178">$1</span>');
+  highlighted = highlighted.replace(strPattern, '<span style="color:var(--syntax-string)">$1</span>');
 
   // Numbers
-  highlighted = highlighted.replace(numPattern, '<span style="color:#B5CEA8">$1</span>');
+  highlighted = highlighted.replace(numPattern, '<span style="color:var(--syntax-number)">$1</span>');
 
   // Keywords
-  highlighted = highlighted.replace(kwPattern, '<span style="color:#C586C0">$1</span>');
+  highlighted = highlighted.replace(kwPattern, '<span style="color:var(--syntax-keyword)">$1</span>');
 
   if (lang === 'html' || lang === 'markdown') {
-    highlighted = highlighted.replace(/(&lt;\/?)([\w-]+)/g, '<span style="color:#569CD6">$1$2</span>');
-    highlighted = highlighted.replace(/(\s)([\w-]+)(=)/g, '$1<span style="color:#9CDCFE">$2</span>$3');
+    highlighted = highlighted.replace(/(&lt;\/?)([\w-]+)/g, '<span style="color:var(--syntax-tag)">$1$2</span>');
+    highlighted = highlighted.replace(/(\s)([\w-]+)(=)/g, '$1<span style="color:var(--syntax-attribute)">$2</span>$3');
   }
 
   if (lang === 'css') {
-    highlighted = highlighted.replace(/([\w-]+)(\s*:)/g, '<span style="color:#9CDCFE">$1</span>$2');
-    highlighted = highlighted.replace(/(:\s*)([^;{}]+)/g, '$1<span style="color:#CE9178">$2</span>');
+    highlighted = highlighted.replace(/([\w-]+)(\s*:)/g, '<span style="color:var(--syntax-attribute)">$1</span>$2');
+    highlighted = highlighted.replace(/(:\s*)([^;{}]+)/g, '$1<span style="color:var(--syntax-string)">$2</span>');
   }
 
   return highlighted;
@@ -310,7 +310,7 @@ export default function CodeEditor() {
   return (
     <div className="h-full flex flex-col" style={{ background: 'var(--bg-window)' }}>
       {/* Menu Bar */}
-      <div className="flex items-center gap-1 px-2 shrink-0" style={{ height: 32, background: 'var(--bg-titlebar)', borderBottom: '1px solid var(--border-subtle)' }}>
+      <div className="flex items-center gap-1 px-2 shrink-0" style={{ height: 32, background: 'var(--bg-titlebar)', borderBottom: '1px solid var(--border-subtle)', color: 'var(--text-primary)' }}>
         <button onClick={newFile} className="flex items-center gap-1 px-2 py-1 rounded-sm hover:bg-[var(--bg-hover)] transition-colors" title="New File">
           <Plus size={14} /><span className="text-xs">New</span>
         </button>

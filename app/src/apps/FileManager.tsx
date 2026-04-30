@@ -20,12 +20,12 @@
 // in a monospace pane. Auto-fires on tab mount + on pod switch.
 //
 // Downloads CTA → POST /api/files/open-downloads?pod=NN; daemon
-// opens ~/Downloads/tytus/pod-NN/ in Finder.
+// opens ~/Tytus/Downloads/pod-NN/ in Finder.
 //
 // Shared (manifest §7.5) — account-scoped: lists all bindings
 // from /api/shared-folders/list, lets the user bind a new Mac
 // folder via system picker + bucket name, sync-now via
-// run-streamed action=refresh-all.
+// refresh pod credentials via run-streamed action=refresh-all.
 //
 // Hash deep-link: #/pod/02/files focuses pod 02 on mount via a
 // once-only ref.
@@ -37,7 +37,7 @@ import {
   useMemo,
   useRef,
   useState,
-} from 'react';
+} from "react";
 import {
   Folder,
   FileText,
@@ -56,49 +56,65 @@ import {
   Link as LinkIcon,
   Check,
   X,
-} from 'lucide-react';
-import { useOS } from '@/hooks/useOSStore';
-import { useDaemonClient } from '@/hooks/useDaemonClient';
-import { useDaemonStateContext } from '@/hooks/useDaemonStateContext';
-import { useJobStream } from '@/hooks/useJobStream';
-import { useHashRoute } from '@/hooks/useHashRoute';
-import { navigate } from '@/lib/router';
-import { getFileAssociation } from '@/hooks/useFileSystem';
-import type { Agent, Binding } from '@/types/daemon';
-import type { DaemonClient } from '@/lib/daemon';
-import type { ContextMenuItem } from '@/types';
+} from "lucide-react";
+import { useOS, useNotifications } from "@/hooks/useOSStore";
+import { useDaemonClient } from "@/hooks/useDaemonClient";
+import { useDaemonStateContext } from "@/hooks/useDaemonStateContext";
+import { useJobStream } from "@/hooks/useJobStream";
+import { useCurrentWindowArgs } from "@/hooks/useCurrentWindow";
+import { navigate } from "@/lib/router";
+import {
+  buildFileOpenWithMenu,
+  inboxLineToFilename,
+  isMissingInboxDiagnostic,
+} from "@/apps/fileManagerOpenWith";
+import type { Agent, Binding } from "@/types/daemon";
+import type { DaemonClient } from "@/lib/daemon";
 
-type TabId = 'inbox' | 'downloads' | 'shared';
+type TabId = "inbox" | "downloads" | "shared";
 
 const FileManager: FC = () => {
   const { dispatch } = useOS();
   const client = useDaemonClient();
   const daemon = useDaemonStateContext();
-  const route = useHashRoute();
+  const windowArgs = useCurrentWindowArgs();
+  const filesArgs = windowArgs?.files;
+  const { addNotification } = useNotifications();
 
-  const agents = useMemo(
-    () => daemon.state?.agents ?? [],
-    [daemon.state],
-  );
+  const agents = useMemo(() => daemon.state?.agents ?? [], [daemon.state]);
 
   // Selected pod — defaults to first allocated agent. Cleared if
   // the agent disappears (e.g. revoked from another surface).
   const [selectedPodId, setSelectedPodId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<TabId>('inbox');
+  const [activeTab, setActiveTab] = useState<TabId>("inbox");
 
-  // Hash deep-link consumer — fires once on mount when the route
-  // is `#/pod/NN/files`.
-  const consumedHashRef = useRef(false);
+  // Tray route consumer — fires once per nonce/full route when the shell
+  // dispatches `#/pod/NN/files`.
+  const consumedHashRef = useRef<Set<string>>(new Set());
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
-    if (consumedHashRef.current) return;
-    if (route.kind === 'pod' && route.action === 'files') {
-      consumedHashRef.current = true;
-      // Deliberate setState-in-effect: syncing local UI state from
-      // a one-shot route event.
-      /* eslint-disable-next-line react-hooks/set-state-in-effect */
-      setSelectedPodId(route.podId);
+    if (!filesArgs?.podId) return;
+    const key = `${windowArgs?.routeNonce ?? "no-nonce"}:${filesArgs.podId}:${filesArgs.tab ?? "inbox"}`;
+    if (consumedHashRef.current.has(key)) return;
+    consumedHashRef.current.add(key);
+    if (
+      agents.length > 0 &&
+      !agents.some((a) => a.pod_id === filesArgs.podId)
+    ) {
+      addNotification({
+        appId: "filemanager",
+        appName: "Files",
+        appIcon: "Folder",
+        title: `Pod ${filesArgs.podId} not found`,
+        message: "This tray route no longer matches an allocated pod.",
+        isRead: false,
+      });
+      return;
     }
-  }, [route]);
+    setSelectedPodId(filesArgs.podId);
+    setActiveTab(filesArgs.tab ?? "inbox");
+  }, [addNotification, agents, filesArgs, windowArgs?.routeNonce]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   // Auto-pick first agent when none selected, and prune selection
   // when the chosen pod disappears from state.
@@ -118,10 +134,10 @@ const FileManager: FC = () => {
   const selectedAgent = agents.find((a) => a.pod_id === selectedPodId) ?? null;
 
   const onAllocate = useCallback(() => {
-    dispatch({ type: 'OPEN_WINDOW', appId: 'settings' });
+    dispatch({ type: "OPEN_WINDOW", appId: "settings" });
     navigate({
-      kind: 'settings',
-      section: 'agents',
+      kind: "settings",
+      section: "agents",
       params: new URLSearchParams(),
     });
   }, [dispatch]);
@@ -133,25 +149,21 @@ const FileManager: FC = () => {
     return (
       <div
         className="flex flex-col h-full"
-        style={{ background: 'var(--bg-window)' }}
+        style={{ background: "var(--bg-window)" }}
       >
-        <Header
-          podId={null}
-          agentType={null}
-          activeTab={activeTab}
-        />
+        <Header podId={null} agentType={null} activeTab={activeTab} />
         <div className="flex-1 flex items-center justify-center p-8">
           <div
             className="w-[420px] rounded-2xl p-8 flex flex-col items-center text-center"
             style={{
-              background: 'rgba(30,30,30,0.65)',
-              border: '1px solid var(--border-subtle)',
+              background: "rgba(30,30,30,0.65)",
+              border: "1px solid var(--border-subtle)",
             }}
           >
             <div
               className="w-14 h-14 rounded-2xl flex items-center justify-center mb-4"
               style={{
-                background: 'linear-gradient(135deg, #7C4DFF, #4A148C)',
+                background: "linear-gradient(135deg, #7C4DFF, #4A148C)",
               }}
             >
               <Rocket size={28} className="text-white" />
@@ -160,13 +172,13 @@ const FileManager: FC = () => {
               No pods.
             </div>
             <div className="text-xs text-[var(--text-secondary)] mt-1.5 max-w-[300px] leading-relaxed">
-              Allocate a pod first — then its inbox, Downloads folder,
-              and shared folders will appear here.
+              Allocate a pod first — then its inbox, Downloads folder, and
+              shared folders will appear here.
             </div>
             <button
               onClick={onAllocate}
               className="mt-5 w-full px-4 py-2.5 rounded-lg text-sm font-semibold text-white transition-colors"
-              style={{ background: 'var(--accent-primary)' }}
+              style={{ background: "var(--accent-primary)" }}
             >
               Allocate a pod →
             </button>
@@ -178,12 +190,12 @@ const FileManager: FC = () => {
 
   // Sidebar greys out (still visible) when Shared is active —
   // the user understands shared folders are global, not pod-scoped.
-  const sidebarDisabled = activeTab === 'shared';
+  const sidebarDisabled = activeTab === "shared";
 
   return (
     <div
       className="flex flex-col h-full"
-      style={{ background: 'var(--bg-window)' }}
+      style={{ background: "var(--bg-window)" }}
     >
       <Header
         podId={selectedAgent?.pod_id ?? null}
@@ -200,13 +212,13 @@ const FileManager: FC = () => {
         <div className="flex-1 flex flex-col min-w-0">
           <TabStrip activeTab={activeTab} onSelect={setActiveTab} />
           <div className="flex-1 overflow-hidden flex flex-col">
-            {activeTab === 'shared' ? (
+            {activeTab === "shared" ? (
               <SharedTab agents={agents} client={client} />
             ) : !selectedAgent ? (
               <div className="flex-1 flex items-center justify-center text-sm text-[var(--text-secondary)]">
                 Select a pod from the left.
               </div>
-            ) : activeTab === 'inbox' ? (
+            ) : activeTab === "inbox" ? (
               <InboxTab agent={selectedAgent} client={client} />
             ) : (
               <DownloadsTab agent={selectedAgent} client={client} />
@@ -227,11 +239,11 @@ const Header: FC<{
   agentType: string | null;
   activeTab: TabId;
 }> = ({ podId, agentType, activeTab }) => {
-  const isShared = activeTab === 'shared';
+  const isShared = activeTab === "shared";
   return (
     <div
       className="px-5 py-3 flex items-center gap-3 flex-shrink-0"
-      style={{ borderBottom: '1px solid var(--border-subtle)' }}
+      style={{ borderBottom: "1px solid var(--border-subtle)" }}
     >
       {isShared ? (
         <FolderSync size={18} className="text-[var(--accent-primary)]" />
@@ -241,15 +253,15 @@ const Header: FC<{
       <div className="flex-1 min-w-0">
         <div className="text-sm font-semibold text-[var(--text-primary)]">
           {isShared
-            ? 'Files — Shared folders'
-            : `Files${podId ? ` — Pod ${podId}` : ''}`}
+            ? "Files — Shared folders"
+            : `Files${podId ? ` — Pod ${podId}` : ""}`}
         </div>
         <div className="text-[11px] text-[var(--text-secondary)] truncate">
           {isShared
-            ? 'Bindings are account-scoped, synced across all your pods'
+            ? "Bindings are account-scoped, synced across all your pods"
             : podId
-              ? `Inbox + Downloads · ${agentType ?? 'agent'}`
-              : 'Per-pod inbox and local Downloads folder'}
+              ? `Inbox + Downloads · ${agentType ?? "agent"}`
+              : "Per-pod inbox and local Downloads folder"}
         </div>
       </div>
     </div>
@@ -269,16 +281,16 @@ const Sidebar: FC<{
   <div
     className="w-48 shrink-0 flex flex-col"
     style={{
-      background: 'var(--bg-titlebar)',
-      borderRight: '1px solid var(--border-subtle)',
+      background: "var(--bg-titlebar)",
+      borderRight: "1px solid var(--border-subtle)",
       opacity: disabled ? 0.45 : 1,
-      pointerEvents: disabled ? 'none' : 'auto',
+      pointerEvents: disabled ? "none" : "auto",
     }}
     aria-disabled={disabled || undefined}
   >
     <div
       className="px-4 py-3 text-[10px] uppercase tracking-wider font-semibold"
-      style={{ color: 'var(--text-secondary)' }}
+      style={{ color: "var(--text-secondary)" }}
     >
       Pods
     </div>
@@ -291,30 +303,26 @@ const Sidebar: FC<{
           disabled={disabled}
           className="flex items-center gap-2 px-4 py-2.5 text-sm transition-colors text-left"
           style={{
-            background: active ? 'var(--bg-selected)' : 'transparent',
-            color: active
-              ? 'var(--accent-primary)'
-              : 'var(--text-primary)',
+            background: active ? "var(--bg-selected)" : "transparent",
+            color: active ? "var(--accent-primary)" : "var(--text-primary)",
             borderLeft: active
-              ? '3px solid var(--accent-primary)'
-              : '3px solid transparent',
+              ? "3px solid var(--accent-primary)"
+              : "3px solid transparent",
           }}
         >
           <Box
             size={14}
             className={
               active
-                ? 'text-[var(--accent-primary)]'
-                : 'text-[var(--text-secondary)]'
+                ? "text-[var(--accent-primary)]"
+                : "text-[var(--text-secondary)]"
             }
           />
           <span className="flex-1 truncate">Pod {a.pod_id}</span>
           <span
             className="text-[10px]"
             style={{
-              color: active
-                ? 'var(--accent-primary)'
-                : 'var(--text-secondary)',
+              color: active ? "var(--accent-primary)" : "var(--text-secondary)",
               opacity: 0.7,
             }}
           >
@@ -326,7 +334,7 @@ const Sidebar: FC<{
     {disabled && (
       <div
         className="px-4 py-3 text-[10px] leading-relaxed"
-        style={{ color: 'var(--text-secondary)' }}
+        style={{ color: "var(--text-secondary)" }}
       >
         Shared folders are account-scoped — pod selection doesn't apply here.
       </div>
@@ -343,16 +351,16 @@ const TabStrip: FC<{
   onSelect: (tab: TabId) => void;
 }> = ({ activeTab, onSelect }) => {
   const tabs: { id: TabId; label: string; icon: React.ReactNode }[] = [
-    { id: 'inbox', label: 'Inbox', icon: <Inbox size={12} /> },
-    { id: 'downloads', label: 'Downloads', icon: <Download size={12} /> },
-    { id: 'shared', label: 'Shared', icon: <FolderSync size={12} /> },
+    { id: "inbox", label: "Inbox", icon: <Inbox size={12} /> },
+    { id: "downloads", label: "Downloads", icon: <Download size={12} /> },
+    { id: "shared", label: "Shared", icon: <FolderSync size={12} /> },
   ];
   return (
     <div
       className="flex items-stretch flex-shrink-0"
       style={{
-        background: 'var(--bg-titlebar, rgba(255,255,255,0.02))',
-        borderBottom: '1px solid var(--border-subtle)',
+        background: "var(--bg-titlebar, rgba(255,255,255,0.02))",
+        borderBottom: "1px solid var(--border-subtle)",
       }}
     >
       {tabs.map((t) => {
@@ -363,14 +371,12 @@ const TabStrip: FC<{
             onClick={() => onSelect(t.id)}
             className="flex items-center gap-2 px-4 py-2 text-xs font-medium transition-colors"
             style={{
-              background: active ? 'var(--bg-window)' : 'transparent',
-              color: active
-                ? 'var(--accent-primary)'
-                : 'var(--text-secondary)',
-              borderRight: '1px solid var(--border-subtle)',
+              background: active ? "var(--bg-window)" : "transparent",
+              color: active ? "var(--accent-primary)" : "var(--text-secondary)",
+              borderRight: "1px solid var(--border-subtle)",
               borderTop: active
-                ? '2px solid var(--accent-primary)'
-                : '2px solid transparent',
+                ? "2px solid var(--accent-primary)"
+                : "2px solid transparent",
             }}
           >
             {t.icon}
@@ -396,46 +402,6 @@ const TabStrip: FC<{
  * not Image / Document / Archive (TextEditor, CodeEditor, … each have
  * their own pre-existing default-open path elsewhere).
  */
-const OPEN_WITH_VIEWERS: ReadonlyArray<{
-  appId: string;
-  label: string;
-  icon: string;
-}> = [
-  { appId: 'imageviewer', label: 'Open with Image Viewer', icon: 'Image' },
-  { appId: 'documentviewer', label: 'Open with Document Viewer', icon: 'File' },
-  { appId: 'archivemanager', label: 'Open with Archive Manager', icon: 'Package' },
-];
-
-export const buildFileOpenWithMenu = (
-  filename: string,
-): ContextMenuItem[] | null => {
-  const assoc = getFileAssociation(filename);
-  if (!assoc) return null;
-  if (!OPEN_WITH_VIEWERS.some((v) => v.appId === assoc.appId)) return null;
-  return [
-    {
-      id: 'open-with-default',
-      label: OPEN_WITH_VIEWERS.find((v) => v.appId === assoc.appId)!.label,
-      icon: OPEN_WITH_VIEWERS.find((v) => v.appId === assoc.appId)!.icon,
-      action: `OPEN_APP_WITH_FILE:${assoc.appId}`,
-    },
-  ];
-};
-
-export const inboxLineToFilename = (line: string): string => {
-  const trimmed = line.trim();
-  if (!trimmed) return '';
-  // Take the first whitespace-separated token. `ls -l` output starts with
-  // mode bits, so prefer the LAST token if it contains a `.` and the line
-  // has multiple tokens — that's the filename in `ls -l`. Bare `ls` output
-  // is single-token, so the first-token branch covers that.
-  const parts = trimmed.split(/\s+/);
-  if (parts.length === 1) return parts[0];
-  const last = parts[parts.length - 1];
-  if (last.includes('.')) return last;
-  return parts[0];
-};
-
 const InboxTab: FC<{ agent: Agent; client: DaemonClient }> = ({
   agent,
   client,
@@ -454,10 +420,10 @@ const InboxTab: FC<{ agent: Agent; client: DaemonClient }> = ({
       e.preventDefault();
       e.stopPropagation();
       dispatch({
-        type: 'SHOW_CONTEXT_MENU',
+        type: "SHOW_CONTEXT_MENU",
         x: e.clientX,
         y: e.clientY,
-        menuType: 'file',
+        menuType: "file",
         items,
         contextData: { file: filename, podId: agent.pod_id },
       });
@@ -469,7 +435,7 @@ const InboxTab: FC<{ agent: Agent; client: DaemonClient }> = ({
     setSubmitting(true);
     setSubmitErr(null);
     setJob(null);
-    const r = await client.postPodRunStreamed(agent.pod_id, 'ls-inbox');
+    const r = await client.postPodRunStreamed(agent.pod_id, "ls-inbox");
     setSubmitting(false);
     if (!r.ok) {
       setSubmitErr(r.error.message);
@@ -486,7 +452,7 @@ const InboxTab: FC<{ agent: Agent; client: DaemonClient }> = ({
       setSubmitting(true);
       setSubmitErr(null);
       setJob(null);
-      const r = await client.postPodRunStreamed(agent.pod_id, 'ls-inbox');
+      const r = await client.postPodRunStreamed(agent.pod_id, "ls-inbox");
       if (cancelled) return;
       setSubmitting(false);
       if (!r.ok) {
@@ -504,23 +470,26 @@ const InboxTab: FC<{ agent: Agent; client: DaemonClient }> = ({
   const streamUrl = job ? client.jobStreamUrl(job.id) : null;
   const stream = useJobStream({ url: streamUrl });
   const done =
-    stream.status === 'success' ||
-    stream.status === 'failed' ||
-    stream.status === 'lost';
+    stream.status === "success" ||
+    stream.status === "failed" ||
+    stream.status === "lost";
   const inFlight = submitting || (job !== null && !done);
 
-  // After exit, if we never received any non-empty lines, treat as
-  // empty inbox. Filter blank lines so a trailing newline from the
-  // remote `ls` doesn't masquerade as a file.
-  const lines = stream.lines.filter((l) => l.length > 0);
+  // After exit, if we never received usable file rows, treat as empty inbox.
+  // Older pods can print raw stderr like "No such file or directory" when
+  // /app/workspace/inbox has not been created yet. That is a friendly empty
+  // state, not a red failure banner.
+  const rawLines = stream.lines.filter((l) => l.trim().length > 0);
+  const missingInbox = done && rawLines.some(isMissingInboxDiagnostic);
+  const lines = missingInbox ? [] : rawLines;
   const isEmptyResult =
-    done && stream.status !== 'failed' && stream.status !== 'lost' && lines.length === 0;
+    done && stream.status !== "lost" && (lines.length === 0 || missingInbox);
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
       <div
         className="px-5 py-3 flex items-center gap-3 flex-shrink-0"
-        style={{ borderBottom: '1px solid var(--border-subtle)' }}
+        style={{ borderBottom: "1px solid var(--border-subtle)" }}
       >
         <div className="flex-1 min-w-0">
           <div className="text-sm font-semibold text-[var(--text-primary)] flex items-center gap-2">
@@ -528,8 +497,8 @@ const InboxTab: FC<{ agent: Agent; client: DaemonClient }> = ({
             inbox/
           </div>
           <div className="text-[11px] text-[var(--text-secondary)] mt-0.5">
-            <code className="font-mono">/app/workspace/inbox/</code>{' '}
-            on pod {agent.pod_id}
+            <code className="font-mono">/app/workspace/inbox/</code> on pod{" "}
+            {agent.pod_id}
           </div>
         </div>
         <button
@@ -537,9 +506,9 @@ const InboxTab: FC<{ agent: Agent; client: DaemonClient }> = ({
           disabled={inFlight}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[11px] transition-colors disabled:opacity-60"
           style={{
-            background: 'var(--bg-hover, rgba(255,255,255,0.04))',
-            border: '1px solid var(--border-default)',
-            color: 'var(--text-secondary)',
+            background: "var(--bg-hover, rgba(255,255,255,0.04))",
+            border: "1px solid var(--border-default)",
+            color: "var(--text-secondary)",
           }}
         >
           {inFlight ? (
@@ -555,9 +524,9 @@ const InboxTab: FC<{ agent: Agent; client: DaemonClient }> = ({
         <div
           className="m-4 p-3 rounded-md text-xs flex items-start gap-2"
           style={{
-            background: 'rgba(244,67,54,0.10)',
-            border: '1px solid rgba(244,67,54,0.30)',
-            color: '#FFCDD2',
+            background: "rgba(244,67,54,0.10)",
+            border: "1px solid rgba(244,67,54,0.30)",
+            color: "#FFCDD2",
           }}
         >
           <AlertTriangle size={14} className="flex-shrink-0 mt-0.5" />
@@ -581,17 +550,17 @@ const InboxTab: FC<{ agent: Agent; client: DaemonClient }> = ({
             <div
               className="w-14 h-14 rounded-full flex items-center justify-center mb-3"
               style={{
-                background: 'rgba(124,77,255,0.10)',
-                border: '1px solid rgba(124,77,255,0.25)',
+                background: "rgba(124,77,255,0.10)",
+                border: "1px solid rgba(124,77,255,0.25)",
               }}
             >
               <Inbox size={22} className="text-[var(--accent-primary)]" />
             </div>
             <div className="text-sm">Inbox is empty.</div>
             <div className="text-[11px] mt-1 max-w-[360px] leading-relaxed">
-              Files dropped to{' '}
-              <code className="font-mono">/app/workspace/inbox/</code>{' '}
-              on pod {agent.pod_id} appear here.
+              Files dropped to{" "}
+              <code className="font-mono">/app/workspace/inbox/</code> on pod{" "}
+              {agent.pod_id} appear here.
             </div>
           </div>
         )}
@@ -600,45 +569,44 @@ const InboxTab: FC<{ agent: Agent; client: DaemonClient }> = ({
           <div
             className="rounded-md overflow-hidden"
             style={{
-              background: '#0A0A0A',
-              border: '1px solid var(--border-subtle)',
+              background: "#0A0A0A",
+              border: "1px solid var(--border-subtle)",
             }}
           >
             <div
               className="px-3 py-2 flex items-center justify-between text-[11px]"
               style={{
-                background: 'rgba(255,255,255,0.02)',
-                borderBottom: '1px solid var(--border-subtle)',
+                background: "rgba(255,255,255,0.02)",
+                borderBottom: "1px solid var(--border-subtle)",
               }}
             >
               <span className="text-[var(--text-secondary)]">
                 ls-inbox · {lines.length} entr
-                {lines.length === 1 ? 'y' : 'ies'} ·{' '}
+                {lines.length === 1 ? "y" : "ies"} ·{" "}
                 <span
                   style={{
                     color:
-                      stream.status === 'success'
-                        ? '#A5D6A7'
-                        : stream.status === 'failed'
-                          ? '#FF8A80'
-                          : stream.status === 'lost'
-                            ? '#FFB74D'
-                            : '#9E9E9E',
+                      stream.status === "success"
+                        ? "#A5D6A7"
+                        : stream.status === "failed"
+                          ? "#FF8A80"
+                          : stream.status === "lost"
+                            ? "#FFB74D"
+                            : "#9E9E9E",
                   }}
                 >
                   {stream.status}
-                  {stream.exitCode !== null &&
-                    ` (exit ${stream.exitCode})`}
+                  {stream.exitCode !== null && ` (exit ${stream.exitCode})`}
                 </span>
               </span>
             </div>
             <ul
               className="font-mono text-[12px] leading-relaxed p-3 m-0"
               style={{
-                color: '#E0E0E0',
-                maxHeight: '100%',
-                overflowY: 'auto',
-                listStyle: 'none',
+                color: "#E0E0E0",
+                maxHeight: "100%",
+                overflowY: "auto",
+                listStyle: "none",
               }}
             >
               {lines.map((line, i) => (
@@ -659,31 +627,31 @@ const InboxTab: FC<{ agent: Agent; client: DaemonClient }> = ({
           </div>
         )}
 
-        {stream.status === 'failed' && job && (
+        {stream.status === "failed" && job && (
           <div
             className="mt-3 p-3 rounded-md text-xs flex items-start gap-2"
             style={{
-              background: 'rgba(244,67,54,0.10)',
-              border: '1px solid rgba(244,67,54,0.30)',
-              color: '#FFCDD2',
+              background: "rgba(244,67,54,0.10)",
+              border: "1px solid rgba(244,67,54,0.30)",
+              color: "#FFCDD2",
             }}
           >
             <AlertTriangle size={14} className="flex-shrink-0 mt-0.5" />
             <span>
               ls-inbox exited non-zero
-              {stream.exitCode !== null && ` (code ${stream.exitCode})`}.
-              The inbox directory may not exist on this pod yet.
+              {stream.exitCode !== null && ` (code ${stream.exitCode})`}. The
+              inbox directory may not exist on this pod yet.
             </span>
           </div>
         )}
 
-        {stream.status === 'lost' && job && (
+        {stream.status === "lost" && job && (
           <div
             className="mt-3 p-3 rounded-md text-xs flex items-start gap-2"
             style={{
-              background: 'rgba(255,193,7,0.10)',
-              border: '1px solid rgba(255,193,7,0.30)',
-              color: '#FFE082',
+              background: "rgba(255,193,7,0.10)",
+              border: "1px solid rgba(255,193,7,0.30)",
+              color: "#FFE082",
             }}
           >
             <AlertTriangle size={14} className="flex-shrink-0 mt-0.5" />
@@ -709,9 +677,9 @@ const DownloadsTab: FC<{ agent: Agent; client: DaemonClient }> = ({
   const [err, setErr] = useState<string | null>(null);
   const [openedTick, setOpenedTick] = useState(0);
 
-  // Path display mirrors daemon convention: ~/Downloads/tytus/pod-NN/
+  // Path display mirrors daemon convention: ~/Tytus/Downloads/pod-NN/
   const localPath = useMemo(
-    () => `~/Downloads/tytus/pod-${agent.pod_id}/`,
+    () => `~/Tytus/Downloads/pod-${agent.pod_id}/`,
     [agent.pod_id],
   );
 
@@ -743,8 +711,8 @@ const DownloadsTab: FC<{ agent: Agent; client: DaemonClient }> = ({
         <div
           className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0"
           style={{
-            background: 'rgba(124,77,255,0.10)',
-            border: '1px solid rgba(124,77,255,0.25)',
+            background: "rgba(124,77,255,0.10)",
+            border: "1px solid rgba(124,77,255,0.25)",
           }}
         >
           <Download size={22} className="text-[var(--accent-primary)]" />
@@ -754,15 +722,15 @@ const DownloadsTab: FC<{ agent: Agent; client: DaemonClient }> = ({
             Downloads for pod {agent.pod_id}
           </div>
           <div className="text-[11px] text-[var(--text-secondary)] mt-1 leading-relaxed">
-            Files saved from this pod end up in your local Downloads
-            folder, scoped per pod.
+            Files pulled from this pod land in Tytus Home, scoped per pod.
+            Legacy files in ~/Downloads/tytus stay untouched.
           </div>
           <div
             className="mt-3 inline-block font-mono text-[11px] px-2.5 py-1.5 rounded-sm"
             style={{
-              background: 'rgba(255,255,255,0.04)',
-              border: '1px solid var(--border-subtle)',
-              color: 'var(--text-primary)',
+              background: "rgba(255,255,255,0.04)",
+              border: "1px solid var(--border-subtle)",
+              color: "var(--text-primary)",
             }}
           >
             {localPath}
@@ -775,7 +743,7 @@ const DownloadsTab: FC<{ agent: Agent; client: DaemonClient }> = ({
           onClick={onOpen}
           disabled={opening}
           className="flex items-center gap-1.5 px-4 py-2 rounded-md text-sm font-semibold text-white transition-colors disabled:opacity-60"
-          style={{ background: 'var(--accent-primary)' }}
+          style={{ background: "var(--accent-primary)" }}
         >
           {opening ? (
             <Loader2 size={14} className="animate-spin" />
@@ -785,7 +753,7 @@ const DownloadsTab: FC<{ agent: Agent; client: DaemonClient }> = ({
           Open Downloads folder for pod {agent.pod_id}
         </button>
         {openedVisible && (
-          <span className="text-[11px]" style={{ color: '#A5D6A7' }}>
+          <span className="text-[11px]" style={{ color: "#A5D6A7" }}>
             Opened in Finder.
           </span>
         )}
@@ -795,9 +763,9 @@ const DownloadsTab: FC<{ agent: Agent; client: DaemonClient }> = ({
         <div
           className="mt-4 p-3 rounded-md text-xs flex items-start gap-2"
           style={{
-            background: 'rgba(244,67,54,0.10)',
-            border: '1px solid rgba(244,67,54,0.30)',
-            color: '#FFCDD2',
+            background: "rgba(244,67,54,0.10)",
+            border: "1px solid rgba(244,67,54,0.30)",
+            color: "#FFCDD2",
           }}
         >
           <AlertTriangle size={14} className="flex-shrink-0 mt-0.5" />
@@ -817,10 +785,10 @@ const DownloadsTab: FC<{ agent: Agent; client: DaemonClient }> = ({
 const BUCKET_RE = /^[a-z0-9]([a-z0-9.-]{1,61}[a-z0-9])?$/;
 
 const validateBucket = (s: string): string | null => {
-  if (s.length < 3) return 'Bucket name must be at least 3 characters.';
-  if (s.length > 63) return 'Bucket name must be 63 characters or fewer.';
+  if (s.length < 3) return "Bucket name must be at least 3 characters.";
+  if (s.length > 63) return "Bucket name must be 63 characters or fewer.";
   if (!BUCKET_RE.test(s)) {
-    return 'Use lowercase letters, digits, dot, hyphen. Must start and end with a letter or digit.';
+    return "Use lowercase letters, digits, dot, hyphen. Must start and end with a letter or digit.";
   }
   return null;
 };
@@ -843,9 +811,9 @@ const SharedTab: FC<{ agents: Agent[]; client: DaemonClient }> = ({
   const syncStreamUrl = syncJob ? client.jobStreamUrl(syncJob.id) : null;
   const syncStream = useJobStream({ url: syncStreamUrl });
   const syncDone =
-    syncStream.status === 'success' ||
-    syncStream.status === 'failed' ||
-    syncStream.status === 'lost';
+    syncStream.status === "success" ||
+    syncStream.status === "failed" ||
+    syncStream.status === "lost";
   const syncInFlight = syncSubmitting || (syncJob !== null && !syncDone);
 
   // Per-binding "open" inline error (e.g. orphaned local path).
@@ -897,7 +865,7 @@ const SharedTab: FC<{ agents: Agent[]; client: DaemonClient }> = ({
     if (lastHandledSyncStatusRef.current === syncStream.status) return;
     if (syncDone) {
       lastHandledSyncStatusRef.current = syncStream.status;
-      if (syncStream.status === 'success') {
+      if (syncStream.status === "success") {
         /* eslint-disable-next-line react-hooks/set-state-in-effect */
         void refresh();
       }
@@ -910,7 +878,7 @@ const SharedTab: FC<{ agents: Agent[]; client: DaemonClient }> = ({
     setSyncErr(null);
     setSyncJob(null);
     lastHandledSyncStatusRef.current = null;
-    const r = await client.postSharedFoldersRunStreamed('refresh-all');
+    const r = await client.postSharedFoldersRunStreamed("refresh-all");
     setSyncSubmitting(false);
     if (!r.ok) {
       setSyncErr(r.error.message);
@@ -937,8 +905,8 @@ const SharedTab: FC<{ agents: Agent[]; client: DaemonClient }> = ({
       const r = await client.postSharedFoldersOpen(b.local_path);
       if (!r.ok) {
         const msg =
-          r.error.code === 'not_found' || r.error.status === 404
-            ? 'Local folder is missing — it may have been moved or deleted.'
+          r.error.code === "not_found" || r.error.status === 404
+            ? "Local folder is missing — it may have been moved or deleted."
             : r.error.message;
         setOpenErrByPath((prev) => ({ ...prev, [b.local_path]: msg }));
       }
@@ -953,13 +921,13 @@ const SharedTab: FC<{ agents: Agent[]; client: DaemonClient }> = ({
 
   // Format pod display: prefer wannolot-NN → "NN", else show as-is.
   const formatPods = (pods: string[]): string => {
-    if (pods.length === 0) return '(none)';
+    if (pods.length === 0) return "(none)";
     return pods
       .map((p) => {
         const m = /^wannolot-(\d+)$/.exec(p);
         return m ? m[1] : p;
       })
-      .join(', ');
+      .join(", ");
   };
 
   const empty = bindings !== null && bindings.length === 0;
@@ -969,7 +937,7 @@ const SharedTab: FC<{ agents: Agent[]; client: DaemonClient }> = ({
       {/* Header row */}
       <div
         className="px-5 py-3 flex items-center gap-2 flex-shrink-0 flex-wrap"
-        style={{ borderBottom: '1px solid var(--border-subtle)' }}
+        style={{ borderBottom: "1px solid var(--border-subtle)" }}
       >
         <div className="flex-1 min-w-0 flex items-center gap-2">
           <FolderSync size={14} className="text-[var(--accent-primary)]" />
@@ -979,9 +947,9 @@ const SharedTab: FC<{ agents: Agent[]; client: DaemonClient }> = ({
           {bindings && (
             <span
               className="text-[11px]"
-              style={{ color: 'var(--text-secondary)' }}
+              style={{ color: "var(--text-secondary)" }}
             >
-              · {bindings.length} binding{bindings.length === 1 ? '' : 's'}
+              · {bindings.length} binding{bindings.length === 1 ? "" : "s"}
             </span>
           )}
         </div>
@@ -989,7 +957,7 @@ const SharedTab: FC<{ agents: Agent[]; client: DaemonClient }> = ({
           onClick={() => setBindModalOpen(true)}
           disabled={syncInFlight}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold text-white transition-colors disabled:opacity-60"
-          style={{ background: 'var(--accent-primary)' }}
+          style={{ background: "var(--accent-primary)" }}
         >
           <Plus size={12} />
           Bind new folder
@@ -999,9 +967,9 @@ const SharedTab: FC<{ agents: Agent[]; client: DaemonClient }> = ({
           disabled={syncInFlight}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[11px] transition-colors disabled:opacity-60"
           style={{
-            background: 'var(--bg-hover, rgba(255,255,255,0.04))',
-            border: '1px solid var(--border-default)',
-            color: 'var(--text-secondary)',
+            background: "var(--bg-hover, rgba(255,255,255,0.04))",
+            border: "1px solid var(--border-default)",
+            color: "var(--text-secondary)",
           }}
         >
           {syncInFlight ? (
@@ -1009,15 +977,15 @@ const SharedTab: FC<{ agents: Agent[]; client: DaemonClient }> = ({
           ) : (
             <FolderSync size={11} />
           )}
-          Sync now
+          Refresh pod sign-in
         </button>
         <button
           onClick={onOpenCache}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[11px] transition-colors"
           style={{
-            background: 'var(--bg-hover, rgba(255,255,255,0.04))',
-            border: '1px solid var(--border-default)',
-            color: 'var(--text-secondary)',
+            background: "var(--bg-hover, rgba(255,255,255,0.04))",
+            border: "1px solid var(--border-default)",
+            color: "var(--text-secondary)",
           }}
         >
           <HardDriveDownload size={11} />
@@ -1030,9 +998,9 @@ const SharedTab: FC<{ agents: Agent[]; client: DaemonClient }> = ({
           title="Refresh bindings"
           className="flex items-center gap-1.5 px-2 py-1.5 rounded-md text-[11px] transition-colors disabled:opacity-60"
           style={{
-            background: 'var(--bg-hover, rgba(255,255,255,0.04))',
-            border: '1px solid var(--border-default)',
-            color: 'var(--text-secondary)',
+            background: "var(--bg-hover, rgba(255,255,255,0.04))",
+            border: "1px solid var(--border-default)",
+            color: "var(--text-secondary)",
           }}
         >
           {listing ? (
@@ -1047,9 +1015,9 @@ const SharedTab: FC<{ agents: Agent[]; client: DaemonClient }> = ({
         <div
           className="m-4 p-3 rounded-md text-xs flex items-start gap-2"
           style={{
-            background: 'rgba(244,67,54,0.10)',
-            border: '1px solid rgba(244,67,54,0.30)',
-            color: '#FFCDD2',
+            background: "rgba(244,67,54,0.10)",
+            border: "1px solid rgba(244,67,54,0.30)",
+            color: "#FFCDD2",
           }}
         >
           <AlertTriangle size={14} className="flex-shrink-0 mt-0.5" />
@@ -1061,9 +1029,9 @@ const SharedTab: FC<{ agents: Agent[]; client: DaemonClient }> = ({
         <div
           className="m-4 p-3 rounded-md text-xs flex items-start gap-2"
           style={{
-            background: 'rgba(244,67,54,0.10)',
-            border: '1px solid rgba(244,67,54,0.30)',
-            color: '#FFCDD2',
+            background: "rgba(244,67,54,0.10)",
+            border: "1px solid rgba(244,67,54,0.30)",
+            color: "#FFCDD2",
           }}
         >
           <AlertTriangle size={14} className="flex-shrink-0 mt-0.5" />
@@ -1076,9 +1044,9 @@ const SharedTab: FC<{ agents: Agent[]; client: DaemonClient }> = ({
         <div
           className="mx-4 mt-4 p-3 rounded-md text-xs flex items-start gap-2"
           style={{
-            background: 'rgba(244,67,54,0.10)',
-            border: '1px solid rgba(244,67,54,0.30)',
-            color: '#FFCDD2',
+            background: "rgba(244,67,54,0.10)",
+            border: "1px solid rgba(244,67,54,0.30)",
+            color: "#FFCDD2",
           }}
         >
           <AlertTriangle size={14} className="flex-shrink-0 mt-0.5" />
@@ -1109,8 +1077,8 @@ const SharedTab: FC<{ agents: Agent[]; client: DaemonClient }> = ({
             <div
               className="w-14 h-14 rounded-full flex items-center justify-center mb-3"
               style={{
-                background: 'rgba(124,77,255,0.10)',
-                border: '1px solid rgba(124,77,255,0.25)',
+                background: "rgba(124,77,255,0.10)",
+                border: "1px solid rgba(124,77,255,0.25)",
               }}
             >
               <FolderSync size={22} className="text-[var(--accent-primary)]" />
@@ -1122,7 +1090,7 @@ const SharedTab: FC<{ agents: Agent[]; client: DaemonClient }> = ({
             <button
               onClick={() => setBindModalOpen(true)}
               className="mt-4 flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold text-white transition-colors"
-              style={{ background: 'var(--accent-primary)' }}
+              style={{ background: "var(--accent-primary)" }}
             >
               <Plus size={12} />
               Bind new folder
@@ -1159,7 +1127,7 @@ const SharedTab: FC<{ agents: Agent[]; client: DaemonClient }> = ({
 };
 
 // ============================================================
-// SyncStreamPane — small inline progress for sync-now
+// SyncStreamPane — small inline progress for credential refresh
 // ============================================================
 
 const SyncStreamPane: FC<{
@@ -1168,40 +1136,41 @@ const SyncStreamPane: FC<{
   exitCode: number | null;
 }> = ({ status, lines, exitCode }) => {
   const visibleLines = lines.filter((l) => l.length > 0);
-  const last = visibleLines.length > 0 ? visibleLines[visibleLines.length - 1] : null;
+  const last =
+    visibleLines.length > 0 ? visibleLines[visibleLines.length - 1] : null;
 
-  let color = '#9E9E9E';
-  if (status === 'success') color = '#A5D6A7';
-  else if (status === 'failed') color = '#FF8A80';
-  else if (status === 'lost') color = '#FFB74D';
+  let color = "#9E9E9E";
+  if (status === "success") color = "#A5D6A7";
+  else if (status === "failed") color = "#FF8A80";
+  else if (status === "lost") color = "#FFB74D";
 
   return (
     <div
       className="mx-4 mt-4 rounded-md overflow-hidden"
       style={{
-        background: '#0A0A0A',
-        border: '1px solid var(--border-subtle)',
+        background: "#0A0A0A",
+        border: "1px solid var(--border-subtle)",
       }}
     >
       <div
         className="px-3 py-2 flex items-center gap-2 text-[11px]"
         style={{
-          background: 'rgba(255,255,255,0.02)',
-          borderBottom: '1px solid var(--border-subtle)',
+          background: "rgba(255,255,255,0.02)",
+          borderBottom: "1px solid var(--border-subtle)",
         }}
       >
-        {status === 'streaming' || status === 'subscribing' ? (
+        {status === "streaming" || status === "subscribing" ? (
           <Loader2
             size={11}
             className="animate-spin text-[var(--accent-primary)]"
           />
-        ) : status === 'success' ? (
+        ) : status === "success" ? (
           <Check size={11} style={{ color }} />
         ) : (
           <AlertTriangle size={11} style={{ color }} />
         )}
         <span className="text-[var(--text-secondary)]">
-          refresh-all ·{' '}
+          refresh pod sign-in ·{" "}
           <span style={{ color }}>
             {status}
             {exitCode !== null && ` (exit ${exitCode})`}
@@ -1211,7 +1180,7 @@ const SyncStreamPane: FC<{
       {last !== null && (
         <div
           className="font-mono text-[11px] px-3 py-2 truncate"
-          style={{ color: '#E0E0E0' }}
+          style={{ color: "#E0E0E0" }}
         >
           {last}
         </div>
@@ -1233,16 +1202,16 @@ const BindingCard: FC<{
   <div
     className="rounded-lg p-4 flex flex-col gap-2"
     style={{
-      background: 'rgba(255,255,255,0.02)',
-      border: '1px solid var(--border-subtle)',
+      background: "rgba(255,255,255,0.02)",
+      border: "1px solid var(--border-subtle)",
     }}
   >
     <div className="flex items-start gap-3">
       <div
         className="w-9 h-9 rounded-md flex items-center justify-center flex-shrink-0"
         style={{
-          background: 'rgba(124,77,255,0.10)',
-          border: '1px solid rgba(124,77,255,0.25)',
+          background: "rgba(124,77,255,0.10)",
+          border: "1px solid rgba(124,77,255,0.25)",
         }}
       >
         <LinkIcon size={16} className="text-[var(--accent-primary)]" />
@@ -1253,7 +1222,7 @@ const BindingCard: FC<{
         </div>
         <div
           className="font-mono text-[11px] mt-0.5 truncate"
-          style={{ color: 'var(--text-secondary)' }}
+          style={{ color: "var(--text-secondary)" }}
           title={binding.local_path}
         >
           {binding.local_path}
@@ -1263,9 +1232,9 @@ const BindingCard: FC<{
         onClick={onOpen}
         className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[11px] font-medium transition-colors"
         style={{
-          background: 'var(--bg-hover, rgba(255,255,255,0.04))',
-          border: '1px solid var(--border-default)',
-          color: 'var(--text-primary)',
+          background: "var(--bg-hover, rgba(255,255,255,0.04))",
+          border: "1px solid var(--border-default)",
+          color: "var(--text-primary)",
         }}
       >
         <FolderOpen size={11} />
@@ -1274,13 +1243,13 @@ const BindingCard: FC<{
     </div>
     <div
       className="flex items-center gap-3 text-[11px] flex-wrap"
-      style={{ color: 'var(--text-secondary)' }}
+      style={{ color: "var(--text-secondary)" }}
     >
       <span className="inline-flex items-center gap-1">
         <FolderSync size={11} />
         {binding.auto_sync
           ? `auto-sync · every ${binding.interval_sec}s`
-          : 'manual sync'}
+          : "manual sync"}
       </span>
       <span>·</span>
       <span>Synced to pods: {podsLabel}</span>
@@ -1289,9 +1258,9 @@ const BindingCard: FC<{
       <div
         className="mt-1 px-3 py-2 rounded-md text-[11px] flex items-start gap-2"
         style={{
-          background: 'rgba(244,67,54,0.10)',
-          border: '1px solid rgba(244,67,54,0.30)',
-          color: '#FFCDD2',
+          background: "rgba(244,67,54,0.10)",
+          border: "1px solid rgba(244,67,54,0.30)",
+          color: "#FFCDD2",
         }}
       >
         <AlertTriangle size={12} className="flex-shrink-0 mt-0.5" />
@@ -1324,7 +1293,7 @@ const BindFolderModal: FC<BindFolderModalProps> = ({
   const [picking, setPicking] = useState(false);
   const [pickErr, setPickErr] = useState<string | null>(null);
 
-  const [bucket, setBucket] = useState('shared');
+  const [bucket, setBucket] = useState("shared");
   const [bucketTouched, setBucketTouched] = useState(false);
 
   // Selected pod ids from agents (pod_id strings, e.g. "02").
@@ -1339,9 +1308,9 @@ const BindFolderModal: FC<BindFolderModalProps> = ({
   const streamUrl = job ? client.jobStreamUrl(job.id) : null;
   const stream = useJobStream({ url: streamUrl });
   const done =
-    stream.status === 'success' ||
-    stream.status === 'failed' ||
-    stream.status === 'lost';
+    stream.status === "success" ||
+    stream.status === "failed" ||
+    stream.status === "lost";
   const inFlight = submitting || (job !== null && !done);
 
   // Close modal on stream success.
@@ -1351,7 +1320,7 @@ const BindFolderModal: FC<BindFolderModalProps> = ({
     if (lastHandledRef.current === stream.status) return;
     if (done) {
       lastHandledRef.current = stream.status;
-      if (stream.status === 'success') {
+      if (stream.status === "success") {
         onSuccess();
       } else {
         // Failure / lost → keep modal open with explanation but
@@ -1359,9 +1328,9 @@ const BindFolderModal: FC<BindFolderModalProps> = ({
         const code = stream.exitCode;
         /* eslint-disable-next-line react-hooks/set-state-in-effect */
         setSubmitErr(
-          stream.status === 'failed'
-            ? `Bind job failed${code !== null ? ` (exit ${code})` : ''}.`
-            : 'Lost connection to bind job.',
+          stream.status === "failed"
+            ? `Bind job failed${code !== null ? ` (exit ${code})` : ""}.`
+            : "Lost connection to bind job.",
         );
       }
     }
@@ -1384,7 +1353,7 @@ const BindFolderModal: FC<BindFolderModalProps> = ({
       setPickErr(r.error.message);
       return;
     }
-    if ('cancelled' in r.value) {
+    if ("cancelled" in r.value) {
       // User dismissed — leave existing path untouched.
       return;
     }
@@ -1433,19 +1402,19 @@ const BindFolderModal: FC<BindFolderModalProps> = ({
   return (
     <div
       className="fixed inset-0 z-[6000] flex items-center justify-center"
-      style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(6px)' }}
+      style={{ background: "rgba(0,0,0,0.55)", backdropFilter: "blur(6px)" }}
     >
       <div
         className="w-[520px] max-h-[90vh] rounded-xl flex flex-col overflow-hidden"
         style={{
-          background: 'var(--bg-window, #1E1E1E)',
-          border: '1px solid var(--border-subtle)',
-          boxShadow: '0 24px 64px rgba(0,0,0,0.55)',
+          background: "var(--bg-window, #1E1E1E)",
+          border: "1px solid var(--border-subtle)",
+          boxShadow: "0 24px 64px rgba(0,0,0,0.55)",
         }}
       >
         <div
           className="px-5 py-3 flex items-center justify-between flex-shrink-0"
-          style={{ borderBottom: '1px solid var(--border-subtle)' }}
+          style={{ borderBottom: "1px solid var(--border-subtle)" }}
         >
           <div className="text-sm font-semibold text-[var(--text-primary)]">
             Bind shared folder
@@ -1455,7 +1424,7 @@ const BindFolderModal: FC<BindFolderModalProps> = ({
             disabled={inFlight}
             aria-label="Close"
             className="p-1 rounded-sm transition-colors disabled:opacity-60"
-            style={{ color: 'var(--text-secondary)' }}
+            style={{ color: "var(--text-secondary)" }}
           >
             <X size={14} />
           </button>
@@ -1466,7 +1435,7 @@ const BindFolderModal: FC<BindFolderModalProps> = ({
           <div className="flex flex-col gap-1.5">
             <label
               className="text-[11px] font-medium"
-              style={{ color: 'var(--text-secondary)' }}
+              style={{ color: "var(--text-secondary)" }}
             >
               Local folder
             </label>
@@ -1474,24 +1443,24 @@ const BindFolderModal: FC<BindFolderModalProps> = ({
               <div
                 className="flex-1 min-w-0 px-3 py-2 rounded-md text-xs font-mono truncate"
                 style={{
-                  background: 'var(--bg-input, rgba(255,255,255,0.04))',
+                  background: "var(--bg-input, rgba(255,255,255,0.04))",
                   color: localPath
-                    ? 'var(--text-primary)'
-                    : 'var(--text-disabled)',
-                  border: '1px solid var(--border-default)',
+                    ? "var(--text-primary)"
+                    : "var(--text-disabled)",
+                  border: "1px solid var(--border-default)",
                 }}
                 title={localPath ?? undefined}
               >
-                {localPath ?? 'No folder picked'}
+                {localPath ?? "No folder picked"}
               </div>
               <button
                 onClick={onPick}
                 disabled={picking || inFlight}
                 className="flex items-center gap-1.5 px-3 py-2 rounded-md text-xs font-medium transition-colors disabled:opacity-60"
                 style={{
-                  background: 'var(--bg-hover, rgba(255,255,255,0.04))',
-                  border: '1px solid var(--border-default)',
-                  color: 'var(--text-primary)',
+                  background: "var(--bg-hover, rgba(255,255,255,0.04))",
+                  border: "1px solid var(--border-default)",
+                  color: "var(--text-primary)",
                 }}
               >
                 {picking ? (
@@ -1503,7 +1472,7 @@ const BindFolderModal: FC<BindFolderModalProps> = ({
               </button>
             </div>
             {pickErr && (
-              <div className="text-[11px]" style={{ color: '#FF8A80' }}>
+              <div className="text-[11px]" style={{ color: "#FF8A80" }}>
                 Couldn't open picker: {pickErr}
               </div>
             )}
@@ -1514,7 +1483,7 @@ const BindFolderModal: FC<BindFolderModalProps> = ({
             <label
               htmlFor="tytus-bucket-name"
               className="text-[11px] font-medium"
-              style={{ color: 'var(--text-secondary)' }}
+              style={{ color: "var(--text-secondary)" }}
             >
               Bucket name
             </label>
@@ -1529,21 +1498,21 @@ const BindFolderModal: FC<BindFolderModalProps> = ({
               disabled={inFlight}
               className="w-full px-3 py-2 rounded-md text-xs font-mono outline-none disabled:opacity-60"
               style={{
-                background: 'var(--bg-input, rgba(255,255,255,0.04))',
-                color: 'var(--text-primary)',
+                background: "var(--bg-input, rgba(255,255,255,0.04))",
+                color: "var(--text-primary)",
                 border: bucketErr
-                  ? '1px solid rgba(244,67,54,0.55)'
-                  : '1px solid var(--border-default)',
+                  ? "1px solid rgba(244,67,54,0.55)"
+                  : "1px solid var(--border-default)",
               }}
             />
             {bucketErr ? (
-              <div className="text-[11px]" style={{ color: '#FF8A80' }}>
+              <div className="text-[11px]" style={{ color: "#FF8A80" }}>
                 {bucketErr}
               </div>
             ) : (
               <div
                 className="text-[10px]"
-                style={{ color: 'var(--text-disabled)' }}
+                style={{ color: "var(--text-disabled)" }}
               >
                 3–63 chars, lowercase letters, digits, dot, hyphen.
               </div>
@@ -1554,7 +1523,7 @@ const BindFolderModal: FC<BindFolderModalProps> = ({
           <div className="flex flex-col gap-1.5">
             <label
               className="text-[11px] font-medium"
-              style={{ color: 'var(--text-secondary)' }}
+              style={{ color: "var(--text-secondary)" }}
             >
               Pods to provision
             </label>
@@ -1562,7 +1531,7 @@ const BindFolderModal: FC<BindFolderModalProps> = ({
               {agents.length === 0 ? (
                 <div
                   className="text-[11px]"
-                  style={{ color: 'var(--text-disabled)' }}
+                  style={{ color: "var(--text-disabled)" }}
                 >
                   No allocated pods.
                 </div>
@@ -1573,7 +1542,7 @@ const BindFolderModal: FC<BindFolderModalProps> = ({
                     <label
                       key={a.pod_id}
                       className="flex items-center gap-2 text-xs cursor-pointer"
-                      style={{ color: 'var(--text-primary)' }}
+                      style={{ color: "var(--text-primary)" }}
                     >
                       <input
                         type="checkbox"
@@ -1582,10 +1551,10 @@ const BindFolderModal: FC<BindFolderModalProps> = ({
                         disabled={inFlight}
                       />
                       <span>
-                        Pod {a.pod_id}{' '}
+                        Pod {a.pod_id}{" "}
                         <span
                           className="text-[10px]"
-                          style={{ color: 'var(--text-secondary)' }}
+                          style={{ color: "var(--text-secondary)" }}
                         >
                           ({a.agent_type})
                         </span>
@@ -1597,7 +1566,7 @@ const BindFolderModal: FC<BindFolderModalProps> = ({
             </div>
             <div
               className="text-[10px]"
-              style={{ color: 'var(--text-disabled)' }}
+              style={{ color: "var(--text-disabled)" }}
             >
               Leave all unchecked to provision every allocated pod.
             </div>
@@ -1607,7 +1576,7 @@ const BindFolderModal: FC<BindFolderModalProps> = ({
           <div className="flex flex-col gap-1.5">
             <label
               className="flex items-center gap-2 text-xs cursor-pointer"
-              style={{ color: 'var(--text-primary)' }}
+              style={{ color: "var(--text-primary)" }}
             >
               <input
                 type="checkbox"
@@ -1619,7 +1588,7 @@ const BindFolderModal: FC<BindFolderModalProps> = ({
             </label>
             <div
               className="text-[10px]"
-              style={{ color: 'var(--text-disabled)' }}
+              style={{ color: "var(--text-disabled)" }}
             >
               Daemon-owned launchd agent will sync at a fixed interval.
             </div>
@@ -1629,15 +1598,15 @@ const BindFolderModal: FC<BindFolderModalProps> = ({
             <div
               className="px-3 py-2 rounded-md text-[11px] flex items-start gap-2"
               style={{
-                background: 'rgba(255,193,7,0.10)',
-                border: '1px solid rgba(255,193,7,0.30)',
-                color: '#FFE082',
+                background: "rgba(255,193,7,0.10)",
+                border: "1px solid rgba(255,193,7,0.30)",
+                color: "#FFE082",
               }}
             >
               <AlertTriangle size={12} className="flex-shrink-0 mt-0.5" />
               <span>
-                Another shared-folders job is in flight. Wait for it to
-                finish before binding.
+                Another shared-folders job is in flight. Wait for it to finish
+                before binding.
               </span>
             </div>
           )}
@@ -1646,9 +1615,9 @@ const BindFolderModal: FC<BindFolderModalProps> = ({
             <div
               className="px-3 py-2 rounded-md text-[11px] flex items-start gap-2"
               style={{
-                background: 'rgba(244,67,54,0.10)',
-                border: '1px solid rgba(244,67,54,0.30)',
-                color: '#FFCDD2',
+                background: "rgba(244,67,54,0.10)",
+                border: "1px solid rgba(244,67,54,0.30)",
+                color: "#FFCDD2",
               }}
             >
               <AlertTriangle size={12} className="flex-shrink-0 mt-0.5" />
@@ -1660,15 +1629,15 @@ const BindFolderModal: FC<BindFolderModalProps> = ({
             <div
               className="rounded-md overflow-hidden"
               style={{
-                background: '#0A0A0A',
-                border: '1px solid var(--border-subtle)',
+                background: "#0A0A0A",
+                border: "1px solid var(--border-subtle)",
               }}
             >
               <div
                 className="px-3 py-2 flex items-center gap-2 text-[11px]"
                 style={{
-                  background: 'rgba(255,255,255,0.02)',
-                  borderBottom: '1px solid var(--border-subtle)',
+                  background: "rgba(255,255,255,0.02)",
+                  borderBottom: "1px solid var(--border-subtle)",
                 }}
               >
                 {!done ? (
@@ -1676,23 +1645,23 @@ const BindFolderModal: FC<BindFolderModalProps> = ({
                     size={11}
                     className="animate-spin text-[var(--accent-primary)]"
                   />
-                ) : stream.status === 'success' ? (
-                  <Check size={11} style={{ color: '#A5D6A7' }} />
+                ) : stream.status === "success" ? (
+                  <Check size={11} style={{ color: "#A5D6A7" }} />
                 ) : (
-                  <AlertTriangle size={11} style={{ color: '#FF8A80' }} />
+                  <AlertTriangle size={11} style={{ color: "#FF8A80" }} />
                 )}
                 <span className="text-[var(--text-secondary)]">
-                  bind ·{' '}
+                  bind ·{" "}
                   <span
                     style={{
                       color:
-                        stream.status === 'success'
-                          ? '#A5D6A7'
-                          : stream.status === 'failed'
-                            ? '#FF8A80'
-                            : stream.status === 'lost'
-                              ? '#FFB74D'
-                              : '#9E9E9E',
+                        stream.status === "success"
+                          ? "#A5D6A7"
+                          : stream.status === "failed"
+                            ? "#FF8A80"
+                            : stream.status === "lost"
+                              ? "#FFB74D"
+                              : "#9E9E9E",
                     }}
                   >
                     {stream.status}
@@ -1702,7 +1671,7 @@ const BindFolderModal: FC<BindFolderModalProps> = ({
               </div>
               <ul
                 className="font-mono text-[11px] leading-relaxed p-3 m-0 max-h-[180px] overflow-y-auto"
-                style={{ color: '#E0E0E0', listStyle: 'none' }}
+                style={{ color: "#E0E0E0", listStyle: "none" }}
               >
                 {stream.lines
                   .filter((l) => l.length > 0)
@@ -1718,16 +1687,16 @@ const BindFolderModal: FC<BindFolderModalProps> = ({
 
         <div
           className="px-5 py-3 flex items-center justify-end gap-2 flex-shrink-0"
-          style={{ borderTop: '1px solid var(--border-subtle)' }}
+          style={{ borderTop: "1px solid var(--border-subtle)" }}
         >
           <button
             onClick={onCancel}
             disabled={inFlight}
             className="px-3 py-1.5 rounded-md text-xs font-medium transition-colors disabled:opacity-60"
             style={{
-              background: 'transparent',
-              color: 'var(--text-primary)',
-              border: '1px solid var(--border-default)',
+              background: "transparent",
+              color: "var(--text-primary)",
+              border: "1px solid var(--border-default)",
             }}
           >
             Cancel
@@ -1736,7 +1705,7 @@ const BindFolderModal: FC<BindFolderModalProps> = ({
             onClick={onSubmit}
             disabled={!canSubmit}
             className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-md text-xs font-semibold text-white transition-colors disabled:opacity-60"
-            style={{ background: 'var(--accent-primary)' }}
+            style={{ background: "var(--accent-primary)" }}
           >
             {inFlight && <Loader2 size={12} className="animate-spin" />}
             Bind folder

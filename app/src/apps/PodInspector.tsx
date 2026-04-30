@@ -35,7 +35,7 @@ import {
   useMemo,
   useRef,
   useState,
-} from 'react';
+} from "react";
 import {
   Box,
   Sparkles,
@@ -59,28 +59,36 @@ import {
   Star,
   ScrollText,
   Variable,
-} from 'lucide-react';
-import PodEnvPane from '@/components/PodEnvPane';
-import { useOS } from '@/hooks/useOSStore';
-import { useDaemonClient } from '@/hooks/useDaemonClient';
-import { useDaemonStateContext } from '@/hooks/useDaemonStateContext';
-import { useJobStream } from '@/hooks/useJobStream';
-import { usePinnedPods, PIN_CAP } from '@/hooks/usePinnedPods';
-import { useNotifications } from '@/hooks/useOSStore';
-import { navigate } from '@/lib/router';
+} from "lucide-react";
+import PodEnvPane from "@/components/PodEnvPane";
+import AilGatewayCard from "@/components/AilGatewayCard";
+import { useOS } from "@/hooks/useOSStore";
+import { useDaemonClient } from "@/hooks/useDaemonClient";
+import { useDaemonStateContext } from "@/hooks/useDaemonStateContext";
+import { useCurrentWindowArgs } from "@/hooks/useCurrentWindow";
+import { useJobStream } from "@/hooks/useJobStream";
+import { usePinnedPods, PIN_CAP } from "@/hooks/usePinnedPods";
+import { useNotifications } from "@/hooks/useOSStore";
+import { navigate } from "@/lib/router";
 import {
   maskSecret,
   maskTokenUrl,
   revealSecret,
   revealTokenUrl,
-} from '@/lib/secrets';
-import type { Agent, AgentStatus, IncludedPod } from '@/types/daemon';
-import type { DaemonClient } from '@/lib/daemon';
+} from "@/lib/secrets";
+import type {
+  Agent,
+  AgentStatus,
+  IncludedPod,
+  PodReadiness,
+} from "@/types/daemon";
+import type { DaemonClient } from "@/lib/daemon";
+import type { WindowArgs } from "@/types";
 
-type SortMode = 'attention' | 'pod_id';
+type SortMode = "attention" | "pod_id";
 
 interface FleetRow {
-  kind: 'agent' | 'included';
+  kind: "agent" | "included";
   pod_id: string;
   agent_type: string;
   units: number;
@@ -89,8 +97,50 @@ interface FleetRow {
 }
 
 type ReadyState = {
-  status: 'probing' | 'ready' | 'not_ready' | 'probe_failed' | 'included';
+  status: "probing" | "ready" | "not_ready" | "probe_failed" | "included";
   reason?: string;
+  overall?: PodReadiness["overall"];
+  openEnabled?: boolean;
+  stages?: PodReadiness["stages"];
+};
+
+const firstReadinessIssue = (readiness: PodReadiness) =>
+  readiness.stages.find((stage) =>
+    ["failed", "starting", "unknown"].includes(stage.status),
+  ) ??
+  readiness.stages.find((stage) => stage.status === "degraded") ??
+  null;
+
+const readinessToReadyState = (readiness: PodReadiness): ReadyState => {
+  const issue = firstReadinessIssue(readiness);
+  if (readiness.open_enabled) {
+    return {
+      status: "ready",
+      reason:
+        readiness.overall === "degraded"
+          ? (issue?.detail ?? "Ready with degraded optional checks")
+          : undefined,
+      overall: readiness.overall,
+      openEnabled: true,
+      stages: readiness.stages,
+    };
+  }
+  if (readiness.overall === "failed") {
+    return {
+      status: "not_ready",
+      reason: issue?.detail ?? issue?.label ?? "Readiness failed",
+      overall: readiness.overall,
+      openEnabled: false,
+      stages: readiness.stages,
+    };
+  }
+  return {
+    status: "not_ready",
+    reason: issue?.detail ?? issue?.label ?? "Starting",
+    overall: readiness.overall,
+    openEnabled: false,
+    stages: readiness.stages,
+  };
 };
 
 /**
@@ -101,21 +151,21 @@ type ReadyState = {
  */
 const agentStatusToReadyState = (s: AgentStatus): ReadyState => {
   switch (s) {
-    case 'ready':
-      return { status: 'ready' };
-    case 'starting':
-      return { status: 'not_ready', reason: 'Starting' };
-    case 'unhealthy':
-      return { status: 'not_ready', reason: 'Unhealthy' };
-    case 'stopped':
-      return { status: 'probe_failed', reason: 'Container down' };
-    case 'unknown':
+    case "ready":
+      return { status: "ready" };
+    case "starting":
+      return { status: "not_ready", reason: "Starting" };
+    case "unhealthy":
+      return { status: "not_ready", reason: "Unhealthy" };
+    case "stopped":
+      return { status: "probe_failed", reason: "Container down" };
+    case "unknown":
     default:
-      return { status: 'probing' };
+      return { status: "probing" };
   }
 };
 
-const STATUS_RANK: Record<ReadyState['status'], number> = {
+const STATUS_RANK: Record<ReadyState["status"], number> = {
   probe_failed: 4,
   not_ready: 3,
   probing: 2,
@@ -124,14 +174,14 @@ const STATUS_RANK: Record<ReadyState['status'], number> = {
 };
 
 const STATUS_VISUAL: Record<
-  ReadyState['status'],
+  ReadyState["status"],
   { color: string; label: string }
 > = {
-  probing: { color: '#9E9E9E', label: 'Probing…' },
-  ready: { color: '#4CAF50', label: 'Running' },
-  not_ready: { color: '#FFC107', label: 'Not ready' },
-  probe_failed: { color: '#F44336', label: 'Offline' },
-  included: { color: '#9E9E9E', label: 'Included' },
+  probing: { color: "var(--text-secondary)", label: "Probing…" },
+  ready: { color: "var(--accent-success)", label: "Running" },
+  not_ready: { color: "var(--accent-warning)", label: "Not ready" },
+  probe_failed: { color: "var(--accent-error)", label: "Offline" },
+  included: { color: "var(--text-secondary)", label: "Included" },
 };
 
 // ============================================================
@@ -142,11 +192,13 @@ const PodInspector: FC = () => {
   const { dispatch } = useOS();
   const client = useDaemonClient();
   const daemon = useDaemonStateContext();
+  const windowArgs = useCurrentWindowArgs();
+  const routeAction = windowArgs?.podAction;
 
   // Tab state — 'fleet' is always the leftmost tab; per-pod tabs are
   // appended in click order. Closing a non-fleet tab focuses fleet.
   const [openTabs, setOpenTabs] = useState<string[]>([]);
-  const [activeTab, setActiveTab] = useState<string>('fleet');
+  const [activeTab, setActiveTab] = useState<string>("fleet");
 
   // Fleet-wide ready probe map. PodTab also reads this; bumping
   // readyNonce re-fires probes for every open row.
@@ -174,33 +226,23 @@ const PodInspector: FC = () => {
     if (!daemon.state) return out;
     for (const a of daemon.state.agents) {
       out.push({
-        kind: 'agent',
+        kind: "agent",
         pod_id: a.pod_id,
         agent_type: a.agent_type,
         units: a.units,
         agent: a,
       });
     }
-    for (const p of daemon.state.included) {
-      out.push({
-        kind: 'included',
-        pod_id: p.pod_id,
-        agent_type: p.kind,
-        units: 0,
-        included: p,
-      });
-    }
+    // Included (AIL gateway) pods are NOT added to the fleet table —
+    // they get their own dedicated AilGatewayCard above the table so
+    // the URLs / copy-env / snippets / Open-in are first-class instead
+    // of buried in a "—" row.
     return out;
   }, [daemon.state]);
 
-  // Per-pod readiness. Two paths:
-  //   - New daemons (≥ 0.7.0) emit `agent.status` directly on
-  //     state.agents[]; we map it server-side and skip the probe
-  //     entirely. Drops 15 HTTP requests per poll on Operator-tier.
-  //   - Old daemons omit it; we fall back to the /api/pod/ready probe
-  //     loop (one per agent on each rows-change / Refresh click).
-  // Included pods are tagged 'included' without a probe — the daemon
-  // doesn't surface readiness for them.
+  // Per-pod readiness. Prefer the structured route because it carries
+  // `open_enabled` + exact stage diagnostics. Legacy /api/pod/ready is only
+  // a fallback for older daemons.
   useEffect(() => {
     if (rows.length === 0) return;
     let cancelled = false;
@@ -208,38 +250,49 @@ const PodInspector: FC = () => {
     setReadyByPod((prev) => {
       const next = new Map(prev);
       for (const r of rows) {
-        if (r.kind === 'included') {
-          next.set(r.pod_id, { status: 'included' });
+        if (r.kind === "included") {
+          next.set(r.pod_id, { status: "included" });
         } else if (r.agent?.status !== undefined) {
-          // Daemon already classified — no probe needed.
+          // Immediate optimistic state while structured readiness loads.
           next.set(r.pod_id, agentStatusToReadyState(r.agent.status));
         } else if (!next.has(r.pod_id)) {
-          next.set(r.pod_id, { status: 'probing' });
+          next.set(r.pod_id, { status: "probing" });
         }
       }
       return next;
     });
 
-    // Only probe agents whose state.agents[].status is missing —
-    // i.e. running against a pre-0.7.0 daemon.
     const promises = rows
-      .filter((r) => r.kind === 'agent' && r.agent?.status === undefined)
+      .filter((r) => r.kind === "agent")
       .map(async (r) => {
+        const readiness = await client.getPodReadiness(r.pod_id);
+        if (cancelled) return;
+        if (readiness.ok) {
+          setReadyByPod((prev) => {
+            const next = new Map(prev);
+            next.set(r.pod_id, readinessToReadyState(readiness.value));
+            return next;
+          });
+          return;
+        }
+
+        if (r.agent?.status !== undefined) return;
+
         const probe = await client.getPodReady(r.pod_id);
         if (cancelled) return;
         setReadyByPod((prev) => {
           const next = new Map(prev);
           if (!probe.ok) {
             next.set(r.pod_id, {
-              status: 'probe_failed',
+              status: "probe_failed",
               reason: probe.error.message,
             });
           } else if (probe.value.ready) {
-            next.set(r.pod_id, { status: 'ready' });
+            next.set(r.pod_id, { status: "ready" });
           } else {
             next.set(r.pod_id, {
-              status: 'not_ready',
-              reason: probe.value.reason || 'Not ready',
+              status: "not_ready",
+              reason: probe.value.reason || "Not ready",
             });
           }
           return next;
@@ -262,7 +315,7 @@ const PodInspector: FC = () => {
     /* eslint-disable react-hooks/set-state-in-effect */
     setOpenTabs((prev) => prev.filter((p) => liveIds.has(p)));
     setActiveTab((prev) =>
-      prev !== 'fleet' && !liveIds.has(prev) ? 'fleet' : prev,
+      prev !== "fleet" && !liveIds.has(prev) ? "fleet" : prev,
     );
     /* eslint-enable react-hooks/set-state-in-effect */
   }, [daemon.state]);
@@ -275,10 +328,10 @@ const PodInspector: FC = () => {
   }, [daemon]);
 
   const onAllocate = useCallback(() => {
-    dispatch({ type: 'OPEN_WINDOW', appId: 'settings' });
+    dispatch({ type: "OPEN_WINDOW", appId: "settings" });
     navigate({
-      kind: 'settings',
-      section: 'agents',
+      kind: "settings",
+      section: "agents",
       params: new URLSearchParams(),
     });
   }, [dispatch]);
@@ -288,21 +341,30 @@ const PodInspector: FC = () => {
     setActiveTab(podId);
   }, []);
 
+  const consumedRouteRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!routeAction?.podId) return;
+    const key = `${windowArgs?.routeNonce ?? "no-nonce"}:${routeAction.podId}:${routeAction.action}`;
+    if (consumedRouteRef.current.has(key)) return;
+    consumedRouteRef.current.add(key);
+    openPodTab(routeAction.podId);
+  }, [openPodTab, routeAction, windowArgs?.routeNonce]);
+
   const closePodTab = useCallback((podId: string) => {
     setOpenTabs((prev) => prev.filter((p) => p !== podId));
-    setActiveTab((prev) => (prev === podId ? 'fleet' : prev));
+    setActiveTab((prev) => (prev === podId ? "fleet" : prev));
   }, []);
 
   // Find the agent for the active per-pod tab.
   const activeAgent =
-    activeTab !== 'fleet'
+    activeTab !== "fleet"
       ? daemon.state?.agents.find((a) => a.pod_id === activeTab)
       : undefined;
 
   return (
     <div
       className="flex flex-col h-full relative"
-      style={{ background: 'var(--bg-window)' }}
+      style={{ background: "var(--bg-window)" }}
     >
       <TabStrip
         tabs={openTabs}
@@ -318,23 +380,56 @@ const PodInspector: FC = () => {
         pinnedPods={pins.pinned}
       />
 
-      {activeTab === 'fleet' && (
-        <FleetView
-          rows={rows}
-          readyByPod={readyByPod}
-          state={daemon.state}
-          refreshing={refreshing}
-          onRefresh={onRefresh}
-          onAllocate={onAllocate}
-          onOpenTab={openPodTab}
-          onErr={setErrToast}
-          client={client}
-          isPinned={pins.has}
-          onTogglePin={onTogglePin}
-        />
+      {activeTab === "fleet" && (
+        <div className="flex-1 flex flex-col min-h-0">
+          {daemon.state?.included.map((inc) => (
+            <AilGatewayCard
+              key={`ail-${inc.pod_id}`}
+              included={inc}
+              client={client}
+              onErr={setErrToast}
+              onOpenApiTester={() =>
+                dispatch({
+                  type: "OPEN_OR_FOCUS_WINDOW",
+                  appId: "apitester",
+                  args: { apiTester: { collection: "ail" } },
+                })
+              }
+              onOpenTerminalDocs={() =>
+                dispatch({
+                  type: "OPEN_OR_FOCUS_WINDOW",
+                  appId: "terminal",
+                  title: "Terminal — AIL docs",
+                  args: { terminal: { command: "tytus", args: ["llm-docs"] } },
+                })
+              }
+              onOpenTerminalChat={() =>
+                dispatch({
+                  type: "OPEN_OR_FOCUS_WINDOW",
+                  appId: "terminal",
+                  title: "Terminal — AIL chat",
+                  args: { terminal: { command: "tytus", args: ["chat"] } },
+                })
+              }
+            />
+          ))}
+          <FleetView
+            rows={rows}
+            readyByPod={readyByPod}
+            state={daemon.state}
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            onAllocate={onAllocate}
+            onOpenTab={openPodTab}
+            onErr={setErrToast}
+            client={client}
+            isPinned={pins.has}
+            onTogglePin={onTogglePin}
+          />
+        </div>
       )}
 
-      {activeTab !== 'fleet' && activeAgent && (
+      {activeTab !== "fleet" && activeAgent && (
         <PodTab
           agent={activeAgent}
           ready={readyByPod.get(activeAgent.pod_id)}
@@ -342,10 +437,14 @@ const PodInspector: FC = () => {
           onError={setErrToast}
           isPinned={pins.has(activeAgent.pod_id)}
           onTogglePin={() => onTogglePin(activeAgent.pod_id)}
+          routeAction={
+            routeAction?.podId === activeAgent.pod_id ? routeAction : undefined
+          }
+          routeNonce={windowArgs?.routeNonce}
         />
       )}
 
-      {activeTab !== 'fleet' && !activeAgent && (
+      {activeTab !== "fleet" && !activeAgent && (
         <div className="flex-1 flex items-center justify-center text-sm text-[var(--text-secondary)]">
           Pod {activeTab} is no longer allocated.
         </div>
@@ -387,24 +486,24 @@ const TabStrip: FC<TabStripProps> = ({
   <div
     className="flex items-stretch flex-shrink-0 overflow-x-auto"
     style={{
-      background: 'var(--bg-titlebar, rgba(255,255,255,0.02))',
-      borderBottom: '1px solid var(--border-subtle)',
+      background: "var(--bg-titlebar, rgba(255,255,255,0.02))",
+      borderBottom: "1px solid var(--border-subtle)",
     }}
   >
     <button
-      onClick={() => onSelect('fleet')}
+      onClick={() => onSelect("fleet")}
       className="flex items-center gap-2 px-4 py-2 text-xs font-medium transition-colors flex-shrink-0"
       style={{
-        background: activeTab === 'fleet' ? 'var(--bg-window)' : 'transparent',
+        background: activeTab === "fleet" ? "var(--bg-window)" : "transparent",
         color:
-          activeTab === 'fleet'
-            ? 'var(--accent-primary)'
-            : 'var(--text-secondary)',
-        borderRight: '1px solid var(--border-subtle)',
+          activeTab === "fleet"
+            ? "var(--accent-primary)"
+            : "var(--text-secondary)",
+        borderRight: "1px solid var(--border-subtle)",
         borderTop:
-          activeTab === 'fleet'
-            ? '2px solid var(--accent-primary)'
-            : '2px solid transparent',
+          activeTab === "fleet"
+            ? "2px solid var(--accent-primary)"
+            : "2px solid transparent",
       }}
     >
       <Box size={12} />
@@ -421,27 +520,28 @@ const TabStrip: FC<TabStripProps> = ({
           key={podId}
           className="flex items-stretch flex-shrink-0"
           style={{
-            background: active ? 'var(--bg-window)' : 'transparent',
-            borderRight: '1px solid var(--border-subtle)',
+            background: active ? "var(--bg-window)" : "transparent",
+            borderRight: "1px solid var(--border-subtle)",
             borderTop: active
-              ? '2px solid var(--accent-primary)'
-              : '2px solid transparent',
+              ? "2px solid var(--accent-primary)"
+              : "2px solid transparent",
           }}
         >
           <button
             onClick={() => onSelect(podId)}
             className="flex items-center gap-2 pl-4 pr-2 py-2 text-xs font-medium transition-colors"
             style={{
-              color: active
-                ? 'var(--accent-primary)'
-                : 'var(--text-secondary)',
+              color: active ? "var(--accent-primary)" : "var(--text-secondary)",
             }}
           >
             {isPinned && (
               <Star
                 size={10}
                 className="flex-shrink-0"
-                style={{ color: '#FFC107', fill: '#FFC107' }}
+                style={{
+                  color: "var(--accent-warning)",
+                  fill: "var(--accent-warning)",
+                }}
               />
             )}
             {visual && (
@@ -454,7 +554,7 @@ const TabStrip: FC<TabStripProps> = ({
             {agent && (
               <span
                 className="text-[10px] opacity-70"
-                style={{ color: 'var(--text-secondary)' }}
+                style={{ color: "var(--text-secondary)" }}
               >
                 · {agent.agent_type}
               </span>
@@ -464,7 +564,7 @@ const TabStrip: FC<TabStripProps> = ({
             onClick={() => onClose(podId)}
             aria-label={`Close pod ${podId} tab`}
             className="px-2 transition-colors hover:bg-[var(--bg-hover)]"
-            style={{ color: 'var(--text-secondary)' }}
+            style={{ color: "var(--text-secondary)" }}
           >
             <X size={11} />
           </button>
@@ -481,7 +581,7 @@ const TabStrip: FC<TabStripProps> = ({
 interface FleetViewProps {
   rows: FleetRow[];
   readyByPod: Map<string, ReadyState>;
-  state: import('@/types/daemon').StateSnapshot | null;
+  state: import("@/types/daemon").StateSnapshot | null;
   refreshing: boolean;
   onRefresh: () => void;
   onAllocate: () => void;
@@ -505,8 +605,8 @@ const FleetView: FC<FleetViewProps> = ({
   isPinned,
   onTogglePin,
 }) => {
-  const [search, setSearch] = useState('');
-  const [sortMode, setSortMode] = useState<SortMode>('attention');
+  const [search, setSearch] = useState("");
+  const [sortMode, setSortMode] = useState<SortMode>("attention");
   const [openingPod, setOpeningPod] = useState<string | null>(null);
   const [confirmRestartAll, setConfirmRestartAll] = useState(false);
   const [batchProgress, setBatchProgress] = useState<{
@@ -520,9 +620,7 @@ const FleetView: FC<FleetViewProps> = ({
   // and serialising keeps log output sane.
   const runRestartAll = useCallback(async () => {
     setConfirmRestartAll(false);
-    const targets = rows
-      .filter((r) => r.kind === 'agent')
-      .map((r) => r.pod_id);
+    const targets = rows.filter((r) => r.kind === "agent").map((r) => r.pod_id);
     if (targets.length === 0) return;
     setBatchProgress({ total: targets.length, done: 0, failed: 0 });
     let failed = 0;
@@ -533,9 +631,7 @@ const FleetView: FC<FleetViewProps> = ({
         onErr(`Pod ${podId} restart: ${r.error.message}`);
       }
       setBatchProgress((prev) =>
-        prev
-          ? { ...prev, done: prev.done + 1, failed: failed }
-          : prev,
+        prev ? { ...prev, done: prev.done + 1, failed: failed } : prev,
       );
     }
     // Hold the final summary for a beat so the user sees the completion
@@ -543,8 +639,9 @@ const FleetView: FC<FleetViewProps> = ({
     setTimeout(() => setBatchProgress(null), 2400);
   }, [rows, client, onErr]);
 
-  const restartableCount = rows.filter((r) => r.kind === 'agent').length;
-  const batchInFlight = batchProgress !== null && batchProgress.done < batchProgress.total;
+  const restartableCount = rows.filter((r) => r.kind === "agent").length;
+  const batchInFlight =
+    batchProgress !== null && batchProgress.done < batchProgress.total;
 
   const onOpenAgentUi = useCallback(
     async (podId: string) => {
@@ -573,12 +670,12 @@ const FleetView: FC<FleetViewProps> = ({
       return pa - pb;
     };
 
-    if (sortMode === 'attention') {
+    if (sortMode === "attention") {
       out.sort((a, b) => {
         const p = pinSort(a, b);
         if (p !== 0) return p;
-        const sa = readyByPod.get(a.pod_id)?.status ?? 'probing';
-        const sb = readyByPod.get(b.pod_id)?.status ?? 'probing';
+        const sa = readyByPod.get(a.pod_id)?.status ?? "probing";
+        const sb = readyByPod.get(b.pod_id)?.status ?? "probing";
         const r = STATUS_RANK[sb] - STATUS_RANK[sa];
         if (r !== 0) return r;
         return a.pod_id.localeCompare(b.pod_id);
@@ -600,7 +697,7 @@ const FleetView: FC<FleetViewProps> = ({
     <>
       <div
         className="px-5 py-3 flex items-center gap-3 flex-shrink-0"
-        style={{ borderBottom: '1px solid var(--border-subtle)' }}
+        style={{ borderBottom: "1px solid var(--border-subtle)" }}
       >
         <Box size={18} className="text-[var(--accent-primary)]" />
         <div className="flex-1">
@@ -610,11 +707,11 @@ const FleetView: FC<FleetViewProps> = ({
           <div className="text-[11px] text-[var(--text-secondary)]">
             {state ? (
               <>
-                {state.agents.length} allocated · {state.included.length}{' '}
+                {state.agents.length} allocated · {state.included.length}{" "}
                 included · {state.units_used}/{state.units_limit} units
               </>
             ) : (
-              'Loading state…'
+              "Loading state…"
             )}
           </div>
         </div>
@@ -625,9 +722,9 @@ const FleetView: FC<FleetViewProps> = ({
             title={`Restart ${restartableCount} allocated pods sequentially`}
             className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[11px] transition-colors disabled:opacity-60"
             style={{
-              background: 'var(--bg-hover, rgba(255,255,255,0.04))',
-              border: '1px solid var(--border-default)',
-              color: 'var(--text-secondary)',
+              background: "var(--bg-hover, rgba(255,255,255,0.04))",
+              border: "1px solid var(--border-default)",
+              color: "var(--text-secondary)",
             }}
           >
             <Power size={11} />
@@ -639,21 +736,21 @@ const FleetView: FC<FleetViewProps> = ({
           aria-label="Refresh"
           className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[11px] transition-colors"
           style={{
-            background: 'var(--bg-hover, rgba(255,255,255,0.04))',
-            border: '1px solid var(--border-default)',
-            color: 'var(--text-secondary)',
+            background: "var(--bg-hover, rgba(255,255,255,0.04))",
+            border: "1px solid var(--border-default)",
+            color: "var(--text-secondary)",
           }}
         >
           <RefreshCw
             size={11}
-            className={refreshing ? 'animate-spin' : undefined}
+            className={refreshing ? "animate-spin" : undefined}
           />
           Refresh
         </button>
         <button
           onClick={onAllocate}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium text-white transition-colors"
-          style={{ background: 'var(--accent-primary)' }}
+          style={{ background: "var(--accent-primary)" }}
         >
           + Allocate
         </button>
@@ -662,11 +759,11 @@ const FleetView: FC<FleetViewProps> = ({
       {!isEmpty && (
         <div
           className="px-5 py-2 flex items-center gap-3 flex-shrink-0"
-          style={{ borderBottom: '1px solid var(--border-subtle)' }}
+          style={{ borderBottom: "1px solid var(--border-subtle)" }}
         >
           <div
             className="flex items-center gap-2 flex-1 px-2.5 py-1 rounded-md"
-            style={{ background: 'var(--bg-input)' }}
+            style={{ background: "var(--bg-input)" }}
           >
             <Search size={12} className="text-[var(--text-secondary)]" />
             <input
@@ -681,9 +778,9 @@ const FleetView: FC<FleetViewProps> = ({
             onChange={(e) => setSortMode(e.target.value as SortMode)}
             className="text-xs rounded-md px-2 py-1 outline-none"
             style={{
-              background: 'var(--bg-input)',
-              color: 'var(--text-primary)',
-              border: '1px solid var(--border-default)',
+              background: "var(--bg-input)",
+              color: "var(--text-primary)",
+              border: "1px solid var(--border-default)",
             }}
           >
             <option value="attention">Sort: Needs attention</option>
@@ -698,14 +795,14 @@ const FleetView: FC<FleetViewProps> = ({
             <div
               className="w-[420px] rounded-2xl p-8 flex flex-col items-center text-center"
               style={{
-                background: 'rgba(30,30,30,0.65)',
-                border: '1px solid var(--border-subtle)',
+                background: "rgba(30,30,30,0.65)",
+                border: "1px solid var(--border-subtle)",
               }}
             >
               <div
                 className="w-14 h-14 rounded-2xl flex items-center justify-center mb-4"
                 style={{
-                  background: 'linear-gradient(135deg, #7C4DFF, #4A148C)',
+                  background: "linear-gradient(135deg, #7C4DFF, #4A148C)",
                 }}
               >
                 <Rocket size={28} className="text-white" />
@@ -714,13 +811,13 @@ const FleetView: FC<FleetViewProps> = ({
                 No pods yet
               </div>
               <div className="text-xs text-[var(--text-secondary)] mt-1.5 max-w-[300px] leading-relaxed">
-                Once you allocate a pod, it'll appear here with live
-                status, links, and per-pod actions.
+                Once you allocate a pod, it'll appear here with live status,
+                links, and per-pod actions.
               </div>
               <button
                 onClick={onAllocate}
                 className="mt-5 w-full px-4 py-2.5 rounded-lg text-sm font-semibold text-white transition-colors"
-                style={{ background: 'var(--accent-primary)' }}
+                style={{ background: "var(--accent-primary)" }}
               >
                 Allocate your first pod →
               </button>
@@ -732,10 +829,13 @@ const FleetView: FC<FleetViewProps> = ({
           <table className="w-full text-xs">
             <thead
               className="text-[10px] uppercase tracking-wider"
-              style={{ color: 'var(--text-secondary)' }}
+              style={{ color: "var(--text-secondary)" }}
             >
-              <tr style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-                <th className="text-center px-2 py-2 font-medium" aria-label="Pin"></th>
+              <tr style={{ borderBottom: "1px solid var(--border-subtle)" }}>
+                <th
+                  className="text-center px-2 py-2 font-medium"
+                  aria-label="Pin"
+                ></th>
                 <th className="text-left px-3 py-2 font-medium">Pod</th>
                 <th className="text-left px-3 py-2 font-medium">Status</th>
                 <th className="text-left px-3 py-2 font-medium">Agent</th>
@@ -746,15 +846,16 @@ const FleetView: FC<FleetViewProps> = ({
             <tbody>
               {filteredSorted.map((row) => {
                 const ready = readyByPod.get(row.pod_id) ?? {
-                  status: 'probing' as const,
+                  status: "probing" as const,
                 };
                 const visual = STATUS_VISUAL[ready.status];
-                const isAgent = row.kind === 'agent';
+                const isAgent = row.kind === "agent";
+                const canOpen = isAgent && ready.status === "ready";
                 return (
                   <tr
                     key={`${row.kind}-${row.pod_id}`}
                     className="transition-colors cursor-pointer"
-                    style={{ borderBottom: '1px solid var(--border-subtle)' }}
+                    style={{ borderBottom: "1px solid var(--border-subtle)" }}
                     onClick={() => isAgent && onOpenTab(row.pod_id)}
                   >
                     <td
@@ -772,17 +873,17 @@ const FleetView: FC<FleetViewProps> = ({
                           className="p-0.5 rounded-sm transition-colors"
                           style={{
                             color: isPinned(row.pod_id)
-                              ? '#FFC107'
-                              : 'var(--text-disabled, rgba(255,255,255,0.25))',
+                              ? "var(--accent-warning)"
+                              : "var(--text-disabled, rgba(255,255,255,0.25))",
                           }}
-                          title={
-                            isPinned(row.pod_id) ? 'Unpin' : 'Pin to top'
-                          }
+                          title={isPinned(row.pod_id) ? "Unpin" : "Pin to top"}
                         >
                           <Star
                             size={12}
                             style={{
-                              fill: isPinned(row.pod_id) ? '#FFC107' : 'none',
+                              fill: isPinned(row.pod_id)
+                                ? "var(--accent-warning)"
+                                : "none",
                             }}
                           />
                         </button>
@@ -809,7 +910,7 @@ const FleetView: FC<FleetViewProps> = ({
                     </td>
                     <td className="px-3 py-2.5">
                       <span className="inline-flex items-center gap-1.5 text-[var(--text-primary)]">
-                        {row.kind === 'included' ? (
+                        {row.kind === "included" ? (
                           <Sparkles
                             size={12}
                             className="text-[var(--text-secondary)]"
@@ -824,7 +925,7 @@ const FleetView: FC<FleetViewProps> = ({
                       </span>
                     </td>
                     <td className="px-3 py-2.5 text-right font-mono text-[var(--text-secondary)]">
-                      {row.kind === 'included' ? '—' : row.units}
+                      {row.kind === "included" ? "—" : row.units}
                     </td>
                     <td
                       className="px-5 py-2.5 text-right"
@@ -833,12 +934,20 @@ const FleetView: FC<FleetViewProps> = ({
                       {isAgent && (
                         <button
                           onClick={() => onOpenAgentUi(row.pod_id)}
-                          disabled={openingPod === row.pod_id}
+                          disabled={openingPod === row.pod_id || !canOpen}
+                          title={
+                            canOpen
+                              ? row.agent_type === "hermes"
+                                ? "Open Hermes dashboard"
+                                : "Open agent UI"
+                              : `Pod is not ready yet: ${ready.reason ?? visual.label}`
+                          }
                           className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium transition-colors disabled:opacity-60"
                           style={{
-                            background: 'var(--bg-hover, rgba(255,255,255,0.04))',
-                            border: '1px solid var(--border-default)',
-                            color: 'var(--text-primary)',
+                            background:
+                              "var(--bg-hover, rgba(255,255,255,0.04))",
+                            border: "1px solid var(--border-default)",
+                            color: "var(--text-primary)",
                           }}
                         >
                           {openingPod === row.pod_id ? (
@@ -892,9 +1001,20 @@ interface PodTabProps {
   onError: (msg: string) => void;
   isPinned: boolean;
   onTogglePin: () => void;
+  routeAction?: WindowArgs["podAction"];
+  routeNonce?: string;
 }
 
-const PodTab: FC<PodTabProps> = ({ agent, ready, client, onError, isPinned, onTogglePin }) => {
+const PodTab: FC<PodTabProps> = ({
+  agent,
+  ready,
+  client,
+  onError,
+  isPinned,
+  onTogglePin,
+  routeAction,
+  routeNonce,
+}) => {
   const daemon = useDaemonStateContext();
   const [keyRevealed, setKeyRevealed] = useState(false);
   const [uiRevealed, setUiRevealed] = useState(false);
@@ -923,25 +1043,23 @@ const PodTab: FC<PodTabProps> = ({ agent, ready, client, onError, isPinned, onTo
       setActiveJob(null);
       setSubmittingAction(null);
       onError(
-        'Tray daemon restarted. In-flight pod actions were cleared — re-run if needed.',
+        "Tray daemon restarted. In-flight pod actions were cleared — re-run if needed.",
       );
     }
   }, [daemonBootedAt, onError]);
 
   const visual = ready ? STATUS_VISUAL[ready.status] : STATUS_VISUAL.probing;
+  const isReady = ready?.status === "ready";
 
-  const copyToClipboard = useCallback(
-    async (label: string, value: string) => {
-      try {
-        await navigator.clipboard.writeText(value);
-        setCopied(label);
-        setTimeout(() => setCopied((c) => (c === label ? null : c)), 1200);
-      } catch {
-        // noop in non-secure contexts
-      }
-    },
-    [],
-  );
+  const copyToClipboard = useCallback(async (label: string, value: string) => {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopied(label);
+      setTimeout(() => setCopied((c) => (c === label ? null : c)), 1200);
+    } catch {
+      // noop in non-secure contexts
+    }
+  }, []);
 
   // Confirmation modals — only Uninstall and Revoke open one. Restart,
   // Doctor, and Stop forwarder fire immediately (each is reversible by
@@ -951,17 +1069,30 @@ const PodTab: FC<PodTabProps> = ({ agent, ready, client, onError, isPinned, onTo
   const [envOpen, setEnvOpen] = useState(false);
 
   const onOpenAgent = useCallback(async () => {
-    setSubmittingAction('open');
+    setSubmittingAction("open");
     const r = await client.postPodOpen(agent.pod_id);
     setSubmittingAction(null);
     if (!r.ok) onError(`Couldn't open pod: ${r.error.message}`);
   }, [client, agent.pod_id, onError]);
+
+  const streamUrl = activeJob ? client.jobStreamUrl(activeJob.id) : null;
+  const stream = useJobStream({ url: streamUrl });
+  const streamDone =
+    stream.status === "success" ||
+    stream.status === "failed" ||
+    stream.status === "lost";
+
+  const isJobBusy = activeJob !== null && !streamDone;
 
   // Generic per-pod streamed action launcher. The action name maps to
   // the daemon's run-streamed allowlist; we serialize through one
   // activeJob slot so the user always sees a single live log pane.
   const runStreamedAction = useCallback(
     async (action: string, label: string) => {
+      if (activeJob !== null && !streamDone) {
+        onError(`Pod ${agent.pod_id} already has a running action.`);
+        return;
+      }
       setSubmittingAction(action);
       const r = await client.postPodRunStreamed(agent.pod_id, action);
       setSubmittingAction(null);
@@ -971,15 +1102,15 @@ const PodTab: FC<PodTabProps> = ({ agent, ready, client, onError, isPinned, onTo
       }
       setActiveJob({ id: r.value.job_id, action });
     },
-    [client, agent.pod_id, onError],
+    [activeJob, client, agent.pod_id, onError, streamDone],
   );
 
   const onRestart = useCallback(
-    () => runStreamedAction('restart', 'restart'),
+    () => runStreamedAction("restart", "restart"),
     [runStreamedAction],
   );
   const onStopForwarder = useCallback(
-    () => runStreamedAction('stop-forwarder', 'forwarder stop'),
+    () => runStreamedAction("stop-forwarder", "forwarder stop"),
     [runStreamedAction],
   );
   // Tail the agent container's stdout/stderr. Bounded snapshot — the
@@ -987,16 +1118,16 @@ const PodTab: FC<PodTabProps> = ({ agent, ready, client, onError, isPinned, onTo
   // so the stream pane terminates with `success`. Re-fire the action
   // for fresh lines (no live `-f` follow yet — daemon gap).
   const onShowLogs = useCallback(
-    () => runStreamedAction('logs', 'logs'),
+    () => runStreamedAction("logs", "logs"),
     [runStreamedAction],
   );
   const onUninstallConfirmed = useCallback(() => {
     setConfirmUninstall(false);
-    runStreamedAction('uninstall', 'uninstall');
+    runStreamedAction("uninstall", "uninstall");
   }, [runStreamedAction]);
   const onRevokeConfirmed = useCallback(() => {
     setConfirmRevoke(false);
-    runStreamedAction('revoke', 'revoke');
+    runStreamedAction("revoke", "revoke");
   }, [runStreamedAction]);
 
   // Doctor — per-pod diagnostic via run-streamed `doctor` action
@@ -1005,30 +1136,75 @@ const PodTab: FC<PodTabProps> = ({ agent, ready, client, onError, isPinned, onTo
   // healthy / uptime / image / ports one line at a time so each
   // surfaces as a discrete `log` event in the JobStreamPane.
   const onDoctor = useCallback(
-    () => runStreamedAction('doctor', 'doctor'),
+    () => runStreamedAction("doctor", "doctor"),
     [runStreamedAction],
   );
+
+  const consumedRouteActionRef = useRef<Set<string>>(new Set());
+  // Deliberate setState-in-effect via action callbacks: synchronising
+  // Pod Inspector with a tray route. Destructive paths only open confirm.
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    if (!routeAction) return;
+    const key = `${routeNonce ?? "no-nonce"}:${routeAction.podId}:${routeAction.action}`;
+    if (consumedRouteActionRef.current.has(key)) return;
+    consumedRouteActionRef.current.add(key);
+
+    if (routeAction.podId !== agent.pod_id) return;
+    if (routeAction.action === "overview") return;
+    if (routeAction.action === "uninstall") {
+      setConfirmUninstall(true);
+      return;
+    }
+    if (routeAction.action === "revoke") {
+      setConfirmRevoke(true);
+      return;
+    }
+
+    if (isJobBusy) {
+      onError(`Pod ${agent.pod_id} already has a running action.`);
+      return;
+    }
+    if (routeAction.action === "output") {
+      void onShowLogs();
+      return;
+    }
+    if (routeAction.action === "restart") {
+      void onRestart();
+      return;
+    }
+    if (routeAction.action === "stop-forwarder") {
+      void onStopForwarder();
+    }
+  }, [
+    agent.pod_id,
+    isJobBusy,
+    onError,
+    onRestart,
+    onShowLogs,
+    onStopForwarder,
+    routeAction,
+    routeNonce,
+  ]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   // Refresh credentials — rotates the pod's user_key without
   // restarting the container. Uses dedicated /api/pod/refresh-creds
   // (run-streamed allowlist doesn't include this verb).
   const onRefreshCreds = useCallback(async () => {
-    setSubmittingAction('refresh-creds');
+    if (isJobBusy) {
+      onError(`Pod ${agent.pod_id} already has a running action.`);
+      return;
+    }
+    setSubmittingAction("refresh-creds");
     const r = await client.postPodRefreshCreds(agent.pod_id);
     setSubmittingAction(null);
     if (!r.ok) {
       onError(`Couldn't refresh creds: ${r.error.message}`);
       return;
     }
-    setActiveJob({ id: r.value.job_id, action: 'refresh-creds' });
-  }, [client, agent.pod_id, onError]);
-
-  const streamUrl = activeJob ? client.jobStreamUrl(activeJob.id) : null;
-  const stream = useJobStream({ url: streamUrl });
-  const streamDone =
-    stream.status === 'success' ||
-    stream.status === 'failed' ||
-    stream.status === 'lost';
+    setActiveJob({ id: r.value.job_id, action: "refresh-creds" });
+  }, [client, agent.pod_id, isJobBusy, onError]);
 
   // Cancel — SIGTERMs the daemon child running this job. The SSE
   // stream closes naturally once the child dies; we just fire-and-
@@ -1060,20 +1236,26 @@ const PodTab: FC<PodTabProps> = ({ agent, ready, client, onError, isPinned, onTo
   const { addNotification } = useNotifications();
   const toastedJobRef = useRef<string | null>(null);
   useEffect(() => {
-    if (!activeJob || stream.status !== 'success') return;
+    if (!activeJob || stream.status !== "success") return;
     if (toastedJobRef.current === activeJob.id) return;
     toastedJobRef.current = activeJob.id;
-    if (activeJob.action === 'restart') {
+    if (activeJob.action === "restart") {
       addNotification({
-        appId: 'pod-inspector',
-        appName: 'Pod Inspector',
-        appIcon: 'Power',
+        appId: "pod-inspector",
+        appName: "Pod Inspector",
+        appIcon: "Power",
         title: `Pod ${agent.pod_id} restarted`,
         message: `${agent.agent_type} container is back up.`,
         isRead: false,
       });
     }
-  }, [activeJob, stream.status, addNotification, agent.pod_id, agent.agent_type]);
+  }, [
+    activeJob,
+    stream.status,
+    addNotification,
+    agent.pod_id,
+    agent.agent_type,
+  ]);
 
   return (
     <div className="flex-1 overflow-y-auto custom-scrollbar p-5 space-y-5">
@@ -1085,7 +1267,7 @@ const PodTab: FC<PodTabProps> = ({ agent, ready, client, onError, isPinned, onTo
             className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full"
             style={{
               background: visual.color,
-              boxShadow: '0 0 0 2px var(--bg-window, #1E1E1E)',
+              boxShadow: "0 0 0 2px var(--bg-window, #1E1E1E)",
             }}
             title={ready?.reason ?? visual.label}
           />
@@ -1095,7 +1277,10 @@ const PodTab: FC<PodTabProps> = ({ agent, ready, client, onError, isPinned, onTo
             {isPinned && (
               <Star
                 size={14}
-                style={{ color: '#FFC107', fill: '#FFC107' }}
+                style={{
+                  color: "var(--accent-warning)",
+                  fill: "var(--accent-warning)",
+                }}
               />
             )}
             Pod {agent.pod_id} · {agent.agent_type}
@@ -1104,49 +1289,118 @@ const PodTab: FC<PodTabProps> = ({ agent, ready, client, onError, isPinned, onTo
             <span style={{ color: visual.color }}>{visual.label}</span>
             {ready?.reason && (
               <span className="text-[var(--text-secondary)]">
-                {' '}
+                {" "}
                 — {ready.reason}
               </span>
             )}
             <span className="text-[var(--text-secondary)]">
-              {' '}
-              · {agent.units} unit{agent.units === 1 ? '' : 's'}
+              {" "}
+              · {agent.units} unit{agent.units === 1 ? "" : "s"}
             </span>
           </div>
         </div>
         <button
           onClick={onTogglePin}
-          aria-label={isPinned ? 'Unpin pod' : 'Pin pod'}
+          aria-label={isPinned ? "Unpin pod" : "Pin pod"}
           title={
             isPinned
-              ? 'Unpin — pod sinks back into the default sort'
-              : 'Pin — keeps this pod at the top of the Fleet table'
+              ? "Unpin — pod sinks back into the default sort"
+              : "Pin — keeps this pod at the top of the Fleet table"
           }
           className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[11px] transition-colors"
           style={{
             background: isPinned
-              ? 'rgba(255,193,7,0.12)'
-              : 'var(--bg-hover, rgba(255,255,255,0.04))',
+              ? "rgba(255,193,7,0.12)"
+              : "var(--bg-hover, rgba(255,255,255,0.04))",
             border: isPinned
-              ? '1px solid rgba(255,193,7,0.30)'
-              : '1px solid var(--border-default)',
-            color: isPinned ? '#FFE082' : 'var(--text-secondary)',
+              ? "1px solid rgba(255,193,7,0.30)"
+              : "1px solid var(--border-default)",
+            color: isPinned ? "#FFE082" : "var(--text-secondary)",
           }}
         >
           <Star
             size={11}
-            style={{ fill: isPinned ? '#FFC107' : 'none' }}
+            style={{ fill: isPinned ? "var(--accent-warning)" : "none" }}
           />
-          {isPinned ? 'Pinned' : 'Pin'}
+          {isPinned ? "Pinned" : "Pin"}
         </button>
       </div>
+
+      {ready?.stages && ready.stages.length > 0 && (
+        <div
+          className="rounded-lg p-3"
+          style={{
+            background: "var(--bg-card, rgba(255,255,255,0.03))",
+            border: "1px solid var(--border-subtle)",
+          }}
+        >
+          <div className="flex items-center justify-between gap-3 mb-2">
+            <div className="text-xs text-[var(--text-secondary)] uppercase tracking-wider">
+              Readiness
+            </div>
+            <span
+              className="text-[10px] uppercase tracking-wide"
+              style={{
+                color: ready.openEnabled
+                  ? "var(--accent-success)"
+                  : ready.overall === "failed"
+                    ? "var(--accent-error)"
+                    : "var(--accent-warning)",
+              }}
+            >
+              {ready.openEnabled
+                ? "Open enabled"
+                : (ready.overall ?? visual.label)}
+            </span>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+            {ready.stages.map((stage) => (
+              <div
+                key={stage.id}
+                className="flex items-start gap-2 text-[11px] min-w-0"
+              >
+                <span
+                  className="mt-1 h-2 w-2 rounded-full flex-shrink-0"
+                  style={{
+                    background:
+                      stage.status === "ok"
+                        ? "var(--accent-success)"
+                        : stage.status === "failed"
+                          ? "var(--accent-error)"
+                          : stage.status === "degraded"
+                            ? "var(--accent-warning)"
+                            : "var(--text-secondary)",
+                  }}
+                />
+                <div className="min-w-0">
+                  <span className="text-[var(--text-primary)]">
+                    {stage.label}
+                  </span>
+                  <span className="text-[var(--text-secondary)]">
+                    {" "}
+                    · {stage.status}
+                  </span>
+                  {stage.detail && (
+                    <div
+                      className="truncate text-[var(--text-secondary)]"
+                      title={stage.detail}
+                    >
+                      {stage.detail}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* URLs + env */}
       <div
         className="rounded-lg p-4"
         style={{
-          background: 'var(--bg-card, rgba(255,255,255,0.03))',
-          border: '1px solid var(--border-subtle)',
+          background: "var(--bg-card, rgba(255,255,255,0.03))",
+          border: "1px solid var(--border-subtle)",
         }}
       >
         <div className="text-xs text-[var(--text-secondary)] uppercase tracking-wider mb-3">
@@ -1157,8 +1411,8 @@ const PodTab: FC<PodTabProps> = ({ agent, ready, client, onError, isPinned, onTo
           <code
             className="font-mono text-[var(--text-primary)] truncate"
             style={{
-              background: 'rgba(255,255,255,0.03)',
-              padding: '3px 8px',
+              background: "rgba(255,255,255,0.03)",
+              padding: "3px 8px",
               borderRadius: "var(--radius-sm)",
             }}
             title={agent.api_url}
@@ -1167,16 +1421,16 @@ const PodTab: FC<PodTabProps> = ({ agent, ready, client, onError, isPinned, onTo
           </code>
           <CopyBtn
             label="api"
-            isCopied={copied === 'api'}
-            onClick={() => copyToClipboard('api', agent.api_url)}
+            isCopied={copied === "api"}
+            onClick={() => copyToClipboard("api", agent.api_url)}
           />
 
           <span className="text-[var(--text-secondary)]">Public</span>
           <code
             className="font-mono text-[var(--text-primary)] truncate"
             style={{
-              background: 'rgba(255,255,255,0.03)',
-              padding: '3px 8px',
+              background: "rgba(255,255,255,0.03)",
+              padding: "3px 8px",
               borderRadius: "var(--radius-sm)",
             }}
             title={agent.public_url}
@@ -1185,21 +1439,21 @@ const PodTab: FC<PodTabProps> = ({ agent, ready, client, onError, isPinned, onTo
           </code>
           <CopyBtn
             label="public"
-            isCopied={copied === 'public'}
-            onClick={() => copyToClipboard('public', agent.public_url)}
+            isCopied={copied === "public"}
+            onClick={() => copyToClipboard("public", agent.public_url)}
           />
 
           <span className="text-[var(--text-secondary)]">UI URL</span>
           <code
             className="font-mono text-[var(--text-primary)] truncate"
             style={{
-              background: 'rgba(255,255,255,0.03)',
-              padding: '3px 8px',
+              background: "rgba(255,255,255,0.03)",
+              padding: "3px 8px",
               borderRadius: "var(--radius-sm)",
             }}
           >
             {uiRevealed
-              ? revealTokenUrl(agent.ui_url, 'user_gesture')
+              ? revealTokenUrl(agent.ui_url, "user_gesture")
               : maskTokenUrl(agent.ui_url)}
           </code>
           <div className="flex items-center gap-1">
@@ -1209,11 +1463,11 @@ const PodTab: FC<PodTabProps> = ({ agent, ready, client, onError, isPinned, onTo
             />
             <CopyBtn
               label="ui"
-              isCopied={copied === 'ui'}
+              isCopied={copied === "ui"}
               onClick={() =>
                 copyToClipboard(
-                  'ui',
-                  revealTokenUrl(agent.ui_url, 'user_gesture'),
+                  "ui",
+                  revealTokenUrl(agent.ui_url, "user_gesture"),
                 )
               }
             />
@@ -1223,13 +1477,13 @@ const PodTab: FC<PodTabProps> = ({ agent, ready, client, onError, isPinned, onTo
           <code
             className="font-mono text-[var(--text-primary)] truncate"
             style={{
-              background: 'rgba(255,255,255,0.03)',
-              padding: '3px 8px',
+              background: "rgba(255,255,255,0.03)",
+              padding: "3px 8px",
               borderRadius: "var(--radius-sm)",
             }}
           >
             {keyRevealed
-              ? revealSecret(agent.user_key, 'user_gesture')
+              ? revealSecret(agent.user_key, "user_gesture")
               : maskSecret(agent.user_key)}
           </code>
           <div className="flex items-center gap-1">
@@ -1239,11 +1493,11 @@ const PodTab: FC<PodTabProps> = ({ agent, ready, client, onError, isPinned, onTo
             />
             <CopyBtn
               label="key"
-              isCopied={copied === 'key'}
+              isCopied={copied === "key"}
               onClick={() =>
                 copyToClipboard(
-                  'key',
-                  revealSecret(agent.user_key, 'user_gesture'),
+                  "key",
+                  revealSecret(agent.user_key, "user_gesture"),
                 )
               }
             />
@@ -1258,15 +1512,28 @@ const PodTab: FC<PodTabProps> = ({ agent, ready, client, onError, isPinned, onTo
         </div>
         <div className="flex flex-wrap gap-2">
           <ActionButton
-            label="Open agent UI"
+            label={
+              agent.agent_type === "hermes" ? "Open dashboard" : "Open agent UI"
+            }
             icon={<ExternalLink size={12} />}
-            running={submittingAction === 'open'}
+            running={submittingAction === "open"}
+            disabled={!isReady}
+            title={
+              isReady
+                ? agent.agent_type === "hermes"
+                  ? "Open Hermes dashboard"
+                  : "Open agent UI"
+                : `Pod is not ready yet: ${ready?.reason ?? visual.label}`
+            }
             onClick={onOpenAgent}
           />
           <ActionButton
             label="Restart"
             icon={<Power size={12} />}
-            running={submittingAction === 'restart' || (activeJob?.action === 'restart' && !streamDone)}
+            running={
+              submittingAction === "restart" ||
+              (activeJob?.action === "restart" && !streamDone)
+            }
             disabled={activeJob !== null && !streamDone}
             onClick={onRestart}
           />
@@ -1274,14 +1541,20 @@ const PodTab: FC<PodTabProps> = ({ agent, ready, client, onError, isPinned, onTo
             label="Doctor"
             icon={<Stethoscope size={12} />}
             title="Per-pod health check: container status, uptime, image, ports"
-            running={submittingAction === 'doctor' || (activeJob?.action === 'doctor' && !streamDone)}
+            running={
+              submittingAction === "doctor" ||
+              (activeJob?.action === "doctor" && !streamDone)
+            }
             disabled={activeJob !== null && !streamDone}
             onClick={onDoctor}
           />
           <ActionButton
             label="Stop forwarder"
             icon={<Square size={12} />}
-            running={submittingAction === 'stop-forwarder' || (activeJob?.action === 'stop-forwarder' && !streamDone)}
+            running={
+              submittingAction === "stop-forwarder" ||
+              (activeJob?.action === "stop-forwarder" && !streamDone)
+            }
             disabled={activeJob !== null && !streamDone}
             onClick={onStopForwarder}
           />
@@ -1289,7 +1562,10 @@ const PodTab: FC<PodTabProps> = ({ agent, ready, client, onError, isPinned, onTo
             label="Refresh creds"
             icon={<KeyRound size={12} />}
             title="Rotate the pod's user_key without restarting the container"
-            running={submittingAction === 'refresh-creds' || (activeJob?.action === 'refresh-creds' && !streamDone)}
+            running={
+              submittingAction === "refresh-creds" ||
+              (activeJob?.action === "refresh-creds" && !streamDone)
+            }
             disabled={activeJob !== null && !streamDone}
             onClick={onRefreshCreds}
           />
@@ -1297,19 +1573,25 @@ const PodTab: FC<PodTabProps> = ({ agent, ready, client, onError, isPinned, onTo
             label="Logs"
             icon={<ScrollText size={12} />}
             title="Tail the last 200 lines of the agent container's stdout/stderr"
-            running={submittingAction === 'logs' || (activeJob?.action === 'logs' && !streamDone)}
+            running={
+              submittingAction === "logs" ||
+              (activeJob?.action === "logs" && !streamDone)
+            }
             disabled={activeJob !== null && !streamDone}
             onClick={onShowLogs}
           />
           <ActionButton
-            label={envOpen ? 'Hide env' : 'Env'}
+            label={envOpen ? "Hide env" : "Env"}
             icon={<Variable size={12} />}
             title="Show the agent container's effective environment with each variable's source"
             onClick={() => setEnvOpen((v) => !v)}
           />
         </div>
 
-        <div className="flex flex-wrap gap-2 mt-3 pt-3" style={{ borderTop: '1px solid var(--border-subtle)' }}>
+        <div
+          className="flex flex-wrap gap-2 mt-3 pt-3"
+          style={{ borderTop: "1px solid var(--border-subtle)" }}
+        >
           <div className="text-[10px] text-[var(--text-secondary)] w-full mb-1 uppercase tracking-wider">
             Destructive
           </div>
@@ -1317,7 +1599,10 @@ const PodTab: FC<PodTabProps> = ({ agent, ready, client, onError, isPinned, onTo
             label="Uninstall…"
             icon={<Trash2 size={12} />}
             destructive
-            running={submittingAction === 'uninstall' || (activeJob?.action === 'uninstall' && !streamDone)}
+            running={
+              submittingAction === "uninstall" ||
+              (activeJob?.action === "uninstall" && !streamDone)
+            }
             disabled={activeJob !== null && !streamDone}
             onClick={() => setConfirmUninstall(true)}
           />
@@ -1325,7 +1610,10 @@ const PodTab: FC<PodTabProps> = ({ agent, ready, client, onError, isPinned, onTo
             label="Revoke…"
             icon={<Skull size={12} />}
             destructive
-            running={submittingAction === 'revoke' || (activeJob?.action === 'revoke' && !streamDone)}
+            running={
+              submittingAction === "revoke" ||
+              (activeJob?.action === "revoke" && !streamDone)
+            }
             disabled={activeJob !== null && !streamDone}
             onClick={() => setConfirmRevoke(true)}
           />
@@ -1350,33 +1638,34 @@ const PodTab: FC<PodTabProps> = ({ agent, ready, client, onError, isPinned, onTo
         <div
           className="rounded-lg overflow-hidden"
           style={{
-            background: '#0A0A0A',
-            border: '1px solid var(--border-subtle)',
+            background: "var(--terminal-bg)",
+            border: "1px solid var(--border-subtle)",
           }}
         >
           <div
             className="px-3 py-2 flex items-center justify-between text-[11px]"
             style={{
-              background: 'rgba(255,255,255,0.02)',
-              borderBottom: '1px solid var(--border-subtle)',
+              background: "rgba(255,255,255,0.02)",
+              borderBottom: "1px solid var(--border-subtle)",
             }}
           >
             <div className="text-[var(--text-secondary)]">
-              {activeJob.action === 'logs'
+              {activeJob.action === "logs"
                 ? `Logs (last 200 lines, pod ${agent.pod_id})`
-                : activeJob.action === 'doctor'
+                : activeJob.action === "doctor"
                   ? `Doctor (pod ${agent.pod_id})`
-                  : activeJob.action} ·{' '}
+                  : activeJob.action}{" "}
+              ·{" "}
               <span
                 style={{
                   color:
-                    stream.status === 'success'
-                      ? '#A5D6A7'
-                      : stream.status === 'failed'
-                        ? '#FF8A80'
-                        : stream.status === 'lost'
-                          ? '#FFB74D'
-                          : '#9E9E9E',
+                    stream.status === "success"
+                      ? "#A5D6A7"
+                      : stream.status === "failed"
+                        ? "#FF8A80"
+                        : stream.status === "lost"
+                          ? "#FFB74D"
+                          : "var(--text-secondary)",
                 }}
               >
                 {stream.status}
@@ -1389,26 +1678,26 @@ const PodTab: FC<PodTabProps> = ({ agent, ready, client, onError, isPinned, onTo
                 disabled={cancelling}
                 className="px-2 py-0.5 rounded-sm text-[10px] transition-colors flex items-center gap-1 disabled:opacity-60"
                 style={{
-                  background: 'rgba(244,67,54,0.10)',
-                  color: '#FFCDD2',
-                  border: '1px solid rgba(244,67,54,0.30)',
+                  background: "rgba(244,67,54,0.10)",
+                  color: "var(--accent-error)",
+                  border: "1px solid rgba(244,67,54,0.30)",
                 }}
                 title="Send SIGTERM to the running command"
               >
                 <X size={10} />
-                {cancelling ? 'Cancelling…' : 'Cancel'}
+                {cancelling ? "Cancelling…" : "Cancel"}
               </button>
             )}
             {streamDone && (
               <div className="flex items-center gap-1.5">
-                {activeJob.action === 'logs' && (
+                {activeJob.action === "logs" && (
                   <button
                     onClick={onShowLogs}
                     className="px-2 py-0.5 rounded-sm text-[10px] transition-colors flex items-center gap-1"
                     style={{
-                      background: 'var(--bg-hover, rgba(255,255,255,0.04))',
-                      color: 'var(--text-secondary)',
-                      border: '1px solid var(--border-default)',
+                      background: "var(--bg-hover, rgba(255,255,255,0.04))",
+                      color: "var(--text-secondary)",
+                      border: "1px solid var(--border-default)",
                     }}
                     title="Re-fetch the trailing 200 lines"
                   >
@@ -1420,9 +1709,9 @@ const PodTab: FC<PodTabProps> = ({ agent, ready, client, onError, isPinned, onTo
                   onClick={() => setActiveJob(null)}
                   className="px-2 py-0.5 rounded-sm text-[10px] transition-colors"
                   style={{
-                    background: 'var(--bg-hover, rgba(255,255,255,0.04))',
-                    color: 'var(--text-secondary)',
-                    border: '1px solid var(--border-default)',
+                    background: "var(--bg-hover, rgba(255,255,255,0.04))",
+                    color: "var(--text-secondary)",
+                    border: "1px solid var(--border-default)",
                   }}
                 >
                   Dismiss
@@ -1433,18 +1722,18 @@ const PodTab: FC<PodTabProps> = ({ agent, ready, client, onError, isPinned, onTo
           <pre
             className="font-mono text-[11px] leading-relaxed whitespace-pre-wrap p-3"
             style={{
-              color: '#A0E0A0',
+              color: "var(--terminal-text)",
               maxHeight: 300,
-              overflowY: 'auto',
+              overflowY: "auto",
               margin: 0,
             }}
           >
-            {stream.lines.length === 0 && stream.status === 'subscribing' && (
+            {stream.lines.length === 0 && stream.status === "subscribing" && (
               <span className="text-[var(--text-secondary)]">
                 Connecting to job stream…
               </span>
             )}
-            {stream.lines.slice(-200).join('\n')}
+            {stream.lines.slice(-200).join("\n")}
           </pre>
         </div>
       )}
@@ -1485,8 +1774,8 @@ const CopyBtn: FC<{
     aria-label={`Copy ${label}`}
     className="p-1 rounded-sm transition-colors"
     style={{
-      background: isCopied ? 'rgba(76,175,80,0.18)' : 'transparent',
-      color: isCopied ? '#A5D6A7' : 'var(--text-secondary)',
+      background: isCopied ? "rgba(76,175,80,0.18)" : "transparent",
+      color: isCopied ? "#A5D6A7" : "var(--text-secondary)",
     }}
   >
     {isCopied ? <Check size={12} /> : <Copy size={12} />}
@@ -1499,9 +1788,9 @@ const RevealBtn: FC<{
 }> = ({ revealed, onToggle }) => (
   <button
     onClick={onToggle}
-    aria-label={revealed ? 'Hide value' : 'Show value'}
+    aria-label={revealed ? "Hide value" : "Show value"}
     className="p-1 rounded-sm transition-colors"
-    style={{ background: 'transparent', color: 'var(--text-secondary)' }}
+    style={{ background: "transparent", color: "var(--text-secondary)" }}
   >
     {revealed ? <EyeOff size={12} /> : <Eye size={12} />}
   </button>
@@ -1523,12 +1812,12 @@ const ActionButton: FC<{
     className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors disabled:opacity-60"
     style={{
       background: destructive
-        ? 'rgba(244,67,54,0.10)'
-        : 'var(--bg-hover, rgba(255,255,255,0.04))',
+        ? "rgba(244,67,54,0.10)"
+        : "var(--bg-hover, rgba(255,255,255,0.04))",
       border: destructive
-        ? '1px solid rgba(244,67,54,0.30)'
-        : '1px solid var(--border-default)',
-      color: destructive ? '#FFCDD2' : 'var(--text-primary)',
+        ? "1px solid rgba(244,67,54,0.30)"
+        : "1px solid var(--border-default)",
+      color: destructive ? "var(--accent-error)" : "var(--text-primary)",
     }}
   >
     {running ? <Loader2 size={12} className="animate-spin" /> : icon}
@@ -1548,49 +1837,51 @@ const UninstallConfirmModal: FC<{
 }> = ({ podId, agentType, onCancel, onConfirm }) => (
   <div
     className="fixed inset-0 z-[6000] flex items-center justify-center"
-    style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(6px)' }}
+    style={{ background: "rgba(0,0,0,0.55)", backdropFilter: "blur(6px)" }}
   >
     <div
       className="w-[440px] rounded-xl flex flex-col overflow-hidden"
       style={{
-        background: 'var(--bg-window, #1E1E1E)',
-        border: '1px solid var(--border-subtle)',
-        boxShadow: '0 24px 64px rgba(0,0,0,0.55)',
+        background: "var(--bg-window, #1E1E1E)",
+        border: "1px solid var(--border-subtle)",
+        boxShadow: "0 24px 64px rgba(0,0,0,0.55)",
       }}
     >
       <div className="px-5 pt-5 pb-3 flex items-start gap-3">
         <div
           className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0"
           style={{
-            background: 'rgba(255,193,7,0.12)',
-            border: '1px solid rgba(255,193,7,0.30)',
+            background: "rgba(255,193,7,0.12)",
+            border: "1px solid rgba(255,193,7,0.30)",
           }}
         >
-          <Trash2 size={16} style={{ color: '#FFC107' }} />
+          <Trash2 size={16} style={{ color: "var(--accent-warning)" }} />
         </div>
         <div className="flex-1 min-w-0">
           <div className="text-sm font-semibold text-[var(--text-primary)]">
             Uninstall pod {podId}?
           </div>
           <div className="text-[12px] text-[var(--text-secondary)] mt-1.5 leading-relaxed">
-            This removes the {agentType} container but{' '}
-            <strong style={{ color: '#E0E0E0' }}>keeps the allocation</strong>
-            . You can re-install the agent later without spending another
-            unit. Workspace data inside the container will be lost.
+            This removes the {agentType} container but{" "}
+            <strong style={{ color: "var(--text-primary)" }}>
+              keeps the allocation
+            </strong>
+            . You can re-install the agent later without spending another unit.
+            Workspace data inside the container will be lost.
           </div>
         </div>
       </div>
       <div
         className="px-5 py-3 flex items-center justify-end gap-2"
-        style={{ borderTop: '1px solid var(--border-subtle)' }}
+        style={{ borderTop: "1px solid var(--border-subtle)" }}
       >
         <button
           onClick={onCancel}
           className="px-3 py-1.5 rounded-md text-xs font-medium transition-colors"
           style={{
-            background: 'transparent',
-            color: 'var(--text-primary)',
-            border: '1px solid var(--border-default)',
+            background: "transparent",
+            color: "var(--text-primary)",
+            border: "1px solid var(--border-default)",
           }}
         >
           Cancel
@@ -1598,7 +1889,7 @@ const UninstallConfirmModal: FC<{
         <button
           onClick={onConfirm}
           className="px-4 py-1.5 rounded-md text-xs font-semibold text-white transition-colors"
-          style={{ background: '#F57C00' }}
+          style={{ background: "var(--accent-warning)" }}
         >
           Uninstall
         </button>
@@ -1619,53 +1910,52 @@ const RevokeConfirmModal: FC<{
   // 2 nemoclaw pods server-side. Revoke is the per-pod equivalent —
   // never let a stray click trigger it.
   const expected = `pod ${podId}`;
-  const [typed, setTyped] = useState('');
+  const [typed, setTyped] = useState("");
   const matches = typed.trim() === expected;
 
   return (
     <div
       className="fixed inset-0 z-[6000] flex items-center justify-center"
-      style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(6px)' }}
+      style={{ background: "rgba(0,0,0,0.55)", backdropFilter: "blur(6px)" }}
     >
       <div
         className="w-[480px] rounded-xl flex flex-col overflow-hidden"
         style={{
-          background: 'var(--bg-window, #1E1E1E)',
-          border: '1px solid var(--border-subtle)',
-          boxShadow: '0 24px 64px rgba(0,0,0,0.55)',
+          background: "var(--bg-window, #1E1E1E)",
+          border: "1px solid var(--border-subtle)",
+          boxShadow: "0 24px 64px rgba(0,0,0,0.55)",
         }}
       >
         <div className="px-5 pt-5 pb-3 flex items-start gap-3">
           <div
             className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0"
             style={{
-              background: 'rgba(244,67,54,0.12)',
-              border: '1px solid rgba(244,67,54,0.30)',
+              background: "rgba(244,67,54,0.12)",
+              border: "1px solid rgba(244,67,54,0.30)",
             }}
           >
-            <Skull size={18} style={{ color: '#F44336' }} />
+            <Skull size={18} style={{ color: "var(--accent-error)" }} />
           </div>
           <div className="flex-1 min-w-0">
             <div className="text-sm font-semibold text-[var(--text-primary)]">
               Revoke pod {podId}?
             </div>
             <div className="text-[12px] text-[var(--text-secondary)] mt-1.5 leading-relaxed">
-              Revoking the {agentType} pod{' '}
-              <strong style={{ color: '#FFCDD2' }}>
+              Revoking the {agentType} pod{" "}
+              <strong style={{ color: "var(--accent-error)" }}>
                 permanently destroys it
-              </strong>
-              {' '}and frees its {units} unit{units === 1 ? '' : 's'} back to
-              your plan budget. Workspace data on the pod cannot be
-              recovered.
+              </strong>{" "}
+              and frees its {units} unit{units === 1 ? "" : "s"} back to your
+              plan budget. Workspace data on the pod cannot be recovered.
             </div>
             <div className="text-[11px] text-[var(--text-secondary)] mt-3">
-              Type{' '}
+              Type{" "}
               <code
                 className="font-mono px-1 py-0.5 rounded-sm"
-                style={{ background: 'rgba(255,255,255,0.06)' }}
+                style={{ background: "rgba(255,255,255,0.06)" }}
               >
                 {expected}
-              </code>{' '}
+              </code>{" "}
               to confirm:
             </div>
             <input
@@ -1674,26 +1964,26 @@ const RevokeConfirmModal: FC<{
               onChange={(e) => setTyped(e.target.value)}
               className="mt-2 w-full px-3 py-1.5 rounded-md text-xs font-mono outline-none"
               style={{
-                background: 'var(--bg-input)',
-                color: 'var(--text-primary)',
+                background: "var(--bg-input)",
+                color: "var(--text-primary)",
                 border: matches
-                  ? '1px solid rgba(244,67,54,0.50)'
-                  : '1px solid var(--border-default)',
+                  ? "1px solid rgba(244,67,54,0.50)"
+                  : "1px solid var(--border-default)",
               }}
             />
           </div>
         </div>
         <div
           className="px-5 py-3 flex items-center justify-end gap-2"
-          style={{ borderTop: '1px solid var(--border-subtle)' }}
+          style={{ borderTop: "1px solid var(--border-subtle)" }}
         >
           <button
             onClick={onCancel}
             className="px-3 py-1.5 rounded-md text-xs font-medium transition-colors"
             style={{
-              background: 'transparent',
-              color: 'var(--text-primary)',
-              border: '1px solid var(--border-default)',
+              background: "transparent",
+              color: "var(--text-primary)",
+              border: "1px solid var(--border-default)",
             }}
           >
             Cancel
@@ -1702,7 +1992,7 @@ const RevokeConfirmModal: FC<{
             onClick={onConfirm}
             disabled={!matches}
             className="px-4 py-1.5 rounded-md text-xs font-semibold text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-            style={{ background: '#D32F2F' }}
+            style={{ background: "var(--accent-error)" }}
           >
             Revoke pod {podId} permanently
           </button>
@@ -1719,35 +2009,35 @@ const RestartAllConfirmModal: FC<{
 }> = ({ count, onCancel, onConfirm }) => (
   <div
     className="fixed inset-0 z-[6000] flex items-center justify-center"
-    style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(6px)' }}
+    style={{ background: "rgba(0,0,0,0.55)", backdropFilter: "blur(6px)" }}
   >
     <div
       className="w-[440px] rounded-xl flex flex-col overflow-hidden"
       style={{
-        background: 'var(--bg-window, #1E1E1E)',
-        border: '1px solid var(--border-subtle)',
-        boxShadow: '0 24px 64px rgba(0,0,0,0.55)',
+        background: "var(--bg-window, #1E1E1E)",
+        border: "1px solid var(--border-subtle)",
+        boxShadow: "0 24px 64px rgba(0,0,0,0.55)",
       }}
     >
       <div className="px-5 pt-5 pb-3 flex items-start gap-3">
         <div
           className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0"
           style={{
-            background: 'rgba(124,77,255,0.12)',
-            border: '1px solid rgba(124,77,255,0.30)',
+            background: "rgba(124,77,255,0.12)",
+            border: "1px solid rgba(124,77,255,0.30)",
           }}
         >
-          <Power size={16} style={{ color: '#7C4DFF' }} />
+          <Power size={16} style={{ color: "var(--accent-primary)" }} />
         </div>
         <div className="flex-1 min-w-0">
           <div className="text-sm font-semibold text-[var(--text-primary)]">
             Restart {count} pods?
           </div>
           <div className="text-[12px] text-[var(--text-secondary)] mt-1.5 leading-relaxed">
-            Each pod will be restarted sequentially via{' '}
+            Each pod will be restarted sequentially via{" "}
             <code
               className="font-mono px-1 py-0.5 rounded-sm"
-              style={{ background: 'rgba(255,255,255,0.06)' }}
+              style={{ background: "rgba(255,255,255,0.06)" }}
             >
               tytus restart --pod NN
             </code>
@@ -1757,15 +2047,15 @@ const RestartAllConfirmModal: FC<{
       </div>
       <div
         className="px-5 py-3 flex items-center justify-end gap-2"
-        style={{ borderTop: '1px solid var(--border-subtle)' }}
+        style={{ borderTop: "1px solid var(--border-subtle)" }}
       >
         <button
           onClick={onCancel}
           className="px-3 py-1.5 rounded-md text-xs font-medium transition-colors"
           style={{
-            background: 'transparent',
-            color: 'var(--text-primary)',
-            border: '1px solid var(--border-default)',
+            background: "transparent",
+            color: "var(--text-primary)",
+            border: "1px solid var(--border-default)",
           }}
         >
           Cancel
@@ -1773,7 +2063,7 @@ const RestartAllConfirmModal: FC<{
         <button
           onClick={onConfirm}
           className="px-4 py-1.5 rounded-md text-xs font-semibold text-white transition-colors"
-          style={{ background: 'var(--accent-primary)' }}
+          style={{ background: "var(--accent-primary)" }}
         >
           Restart {count} pods
         </button>
@@ -1792,9 +2082,9 @@ const BatchProgressToast: FC<{
     <div
       className="absolute bottom-4 left-1/2 -translate-x-1/2 px-4 py-2.5 rounded-md text-xs flex flex-col items-stretch gap-2 min-w-[280px]"
       style={{
-        background: 'rgba(30,30,30,0.95)',
-        border: '1px solid var(--border-subtle)',
-        boxShadow: '0 8px 24px rgba(0,0,0,0.45)',
+        background: "rgba(30,30,30,0.95)",
+        border: "1px solid var(--border-subtle)",
+        boxShadow: "0 8px 24px rgba(0,0,0,0.45)",
         zIndex: 10,
       }}
     >
@@ -1802,21 +2092,24 @@ const BatchProgressToast: FC<{
         <span className="text-[var(--text-primary)] font-medium">
           {inFlight
             ? `Restarting pods… ${progress.done}/${progress.total}`
-            : `Done · ${success} succeeded${progress.failed > 0 ? ` · ${progress.failed} failed` : ''}`}
+            : `Done · ${success} succeeded${progress.failed > 0 ? ` · ${progress.failed} failed` : ""}`}
         </span>
         {inFlight && (
-          <Loader2 size={12} className="animate-spin text-[var(--text-secondary)]" />
+          <Loader2
+            size={12}
+            className="animate-spin text-[var(--text-secondary)]"
+          />
         )}
       </div>
       <div
         className="h-1 rounded-full overflow-hidden"
-        style={{ background: 'var(--border-subtle)' }}
+        style={{ background: "var(--border-subtle)" }}
       >
         <div
           className="h-full rounded-full transition-all"
           style={{
             width: `${pct}%`,
-            background: progress.failed > 0 ? '#FFC107' : '#4CAF50',
+            background: progress.failed > 0 ? "#FFC107" : "#4CAF50",
           }}
         />
       </div>
@@ -1842,9 +2135,9 @@ const FleetErrorToast: FC<{ message: string; onDismiss: () => void }> = ({
     <div
       className="absolute bottom-4 left-1/2 -translate-x-1/2 px-3 py-2 rounded-md text-xs flex items-center gap-2"
       style={{
-        background: 'rgba(244,67,54,0.92)',
-        color: '#fff',
-        boxShadow: '0 8px 24px rgba(0,0,0,0.45)',
+        background: "rgba(244,67,54,0.92)",
+        color: "#fff",
+        boxShadow: "0 8px 24px rgba(0,0,0,0.45)",
         zIndex: 10,
       }}
     >

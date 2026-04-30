@@ -17,6 +17,10 @@ export const APP_REGISTRY: AppDefinition[] = [
   // ================================================================
   // TYTUS product surfaces (System + Internet)
   // ================================================================
+  { id: 'app-store', name: 'App Store', icon: 'Store', category: 'System',
+    description: 'Browse and discover recommended apps. Check install status on your machine.',
+    defaultSize: { width: 800, height: 600 }, minSize: { width: 560, height: 400 } },
+
   { id: 'pod-inspector', name: 'Pod Inspector', icon: 'Box', category: 'System',
     description: 'Inspect, restart, uninstall, revoke pods. Live job logs.',
     defaultSize: { width: 1100, height: 720 }, minSize: { width: 800, height: 480 }, phase: 3 },
@@ -33,7 +37,7 @@ export const APP_REGISTRY: AppDefinition[] = [
   // SYSTEM
   // ================================================================
   { id: 'settings', name: 'System Settings', icon: 'Settings', category: 'System',
-    description: 'Appearance, display, sound, power, keyboard, mouse — and pod plan/units.',
+    description: 'Account, plan, pods, agents, daemon, appearance, notifications, privacy.',
     defaultSize: { width: 760, height: 560 }, minSize: { width: 480, height: 400 } },
 
   { id: 'filemanager', name: 'Files', icon: 'Folder', category: 'System',

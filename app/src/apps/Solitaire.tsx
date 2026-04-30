@@ -430,11 +430,11 @@ export default function Solitaire() {
 
       {/* Win overlay */}
       {state.gameWon && (
-        <div className="absolute inset-0 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.7)', zIndex: 20, borderRadius: 12 }}>
-          <div className="flex flex-col items-center" style={{ background: '#fff', padding: 32, borderRadius: 16 }}>
-            <span style={{ fontSize: 28, fontWeight: 800, color: '#1B5E20' }}>You Win!</span>
-            <span style={{ fontSize: 14, color: '#666', marginTop: 8 }}>Score: {state.score} | Moves: {state.moves} | Time: {formatTime(state.timer)}</span>
-            <button onClick={newGame} style={{ marginTop: 16, padding: '10px 28px', background: '#1B5E20', color: '#fff', borderRadius: 8, border: 'none', fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>
+        <div className="absolute inset-0 flex items-center justify-center" style={{ background: 'var(--bg-scrim)', zIndex: 20, borderRadius: 12 }}>
+          <div className="flex flex-col items-center" style={{ background: 'var(--bg-card)', padding: 32, borderRadius: 16, border: '1px solid var(--border-default)' }}>
+            <span style={{ fontSize: 28, fontWeight: 800, color: 'var(--accent-success)' }}>You Win!</span>
+            <span style={{ fontSize: 14, color: 'var(--text-secondary)', marginTop: 8 }}>Score: {state.score} | Moves: {state.moves} | Time: {formatTime(state.timer)}</span>
+            <button onClick={newGame} style={{ marginTop: 16, padding: '10px 28px', background: 'var(--accent-primary)', color: 'var(--text-on-accent)', borderRadius: 8, border: 'none', fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>
               Play Again
             </button>
           </div>

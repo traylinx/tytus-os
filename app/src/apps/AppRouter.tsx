@@ -5,6 +5,7 @@ import AppPlaceholder from './AppPlaceholder';
 import PodInspector from './PodInspector';
 import Help from './Help';
 import Channels from './Channels';
+import AppStore from './AppStore';
 
 // System
 import Settings from './Settings';
@@ -76,6 +77,7 @@ interface AppRouterProps {
 
 const AppRouter: FC<AppRouterProps> = ({ appId }) => {
   switch (appId) {
+    case 'app-store': return <AppStore />;
     case 'pod-inspector': return <PodInspector />;
     case 'help': return <Help />;
 

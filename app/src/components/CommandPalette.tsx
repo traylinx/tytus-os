@@ -26,6 +26,7 @@ import { useOS } from '@/hooks/useOSStore';
 import { useDaemonStateContext } from '@/hooks/useDaemonStateContext';
 import { navigate } from '@/lib/router';
 import type { LucideProps } from 'lucide-react';
+import { useI18n } from '@/i18n';
 
 type IconComponent = React.ComponentType<LucideProps>;
 
@@ -51,6 +52,7 @@ const isMac = (): boolean => {
 const CommandPalette = memo(function CommandPalette() {
   const { dispatch } = useOS();
   const daemon = useDaemonStateContext();
+  const { t } = useI18n();
 
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -63,43 +65,43 @@ const CommandPalette = memo(function CommandPalette() {
     const list: CommandItem[] = [
       {
         id: 'app:settings',
-        label: 'Open Settings',
-        section: 'Apps',
+        label: t('command.openSettings'),
+        section: t('command.section.apps'),
         icon: SettingsIcon,
         run: () => dispatch({ type: 'OPEN_WINDOW', appId: 'settings' }),
       },
       {
         id: 'app:pod-inspector',
-        label: 'Open Pod Inspector',
-        section: 'Apps',
+        label: t('command.openPodInspector'),
+        section: t('command.section.apps'),
         icon: Box,
         run: () => dispatch({ type: 'OPEN_WINDOW', appId: 'pod-inspector' }),
       },
       {
         id: 'app:help',
-        label: 'Open Help',
-        section: 'Apps',
+        label: t('command.openHelp'),
+        section: t('command.section.apps'),
         icon: LifeBuoy,
         run: () => dispatch({ type: 'OPEN_WINDOW', appId: 'help' }),
       },
       {
         id: 'app:chat',
-        label: 'Open Chat',
-        section: 'Apps',
+        label: t('command.openChat'),
+        section: t('command.section.apps'),
         icon: MessageSquare,
         run: () => dispatch({ type: 'OPEN_WINDOW', appId: 'chat' }),
       },
       {
         id: 'app:filemanager',
-        label: 'Open Files',
-        section: 'Apps',
+        label: t('command.openFiles'),
+        section: t('command.section.apps'),
         icon: Folder,
         run: () => dispatch({ type: 'OPEN_WINDOW', appId: 'filemanager' }),
       },
       {
         id: 'app:channels',
-        label: 'Open Channels',
-        section: 'Apps',
+        label: t('command.openChannels'),
+        section: t('command.section.apps'),
         icon: Send,
         run: () => dispatch({ type: 'OPEN_WINDOW', appId: 'channels' }),
       },
@@ -109,8 +111,8 @@ const CommandPalette = memo(function CommandPalette() {
     for (const a of agents) {
       list.push({
         id: `pod:${a.pod_id}`,
-        label: `Open Pod ${a.pod_id} (${a.agent_type})`,
-        section: 'Pods',
+        label: t('command.openPod', { podId: a.pod_id, agentType: a.agent_type }),
+        section: t('command.section.pods'),
         icon: Box,
         run: () => {
           dispatch({ type: 'OPEN_WINDOW', appId: 'pod-inspector' });
@@ -127,15 +129,15 @@ const CommandPalette = memo(function CommandPalette() {
     list.push(
       {
         id: 'sys:refresh',
-        label: 'Refresh daemon state',
-        section: 'System',
+        label: t('command.refreshDaemon'),
+        section: t('command.section.system'),
         icon: RefreshCw,
         run: () => daemon.refresh(),
       },
       {
         id: 'sys:signout',
-        label: 'Sign out',
-        section: 'System',
+        label: t('command.signOut'),
+        section: t('command.section.system'),
         icon: LogOut,
         run: () => {
           navigate({
@@ -149,7 +151,7 @@ const CommandPalette = memo(function CommandPalette() {
     );
 
     return list;
-  }, [dispatch, daemon]);
+  }, [dispatch, daemon, t]);
 
   // Filter commands by case-insensitive substring on label + section.
   const filtered = useMemo<CommandItem[]>(() => {
@@ -182,6 +184,9 @@ const CommandPalette = memo(function CommandPalette() {
   // Cmd+K / Ctrl+K toggle. Esc close. Both registered on window.
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      if (e.target instanceof Element && e.target.closest('[data-tytus-terminal="true"]')) {
+        return;
+      }
       const mac = isMac();
       const cmdK =
         (mac ? e.metaKey : e.ctrlKey) &&
@@ -274,7 +279,7 @@ const CommandPalette = memo(function CommandPalette() {
     <div
       role="dialog"
       aria-modal="true"
-      aria-label="Command palette"
+      aria-label={t('commandPalette.aria')}
       className="fixed inset-0 z-[7000] flex items-start justify-center"
       style={{
         background: 'rgba(0,0,0,0.55)',
@@ -312,8 +317,8 @@ const CommandPalette = memo(function CommandPalette() {
               setHighlight(0);
             }}
             onKeyDown={handleInputKeyDown}
-            placeholder="Type a command…"
-            className="flex-1 bg-transparent outline-none text-sm"
+            placeholder={t('commandPalette.placeholder')}
+            className="rounded-input flex-1 bg-transparent outline-none text-sm"
             style={{ color: 'var(--text-primary)' }}
             autoFocus
           />
@@ -330,7 +335,7 @@ const CommandPalette = memo(function CommandPalette() {
               className="px-4 py-8 text-center text-sm"
               style={{ color: 'var(--text-secondary)' }}
             >
-              No commands match.
+              {t('commandPalette.noMatch')}
             </div>
           ) : (
             grouped.map((group) => (

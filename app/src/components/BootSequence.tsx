@@ -3,6 +3,7 @@
 // ============================================================
 
 import { useEffect, useState, memo } from 'react';
+import { DEFAULT_TYTUS_WALLPAPER } from '@/lib/brand';
 
 const PHASE_LOGO = 0;
 const PHASE_LOADING = 1;
@@ -83,7 +84,7 @@ const BootSequence = memo(function BootSequence({ onComplete }: { onComplete: ()
       {phase === PHASE_TRANSITION && (
         <div
           className="absolute inset-0 bg-cover bg-center"
-          style={{ backgroundImage: 'url(/wallpaper-default.jpg)' }}
+          style={{ backgroundImage: `url(${DEFAULT_TYTUS_WALLPAPER})` }}
         />
       )}
 
@@ -105,11 +106,13 @@ const BootSequence = memo(function BootSequence({ onComplete }: { onComplete: ()
               animation: phase === PHASE_LOADING ? 'pulse 1.6s ease-in-out infinite' : undefined,
             }}
           >
-            <svg width="96" height="96" viewBox="0 0 96 96" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <circle cx="48" cy="48" r="46" fill="#7C4DFF" opacity="0.9" />
-              <circle cx="34" cy="40" r="16" fill="#FF9800" opacity="0.85" />
-              <circle cx="58" cy="56" r="14" fill="#E91E63" opacity="0.7" />
-            </svg>
+            <img
+              src="/favicons/android-chrome-192x192.png"
+              alt="tytusOS"
+              width={96}
+              height={96}
+              className="block rounded-3xl"
+            />
           </div>
 
           <h1
@@ -120,7 +123,7 @@ const BootSequence = memo(function BootSequence({ onComplete }: { onComplete: ()
               transition: 'all 400ms cubic-bezier(0, 0, 0.2, 1) 400ms',
             }}
           >
-            TytusOS
+            tytusOS
           </h1>
 
           {phase >= PHASE_LOADING && (

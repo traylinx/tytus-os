@@ -309,7 +309,7 @@ export default function Whiteboard() {
           return (
             <div
               key={note.id}
-              style={{ position: 'absolute', left: displayX, top: displayY, width: 160 * scaleX, minHeight: 100 * scaleY, background: note.color, borderRadius: 4, padding: 8 * scaleX, color: '#000', fontSize: 11 * scaleX, cursor: 'move', zIndex: 10, boxShadow: '0 2px 8px rgba(0,0,0,0.3)' }}
+              style={{ position: 'absolute', left: displayX, top: displayY, width: 160 * scaleX, minHeight: 100 * scaleY, background: note.color, borderRadius: 4, padding: 8 * scaleX, color: '#212121', fontSize: 11 * scaleX, cursor: 'move', zIndex: 10, boxShadow: '0 2px 8px rgba(0,0,0,0.3)' }}
               onMouseDown={(e) => { setDraggedNote(note.id); setDragOffset({ x: e.clientX, y: e.clientY }); }}
               contentEditable
               suppressContentEditableWarning

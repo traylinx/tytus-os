@@ -31,20 +31,32 @@ import {
 } from 'lucide-react';
 import { useDaemonClient } from '@/hooks/useDaemonClient';
 import { useDaemonStateContext } from '@/hooks/useDaemonStateContext';
+import { useCurrentWindowArgs } from '@/hooks/useCurrentWindow';
 import { useJobStream } from '@/hooks/useJobStream';
 import type { LogChunk } from '@/types/daemon';
 
-type TabId = 'doctor' | 'test' | 'logs' | 'about';
+type TabId = 'doctor' | 'test' | 'logs' | 'about' | 'channels-catalog';
 
 const TABS: { id: TabId; label: string; icon: React.ReactNode }[] = [
   { id: 'doctor', label: 'Doctor', icon: <Stethoscope size={16} /> },
   { id: 'test', label: 'Health test', icon: <Activity size={16} /> },
+  { id: 'channels-catalog', label: 'Channels catalog', icon: <ScrollText size={16} /> },
   { id: 'logs', label: 'Logs', icon: <ScrollText size={16} /> },
   { id: 'about', label: 'About', icon: <Info size={16} /> },
 ];
 
 const Help: FC = () => {
   const [active, setActive] = useState<TabId>('doctor');
+  const args = useCurrentWindowArgs();
+  const helpArgs = args?.help;
+
+  useEffect(() => {
+    if (!helpArgs?.tab) return;
+    // Deliberate setState-in-effect: synchronising this app's selected
+    // tab from a shell route delivered through WindowArgs.
+    /* eslint-disable-next-line react-hooks/set-state-in-effect */
+    setActive(helpArgs.tab);
+  }, [helpArgs?.tab, args?.routeNonce]);
 
   return (
     <div className="flex h-full" style={{ background: 'var(--bg-window)' }}>
@@ -86,8 +98,28 @@ const Help: FC = () => {
       </div>
 
       <div className="flex-1 overflow-hidden flex flex-col">
-        {active === 'doctor' && <RunPanel kind="doctor" />}
-        {active === 'test' && <RunPanel kind="test" />}
+        {active === 'doctor' && (
+          <RunPanel
+            kind="doctor"
+            autoRun={helpArgs?.tab === 'doctor' && helpArgs.autoRun}
+            routeNonce={args?.routeNonce}
+          />
+        )}
+        {active === 'test' && (
+          <RunPanel
+            kind="test"
+            autoRun={helpArgs?.tab === 'test' && helpArgs.autoRun}
+            routeNonce={args?.routeNonce}
+          />
+        )}
+        {active === 'channels-catalog' && (
+          <ChannelsCatalogPanel
+            autoRun={
+              helpArgs?.tab === 'channels-catalog' && helpArgs.autoRun
+            }
+            routeNonce={args?.routeNonce}
+          />
+        )}
         {active === 'logs' && <LogsPanel />}
         {active === 'about' && <AboutPanel />}
       </div>
@@ -101,9 +133,11 @@ const Help: FC = () => {
 
 interface RunPanelProps {
   kind: 'doctor' | 'test';
+  autoRun?: boolean;
+  routeNonce?: string;
 }
 
-const RunPanel: FC<RunPanelProps> = ({ kind }) => {
+const RunPanel: FC<RunPanelProps> = ({ kind, autoRun, routeNonce }) => {
   const client = useDaemonClient();
   const [job, setJob] = useState<{ id: string; startedAt: number } | null>(
     null,
@@ -132,6 +166,7 @@ const RunPanel: FC<RunPanelProps> = ({ kind }) => {
   }, [job, done, stream.exitCode]);
 
   const onRun = useCallback(async () => {
+    if (submitting || (job !== null && !done)) return;
     setSubmitting(true);
     setSubmitErr(null);
     const r = kind === 'doctor' ? await client.postDoctor() : await client.postTest();
@@ -141,7 +176,16 @@ const RunPanel: FC<RunPanelProps> = ({ kind }) => {
       return;
     }
     setJob({ id: r.value.job_id, startedAt: Date.now() });
-  }, [client, kind]);
+  }, [client, done, job, kind, submitting]);
+
+  const consumedAutoRunRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!autoRun) return;
+    const key = `${kind}:${routeNonce ?? 'no-nonce'}`;
+    if (consumedAutoRunRef.current.has(key)) return;
+    consumedAutoRunRef.current.add(key);
+    void onRun();
+  }, [autoRun, kind, onRun, routeNonce]);
 
   const title = kind === 'doctor' ? 'Doctor' : 'Health test';
   const description =
@@ -168,7 +212,7 @@ const RunPanel: FC<RunPanelProps> = ({ kind }) => {
               <RelativeTime ts={lastRun.finishedAt} /> ·{' '}
               <span
                 style={{
-                  color: lastRun.exitCode === 0 ? '#A5D6A7' : '#FF8A80',
+                  color: lastRun.exitCode === 0 ? 'var(--accent-success)' : 'var(--terminal-error)',
                 }}
               >
                 exit {lastRun.exitCode ?? '?'}
@@ -197,7 +241,7 @@ const RunPanel: FC<RunPanelProps> = ({ kind }) => {
           style={{
             background: 'rgba(244,67,54,0.10)',
             border: '1px solid rgba(244,67,54,0.30)',
-            color: '#FFCDD2',
+            color: 'var(--accent-error)',
           }}
         >
           <AlertTriangle size={14} className="flex-shrink-0 mt-0.5" />
@@ -234,7 +278,7 @@ const RunPanel: FC<RunPanelProps> = ({ kind }) => {
           <div
             className="rounded-md overflow-hidden"
             style={{
-              background: '#0A0A0A',
+              background: 'var(--terminal-bg)',
               border: '1px solid var(--border-subtle)',
             }}
           >
@@ -252,12 +296,12 @@ const RunPanel: FC<RunPanelProps> = ({ kind }) => {
                   style={{
                     color:
                       stream.status === 'success'
-                        ? '#A5D6A7'
+                        ? 'var(--accent-success)'
                         : stream.status === 'failed'
-                          ? '#FF8A80'
+                          ? 'var(--terminal-error)'
                           : stream.status === 'lost'
-                            ? '#FFB74D'
-                            : '#9E9E9E',
+                            ? 'var(--terminal-warning)'
+                            : 'var(--text-secondary)',
                   }}
                 >
                   {stream.status}
@@ -281,7 +325,7 @@ const RunPanel: FC<RunPanelProps> = ({ kind }) => {
             <pre
               className="font-mono text-[11px] leading-relaxed whitespace-pre-wrap p-3"
               style={{
-                color: '#A0E0A0',
+                color: 'var(--terminal-text)',
                 margin: 0,
                 maxHeight: 'calc(100vh - 320px)',
                 overflowY: 'auto',
@@ -295,6 +339,149 @@ const RunPanel: FC<RunPanelProps> = ({ kind }) => {
               {stream.lines.slice(-500).join('\n')}
             </pre>
           </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// ============================================================
+// ChannelsCatalogPanel — POST /api/channels/catalog
+// ============================================================
+
+interface ChannelsCatalogPanelProps {
+  autoRun?: boolean;
+  routeNonce?: string;
+}
+
+const ChannelsCatalogPanel: FC<ChannelsCatalogPanelProps> = ({
+  autoRun,
+  routeNonce,
+}) => {
+  const client = useDaemonClient();
+  const [submitting, setSubmitting] = useState(false);
+  const [exitCode, setExitCode] = useState<number | null>(null);
+  const [stdout, setStdout] = useState('');
+  const [stderr, setStderr] = useState('');
+  const [err, setErr] = useState<string | null>(null);
+  const [finishedAt, setFinishedAt] = useState<number | null>(null);
+
+  const onRun = useCallback(async () => {
+    if (submitting) return;
+    setSubmitting(true);
+    setErr(null);
+    setExitCode(null);
+    setStdout('');
+    setStderr('');
+    setFinishedAt(null);
+    const r = await client.postChannelsCatalog();
+    setSubmitting(false);
+    setFinishedAt(Date.now());
+    if (!r.ok) {
+      setErr(r.error.message);
+      return;
+    }
+    setExitCode(r.value.exit_code);
+    setStdout(r.value.stdout);
+    setStderr(r.value.stderr);
+  }, [client, submitting]);
+
+  const consumedAutoRunRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!autoRun) return;
+    const key = `channels-catalog:${routeNonce ?? 'no-nonce'}`;
+    if (consumedAutoRunRef.current.has(key)) return;
+    consumedAutoRunRef.current.add(key);
+    void onRun();
+  }, [autoRun, onRun, routeNonce]);
+
+  return (
+    <div className="flex flex-col h-full">
+      <div
+        className="px-6 py-4 flex items-start justify-between gap-4 flex-shrink-0"
+        style={{ borderBottom: '1px solid var(--border-subtle)' }}
+      >
+        <div className="flex-1 min-w-0">
+          <h2 className="text-lg font-semibold text-[var(--text-primary)]">
+            Channels catalog
+          </h2>
+          <p className="text-[11px] text-[var(--text-secondary)] mt-1 leading-relaxed">
+            Runs <code className="font-mono">tytus channels catalog</code> via
+            the tray daemon and renders stdout/stderr inline.
+          </p>
+          {finishedAt && (
+            <div className="text-[11px] mt-2">
+              <span className="text-[var(--text-secondary)]">Last run: </span>
+              <RelativeTime ts={finishedAt} /> ·{' '}
+              <span
+                style={{
+                  color: exitCode === 0 ? 'var(--accent-success)' : 'var(--terminal-error)',
+                }}
+              >
+                exit {exitCode ?? '?'}
+              </span>
+            </div>
+          )}
+        </div>
+        <button
+          onClick={onRun}
+          disabled={submitting}
+          className="flex items-center gap-1.5 px-4 py-2 rounded-md text-sm font-semibold text-white transition-colors disabled:opacity-60"
+          style={{ background: 'var(--accent-primary)' }}
+        >
+          {submitting ? (
+            <Loader2 size={14} className="animate-spin" />
+          ) : (
+            <Play size={14} />
+          )}
+          Run
+        </button>
+      </div>
+
+      {err && (
+        <div
+          className="m-4 p-3 rounded-md text-xs flex items-start gap-2"
+          style={{
+            background: 'rgba(244,67,54,0.10)',
+            border: '1px solid rgba(244,67,54,0.30)',
+            color: 'var(--accent-error)',
+          }}
+        >
+          <AlertTriangle size={14} className="flex-shrink-0 mt-0.5" />
+          <span>Couldn't run channels catalog: {err}</span>
+        </div>
+      )}
+
+      <div className="flex-1 overflow-y-auto custom-scrollbar p-4">
+        <pre
+          className="font-mono text-[11px] leading-relaxed whitespace-pre-wrap p-3 rounded-md"
+          style={{
+            background: 'var(--terminal-bg)',
+            color: 'var(--terminal-text)',
+            margin: 0,
+            minHeight: 180,
+            border: '1px solid var(--border-subtle)',
+          }}
+        >
+          {stdout || (
+            <span className="text-[var(--text-secondary)]">
+              {submitting ? 'Running channels catalog…' : 'No catalog run yet.'}
+            </span>
+          )}
+        </pre>
+
+        {stderr && (
+          <pre
+            className="font-mono text-[11px] leading-relaxed whitespace-pre-wrap p-3 rounded-md mt-3"
+            style={{
+              background: 'rgba(244,67,54,0.08)',
+              color: 'var(--accent-error)',
+              margin: 0,
+              border: '1px solid rgba(244,67,54,0.25)',
+            }}
+          >
+            {stderr}
+          </pre>
         )}
       </div>
     </div>
@@ -419,7 +606,7 @@ const LogsPanel: FC = () => {
             border: paused
               ? '1px solid rgba(255,193,7,0.30)'
               : '1px solid var(--border-default)',
-            color: paused ? '#FFE082' : 'var(--text-primary)',
+            color: paused ? 'var(--accent-warning)' : 'var(--text-primary)',
           }}
         >
           {paused ? <Play size={12} /> : <Pause size={12} />}
@@ -433,7 +620,7 @@ const LogsPanel: FC = () => {
           style={{
             background: 'rgba(255,193,7,0.10)',
             border: '1px solid rgba(255,193,7,0.30)',
-            color: '#FFE082',
+            color: 'var(--accent-warning)',
           }}
         >
           <AlertTriangle size={14} className="flex-shrink-0 mt-0.5" />
@@ -450,7 +637,7 @@ const LogsPanel: FC = () => {
           style={{
             background: 'rgba(244,67,54,0.10)',
             border: '1px solid rgba(244,67,54,0.30)',
-            color: '#FFCDD2',
+            color: 'var(--accent-error)',
           }}
         >
           <AlertTriangle size={14} className="flex-shrink-0 mt-0.5" />
@@ -463,8 +650,8 @@ const LogsPanel: FC = () => {
         onScroll={onScroll}
         className="flex-1 overflow-y-auto custom-scrollbar font-mono text-[11px] leading-relaxed whitespace-pre-wrap p-4 m-0"
         style={{
-          background: '#0A0A0A',
-          color: '#CFCFCF',
+          background: 'var(--terminal-bg)',
+          color: 'var(--text-secondary)',
           margin: 16,
           borderRadius: 'var(--radius-sm)',
           border: '1px solid var(--border-subtle)',
@@ -504,7 +691,7 @@ const AboutPanel: FC = () => {
         <div
           className="w-16 h-16 rounded-2xl flex items-center justify-center mb-3"
           style={{
-            background: 'linear-gradient(135deg, #7C4DFF, #4A148C)',
+            background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-primary-active))',
           }}
         >
           <span className="text-2xl font-bold text-white">T</span>

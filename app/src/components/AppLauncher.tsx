@@ -10,6 +10,7 @@ import { useDaemonStateContext } from '@/hooks/useDaemonStateContext';
 import { Search, X, ChevronUp, ChevronDown } from 'lucide-react';
 import * as Icons from 'lucide-react';
 import type { LucideProps } from 'lucide-react';
+import { useI18n } from '@/i18n';
 
 const DynamicIcon = ({ name, ...props }: { name: string } & LucideProps) => {
   const IconComp = (Icons as unknown as Record<string, React.ComponentType<LucideProps>>)[name];
@@ -20,6 +21,7 @@ const CATEGORIES = ['Favorites', 'All', 'System', 'Internet', 'Productivity', 'M
 
 const AppLauncher = memo(function AppLauncher() {
   const { state, dispatch } = useOS();
+  const { t } = useI18n();
   const { appLauncherOpen, apps, dockItems } = state;
   // Tier-aware default for demo apps: paid tiers (creator/operator)
   // start with demos OFF; Explorer / unknown / pre-state-load default
@@ -60,6 +62,7 @@ const AppLauncher = memo(function AppLauncher() {
 
   useEffect(() => {
     if (appLauncherOpen) {
+      /* eslint-disable-next-line react-hooks/set-state-in-effect -- opening launcher resets transient search state. */
       setSearchQuery('');
       setTimeout(() => inputRef.current?.focus(), 100);
     }
@@ -94,8 +97,9 @@ const AppLauncher = memo(function AppLauncher() {
     // → Display.
     if (app.isDemo && !showDemoApps) return false;
     const matchesSearch = !searchQuery ||
-      app.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      app.description.toLowerCase().includes(searchQuery.toLowerCase());
+      t(`app.${app.id}.name`).toLowerCase().includes(searchQuery.toLowerCase()) ||
+      t(`app.${app.id}.description`).toLowerCase().includes(searchQuery.toLowerCase()) ||
+      t(`category.${app.category}`).toLowerCase().includes(searchQuery.toLowerCase());
     const matchesCategory = activeCategory === 'All' || activeCategory === 'Favorites'
       ? true
       : app.category === activeCategory;
@@ -131,7 +135,7 @@ const AppLauncher = memo(function AppLauncher() {
     <div
       role="dialog"
       aria-modal="true"
-      aria-label="Application launcher"
+      aria-label={t('appLauncher.aria')}
       className="fixed inset-0 z-[3000] flex flex-col items-center"
       style={{
         background: 'var(--bg-app-grid)',
@@ -157,7 +161,7 @@ const AppLauncher = memo(function AppLauncher() {
           type="text"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="Type to search applications..."
+          placeholder={t('appLauncher.searchPlaceholder')}
           className="w-full h-11 rounded-full pl-11 pr-10 text-sm outline-none transition-all"
           style={{
             background: 'var(--bg-input)',
@@ -188,7 +192,7 @@ const AppLauncher = memo(function AppLauncher() {
         <div className="mt-6 w-[480px] max-w-[90vw]"
           style={{ animation: 'searchSlideDown 300ms ease 200ms both' }}
         >
-          <p className="text-[10px] text-[var(--text-secondary)] uppercase tracking-[0.1em] mb-3">Frequently Used</p>
+          <p className="text-[10px] text-[var(--text-secondary)] uppercase tracking-[0.1em] mb-3">{t('appLauncher.frequentlyUsed')}</p>
           <div className="flex gap-4">
             {frequentApps.slice(0, 6).map((app) => (
               <button
@@ -200,7 +204,7 @@ const AppLauncher = memo(function AppLauncher() {
                   style={{ background: 'var(--bg-hover)' }}>
                   <DynamicIcon name={app!.icon} size={24} className="text-[var(--text-primary)]" />
                 </div>
-                <span className="text-[10px] text-[var(--text-primary)] text-center truncate max-w-[64px]">{app!.name}</span>
+                <span className="text-[10px] text-[var(--text-primary)] text-center truncate max-w-[64px]">{t(`app.${app!.id}.name`)}</span>
               </button>
             ))}
           </div>
@@ -223,7 +227,7 @@ const AppLauncher = memo(function AppLauncher() {
                 borderBottom: activeCategory === cat ? '2px solid var(--accent-primary)' : '2px solid transparent',
               }}
             >
-              {cat}
+              {t(`category.${cat}`)}
             </button>
           ))}
         </div>
@@ -234,7 +238,7 @@ const AppLauncher = memo(function AppLauncher() {
         {canScrollUp && (
           <button
             onClick={() => scrollGrid('up')}
-            aria-label="Scroll up"
+            aria-label={t('appLauncher.scrollUp')}
             className="absolute left-1/2 -translate-x-1/2 -top-3 w-9 h-9 rounded-full flex items-center justify-center z-10 transition-opacity"
             style={{
               background: 'var(--bg-tooltip, rgba(40,40,40,0.92))',
@@ -249,7 +253,7 @@ const AppLauncher = memo(function AppLauncher() {
         {canScrollDown && (
           <button
             onClick={() => scrollGrid('down')}
-            aria-label="Scroll down"
+            aria-label={t('appLauncher.scrollDown')}
             className="absolute left-1/2 -translate-x-1/2 -bottom-3 w-9 h-9 rounded-full flex items-center justify-center z-10 transition-opacity"
             style={{
               background: 'var(--bg-tooltip, rgba(40,40,40,0.92))',
@@ -297,7 +301,7 @@ const AppLauncher = memo(function AppLauncher() {
               <DynamicIcon name={app.icon} size={32} className="text-[var(--text-primary)]" />
             </div>
             <span className="text-[10px] text-[var(--text-primary)] text-center truncate max-w-[72px]">
-              {app.name}
+              {t(`app.${app.id}.name`)}
             </span>
           </button>
         ))}
@@ -305,7 +309,7 @@ const AppLauncher = memo(function AppLauncher() {
         {filteredApps.length === 0 && (
           <div className="col-span-full flex flex-col items-center justify-center py-12 text-[var(--text-secondary)]">
             <Search size={48} className="mb-4 opacity-30" />
-            <p className="text-sm">No applications found</p>
+            <p className="text-sm">{t('appLauncher.noAppsFound')}</p>
           </div>
         )}
       </div>

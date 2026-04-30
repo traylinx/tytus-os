@@ -25,8 +25,8 @@ function JsonNode({ data, keyName, depth = 0, searchQuery = '' }: JsonNodeProps)
   if (data === null) {
     return (
       <div className="flex items-center py-0.5" style={{ paddingLeft: depth * 16 }}>
-        {keyName && <span className="text-xs mr-1" style={{ color: '#9CDCFE' }}>{`"${keyName}": `}</span>}
-        <span className="text-xs" style={{ color: '#569CD6' }}>null</span>
+        {keyName && <span className="text-xs mr-1" style={{ color: 'var(--syntax-json-key)' }}>{`"${keyName}": `}</span>}
+        <span className="text-xs" style={{ color: 'var(--syntax-json-bool)' }}>null</span>
       </div>
     );
   }
@@ -34,8 +34,8 @@ function JsonNode({ data, keyName, depth = 0, searchQuery = '' }: JsonNodeProps)
   if (typeof data === 'boolean') {
     return (
       <div className="flex items-center py-0.5" style={{ paddingLeft: depth * 16 }}>
-        {keyName && <span className="text-xs mr-1" style={{ color: '#9CDCFE' }}>{`"${keyName}": `}</span>}
-        <span className="text-xs" style={{ color: '#569CD6' }}>{data.toString()}</span>
+        {keyName && <span className="text-xs mr-1" style={{ color: 'var(--syntax-json-key)' }}>{`"${keyName}": `}</span>}
+        <span className="text-xs" style={{ color: 'var(--syntax-json-bool)' }}>{data.toString()}</span>
       </div>
     );
   }
@@ -43,8 +43,8 @@ function JsonNode({ data, keyName, depth = 0, searchQuery = '' }: JsonNodeProps)
   if (typeof data === 'number') {
     return (
       <div className="flex items-center py-0.5" style={{ paddingLeft: depth * 16 }}>
-        {keyName && <span className="text-xs mr-1" style={{ color: '#9CDCFE' }}>{`"${keyName}": `}</span>}
-        <span className="text-xs" style={{ color: '#B5CEA8' }}>{data}</span>
+        {keyName && <span className="text-xs mr-1" style={{ color: 'var(--syntax-json-key)' }}>{`"${keyName}": `}</span>}
+        <span className="text-xs" style={{ color: 'var(--syntax-json-number)' }}>{data}</span>
       </div>
     );
   }
@@ -54,8 +54,8 @@ function JsonNode({ data, keyName, depth = 0, searchQuery = '' }: JsonNodeProps)
     const isMatch = searchQuery && data.toLowerCase().includes(searchQuery.toLowerCase());
     return (
       <div className="flex items-center py-0.5" style={{ paddingLeft: depth * 16 }}>
-        {keyName && <span className="text-xs mr-1" style={{ color: '#9CDCFE' }}>{`"${keyName}": `}</span>}
-        <span className={`text-xs break-all ${isMatch ? 'bg-yellow-500/20' : ''}`} style={{ color: '#CE9178' }}>{displayStr}</span>
+        {keyName && <span className="text-xs mr-1" style={{ color: 'var(--syntax-json-key)' }}>{`"${keyName}": `}</span>}
+        <span className={`text-xs break-all ${isMatch ? 'bg-yellow-500/20' : ''}`} style={{ color: 'var(--syntax-json-string)' }}>{displayStr}</span>
       </div>
     );
   }
@@ -64,7 +64,7 @@ function JsonNode({ data, keyName, depth = 0, searchQuery = '' }: JsonNodeProps)
     if (data.length === 0) {
       return (
         <div className="flex items-center py-0.5" style={{ paddingLeft: depth * 16 }}>
-          {keyName && <span className="text-xs mr-1" style={{ color: '#9CDCFE' }}>{`"${keyName}": `}</span>}
+          {keyName && <span className="text-xs mr-1" style={{ color: 'var(--syntax-json-key)' }}>{`"${keyName}": `}</span>}
           <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>[]</span>
         </div>
       );
@@ -77,7 +77,7 @@ function JsonNode({ data, keyName, depth = 0, searchQuery = '' }: JsonNodeProps)
           onClick={toggle}
         >
           {expanded ? <ChevronDown size={12} className="mr-1" /> : <ChevronRight size={12} className="mr-1" />}
-          {keyName && <span className="text-xs mr-1" style={{ color: '#9CDCFE' }}>{`"${keyName}": `}</span>}
+          {keyName && <span className="text-xs mr-1" style={{ color: 'var(--syntax-json-key)' }}>{`"${keyName}": `}</span>}
           <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>[{data.length} items]</span>
         </div>
         {expanded && data.map((item, i) => (
@@ -92,7 +92,7 @@ function JsonNode({ data, keyName, depth = 0, searchQuery = '' }: JsonNodeProps)
     if (entries.length === 0) {
       return (
         <div className="flex items-center py-0.5" style={{ paddingLeft: depth * 16 }}>
-          {keyName && <span className="text-xs mr-1" style={{ color: '#9CDCFE' }}>{`"${keyName}": `}</span>}
+          {keyName && <span className="text-xs mr-1" style={{ color: 'var(--syntax-json-key)' }}>{`"${keyName}": `}</span>}
           <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>{'{}'}</span>
         </div>
       );
@@ -105,7 +105,7 @@ function JsonNode({ data, keyName, depth = 0, searchQuery = '' }: JsonNodeProps)
           onClick={toggle}
         >
           {expanded ? <ChevronDown size={12} className="mr-1" /> : <ChevronRight size={12} className="mr-1" />}
-          {keyName && <span className="text-xs mr-1" style={{ color: '#9CDCFE' }}>{`"${keyName}": `}</span>}
+          {keyName && <span className="text-xs mr-1" style={{ color: 'var(--syntax-json-key)' }}>{`"${keyName}": `}</span>}
           <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>{'{'} {entries.length} properties {'}'}</span>
         </div>
         {expanded && entries.map(([k, v]) => (
@@ -334,7 +334,7 @@ export default function JsonFormatter() {
           borderBottom: '1px solid var(--border-subtle)',
         }}>
           {isValid ? <Check size={14} className="text-green-500" /> : <X size={14} className="text-red-500" />}
-          <span className="text-xs" style={{ color: isValid ? '#4CAF50' : '#F44336' }}>
+          <span className="text-xs" style={{ color: isValid ? 'var(--accent-success)' : 'var(--accent-error)' }}>
             {isValid ? 'Valid JSON' : error}
           </span>
           {isValid && stats.keyCount > 0 && (

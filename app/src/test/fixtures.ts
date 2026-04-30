@@ -96,6 +96,36 @@ export const podReadyFixture = {
   status: 200,
 };
 
+export const podReadinessFixture = {
+  pod_id: "02",
+  agent: "openclaw",
+  overall: "ready",
+  open_enabled: true,
+  strict: true,
+  stages: [
+    { id: "allocated", label: "Pod allocated", status: "ok", detail: null },
+    {
+      id: "agent_ui",
+      label: "Agent UI route",
+      status: "ok",
+      detail: "https://example.test/?token=REDACTED",
+    },
+    {
+      id: "tytus_bootstrap",
+      label: "Tytus bootstrap pack",
+      status: "ok",
+      detail: "Tytus bootstrap pack present",
+    },
+    {
+      id: "shared_storage",
+      label: "Shared storage",
+      status: "not_configured",
+      detail: "PR1 baseline",
+    },
+  ],
+  last_checked_at: 1770000000,
+};
+
 export const launchersFixture = { editors: [], terminal_available: true };
 
 export const sharedFoldersFixture = {

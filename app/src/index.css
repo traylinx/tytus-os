@@ -2,7 +2,7 @@
    TytusOS — Global Styles & Design Tokens
    ============================================================ */
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&family=Nunito:wght@800;900&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -16,6 +16,8 @@
     --bg-window: #242424;
     --bg-window-active: #2A2A2A;
     --bg-titlebar: #1A1A1A;
+    --bg-card: rgba(255,255,255,0.035);
+    --bg-code: rgba(255,255,255,0.06);
     --bg-app-grid: rgba(30,30,30,0.95);
     --bg-context-menu: #2D2D2D;
     --bg-notification: #2D2D2D;
@@ -24,6 +26,9 @@
     --bg-hover: rgba(255,255,255,0.08);
     --bg-active: rgba(255,255,255,0.12);
     --bg-selected: rgba(124,77,255,0.15);
+    --bg-control: rgba(255,255,255,0.12);
+    --bg-control-thumb: #FFFFFF;
+    --bg-scrim: rgba(0,0,0,0.55);
 
     --accent-primary: #7C4DFF;
     --accent-primary-hover: #9575FF;
@@ -39,15 +44,56 @@
     --text-secondary: #9E9E9E;
     --text-disabled: #616161;
     --text-inverse: #212121;
+    --text-on-accent: #FFFFFF;
 
     --border-subtle: rgba(255,255,255,0.06);
     --border-default: rgba(255,255,255,0.10);
     --border-focus: #7C4DFF;
+    --border-strong: rgba(255,255,255,0.18);
 
     --shadow-sm: 0 2px 8px rgba(0,0,0,0.3);
     --shadow-md: 0 4px 16px rgba(0,0,0,0.4);
     --shadow-lg: 0 8px 32px rgba(0,0,0,0.5);
     --shadow-xl: 0 16px 48px rgba(0,0,0,0.6);
+
+    /* Chrome tokens are intentionally separate from app/content tokens.
+       Top menu bars and window titlebars must stay readable even when an
+       app switches between light/dark content themes. New shell chrome should
+       use these, not --text-primary / --bg-window directly. */
+    --chrome-bg: rgba(31,41,51,0.88);
+    --chrome-bg-active: #1A1A1A;
+    --chrome-bg-inactive: #141414;
+    --chrome-hover: rgba(255,255,255,0.08);
+    --chrome-border: rgba(241,244,246,0.10);
+    --chrome-text-primary: #F1F4F6;
+    --chrome-text-secondary: rgba(241,244,246,0.70);
+    --chrome-shadow-focused: 0 8px 32px rgba(0,0,0,0.50);
+    --chrome-shadow-unfocused: 0 2px 8px rgba(0,0,0,0.30);
+
+    /* Syntax highlighting (VS Code Dark+) */
+    --syntax-comment: #6A9955;
+    --syntax-string: #CE9178;
+    --syntax-number: #B5CEA8;
+    --syntax-keyword: #C586C0;
+    --syntax-type: #4EC9B0;
+    --syntax-function: #DCDCAA;
+    --syntax-variable: #9CDCFE;
+    --syntax-tag: #569CD6;
+    --syntax-attribute: #9CDCFE;
+    --syntax-operator: #D4D4D4;
+    --syntax-punctuation: #808080;
+    --syntax-error: #F48771;
+    --syntax-json-key: #9CDCFE;
+    --syntax-json-bool: #569CD6;
+    --syntax-json-number: #B5CEA8;
+    --syntax-json-string: #CE9178;
+
+    /* Terminal / log output */
+    --terminal-bg: #0A0A0A;
+    --terminal-text: #A0E0A0;
+    --terminal-error: #FF8A80;
+    --terminal-warning: #FFB74D;
+    --terminal-muted: #CFCFCF;
 
     --ease-default: cubic-bezier(0.4, 0, 0.2, 1);
     --ease-decelerate: cubic-bezier(0, 0, 0.2, 1);
@@ -79,25 +125,71 @@
     --bg-desktop: #FAFAFA;
     --bg-panel: #FFFFFF;
     --bg-window: #FFFFFF;
+    --bg-window-active: #FFFFFF;
     --bg-titlebar: #F0F0F0;
+    --bg-card: #F7F8FA;
+    --bg-code: #F1F3F5;
     --bg-app-grid: rgba(250,250,250,0.95);
     --bg-context-menu: #FFFFFF;
+    --bg-notification: #FFFFFF;
+    --bg-tooltip: #FFFFFF;
     --bg-input: #F5F5F5;
     --bg-hover: rgba(0,0,0,0.06);
     --bg-active: rgba(0,0,0,0.10);
     --bg-selected: rgba(124,77,255,0.10);
+    --bg-control: rgba(0,0,0,0.12);
+    --bg-control-thumb: #FFFFFF;
+    --bg-scrim: rgba(0,0,0,0.35);
 
     --text-primary: #212121;
     --text-secondary: #757575;
     --text-disabled: #BDBDBD;
+    --text-inverse: #FFFFFF;
+    --text-on-accent: #FFFFFF;
 
     --border-subtle: rgba(0,0,0,0.06);
     --border-default: rgba(0,0,0,0.10);
+    --border-strong: rgba(0,0,0,0.16);
 
     --shadow-sm: 0 2px 8px rgba(0,0,0,0.08);
     --shadow-md: 0 4px 16px rgba(0,0,0,0.10);
     --shadow-lg: 0 8px 32px rgba(0,0,0,0.12);
     --shadow-xl: 0 16px 48px rgba(0,0,0,0.15);
+
+    --chrome-bg: rgba(31,41,51,0.88);
+    --chrome-bg-active: #F7F8FA;
+    --chrome-bg-inactive: #ECEFF3;
+    --chrome-hover: rgba(255,255,255,0.10);
+    --chrome-border: rgba(241,244,246,0.10);
+    --chrome-text-primary: #F1F4F6;
+    --chrome-text-secondary: rgba(241,244,246,0.72);
+    --chrome-shadow-focused: 0 8px 32px rgba(0,0,0,0.18);
+    --chrome-shadow-unfocused: 0 2px 8px rgba(0,0,0,0.10);
+
+    /* Syntax highlighting (VS Code Light+) */
+    --syntax-comment: #008000;
+    --syntax-string: #A31515;
+    --syntax-number: #098658;
+    --syntax-keyword: #AF00DB;
+    --syntax-type: #267F99;
+    --syntax-function: #795E26;
+    --syntax-variable: #001080;
+    --syntax-tag: #800000;
+    --syntax-attribute: #FF0000;
+    --syntax-operator: #000000;
+    --syntax-punctuation: #000000;
+    --syntax-error: #CD3131;
+    --syntax-json-key: #0451A5;
+    --syntax-json-bool: #0000FF;
+    --syntax-json-number: #098658;
+    --syntax-json-string: #A31515;
+
+    /* Terminal / log output */
+    --terminal-bg: #F5F5F5;
+    --terminal-text: #1B5E20;
+    --terminal-error: #C62828;
+    --terminal-warning: #E65100;
+    --terminal-muted: #616161;
   }
 
   html, body, #root {
@@ -114,6 +206,24 @@
 
   * {
     box-sizing: border-box;
+  }
+
+  /* Auto-inherit text color on titlebar/panel surfaces.
+     Prevents browser-default black text on dark backgrounds
+     when inline styles omit the color property. */
+  [style*="bg-titlebar"],
+  [style*="bg-panel"],
+  [style*="bg-input"] {
+    color: var(--text-primary);
+  }
+  [style*="bg-titlebar"] input,
+  [style*="bg-titlebar"] select,
+  [style*="bg-titlebar"] textarea {
+    color: var(--text-primary);
+  }
+  [style*="bg-titlebar"] [style*="text-secondary"],
+  [style*="bg-titlebar"] .text-\[var\(--text-secondary\)\] {
+    color: var(--text-secondary) !important;
   }
 
   /* Custom scrollbar */
@@ -135,6 +245,44 @@
   }
   .light .custom-scrollbar::-webkit-scrollbar-thumb:hover {
     background: rgba(0,0,0,0.25);
+  }
+}
+
+@layer components {
+  /* Theme primitives for future app work. Prefer these classes or the
+     underlying CSS variables over raw #fff/#000/rgba literals. */
+  .tos-surface {
+    background: var(--bg-window);
+    color: var(--text-primary);
+  }
+
+  .tos-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    color: var(--text-primary);
+  }
+
+  .tos-titlebar {
+    background: var(--bg-titlebar);
+    border-color: var(--border-subtle);
+    color: var(--text-primary);
+  }
+
+  .tos-input {
+    background: var(--bg-input);
+    border: 1px solid var(--border-default);
+    color: var(--text-primary);
+  }
+
+  .tos-chrome {
+    background: var(--chrome-bg);
+    border-color: var(--chrome-border);
+    color: var(--chrome-text-primary);
+  }
+
+  .tos-primary-button {
+    background: var(--accent-primary);
+    color: var(--text-on-accent);
   }
 }
 

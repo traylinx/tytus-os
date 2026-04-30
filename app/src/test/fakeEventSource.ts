@@ -5,7 +5,7 @@ import type { EventSourceCtor, EventSourceLike } from "@/hooks/useJobStream";
 // `.emitNow()` to drive timing manually.
 
 export interface ScriptedEvent {
-  type: "log" | "exit";
+  type: "log" | "done" | "fail" | "exit";
   data: string;
 }
 
@@ -76,7 +76,12 @@ export const parseSseTranscript = (raw: string): ScriptedEvent[] => {
   const dataLines: string[] = [];
   const flush = () => {
     if (type === null && dataLines.length === 0) return;
-    if (type !== "log" && type !== "exit") {
+    if (
+      type !== "log" &&
+      type !== "done" &&
+      type !== "fail" &&
+      type !== "exit"
+    ) {
       throw new Error(
         `unknown SSE event type ${JSON.stringify(type)} in fixture`,
       );

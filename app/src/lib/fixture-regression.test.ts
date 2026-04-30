@@ -10,6 +10,7 @@ import launchersFixture from "@/test/fixtures/launchers.json";
 import logsFixture from "@/test/fixtures/logs.json";
 import logsStartupFixture from "@/test/fixtures/logs-startup.json";
 import podReadyFixture from "@/test/fixtures/pod-ready-pod02.json";
+import podReadinessFixture from "@/test/fixtures/pod-readiness-pod02.json";
 import settingsFixture from "@/test/fixtures/settings.json";
 import sharedFoldersFixture from "@/test/fixtures/shared-folders-list.json";
 import stateFixture from "@/test/fixtures/state.json";
@@ -177,9 +178,27 @@ describe("fixture-regression: GET /api/pod/ready", () => {
     expect(r.ok).toBe(true);
     if (!r.ok) return;
     expect(typeof r.value.ready).toBe("boolean");
-    expect(typeof r.value.status).toBe("number");
+    expect(["number", "string"]).toContain(typeof r.value.status);
     expect(typeof r.value.reason).toBe("string");
     expect(typeof r.value.probe_url).toBe("string");
+  });
+});
+
+describe("fixture-regression: GET /api/pods/:pod/readiness", () => {
+  it("parses readiness stages + strict/open gate", async () => {
+    const { fetch } = makeFakeFetch([
+      {
+        method: "GET",
+        path: "/api/pods/02/readiness",
+        body: podReadinessFixture,
+      },
+    ]);
+    const r = await createDaemonClient({ fetch }).getPodReadiness("02");
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(typeof r.value.open_enabled).toBe("boolean");
+    expect(Array.isArray(r.value.stages)).toBe(true);
+    expect(r.value.stages.map((s) => s.id)).toContain("tytus_bootstrap");
   });
 });
 

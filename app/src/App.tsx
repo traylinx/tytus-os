@@ -11,6 +11,7 @@ import UpgradeDaemonScreen from '@/components/UpgradeDaemonScreen';
 import ZeroPodsOverlay from '@/components/ZeroPodsOverlay';
 import BootSequence from '@/components/BootSequence';
 import LoginScreen from '@/components/LoginScreen';
+import LockScreen from '@/components/LockScreen';
 import Desktop from '@/components/Desktop';
 import TopPanel from '@/components/TopPanel';
 import Dock from '@/components/Dock';
@@ -20,6 +21,9 @@ import ContextMenu from '@/components/ContextMenu';
 import NotificationSystem from '@/components/NotificationSystem';
 import NotificationCenter from '@/components/NotificationCenter';
 import CommandPalette from '@/components/CommandPalette';
+import ShellRouteDispatcher from '@/components/ShellRouteDispatcher';
+import { ShellMenuProvider } from '@/hooks/useShellMenu';
+import { DEFAULT_TYTUS_WALLPAPER, isTytusWallpaper } from '@/lib/brand';
 
 function AppShell() {
   const { state, dispatch } = useOS();
@@ -30,6 +34,14 @@ function AppShell() {
   // Shell-level daemon state shared via DaemonStateProvider context so
   // TopPanel, DaemonOfflineBanner, and LoginScreen all read the same poll.
   const daemon = useDaemonStateContext();
+
+  // Runtime migration: older sessions may still hold `/wallpaper-default.jpg`
+  // in reducer state after HMR. Snap them onto the official bg3 default.
+  useEffect(() => {
+    if (!isTytusWallpaper(state.theme.wallpaper)) {
+      dispatch({ type: 'SET_THEME', theme: { wallpaper: DEFAULT_TYTUS_WALLPAPER } });
+    }
+  }, [dispatch, state.theme.wallpaper]);
 
   // Boot sequence
   useEffect(() => {
@@ -44,13 +56,24 @@ function AppShell() {
 
   // Keyboard shortcuts
   useEffect(() => {
+    const shortcutTargetOwnsKeys = (target: EventTarget | null): boolean => {
+      if (!(target instanceof Element)) return false;
+      if (target.closest('[data-tytus-terminal="true"]')) return true;
+      const editable = target.closest('input, textarea, select, [contenteditable="true"]');
+      return editable !== null;
+    };
+
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Super key toggles app launcher
-      if (e.key === 'Meta' && !e.ctrlKey && !e.altKey && !e.shiftKey) {
-        e.preventDefault();
-        dispatch({ type: 'TOGGLE_APP_LAUNCHER' });
+      // Terminal/text inputs own Command/Ctrl editing keys. Do not let shell
+      // shortcuts steal copy/paste/select-all or open OS apps while typing.
+      if (shortcutTargetOwnsKeys(e.target)) {
         return;
       }
+
+      // (Removed) Lone Meta/Super/Win key opening the app launcher —
+      // it fires on the FIRST half of every Cmd+C / Cmd+V / Cmd+anything
+      // chord, hijacking copy/paste. Use the Dock or top-panel chimp icon
+      // to open the launcher instead.
 
       // Ctrl+Alt+T opens Terminal
       if (e.ctrlKey && e.altKey && e.key === 't') {
@@ -118,9 +141,14 @@ function AppShell() {
   // version meets the floor.
   const showBoot = bootPhase !== 'complete' && !bootComplete;
   const showLogin = bootComplete && !auth.isAuthenticated;
+  const showLock =
+    bootComplete &&
+    auth.isAuthenticated &&
+    auth.locked;
   const showUpgrade =
     bootComplete &&
     auth.isAuthenticated &&
+    !auth.locked &&
     daemon.daemonVersionStatus === 'unsupported';
   // Use === 'supported' (not !== 'unsupported') so the Desktop stays
   // hidden during the 'loading' window before the first /api/state
@@ -129,6 +157,7 @@ function AppShell() {
   const showDesktop =
     bootComplete &&
     auth.isAuthenticated &&
+    !auth.locked &&
     daemon.daemonVersionStatus === 'supported';
 
   return (
@@ -146,6 +175,9 @@ function AppShell() {
       {/* Login Screen */}
       {showLogin && <LoginScreen />}
 
+      {/* Local screen lock. Keeps daemon auth + windows intact. */}
+      {showLock && <LockScreen />}
+
       {/* Min-daemon-version upgrade gate (Phase 1, manifest §3 old-daemon compat) */}
       {showUpgrade && (
         <UpgradeDaemonScreen
@@ -156,6 +188,7 @@ function AppShell() {
 
       {/* Desktop Shell */}
       {showDesktop && (
+        <ShellMenuProvider>
         <div className="relative w-full h-full" style={{ background: 'var(--bg-desktop)' }}>
           {/* Wallpaper layer */}
           <div
@@ -169,6 +202,7 @@ function AppShell() {
           />
 
           {/* Desktop Icons layer */}
+          <ShellRouteDispatcher />
           <Desktop />
 
           {/* Windows layer */}
@@ -254,6 +288,7 @@ function AppShell() {
             }
           `}</style>
         </div>
+        </ShellMenuProvider>
       )}
     </div>
   );

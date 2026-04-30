@@ -1,0 +1,4541 @@
+{
+  "generatedAt": "2026-04-30T07:15:41.903Z",
+  "note": "Baseline of existing hardcoded UI strings. New strings should use t(key) unless intentionally allowlisted.",
+  "entries": [
+    {
+      "file": "src/apps/ApiTester.tsx",
+      "kind": "title",
+      "text": "Hide sidebar"
+    },
+    {
+      "file": "src/apps/ApiTester.tsx",
+      "kind": "text",
+      "text": "No requests yet. Hit Send and they'll show up here, grouped by day."
+    },
+    {
+      "file": "src/apps/ApiTester.tsx",
+      "kind": "text",
+      "text": "No collections yet. Click"
+    },
+    {
+      "file": "src/apps/ApiTester.tsx",
+      "kind": "text",
+      "text": "to create one, or hit"
+    },
+    {
+      "file": "src/apps/ApiTester.tsx",
+      "kind": "text",
+      "text": "on a request to save it here."
+    },
+    {
+      "file": "src/apps/ApiTester.tsx",
+      "kind": "text",
+      "text": "Empty — save a request here."
+    },
+    {
+      "file": "src/apps/ApiTester.tsx",
+      "kind": "title",
+      "text": "Show collections sidebar"
+    },
+    {
+      "file": "src/apps/ApiTester.tsx",
+      "kind": "title",
+      "text": "Save current request to a collection"
+    },
+    {
+      "file": "src/apps/ApiTester.tsx",
+      "kind": "text",
+      "text": "Save…"
+    },
+    {
+      "file": "src/apps/ApiTester.tsx",
+      "kind": "placeholder",
+      "text": "Key"
+    },
+    {
+      "file": "src/apps/ApiTester.tsx",
+      "kind": "placeholder",
+      "text": "Value"
+    },
+    {
+      "file": "src/apps/ApiTester.tsx",
+      "kind": "text",
+      "text": "Add Parameter"
+    },
+    {
+      "file": "src/apps/ApiTester.tsx",
+      "kind": "placeholder",
+      "text": "Header"
+    },
+    {
+      "file": "src/apps/ApiTester.tsx",
+      "kind": "placeholder",
+      "text": "Value"
+    },
+    {
+      "file": "src/apps/ApiTester.tsx",
+      "kind": "text",
+      "text": "Add Header"
+    },
+    {
+      "file": "src/apps/ApiTester.tsx",
+      "kind": "text",
+      "text": "Type"
+    },
+    {
+      "file": "src/apps/ApiTester.tsx",
+      "kind": "text",
+      "text": "None"
+    },
+    {
+      "file": "src/apps/ApiTester.tsx",
+      "kind": "text",
+      "text": "Bearer Token"
+    },
+    {
+      "file": "src/apps/ApiTester.tsx",
+      "kind": "text",
+      "text": "Basic (user / pass)"
+    },
+    {
+      "file": "src/apps/ApiTester.tsx",
+      "kind": "text",
+      "text": "API Key (custom header)"
+    },
+    {
+      "file": "src/apps/ApiTester.tsx",
+      "kind": "text",
+      "text": "Token"
+    },
+    {
+      "file": "src/apps/ApiTester.tsx",
+      "kind": "placeholder",
+      "text": "sk-…"
+    },
+    {
+      "file": "src/apps/ApiTester.tsx",
+      "kind": "text",
+      "text": "Username"
+    },
+    {
+      "file": "src/apps/ApiTester.tsx",
+      "kind": "text",
+      "text": "Password"
+    },
+    {
+      "file": "src/apps/ApiTester.tsx",
+      "kind": "text",
+      "text": "Header"
+    },
+    {
+      "file": "src/apps/ApiTester.tsx",
+      "kind": "placeholder",
+      "text": "X-API-Key"
+    },
+    {
+      "file": "src/apps/ApiTester.tsx",
+      "kind": "text",
+      "text": "Value"
+    },
+    {
+      "file": "src/apps/ApiTester.tsx",
+      "kind": "text",
+      "text": "Auth merges into the outgoing request. An explicit Authorization header in the Headers tab still wins."
+    },
+    {
+      "file": "src/apps/ApiTester.tsx",
+      "kind": "title",
+      "text": "Beautify (⌘/Ctrl+B)"
+    },
+    {
+      "file": "src/apps/ApiTester.tsx",
+      "kind": "text",
+      "text": "Beautify"
+    },
+    {
+      "file": "src/apps/ApiTester.tsx",
+      "kind": "text",
+      "text": "This request does not have a body."
+    },
+    {
+      "file": "src/apps/ApiTester.tsx",
+      "kind": "text",
+      "text": "Binary body picker — coming soon."
+    },
+    {
+      "file": "src/apps/ApiTester.tsx",
+      "kind": "placeholder",
+      "text": "{ \"query\": \"{ ... }\", \"variables\": {} }"
+    },
+    {
+      "file": "src/apps/ApiTester.tsx",
+      "kind": "placeholder",
+      "text": "Raw text body"
+    },
+    {
+      "file": "src/apps/ApiTester.tsx",
+      "kind": "placeholder",
+      "text": "Key"
+    },
+    {
+      "file": "src/apps/ApiTester.tsx",
+      "kind": "placeholder",
+      "text": "Value"
+    },
+    {
+      "file": "src/apps/ApiTester.tsx",
+      "kind": "text",
+      "text": "Add Field"
+    },
+    {
+      "file": "src/apps/ApiTester.tsx",
+      "kind": "title",
+      "text": "Round-trip time"
+    },
+    {
+      "file": "src/apps/ApiTester.tsx",
+      "kind": "title",
+      "text": "Response body size"
+    },
+    {
+      "file": "src/apps/ApiTester.tsx",
+      "kind": "text",
+      "text": ") ) : loading ? ("
+    },
+    {
+      "file": "src/apps/ApiTester.tsx",
+      "kind": "text",
+      "text": "Send a request to see the response"
+    },
+    {
+      "file": "src/apps/ApiTester.tsx",
+      "kind": "placeholder",
+      "text": "{ \"key\": \"value\" }"
+    },
+    {
+      "file": "src/apps/ApiTester.tsx",
+      "kind": "text",
+      "text": "s .replace(/&/g, '&amp;') .replace(/"
+    },
+    {
+      "file": "src/apps/ApiTester.tsx",
+      "kind": "title",
+      "text": "Drag to resize · double-click to reset"
+    },
+    {
+      "file": "src/apps/ApiTester.tsx",
+      "kind": "text",
+      "text": "Sending request…"
+    },
+    {
+      "file": "src/apps/ApiTester.tsx",
+      "kind": "title",
+      "text": "Rename"
+    },
+    {
+      "file": "src/apps/ApiTester.tsx",
+      "kind": "title",
+      "text": "Delete collection"
+    },
+    {
+      "file": "src/apps/ApiTester.tsx",
+      "kind": "title",
+      "text": "Rename"
+    },
+    {
+      "file": "src/apps/ApiTester.tsx",
+      "kind": "title",
+      "text": "Delete"
+    },
+    {
+      "file": "src/apps/ApiTester.tsx",
+      "kind": "text",
+      "text": "Save request"
+    },
+    {
+      "file": "src/apps/ApiTester.tsx",
+      "kind": "text",
+      "text": "Name"
+    },
+    {
+      "file": "src/apps/ApiTester.tsx",
+      "kind": "text",
+      "text": "Collection"
+    },
+    {
+      "file": "src/apps/ApiTester.tsx",
+      "kind": "text",
+      "text": "+ New collection"
+    },
+    {
+      "file": "src/apps/ApiTester.tsx",
+      "kind": "text",
+      "text": "New collection name"
+    },
+    {
+      "file": "src/apps/ApiTester.tsx",
+      "kind": "placeholder",
+      "text": "Untitled"
+    },
+    {
+      "file": "src/apps/ApiTester.tsx",
+      "kind": "text",
+      "text": "← Use an existing collection"
+    },
+    {
+      "file": "src/apps/ApiTester.tsx",
+      "kind": "text",
+      "text": "Cancel"
+    },
+    {
+      "file": "src/apps/ApiTester.tsx",
+      "kind": "text",
+      "text": "Save"
+    },
+    {
+      "file": "src/apps/ApiTester.tsx",
+      "kind": "text",
+      "text": "= 0.15 && n"
+    },
+    {
+      "file": "src/apps/ApiTester.tsx",
+      "kind": "text",
+      "text": "= 200 && s"
+    },
+    {
+      "file": "src/apps/ApiTester.tsx",
+      "kind": "text",
+      "text": "= 300 && s"
+    },
+    {
+      "file": "src/apps/ApiTester.tsx",
+      "kind": "text",
+      "text": "= 400 && s"
+    },
+    {
+      "file": "src/apps/ApiTester.tsx",
+      "kind": "title",
+      "text": "Cancel in-flight request"
+    },
+    {
+      "file": "src/apps/ApiTester.tsx",
+      "kind": "text",
+      "text": "Cancel"
+    },
+    {
+      "file": "src/apps/ApiTester.tsx",
+      "kind": "title",
+      "text": "Send request (⌘/Ctrl+Enter)"
+    },
+    {
+      "file": "src/apps/ApiTester.tsx",
+      "kind": "text",
+      "text": "Send"
+    },
+    {
+      "file": "src/apps/ApiTester.tsx",
+      "kind": "title",
+      "text": "Save request to a collection"
+    },
+    {
+      "file": "src/apps/ApiTester.tsx",
+      "kind": "title",
+      "text": "Collections"
+    },
+    {
+      "file": "src/apps/ApiTester.tsx",
+      "kind": "title",
+      "text": "New collection"
+    },
+    {
+      "file": "src/apps/ApiTester.tsx",
+      "kind": "title",
+      "text": "Clear history"
+    },
+    {
+      "file": "src/apps/ArchiveManager.tsx",
+      "kind": "text",
+      "text": "New Archive"
+    },
+    {
+      "file": "src/apps/ArchiveManager.tsx",
+      "kind": "text",
+      "text": "Recent Archives"
+    },
+    {
+      "file": "src/apps/ArchiveManager.tsx",
+      "kind": "text",
+      "text": "Create Archive"
+    },
+    {
+      "file": "src/apps/ArchiveManager.tsx",
+      "kind": "text",
+      "text": "Archive Name"
+    },
+    {
+      "file": "src/apps/ArchiveManager.tsx",
+      "kind": "placeholder",
+      "text": "my-archive"
+    },
+    {
+      "file": "src/apps/ArchiveManager.tsx",
+      "kind": "text",
+      "text": "Format"
+    },
+    {
+      "file": "src/apps/ArchiveManager.tsx",
+      "kind": "text",
+      "text": "Password (optional)"
+    },
+    {
+      "file": "src/apps/ArchiveManager.tsx",
+      "kind": "placeholder",
+      "text": "Leave blank for no password"
+    },
+    {
+      "file": "src/apps/ArchiveManager.tsx",
+      "kind": "text",
+      "text": "Cancel"
+    },
+    {
+      "file": "src/apps/ArchiveManager.tsx",
+      "kind": "text",
+      "text": "Create Archive"
+    },
+    {
+      "file": "src/apps/ArchiveManager.tsx",
+      "kind": "text",
+      "text": ") : view === 'view' && activeArchive ? ("
+    },
+    {
+      "file": "src/apps/ArchiveManager.tsx",
+      "kind": "text",
+      "text": "Protected"
+    },
+    {
+      "file": "src/apps/ArchiveManager.tsx",
+      "kind": "text",
+      "text": "Extract"
+    },
+    {
+      "file": "src/apps/ArchiveManager.tsx",
+      "kind": "text",
+      "text": "Name"
+    },
+    {
+      "file": "src/apps/ArchiveManager.tsx",
+      "kind": "text",
+      "text": "Size"
+    },
+    {
+      "file": "src/apps/ArchiveManager.tsx",
+      "kind": "text",
+      "text": "Select"
+    },
+    {
+      "file": "src/apps/ArchiveManager.tsx",
+      "kind": "text",
+      "text": ") : ( /* Recent view */"
+    },
+    {
+      "file": "src/apps/ArchiveManager.tsx",
+      "kind": "text",
+      "text": "Archive Manager"
+    },
+    {
+      "file": "src/apps/ArchiveManager.tsx",
+      "kind": "text",
+      "text": "No archives yet"
+    },
+    {
+      "file": "src/apps/ArchiveManager.tsx",
+      "kind": "text",
+      "text": "Create Your First Archive"
+    },
+    {
+      "file": "src/apps/AsciiArt.tsx",
+      "kind": "text",
+      "text": "Text"
+    },
+    {
+      "file": "src/apps/AsciiArt.tsx",
+      "kind": "placeholder",
+      "text": "Enter text..."
+    },
+    {
+      "file": "src/apps/AsciiArt.tsx",
+      "kind": "text",
+      "text": "Font"
+    },
+    {
+      "file": "src/apps/AsciiArt.tsx",
+      "kind": "text",
+      "text": "Block"
+    },
+    {
+      "file": "src/apps/AsciiArt.tsx",
+      "kind": "text",
+      "text": "Simple"
+    },
+    {
+      "file": "src/apps/AsciiArt.tsx",
+      "kind": "text",
+      "text": "Convert"
+    },
+    {
+      "file": "src/apps/AsciiArt.tsx",
+      "kind": "text",
+      "text": "Samples"
+    },
+    {
+      "file": "src/apps/AsciiArt.tsx",
+      "kind": "text",
+      "text": "Upload Image"
+    },
+    {
+      "file": "src/apps/AsciiArt.tsx",
+      "kind": "text",
+      "text": "Density"
+    },
+    {
+      "file": "src/apps/AsciiArt.tsx",
+      "kind": "text",
+      "text": "Brush Character"
+    },
+    {
+      "file": "src/apps/AsciiArt.tsx",
+      "kind": "text",
+      "text": "Character Palette"
+    },
+    {
+      "file": "src/apps/AsciiArt.tsx",
+      "kind": "text",
+      "text": "Clear Canvas"
+    },
+    {
+      "file": "src/apps/AsciiArt.tsx",
+      "kind": "text",
+      "text": "Download .txt"
+    },
+    {
+      "file": "src/apps/AsciiArt.tsx",
+      "kind": "text",
+      "text": "Clear"
+    },
+    {
+      "file": "src/apps/AsciiArt.tsx",
+      "kind": "text",
+      "text": "Output will appear here..."
+    },
+    {
+      "file": "src/apps/Base64Tool.tsx",
+      "kind": "text",
+      "text": "JWT Token"
+    },
+    {
+      "file": "src/apps/Base64Tool.tsx",
+      "kind": "placeholder",
+      "text": "Paste JWT token here..."
+    },
+    {
+      "file": "src/apps/Base64Tool.tsx",
+      "kind": "placeholder",
+      "text": "Enter text..."
+    },
+    {
+      "file": "src/apps/Base64Tool.tsx",
+      "kind": "text",
+      "text": "URL-safe"
+    },
+    {
+      "file": "src/apps/Base64Tool.tsx",
+      "kind": "text",
+      "text": "Encode"
+    },
+    {
+      "file": "src/apps/Base64Tool.tsx",
+      "kind": "text",
+      "text": "Decode"
+    },
+    {
+      "file": "src/apps/Base64Tool.tsx",
+      "kind": "text",
+      "text": "Encode"
+    },
+    {
+      "file": "src/apps/Base64Tool.tsx",
+      "kind": "text",
+      "text": "Decode"
+    },
+    {
+      "file": "src/apps/Base64Tool.tsx",
+      "kind": "text",
+      "text": "To Hex"
+    },
+    {
+      "file": "src/apps/Base64Tool.tsx",
+      "kind": "text",
+      "text": "From Hex"
+    },
+    {
+      "file": "src/apps/Base64Tool.tsx",
+      "kind": "text",
+      "text": "Output"
+    },
+    {
+      "file": "src/apps/Base64Tool.tsx",
+      "kind": "text",
+      "text": "No history yet"
+    },
+    {
+      "file": "src/apps/Browser.tsx",
+      "kind": "text",
+      "text": "Browser"
+    },
+    {
+      "file": "src/apps/Browser.tsx",
+      "kind": "text",
+      "text": "Hands URLs and registered launchers off to your host's default browser. TytusOS doesn't render remote pages itself."
+    },
+    {
+      "file": "src/apps/Browser.tsx",
+      "kind": "text",
+      "text": "Registered launchers"
+    },
+    {
+      "file": "src/apps/Browser.tsx",
+      "kind": "text",
+      "text": "Loading registered launchers…"
+    },
+    {
+      "file": "src/apps/Browser.tsx",
+      "kind": "text",
+      "text": "Quick actions"
+    },
+    {
+      "file": "src/apps/Browser.tsx",
+      "kind": "text",
+      "text": "No launchers registered."
+    },
+    {
+      "file": "src/apps/Calculator.tsx",
+      "kind": "text",
+      "text": "= '0' && e.key"
+    },
+    {
+      "file": "src/apps/Calculator.tsx",
+      "kind": "text",
+      "text": "Standard"
+    },
+    {
+      "file": "src/apps/Calculator.tsx",
+      "kind": "text",
+      "text": "Scientific"
+    },
+    {
+      "file": "src/apps/Calculator.tsx",
+      "kind": "text",
+      "text": "No history yet"
+    },
+    {
+      "file": "src/apps/Calculator.tsx",
+      "kind": "text",
+      "text": "Clear History"
+    },
+    {
+      "file": "src/apps/Calendar.tsx",
+      "kind": "text",
+      "text": "Upcoming"
+    },
+    {
+      "file": "src/apps/Calendar.tsx",
+      "kind": "text",
+      "text": "Today"
+    },
+    {
+      "file": "src/apps/Calendar.tsx",
+      "kind": "placeholder",
+      "text": "Event title"
+    },
+    {
+      "file": "src/apps/Calendar.tsx",
+      "kind": "text",
+      "text": "Duration (min):"
+    },
+    {
+      "file": "src/apps/Calendar.tsx",
+      "kind": "placeholder",
+      "text": "Location"
+    },
+    {
+      "file": "src/apps/Calendar.tsx",
+      "kind": "placeholder",
+      "text": "Description"
+    },
+    {
+      "file": "src/apps/Calendar.tsx",
+      "kind": "text",
+      "text": "Delete"
+    },
+    {
+      "file": "src/apps/Calendar.tsx",
+      "kind": "text",
+      "text": "Cancel"
+    },
+    {
+      "file": "src/apps/Calendar.tsx",
+      "kind": "text",
+      "text": "Save"
+    },
+    {
+      "file": "src/apps/Calendar.tsx",
+      "kind": "text",
+      "text": "Edit"
+    },
+    {
+      "file": "src/apps/Calendar.tsx",
+      "kind": "text",
+      "text": "Delete"
+    },
+    {
+      "file": "src/apps/Channels.tsx",
+      "kind": "text",
+      "text": "Sent in the request body — never appears in the URL bar."
+    },
+    {
+      "file": "src/apps/Channels.tsx",
+      "kind": "text",
+      "text": "Don't share screenshots of this dialog."
+    },
+    {
+      "file": "src/apps/Channels.tsx",
+      "kind": "text",
+      "text": "Done"
+    },
+    {
+      "file": "src/apps/Channels.tsx",
+      "kind": "text",
+      "text": "Cancel"
+    },
+    {
+      "file": "src/apps/Channels.tsx",
+      "kind": "text",
+      "text": "Bot token saved."
+    },
+    {
+      "file": "src/apps/Channels.tsx",
+      "kind": "text",
+      "text": "Paste the 8-character pairing code below."
+    },
+    {
+      "file": "src/apps/Channels.tsx",
+      "kind": "text",
+      "text": "Copy the generated command and run it from a terminal on your Mac. You'll then receive a confirmation reply in the messenger."
+    },
+    {
+      "file": "src/apps/Channels.tsx",
+      "kind": "text",
+      "text": "Pairing code"
+    },
+    {
+      "file": "src/apps/Channels.tsx",
+      "kind": "placeholder",
+      "text": "e.g. B7KFBXYA"
+    },
+    {
+      "file": "src/apps/Channels.tsx",
+      "kind": "text",
+      "text": "Run this in your terminal"
+    },
+    {
+      "file": "src/apps/Channels.tsx",
+      "kind": "text",
+      "text": "Copied"
+    },
+    {
+      "file": "src/apps/Channels.tsx",
+      "kind": "text",
+      "text": "Copy"
+    },
+    {
+      "file": "src/apps/Channels.tsx",
+      "kind": "text",
+      "text": "Requires the"
+    },
+    {
+      "file": "src/apps/Channels.tsx",
+      "kind": "text",
+      "text": "CLI installed on your Mac and a connected pod. Re-run for each user you want to authorize."
+    },
+    {
+      "file": "src/apps/Channels.tsx",
+      "kind": "text",
+      "text": "tytus"
+    },
+    {
+      "file": "src/apps/Channels.tsx",
+      "kind": "text",
+      "text": "Run this in your Mac terminal"
+    },
+    {
+      "file": "src/apps/Channels.tsx",
+      "kind": "text",
+      "text": "Copied"
+    },
+    {
+      "file": "src/apps/Channels.tsx",
+      "kind": "text",
+      "text": "Copy"
+    },
+    {
+      "file": "src/apps/Channels.tsx",
+      "kind": "text",
+      "text": "Keep the terminal window open while scanning — closing it cancels the pairing."
+    },
+    {
+      "file": "src/apps/Channels.tsx",
+      "kind": "text",
+      "text": "After linking: approve your own number"
+    },
+    {
+      "file": "src/apps/Channels.tsx",
+      "kind": "text",
+      "text": "The bot token will be deleted from the pod and the channel will stop receiving messages. You can re-add it later by pasting the token again."
+    },
+    {
+      "file": "src/apps/Channels.tsx",
+      "kind": "text",
+      "text": "Cancel"
+    },
+    {
+      "file": "src/apps/Channels.tsx",
+      "kind": "text",
+      "text": "Copied"
+    },
+    {
+      "file": "src/apps/Channels.tsx",
+      "kind": "text",
+      "text": "Copy"
+    },
+    {
+      "file": "src/apps/Channels.tsx",
+      "kind": "text",
+      "text": "Open pod terminal"
+    },
+    {
+      "file": "src/apps/Channels.tsx",
+      "kind": "text",
+      "text": "The command is already on your clipboard — paste it (Cmd-V) and press Enter."
+    },
+    {
+      "file": "src/apps/Channels.tsx",
+      "kind": "text",
+      "text": "Pods"
+    },
+    {
+      "file": "src/apps/Channels.tsx",
+      "kind": "text",
+      "text": "Per-pod messenger bindings. Tokens never appear in URLs."
+    },
+    {
+      "file": "src/apps/Channels.tsx",
+      "kind": "text",
+      "text": "Available"
+    },
+    {
+      "file": "src/apps/Channels.tsx",
+      "kind": "text",
+      "text": "All channels configured. Nothing left to add."
+    },
+    {
+      "file": "src/apps/Channels.tsx",
+      "kind": "text",
+      "text": "Add"
+    },
+    {
+      "file": "src/apps/Channels.tsx",
+      "kind": "text",
+      "text": "Configured"
+    },
+    {
+      "file": "src/apps/Channels.tsx",
+      "kind": "text",
+      "text": "No channels yet — add one."
+    },
+    {
+      "file": "src/apps/Channels.tsx",
+      "kind": "text",
+      "text": "Remove"
+    },
+    {
+      "file": "src/apps/Channels.tsx",
+      "kind": "text",
+      "text": "Retry"
+    },
+    {
+      "file": "src/apps/Channels.tsx",
+      "kind": "text",
+      "text": "Allocate a pod first →"
+    },
+    {
+      "file": "src/apps/Channels.tsx",
+      "kind": "aria-label",
+      "text": "Close"
+    },
+    {
+      "file": "src/apps/Channels.tsx",
+      "kind": "text",
+      "text": ") : guide.auth === 'qr' ? ("
+    },
+    {
+      "file": "src/apps/Channels.tsx",
+      "kind": "text",
+      "text": "What it looks like:"
+    },
+    {
+      "file": "src/apps/Chat.tsx",
+      "kind": "text",
+      "text": "Pods"
+    },
+    {
+      "file": "src/apps/Chat.tsx",
+      "kind": "text",
+      "text": "Included"
+    },
+    {
+      "file": "src/apps/Chat.tsx",
+      "kind": "title",
+      "text": "Included pod — chat is not available; use the API key directly"
+    },
+    {
+      "file": "src/apps/Chat.tsx",
+      "kind": "text",
+      "text": "Included"
+    },
+    {
+      "file": "src/apps/Chat.tsx",
+      "kind": "text",
+      "text": ") : !selection ? ("
+    },
+    {
+      "file": "src/apps/Chat.tsx",
+      "kind": "text",
+      "text": ") : selection.kind === 'agent' ? ("
+    },
+    {
+      "file": "src/apps/Chat.tsx",
+      "kind": "text",
+      "text": "No pods to chat with"
+    },
+    {
+      "file": "src/apps/Chat.tsx",
+      "kind": "text",
+      "text": "Allocate a pod first — once it's running, you'll be able to open it right here."
+    },
+    {
+      "file": "src/apps/Chat.tsx",
+      "kind": "text",
+      "text": "Allocate a pod →"
+    },
+    {
+      "file": "src/apps/Chat.tsx",
+      "kind": "text",
+      "text": "Select a pod from the left to start chatting."
+    },
+    {
+      "file": "src/apps/Chat.tsx",
+      "kind": "text",
+      "text": "Inline chat coming in v1.1"
+    },
+    {
+      "file": "src/apps/Chat.tsx",
+      "kind": "text",
+      "text": "Open the OpenClaw UI in your browser — your private pod's chat is fast and feature-complete on the web."
+    },
+    {
+      "file": "src/apps/Chat.tsx",
+      "kind": "text",
+      "text": "Dismiss"
+    },
+    {
+      "file": "src/apps/Chat.tsx",
+      "kind": "text",
+      "text": "Included pods don't have a chat UI — they expose an OpenAI-compatible API only. Use Pod Inspector to copy the API URL and key, then point your favorite client at them."
+    },
+    {
+      "file": "src/apps/Chess.tsx",
+      "kind": "text",
+      "text": "PvP"
+    },
+    {
+      "file": "src/apps/Chess.tsx",
+      "kind": "text",
+      "text": "vs AI"
+    },
+    {
+      "file": "src/apps/Chess.tsx",
+      "kind": "text",
+      "text": "= 0 && c"
+    },
+    {
+      "file": "src/apps/Chess.tsx",
+      "kind": "text",
+      "text": "= 0 && r"
+    },
+    {
+      "file": "src/apps/Chess.tsx",
+      "kind": "text",
+      "text": "Moves"
+    },
+    {
+      "file": "src/apps/Chess.tsx",
+      "kind": "text",
+      "text": "Undo"
+    },
+    {
+      "file": "src/apps/Chess.tsx",
+      "kind": "text",
+      "text": "New"
+    },
+    {
+      "file": "src/apps/Clock.tsx",
+      "kind": "text",
+      "text": "Add City"
+    },
+    {
+      "file": "src/apps/Clock.tsx",
+      "kind": "text",
+      "text": "Cancel"
+    },
+    {
+      "file": "src/apps/Clock.tsx",
+      "kind": "text",
+      "text": "Alarms"
+    },
+    {
+      "file": "src/apps/Clock.tsx",
+      "kind": "placeholder",
+      "text": "Label"
+    },
+    {
+      "file": "src/apps/Clock.tsx",
+      "kind": "text",
+      "text": "Cancel"
+    },
+    {
+      "file": "src/apps/Clock.tsx",
+      "kind": "text",
+      "text": "Save"
+    },
+    {
+      "file": "src/apps/Clock.tsx",
+      "kind": "text",
+      "text": "Start"
+    },
+    {
+      "file": "src/apps/Clock.tsx",
+      "kind": "text",
+      "text": "Pause"
+    },
+    {
+      "file": "src/apps/Clock.tsx",
+      "kind": "text",
+      "text": "Reset"
+    },
+    {
+      "file": "src/apps/Clock.tsx",
+      "kind": "text",
+      "text": "Start"
+    },
+    {
+      "file": "src/apps/Clock.tsx",
+      "kind": "text",
+      "text": "Stop"
+    },
+    {
+      "file": "src/apps/Clock.tsx",
+      "kind": "text",
+      "text": "Lap"
+    },
+    {
+      "file": "src/apps/Clock.tsx",
+      "kind": "text",
+      "text": "Reset"
+    },
+    {
+      "file": "src/apps/Clock.tsx",
+      "kind": "text",
+      "text": "Lap"
+    },
+    {
+      "file": "src/apps/Clock.tsx",
+      "kind": "text",
+      "text": "Split"
+    },
+    {
+      "file": "src/apps/Clock.tsx",
+      "kind": "text",
+      "text": "Total"
+    },
+    {
+      "file": "src/apps/CodeEditor.tsx",
+      "kind": "title",
+      "text": "New File"
+    },
+    {
+      "file": "src/apps/CodeEditor.tsx",
+      "kind": "text",
+      "text": "New"
+    },
+    {
+      "file": "src/apps/CodeEditor.tsx",
+      "kind": "title",
+      "text": "Toggle Sidebar"
+    },
+    {
+      "file": "src/apps/CodeEditor.tsx",
+      "kind": "text",
+      "text": "Explorer"
+    },
+    {
+      "file": "src/apps/CodeEditor.tsx",
+      "kind": "title",
+      "text": "Find (Ctrl+F)"
+    },
+    {
+      "file": "src/apps/CodeEditor.tsx",
+      "kind": "text",
+      "text": "Find"
+    },
+    {
+      "file": "src/apps/CodeEditor.tsx",
+      "kind": "title",
+      "text": "Save (Ctrl+S)"
+    },
+    {
+      "file": "src/apps/CodeEditor.tsx",
+      "kind": "text",
+      "text": "Save"
+    },
+    {
+      "file": "src/apps/CodeEditor.tsx",
+      "kind": "placeholder",
+      "text": "Find in file..."
+    },
+    {
+      "file": "src/apps/CodeEditor.tsx",
+      "kind": "text",
+      "text": "Esc"
+    },
+    {
+      "file": "src/apps/CodeEditor.tsx",
+      "kind": "text",
+      "text": "s.replace(/&/g, '&amp;').replace(/"
+    },
+    {
+      "file": "src/apps/CodeEditor.tsx",
+      "kind": "text",
+      "text": "Open a file from the explorer or create a new file"
+    },
+    {
+      "file": "src/apps/CodeEditor.tsx",
+      "kind": "text",
+      "text": "New File"
+    },
+    {
+      "file": "src/apps/CodeEditor.tsx",
+      "kind": "text",
+      "text": "'); // Strings (avoid matching inside comments) highlighted = highlighted.replace(strPattern, '"
+    },
+    {
+      "file": "src/apps/CodeEditor.tsx",
+      "kind": "text",
+      "text": "'); // Numbers highlighted = highlighted.replace(numPattern, '"
+    },
+    {
+      "file": "src/apps/CodeEditor.tsx",
+      "kind": "text",
+      "text": "'); // Keywords highlighted = highlighted.replace(kwPattern, '"
+    },
+    {
+      "file": "src/apps/CodeEditor.tsx",
+      "kind": "text",
+      "text": "'); highlighted = highlighted.replace(/(\\s)([\\w-]+)(=)/g, '$1"
+    },
+    {
+      "file": "src/apps/ColorPalette.tsx",
+      "kind": "text",
+      "text": "Base Color"
+    },
+    {
+      "file": "src/apps/ColorPalette.tsx",
+      "kind": "text",
+      "text": "Harmony"
+    },
+    {
+      "file": "src/apps/ColorPalette.tsx",
+      "kind": "text",
+      "text": "Color Blind"
+    },
+    {
+      "file": "src/apps/ColorPalette.tsx",
+      "kind": "text",
+      "text": "Normal"
+    },
+    {
+      "file": "src/apps/ColorPalette.tsx",
+      "kind": "text",
+      "text": "Deuteranopia"
+    },
+    {
+      "file": "src/apps/ColorPalette.tsx",
+      "kind": "text",
+      "text": "Protanopia"
+    },
+    {
+      "file": "src/apps/ColorPalette.tsx",
+      "kind": "text",
+      "text": "Tritanopia"
+    },
+    {
+      "file": "src/apps/ColorPalette.tsx",
+      "kind": "text",
+      "text": "Random"
+    },
+    {
+      "file": "src/apps/ColorPalette.tsx",
+      "kind": "text",
+      "text": "Contrast with"
+    },
+    {
+      "file": "src/apps/ColorPalette.tsx",
+      "kind": "text",
+      "text": "Contrast Matrix"
+    },
+    {
+      "file": "src/apps/ColorPalette.tsx",
+      "kind": "placeholder",
+      "text": "Palette name..."
+    },
+    {
+      "file": "src/apps/ColorPalette.tsx",
+      "kind": "text",
+      "text": "Save"
+    },
+    {
+      "file": "src/apps/ColorPalette.tsx",
+      "kind": "text",
+      "text": "Export"
+    },
+    {
+      "file": "src/apps/ColorPalette.tsx",
+      "kind": "text",
+      "text": "Export CSS"
+    },
+    {
+      "file": "src/apps/ColorPalette.tsx",
+      "kind": "text",
+      "text": "Export JSON"
+    },
+    {
+      "file": "src/apps/ColorPalette.tsx",
+      "kind": "text",
+      "text": "No saved palettes"
+    },
+    {
+      "file": "src/apps/ColorPalette.tsx",
+      "kind": "text",
+      "text": "1) t -= 1; if (t"
+    },
+    {
+      "file": "src/apps/ColorPicker.tsx",
+      "kind": "text",
+      "text": "Contrast Checker"
+    },
+    {
+      "file": "src/apps/ColorPicker.tsx",
+      "kind": "text",
+      "text": "Aa"
+    },
+    {
+      "file": "src/apps/ColorPicker.tsx",
+      "kind": "text",
+      "text": "Presets"
+    },
+    {
+      "file": "src/apps/ColorPicker.tsx",
+      "kind": "text",
+      "text": "Shades"
+    },
+    {
+      "file": "src/apps/ColorPicker.tsx",
+      "kind": "text",
+      "text": "Tints"
+    },
+    {
+      "file": "src/apps/ColorPicker.tsx",
+      "kind": "text",
+      "text": "Random Color"
+    },
+    {
+      "file": "src/apps/ColorPicker.tsx",
+      "kind": "text",
+      "text": "1) t -= 1; if (t"
+    },
+    {
+      "file": "src/apps/DocumentViewer.tsx",
+      "kind": "text",
+      "text": "Open"
+    },
+    {
+      "file": "src/apps/DocumentViewer.tsx",
+      "kind": "text",
+      "text": "Lines"
+    },
+    {
+      "file": "src/apps/DocumentViewer.tsx",
+      "kind": "text",
+      "text": "Wrap"
+    },
+    {
+      "file": "src/apps/DocumentViewer.tsx",
+      "kind": "text",
+      "text": "Find"
+    },
+    {
+      "file": "src/apps/DocumentViewer.tsx",
+      "kind": "placeholder",
+      "text": "Search..."
+    },
+    {
+      "file": "src/apps/DocumentViewer.tsx",
+      "kind": "text",
+      "text": "No file open"
+    },
+    {
+      "file": "src/apps/DocumentViewer.tsx",
+      "kind": "text",
+      "text": "Open File"
+    },
+    {
+      "file": "src/apps/DocumentViewer.tsx",
+      "kind": "text",
+      "text": "Open File"
+    },
+    {
+      "file": "src/apps/DocumentViewer.tsx",
+      "kind": "text",
+      "text": "No text files found"
+    },
+    {
+      "file": "src/apps/Drawing.tsx",
+      "kind": "text",
+      "text": "= canvas.width || cy"
+    },
+    {
+      "file": "src/apps/Drawing.tsx",
+      "kind": "title",
+      "text": "Undo (Ctrl+Z)"
+    },
+    {
+      "file": "src/apps/Drawing.tsx",
+      "kind": "title",
+      "text": "Redo (Ctrl+Y)"
+    },
+    {
+      "file": "src/apps/Drawing.tsx",
+      "kind": "text",
+      "text": "Size:"
+    },
+    {
+      "file": "src/apps/Drawing.tsx",
+      "kind": "text",
+      "text": "Op:"
+    },
+    {
+      "file": "src/apps/Drawing.tsx",
+      "kind": "title",
+      "text": "Toggle Grid"
+    },
+    {
+      "file": "src/apps/Drawing.tsx",
+      "kind": "title",
+      "text": "Clear"
+    },
+    {
+      "file": "src/apps/Drawing.tsx",
+      "kind": "title",
+      "text": "Export PNG"
+    },
+    {
+      "file": "src/apps/Drawing.tsx",
+      "kind": "placeholder",
+      "text": "Enter text..."
+    },
+    {
+      "file": "src/apps/Drawing.tsx",
+      "kind": "text",
+      "text": "Add"
+    },
+    {
+      "file": "src/apps/Drawing.tsx",
+      "kind": "text",
+      "text": "Cancel"
+    },
+    {
+      "file": "src/apps/FileManager.tsx",
+      "kind": "aria-label",
+      "text": "Refresh bindings"
+    },
+    {
+      "file": "src/apps/FileManager.tsx",
+      "kind": "title",
+      "text": "Refresh bindings"
+    },
+    {
+      "file": "src/apps/FileManager.tsx",
+      "kind": "text",
+      "text": "Loading bindings…"
+    },
+    {
+      "file": "src/apps/FileManager.tsx",
+      "kind": "text",
+      "text": "No shared folders yet."
+    },
+    {
+      "file": "src/apps/FileManager.tsx",
+      "kind": "text",
+      "text": "Bind a Mac folder to share it with your pods."
+    },
+    {
+      "file": "src/apps/FileManager.tsx",
+      "kind": "text",
+      "text": "Bind new folder"
+    },
+    {
+      "file": "src/apps/FileManager.tsx",
+      "kind": "text",
+      "text": ") : status === 'success' ? ("
+    },
+    {
+      "file": "src/apps/FileManager.tsx",
+      "kind": "text",
+      "text": "Open"
+    },
+    {
+      "file": "src/apps/FileManager.tsx",
+      "kind": "text",
+      "text": "Bind shared folder"
+    },
+    {
+      "file": "src/apps/FileManager.tsx",
+      "kind": "aria-label",
+      "text": "Close"
+    },
+    {
+      "file": "src/apps/FileManager.tsx",
+      "kind": "text",
+      "text": "Local folder"
+    },
+    {
+      "file": "src/apps/FileManager.tsx",
+      "kind": "text",
+      "text": "Bucket name"
+    },
+    {
+      "file": "src/apps/FileManager.tsx",
+      "kind": "text",
+      "text": "3–63 chars, lowercase letters, digits, dot, hyphen."
+    },
+    {
+      "file": "src/apps/FileManager.tsx",
+      "kind": "text",
+      "text": "Pods to provision"
+    },
+    {
+      "file": "src/apps/FileManager.tsx",
+      "kind": "text",
+      "text": "No allocated pods."
+    },
+    {
+      "file": "src/apps/FileManager.tsx",
+      "kind": "text",
+      "text": "Leave all unchecked to provision every allocated pod."
+    },
+    {
+      "file": "src/apps/FileManager.tsx",
+      "kind": "text",
+      "text": "Auto-sync"
+    },
+    {
+      "file": "src/apps/FileManager.tsx",
+      "kind": "text",
+      "text": "Daemon-owned launchd agent will sync at a fixed interval."
+    },
+    {
+      "file": "src/apps/FileManager.tsx",
+      "kind": "text",
+      "text": "Another shared-folders job is in flight. Wait for it to finish before binding."
+    },
+    {
+      "file": "src/apps/FileManager.tsx",
+      "kind": "text",
+      "text": ") : stream.status === 'success' ? ("
+    },
+    {
+      "file": "src/apps/FileManager.tsx",
+      "kind": "text",
+      "text": "Cancel"
+    },
+    {
+      "file": "src/apps/FileManager.tsx",
+      "kind": "text",
+      "text": "No pods."
+    },
+    {
+      "file": "src/apps/FileManager.tsx",
+      "kind": "text",
+      "text": "Allocate a pod first — then its inbox, Downloads folder, and shared folders will appear here."
+    },
+    {
+      "file": "src/apps/FileManager.tsx",
+      "kind": "text",
+      "text": "Allocate a pod →"
+    },
+    {
+      "file": "src/apps/FileManager.tsx",
+      "kind": "text",
+      "text": ") : !selectedAgent ? ("
+    },
+    {
+      "file": "src/apps/FileManager.tsx",
+      "kind": "text",
+      "text": "Select a pod from the left."
+    },
+    {
+      "file": "src/apps/FileManager.tsx",
+      "kind": "text",
+      "text": ") : activeTab === 'inbox' ? ("
+    },
+    {
+      "file": "src/apps/FileManager.tsx",
+      "kind": "text",
+      "text": "Pods"
+    },
+    {
+      "file": "src/apps/FileManager.tsx",
+      "kind": "text",
+      "text": "Shared folders are account-scoped — pod selection doesn't apply here."
+    },
+    {
+      "file": "src/apps/FileManager.tsx",
+      "kind": "text",
+      "text": "inbox/"
+    },
+    {
+      "file": "src/apps/FileManager.tsx",
+      "kind": "text",
+      "text": "/app/workspace/inbox/"
+    },
+    {
+      "file": "src/apps/FileManager.tsx",
+      "kind": "text",
+      "text": "Listing inbox…"
+    },
+    {
+      "file": "src/apps/FileManager.tsx",
+      "kind": "text",
+      "text": "Inbox is empty."
+    },
+    {
+      "file": "src/apps/FileManager.tsx",
+      "kind": "text",
+      "text": "/app/workspace/inbox/"
+    },
+    {
+      "file": "src/apps/FileManager.tsx",
+      "kind": "title",
+      "text": "Right-click for Open with…"
+    },
+    {
+      "file": "src/apps/FileManager.tsx",
+      "kind": "text",
+      "text": "Lost connection to job stream. Click Refresh inbox to retry."
+    },
+    {
+      "file": "src/apps/FileManager.tsx",
+      "kind": "text",
+      "text": "Files pulled from this pod land in Tytus Home, scoped per pod. Legacy files in ~/Downloads/tytus stay untouched."
+    },
+    {
+      "file": "src/apps/FileManager.tsx",
+      "kind": "text",
+      "text": "Opened in Finder."
+    },
+    {
+      "file": "src/apps/FileManager.tsx",
+      "kind": "text",
+      "text": "Shared folders"
+    },
+    {
+      "file": "src/apps/FileManager.tsx",
+      "kind": "text",
+      "text": "Bind new folder"
+    },
+    {
+      "file": "src/apps/FileManager.tsx",
+      "kind": "text",
+      "text": "Open cache"
+    },
+    {
+      "file": "src/apps/FlappyBird.tsx",
+      "kind": "text",
+      "text": "pipe.x && 80 - BIRD_SIZE / 2"
+    },
+    {
+      "file": "src/apps/FlappyBird.tsx",
+      "kind": "text",
+      "text": "Restart"
+    },
+    {
+      "file": "src/apps/FlappyBird.tsx",
+      "kind": "text",
+      "text": "Stop"
+    },
+    {
+      "file": "src/apps/Game2048.tsx",
+      "kind": "text",
+      "text": "Score"
+    },
+    {
+      "file": "src/apps/Game2048.tsx",
+      "kind": "text",
+      "text": "Best"
+    },
+    {
+      "file": "src/apps/Game2048.tsx",
+      "kind": "text",
+      "text": "New Game"
+    },
+    {
+      "file": "src/apps/Game2048.tsx",
+      "kind": "text",
+      "text": "Undo"
+    },
+    {
+      "file": "src/apps/Game2048.tsx",
+      "kind": "text",
+      "text": "Game Over!"
+    },
+    {
+      "file": "src/apps/Game2048.tsx",
+      "kind": "text",
+      "text": "Try Again"
+    },
+    {
+      "file": "src/apps/Game2048.tsx",
+      "kind": "text",
+      "text": "You Win!"
+    },
+    {
+      "file": "src/apps/Game2048.tsx",
+      "kind": "text",
+      "text": "You reached 2048!"
+    },
+    {
+      "file": "src/apps/Game2048.tsx",
+      "kind": "text",
+      "text": "Continue"
+    },
+    {
+      "file": "src/apps/Game2048.tsx",
+      "kind": "text",
+      "text": "New Game"
+    },
+    {
+      "file": "src/apps/Game2048.tsx",
+      "kind": "text",
+      "text": "[...row]); newBoard[r][c] = Math.random()"
+    },
+    {
+      "file": "src/apps/Game2048.tsx",
+      "kind": "text",
+      "text": "v !== 0); while (filtered.length"
+    },
+    {
+      "file": "src/apps/Help.tsx",
+      "kind": "text",
+      "text": "Last run:"
+    },
+    {
+      "file": "src/apps/Help.tsx",
+      "kind": "text",
+      "text": "Click"
+    },
+    {
+      "file": "src/apps/Help.tsx",
+      "kind": "text",
+      "text": "Run"
+    },
+    {
+      "file": "src/apps/Help.tsx",
+      "kind": "text",
+      "text": "to stream the output here. Each run is captured on the daemon side and tagged with an exit code."
+    },
+    {
+      "file": "src/apps/Help.tsx",
+      "kind": "text",
+      "text": "Clear"
+    },
+    {
+      "file": "src/apps/Help.tsx",
+      "kind": "text",
+      "text": "Connecting to job stream…"
+    },
+    {
+      "file": "src/apps/Help.tsx",
+      "kind": "text",
+      "text": "Channels catalog"
+    },
+    {
+      "file": "src/apps/Help.tsx",
+      "kind": "text",
+      "text": "Runs"
+    },
+    {
+      "file": "src/apps/Help.tsx",
+      "kind": "text",
+      "text": "tytus channels catalog"
+    },
+    {
+      "file": "src/apps/Help.tsx",
+      "kind": "text",
+      "text": "via the tray daemon and renders stdout/stderr inline."
+    },
+    {
+      "file": "src/apps/Help.tsx",
+      "kind": "text",
+      "text": "Last run:"
+    },
+    {
+      "file": "src/apps/Help.tsx",
+      "kind": "text",
+      "text": "Logs"
+    },
+    {
+      "file": "src/apps/Help.tsx",
+      "kind": "text",
+      "text": "daemon"
+    },
+    {
+      "file": "src/apps/Help.tsx",
+      "kind": "text",
+      "text": "startup"
+    },
+    {
+      "file": "src/apps/Help.tsx",
+      "kind": "text",
+      "text": "Log file"
+    },
+    {
+      "file": "src/apps/Help.tsx",
+      "kind": "text",
+      "text": "doesn't exist on this daemon. Start the daemon at least once to create it."
+    },
+    {
+      "file": "src/apps/Help.tsx",
+      "kind": "text",
+      "text": "About"
+    },
+    {
+      "file": "src/apps/Help.tsx",
+      "kind": "text",
+      "text": "TytusOS"
+    },
+    {
+      "file": "src/apps/Help.tsx",
+      "kind": "text",
+      "text": "Web shell for your private AI pod"
+    },
+    {
+      "file": "src/apps/Help.tsx",
+      "kind": "text",
+      "text": "Help"
+    },
+    {
+      "file": "src/apps/Help.tsx",
+      "kind": "text",
+      "text": "tytus-cli on GitHub"
+    },
+    {
+      "file": "src/apps/Help.tsx",
+      "kind": "text",
+      "text": "tytus-os on GitHub"
+    },
+    {
+      "file": "src/apps/ImageGallery.tsx",
+      "kind": "text",
+      "text": "= 0 && newIndex"
+    },
+    {
+      "file": "src/apps/ImageGallery.tsx",
+      "kind": "text",
+      "text": "Add Images"
+    },
+    {
+      "file": "src/apps/ImageGallery.tsx",
+      "kind": "text",
+      "text": "Date"
+    },
+    {
+      "file": "src/apps/ImageGallery.tsx",
+      "kind": "text",
+      "text": "Name"
+    },
+    {
+      "file": "src/apps/ImageGallery.tsx",
+      "kind": "text",
+      "text": "Size"
+    },
+    {
+      "file": "src/apps/ImageGallery.tsx",
+      "kind": "text",
+      "text": "All"
+    },
+    {
+      "file": "src/apps/ImageGallery.tsx",
+      "kind": "text",
+      "text": "Photos"
+    },
+    {
+      "file": "src/apps/ImageGallery.tsx",
+      "kind": "text",
+      "text": "Screenshots"
+    },
+    {
+      "file": "src/apps/ImageGallery.tsx",
+      "kind": "text",
+      "text": "Downloads"
+    },
+    {
+      "file": "src/apps/ImageGallery.tsx",
+      "kind": "placeholder",
+      "text": "Search..."
+    },
+    {
+      "file": "src/apps/ImageGallery.tsx",
+      "kind": "text",
+      "text": "No images found"
+    },
+    {
+      "file": "src/apps/ImageGallery.tsx",
+      "kind": "text",
+      "text": "Upload Images"
+    },
+    {
+      "file": "src/apps/ImageGallery.tsx",
+      "kind": "text",
+      "text": ") : viewMode === 'grid' ? ("
+    },
+    {
+      "file": "src/apps/ImageGallery.tsx",
+      "kind": "text",
+      "text": ") : ( /* Masonry */"
+    },
+    {
+      "file": "src/apps/ImageViewer.tsx",
+      "kind": "text",
+      "text": "Image Info"
+    },
+    {
+      "file": "src/apps/ImageViewer.tsx",
+      "kind": "text",
+      "text": "Slideshow"
+    },
+    {
+      "file": "src/apps/JsonFormatter.tsx",
+      "kind": "text",
+      "text": "Format"
+    },
+    {
+      "file": "src/apps/JsonFormatter.tsx",
+      "kind": "text",
+      "text": "null"
+    },
+    {
+      "file": "src/apps/JsonFormatter.tsx",
+      "kind": "text",
+      "text": "Minify"
+    },
+    {
+      "file": "src/apps/JsonFormatter.tsx",
+      "kind": "text",
+      "text": "Validate"
+    },
+    {
+      "file": "src/apps/JsonFormatter.tsx",
+      "kind": "text",
+      "text": "Clear"
+    },
+    {
+      "file": "src/apps/JsonFormatter.tsx",
+      "kind": "text",
+      "text": "Download"
+    },
+    {
+      "file": "src/apps/JsonFormatter.tsx",
+      "kind": "text",
+      "text": "Indent:"
+    },
+    {
+      "file": "src/apps/JsonFormatter.tsx",
+      "kind": "text",
+      "text": "2 spaces"
+    },
+    {
+      "file": "src/apps/JsonFormatter.tsx",
+      "kind": "text",
+      "text": "4 spaces"
+    },
+    {
+      "file": "src/apps/JsonFormatter.tsx",
+      "kind": "text",
+      "text": "Tree"
+    },
+    {
+      "file": "src/apps/JsonFormatter.tsx",
+      "kind": "text",
+      "text": "Text"
+    },
+    {
+      "file": "src/apps/JsonFormatter.tsx",
+      "kind": "text",
+      "text": "Input"
+    },
+    {
+      "file": "src/apps/JsonFormatter.tsx",
+      "kind": "text",
+      "text": "Sample"
+    },
+    {
+      "file": "src/apps/JsonFormatter.tsx",
+      "kind": "text",
+      "text": "Load"
+    },
+    {
+      "file": "src/apps/JsonFormatter.tsx",
+      "kind": "placeholder",
+      "text": "Paste your JSON here..."
+    },
+    {
+      "file": "src/apps/JsonFormatter.tsx",
+      "kind": "text",
+      "text": "Output"
+    },
+    {
+      "file": "src/apps/JsonFormatter.tsx",
+      "kind": "placeholder",
+      "text": "Search..."
+    },
+    {
+      "file": "src/apps/JsonFormatter.tsx",
+      "kind": "text",
+      "text": ") : output ? ("
+    },
+    {
+      "file": "src/apps/JsonFormatter.tsx",
+      "kind": "text",
+      "text": "Formatted output will appear here"
+    },
+    {
+      "file": "src/apps/MarkdownPreview.tsx",
+      "kind": "text",
+      "text": "Export"
+    },
+    {
+      "file": "src/apps/MarkdownPreview.tsx",
+      "kind": "title",
+      "text": "Bold"
+    },
+    {
+      "file": "src/apps/MarkdownPreview.tsx",
+      "kind": "title",
+      "text": "Italic"
+    },
+    {
+      "file": "src/apps/MarkdownPreview.tsx",
+      "kind": "title",
+      "text": "Heading"
+    },
+    {
+      "file": "src/apps/MarkdownPreview.tsx",
+      "kind": "title",
+      "text": "Link"
+    },
+    {
+      "file": "src/apps/MarkdownPreview.tsx",
+      "kind": "title",
+      "text": "Image"
+    },
+    {
+      "file": "src/apps/MarkdownPreview.tsx",
+      "kind": "title",
+      "text": "Code"
+    },
+    {
+      "file": "src/apps/MarkdownPreview.tsx",
+      "kind": "title",
+      "text": "Quote"
+    },
+    {
+      "file": "src/apps/MarkdownPreview.tsx",
+      "kind": "title",
+      "text": "List"
+    },
+    {
+      "file": "src/apps/MarkdownPreview.tsx",
+      "kind": "title",
+      "text": "Ordered List"
+    },
+    {
+      "file": "src/apps/MarkdownPreview.tsx",
+      "kind": "title",
+      "text": "Task List"
+    },
+    {
+      "file": "src/apps/MarkdownPreview.tsx",
+      "kind": "title",
+      "text": "Horizontal Rule"
+    },
+    {
+      "file": "src/apps/MarkdownPreview.tsx",
+      "kind": "text",
+      "text": "'); // Headings html = html.replace(/^###### (.*$)/gim, '"
+    },
+    {
+      "file": "src/apps/MarkdownPreview.tsx",
+      "kind": "text",
+      "text": "Sync"
+    },
+    {
+      "file": "src/apps/MarkdownPreview.tsx",
+      "kind": "text",
+      "text": "Export HTML"
+    },
+    {
+      "file": "src/apps/MarkdownPreview.tsx",
+      "kind": "text",
+      "text": "Load"
+    },
+    {
+      "file": "src/apps/MarkdownPreview.tsx",
+      "kind": "text",
+      "text": "Save"
+    },
+    {
+      "file": "src/apps/MarkdownPreview.tsx",
+      "kind": "text",
+      "text": "Editor"
+    },
+    {
+      "file": "src/apps/MarkdownPreview.tsx",
+      "kind": "text",
+      "text": "'); html = html.replace(/^##### (.*$)/gim, '"
+    },
+    {
+      "file": "src/apps/MarkdownPreview.tsx",
+      "kind": "text",
+      "text": "Preview"
+    },
+    {
+      "file": "src/apps/MarkdownPreview.tsx",
+      "kind": "text",
+      "text": "'); html = html.replace(/^#### (.*$)/gim, '"
+    },
+    {
+      "file": "src/apps/MarkdownPreview.tsx",
+      "kind": "text",
+      "text": "'); html = html.replace(/^### (.*$)/gim, '"
+    },
+    {
+      "file": "src/apps/MarkdownPreview.tsx",
+      "kind": "text",
+      "text": "'); html = html.replace(/^## (.*$)/gim, '"
+    },
+    {
+      "file": "src/apps/MarkdownPreview.tsx",
+      "kind": "text",
+      "text": "'); html = html.replace(/^# (.*$)/gim, '"
+    },
+    {
+      "file": "src/apps/MarkdownPreview.tsx",
+      "kind": "text",
+      "text": "'); // Bold & Italic html = html.replace(/\\*\\*\\*(.+?)\\*\\*\\*/g, '"
+    },
+    {
+      "file": "src/apps/MarkdownPreview.tsx",
+      "kind": "text",
+      "text": "'); html = html.replace(/\\*\\*(.+?)\\*\\*/g, '"
+    },
+    {
+      "file": "src/apps/MarkdownPreview.tsx",
+      "kind": "text",
+      "text": "'); html = html.replace(/\\*(.+?)\\*/g, '"
+    },
+    {
+      "file": "src/apps/MarkdownPreview.tsx",
+      "kind": "text",
+      "text": "'); html = html.replace(/___(.+?)___/g, '"
+    },
+    {
+      "file": "src/apps/MarkdownPreview.tsx",
+      "kind": "text",
+      "text": "'); html = html.replace(/__(.+?)__/g, '"
+    },
+    {
+      "file": "src/apps/MarkdownPreview.tsx",
+      "kind": "text",
+      "text": "'); html = html.replace(/_(.+?)_/g, '"
+    },
+    {
+      "file": "src/apps/MarkdownPreview.tsx",
+      "kind": "text",
+      "text": "'); // Strikethrough html = html.replace(/~~(.+?)~~/g, '"
+    },
+    {
+      "file": "src/apps/MarkdownPreview.tsx",
+      "kind": "text",
+      "text": "'); // Links html = html.replace(/\\[([^\\]]+)\\]\\(([^)]+)\\)/g, '"
+    },
+    {
+      "file": "src/apps/MarkdownPreview.tsx",
+      "kind": "text",
+      "text": "'); // Images html = html.replace(/!\\[([^\\]]*)\\]\\(([^)]+)\\)/g, '"
+    },
+    {
+      "file": "src/apps/MarkdownPreview.tsx",
+      "kind": "text",
+      "text": "'); // Blockquotes html = html.replace(/^&gt; (.*$)/gim, '"
+    },
+    {
+      "file": "src/apps/MarkdownPreview.tsx",
+      "kind": "text",
+      "text": "'); // Horizontal rules html = html.replace(/^---+$/gim, '"
+    },
+    {
+      "file": "src/apps/MarkdownPreview.tsx",
+      "kind": "text",
+      "text": "'); html = html.replace(/^\\*\\*\\*+$/gim, '"
+    },
+    {
+      "file": "src/apps/MarkdownPreview.tsx",
+      "kind": "text",
+      "text": "'); // Task lists html = html.replace(/^- \\[x\\] (.*$)/gim, '"
+    },
+    {
+      "file": "src/apps/MarkdownPreview.tsx",
+      "kind": "text",
+      "text": "'); html = html.replace(/^- \\[ \\] (.*$)/gim, '"
+    },
+    {
+      "file": "src/apps/MatrixRain.tsx",
+      "kind": "text",
+      "text": "Matrix Rain"
+    },
+    {
+      "file": "src/apps/MatrixRain.tsx",
+      "kind": "text",
+      "text": "Speed"
+    },
+    {
+      "file": "src/apps/MatrixRain.tsx",
+      "kind": "text",
+      "text": "Density"
+    },
+    {
+      "file": "src/apps/MatrixRain.tsx",
+      "kind": "text",
+      "text": "Color"
+    },
+    {
+      "file": "src/apps/MatrixRain.tsx",
+      "kind": "text",
+      "text": "Click anywhere to spawn burst"
+    },
+    {
+      "file": "src/apps/MediaConverter.tsx",
+      "kind": "text",
+      "text": "Media Converter"
+    },
+    {
+      "file": "src/apps/MediaConverter.tsx",
+      "kind": "text",
+      "text": "j.status === 'completed') && ("
+    },
+    {
+      "file": "src/apps/MediaConverter.tsx",
+      "kind": "text",
+      "text": "Clear"
+    },
+    {
+      "file": "src/apps/MediaConverter.tsx",
+      "kind": "text",
+      "text": "Source File"
+    },
+    {
+      "file": "src/apps/MediaConverter.tsx",
+      "kind": "text",
+      "text": "Select a media file from your file system"
+    },
+    {
+      "file": "src/apps/MediaConverter.tsx",
+      "kind": "text",
+      "text": "Output Settings"
+    },
+    {
+      "file": "src/apps/MediaConverter.tsx",
+      "kind": "text",
+      "text": "Format"
+    },
+    {
+      "file": "src/apps/MediaConverter.tsx",
+      "kind": "text",
+      "text": "Quality"
+    },
+    {
+      "file": "src/apps/MediaConverter.tsx",
+      "kind": "text",
+      "text": "Resolution"
+    },
+    {
+      "file": "src/apps/MediaConverter.tsx",
+      "kind": "text",
+      "text": "Start Conversion"
+    },
+    {
+      "file": "src/apps/MediaConverter.tsx",
+      "kind": "text",
+      "text": "Video"
+    },
+    {
+      "file": "src/apps/MediaConverter.tsx",
+      "kind": "text",
+      "text": "Audio"
+    },
+    {
+      "file": "src/apps/MediaConverter.tsx",
+      "kind": "text",
+      "text": "Image"
+    },
+    {
+      "file": "src/apps/MediaConverter.tsx",
+      "kind": "text",
+      "text": "Conversion History"
+    },
+    {
+      "file": "src/apps/MediaConverter.tsx",
+      "kind": "title",
+      "text": "Download"
+    },
+    {
+      "file": "src/apps/MediaConverter.tsx",
+      "kind": "text",
+      "text": "Select Media File"
+    },
+    {
+      "file": "src/apps/MediaConverter.tsx",
+      "kind": "text",
+      "text": "No media files found"
+    },
+    {
+      "file": "src/apps/Memory.tsx",
+      "kind": "text",
+      "text": "Memory Game"
+    },
+    {
+      "file": "src/apps/Memory.tsx",
+      "kind": "text",
+      "text": "Theme"
+    },
+    {
+      "file": "src/apps/Memory.tsx",
+      "kind": "text",
+      "text": "Difficulty"
+    },
+    {
+      "file": "src/apps/Memory.tsx",
+      "kind": "text",
+      "text": "Start Game"
+    },
+    {
+      "file": "src/apps/Memory.tsx",
+      "kind": "text",
+      "text": "You Win!"
+    },
+    {
+      "file": "src/apps/Memory.tsx",
+      "kind": "text",
+      "text": "Play Again"
+    },
+    {
+      "file": "src/apps/Memory.tsx",
+      "kind": "text",
+      "text": "Menu"
+    },
+    {
+      "file": "src/apps/Minesweeper.tsx",
+      "kind": "text",
+      "text": "= 0 && nc"
+    },
+    {
+      "file": "src/apps/Minesweeper.tsx",
+      "kind": "text",
+      "text": "= 0 && nr"
+    },
+    {
+      "file": "src/apps/Minesweeper.tsx",
+      "kind": "text",
+      "text": "= 0 && nc"
+    },
+    {
+      "file": "src/apps/Minesweeper.tsx",
+      "kind": "text",
+      "text": "= 0 && nr"
+    },
+    {
+      "file": "src/apps/Minesweeper.tsx",
+      "kind": "text",
+      "text": "= 0 && nc"
+    },
+    {
+      "file": "src/apps/Minesweeper.tsx",
+      "kind": "text",
+      "text": "= 0 && nr"
+    },
+    {
+      "file": "src/apps/Minesweeper.tsx",
+      "kind": "title",
+      "text": "New Game"
+    },
+    {
+      "file": "src/apps/Minesweeper.tsx",
+      "kind": "text",
+      "text": "Game Over!"
+    },
+    {
+      "file": "src/apps/Minesweeper.tsx",
+      "kind": "text",
+      "text": "New Game"
+    },
+    {
+      "file": "src/apps/Minesweeper.tsx",
+      "kind": "text",
+      "text": "= 0 && nc"
+    },
+    {
+      "file": "src/apps/Minesweeper.tsx",
+      "kind": "text",
+      "text": "= 0 && nr"
+    },
+    {
+      "file": "src/apps/MusicPlayer.tsx",
+      "kind": "text",
+      "text": "Playlist"
+    },
+    {
+      "file": "src/apps/Notes.tsx",
+      "kind": "text",
+      "text": "Folders"
+    },
+    {
+      "file": "src/apps/Notes.tsx",
+      "kind": "placeholder",
+      "text": "Folder name"
+    },
+    {
+      "file": "src/apps/Notes.tsx",
+      "kind": "placeholder",
+      "text": "Search notes..."
+    },
+    {
+      "file": "src/apps/Notes.tsx",
+      "kind": "text",
+      "text": "No notes yet"
+    },
+    {
+      "file": "src/apps/Notes.tsx",
+      "kind": "title",
+      "text": "Bold"
+    },
+    {
+      "file": "src/apps/Notes.tsx",
+      "kind": "title",
+      "text": "Italic"
+    },
+    {
+      "file": "src/apps/Notes.tsx",
+      "kind": "title",
+      "text": "Underline"
+    },
+    {
+      "file": "src/apps/Notes.tsx",
+      "kind": "title",
+      "text": "Bullet List"
+    },
+    {
+      "file": "src/apps/Notes.tsx",
+      "kind": "title",
+      "text": "Numbered List"
+    },
+    {
+      "file": "src/apps/Notes.tsx",
+      "kind": "title",
+      "text": "Favorite"
+    },
+    {
+      "file": "src/apps/Notes.tsx",
+      "kind": "title",
+      "text": "Pin"
+    },
+    {
+      "file": "src/apps/Notes.tsx",
+      "kind": "title",
+      "text": "Restore"
+    },
+    {
+      "file": "src/apps/Notes.tsx",
+      "kind": "title",
+      "text": "Delete"
+    },
+    {
+      "file": "src/apps/Notes.tsx",
+      "kind": "title",
+      "text": "Permanently Delete"
+    },
+    {
+      "file": "src/apps/Notes.tsx",
+      "kind": "placeholder",
+      "text": "Note title..."
+    },
+    {
+      "file": "src/apps/Notes.tsx",
+      "kind": "text",
+      "text": "Select a note or create a new one"
+    },
+    {
+      "file": "src/apps/Notes.tsx",
+      "kind": "text",
+      "text": "New Note"
+    },
+    {
+      "file": "src/apps/Notes.tsx",
+      "kind": "text",
+      "text": ", and lists are supported."
+    },
+    {
+      "file": "src/apps/Notes.tsx",
+      "kind": "text",
+      "text": "Bold"
+    },
+    {
+      "file": "src/apps/Notes.tsx",
+      "kind": "text",
+      "text": "italic"
+    },
+    {
+      "file": "src/apps/Notes.tsx",
+      "kind": "text",
+      "text": "This is your personal notes app. Create folders, organize your thoughts, and keep everything in one place."
+    },
+    {
+      "file": "src/apps/Notes.tsx",
+      "kind": "text",
+      "text": "Action item 1"
+    },
+    {
+      "file": "src/apps/Notes.tsx",
+      "kind": "text",
+      "text": "Action item 2"
+    },
+    {
+      "file": "src/apps/Notes.tsx",
+      "kind": "text",
+      "text": "Discuss project timeline and deliverables."
+    },
+    {
+      "file": "src/apps/PhotoEditor.tsx",
+      "kind": "text",
+      "text": "Adjustments"
+    },
+    {
+      "file": "src/apps/PhotoEditor.tsx",
+      "kind": "text",
+      "text": "Filters"
+    },
+    {
+      "file": "src/apps/PhotoEditor.tsx",
+      "kind": "text",
+      "text": "Transform"
+    },
+    {
+      "file": "src/apps/PhotoEditor.tsx",
+      "kind": "text",
+      "text": "Reset All"
+    },
+    {
+      "file": "src/apps/PhotoEditor.tsx",
+      "kind": "text",
+      "text": "Compare"
+    },
+    {
+      "file": "src/apps/PodInspector.tsx",
+      "kind": "text",
+      "text": "Connection"
+    },
+    {
+      "file": "src/apps/PodInspector.tsx",
+      "kind": "text",
+      "text": "API URL"
+    },
+    {
+      "file": "src/apps/PodInspector.tsx",
+      "kind": "text",
+      "text": "Public"
+    },
+    {
+      "file": "src/apps/PodInspector.tsx",
+      "kind": "text",
+      "text": "UI URL"
+    },
+    {
+      "file": "src/apps/PodInspector.tsx",
+      "kind": "text",
+      "text": "Key"
+    },
+    {
+      "file": "src/apps/PodInspector.tsx",
+      "kind": "text",
+      "text": "Actions"
+    },
+    {
+      "file": "src/apps/PodInspector.tsx",
+      "kind": "title",
+      "text": "Per-pod health check: container status, uptime, image, ports"
+    },
+    {
+      "file": "src/apps/PodInspector.tsx",
+      "kind": "title",
+      "text": "Rotate the pod's user_key without restarting the container"
+    },
+    {
+      "file": "src/apps/PodInspector.tsx",
+      "kind": "title",
+      "text": "Tail the last 200 lines of the agent container's stdout/stderr"
+    },
+    {
+      "file": "src/apps/PodInspector.tsx",
+      "kind": "title",
+      "text": "Show the agent container's effective environment with each variable's source"
+    },
+    {
+      "file": "src/apps/PodInspector.tsx",
+      "kind": "text",
+      "text": "Destructive"
+    },
+    {
+      "file": "src/apps/PodInspector.tsx",
+      "kind": "title",
+      "text": "Send SIGTERM to the running command"
+    },
+    {
+      "file": "src/apps/PodInspector.tsx",
+      "kind": "title",
+      "text": "Re-fetch the trailing 200 lines"
+    },
+    {
+      "file": "src/apps/PodInspector.tsx",
+      "kind": "text",
+      "text": "Refresh"
+    },
+    {
+      "file": "src/apps/PodInspector.tsx",
+      "kind": "text",
+      "text": "Dismiss"
+    },
+    {
+      "file": "src/apps/PodInspector.tsx",
+      "kind": "text",
+      "text": "Connecting to job stream…"
+    },
+    {
+      "file": "src/apps/PodInspector.tsx",
+      "kind": "text",
+      "text": ". You can re-install the agent later without spending another unit. Workspace data inside the container will be lost."
+    },
+    {
+      "file": "src/apps/PodInspector.tsx",
+      "kind": "text",
+      "text": "keeps the allocation"
+    },
+    {
+      "file": "src/apps/PodInspector.tsx",
+      "kind": "text",
+      "text": "Cancel"
+    },
+    {
+      "file": "src/apps/PodInspector.tsx",
+      "kind": "text",
+      "text": "Uninstall"
+    },
+    {
+      "file": "src/apps/PodInspector.tsx",
+      "kind": "text",
+      "text": "permanently destroys it"
+    },
+    {
+      "file": "src/apps/PodInspector.tsx",
+      "kind": "text",
+      "text": "Cancel"
+    },
+    {
+      "file": "src/apps/PodInspector.tsx",
+      "kind": "text",
+      "text": "tytus restart --pod NN"
+    },
+    {
+      "file": "src/apps/PodInspector.tsx",
+      "kind": "text",
+      "text": ". Active workloads on each pod will be interrupted briefly."
+    },
+    {
+      "file": "src/apps/PodInspector.tsx",
+      "kind": "text",
+      "text": "Cancel"
+    },
+    {
+      "file": "src/apps/PodInspector.tsx",
+      "kind": "text",
+      "text": "void; agentsByPod: Map"
+    },
+    {
+      "file": "src/apps/PodInspector.tsx",
+      "kind": "text",
+      "text": "; readyByPod: Map"
+    },
+    {
+      "file": "src/apps/PodInspector.tsx",
+      "kind": "text",
+      "text": "Fleet"
+    },
+    {
+      "file": "src/apps/PodInspector.tsx",
+      "kind": "text",
+      "text": "Fleet Overview"
+    },
+    {
+      "file": "src/apps/PodInspector.tsx",
+      "kind": "text",
+      "text": "Restart all"
+    },
+    {
+      "file": "src/apps/PodInspector.tsx",
+      "kind": "aria-label",
+      "text": "Refresh"
+    },
+    {
+      "file": "src/apps/PodInspector.tsx",
+      "kind": "text",
+      "text": "Refresh"
+    },
+    {
+      "file": "src/apps/PodInspector.tsx",
+      "kind": "text",
+      "text": "+ Allocate"
+    },
+    {
+      "file": "src/apps/PodInspector.tsx",
+      "kind": "placeholder",
+      "text": "Search pods…"
+    },
+    {
+      "file": "src/apps/PodInspector.tsx",
+      "kind": "text",
+      "text": "Sort: Needs attention"
+    },
+    {
+      "file": "src/apps/PodInspector.tsx",
+      "kind": "text",
+      "text": "Sort: Pod ID"
+    },
+    {
+      "file": "src/apps/PodInspector.tsx",
+      "kind": "text",
+      "text": "No pods yet"
+    },
+    {
+      "file": "src/apps/PodInspector.tsx",
+      "kind": "text",
+      "text": "Once you allocate a pod, it'll appear here with live status, links, and per-pod actions."
+    },
+    {
+      "file": "src/apps/PodInspector.tsx",
+      "kind": "text",
+      "text": "Allocate your first pod →"
+    },
+    {
+      "file": "src/apps/PodInspector.tsx",
+      "kind": "aria-label",
+      "text": "Pin"
+    },
+    {
+      "file": "src/apps/PodInspector.tsx",
+      "kind": "text",
+      "text": "Pod"
+    },
+    {
+      "file": "src/apps/PodInspector.tsx",
+      "kind": "text",
+      "text": "Status"
+    },
+    {
+      "file": "src/apps/PodInspector.tsx",
+      "kind": "text",
+      "text": "Agent"
+    },
+    {
+      "file": "src/apps/PodInspector.tsx",
+      "kind": "text",
+      "text": "Units"
+    },
+    {
+      "file": "src/apps/PodInspector.tsx",
+      "kind": "text",
+      "text": "Actions"
+    },
+    {
+      "file": "src/apps/Pong.tsx",
+      "kind": "text",
+      "text": "= leftPaddle.current.y && ball.current.y"
+    },
+    {
+      "file": "src/apps/Pong.tsx",
+      "kind": "text",
+      "text": "= rightPaddle.current.y && ball.current.y"
+    },
+    {
+      "file": "src/apps/Pong.tsx",
+      "kind": "text",
+      "text": "Pong"
+    },
+    {
+      "file": "src/apps/Pong.tsx",
+      "kind": "text",
+      "text": "1 Player"
+    },
+    {
+      "file": "src/apps/Pong.tsx",
+      "kind": "text",
+      "text": "2 Players"
+    },
+    {
+      "file": "src/apps/Pong.tsx",
+      "kind": "text",
+      "text": "Pause"
+    },
+    {
+      "file": "src/apps/Pong.tsx",
+      "kind": "text",
+      "text": "Resume"
+    },
+    {
+      "file": "src/apps/Pong.tsx",
+      "kind": "text",
+      "text": "Play Again"
+    },
+    {
+      "file": "src/apps/Pong.tsx",
+      "kind": "text",
+      "text": "Paused"
+    },
+    {
+      "file": "src/apps/RegexTester.tsx",
+      "kind": "text",
+      "text": "p.color ? `"
+    },
+    {
+      "file": "src/apps/RegexTester.tsx",
+      "kind": "text",
+      "text": "Regular Expression"
+    },
+    {
+      "file": "src/apps/RegexTester.tsx",
+      "kind": "text",
+      "text": "Quick Ref"
+    },
+    {
+      "file": "src/apps/RegexTester.tsx",
+      "kind": "placeholder",
+      "text": "Enter regex pattern..."
+    },
+    {
+      "file": "src/apps/RegexTester.tsx",
+      "kind": "text",
+      "text": "Test String"
+    },
+    {
+      "file": "src/apps/RegexTester.tsx",
+      "kind": "text",
+      "text": "Enter text to test against..."
+    },
+    {
+      "file": "src/apps/RegexTester.tsx",
+      "kind": "text",
+      "text": "Replace"
+    },
+    {
+      "file": "src/apps/RegexTester.tsx",
+      "kind": "text",
+      "text": "Replacement"
+    },
+    {
+      "file": "src/apps/RegexTester.tsx",
+      "kind": "placeholder",
+      "text": "Replacement text..."
+    },
+    {
+      "file": "src/apps/RegexTester.tsx",
+      "kind": "text",
+      "text": "0 && m.groups.some(Boolean) && ("
+    },
+    {
+      "file": "src/apps/RegexTester.tsx",
+      "kind": "text",
+      "text": "g && ("
+    },
+    {
+      "file": "src/apps/RegexTester.tsx",
+      "kind": "text",
+      "text": "Common Patterns"
+    },
+    {
+      "file": "src/apps/RegexTester.tsx",
+      "kind": "text",
+      "text": "Quick Reference"
+    },
+    {
+      "file": "src/apps/RegexTester.tsx",
+      "kind": "text",
+      "text": "Explanation"
+    },
+    {
+      "file": "src/apps/Reminders.tsx",
+      "kind": "text",
+      "text": "Reminders"
+    },
+    {
+      "file": "src/apps/Reminders.tsx",
+      "kind": "text",
+      "text": "New"
+    },
+    {
+      "file": "src/apps/Reminders.tsx",
+      "kind": "placeholder",
+      "text": "Reminder title..."
+    },
+    {
+      "file": "src/apps/Reminders.tsx",
+      "kind": "text",
+      "text": "Priority:"
+    },
+    {
+      "file": "src/apps/Reminders.tsx",
+      "kind": "text",
+      "text": "No reminders"
+    },
+    {
+      "file": "src/apps/Reminders.tsx",
+      "kind": "text",
+      "text": "r.date"
+    },
+    {
+      "file": "src/apps/Reminders.tsx",
+      "kind": "text",
+      "text": "r.date"
+    },
+    {
+      "file": "src/apps/RssReader.tsx",
+      "kind": "text",
+      "text": "Mark Read"
+    },
+    {
+      "file": "src/apps/RssReader.tsx",
+      "kind": "text",
+      "text": "Read"
+    },
+    {
+      "file": "src/apps/RssReader.tsx",
+      "kind": "text",
+      "text": "Feeds"
+    },
+    {
+      "file": "src/apps/RssReader.tsx",
+      "kind": "text",
+      "text": "All Articles"
+    },
+    {
+      "file": "src/apps/RssReader.tsx",
+      "kind": "text",
+      "text": "Add Feed"
+    },
+    {
+      "file": "src/apps/RssReader.tsx",
+      "kind": "text",
+      "text": "No articles"
+    },
+    {
+      "file": "src/apps/RssReader.tsx",
+      "kind": "text",
+      "text": "Add RSS Feed"
+    },
+    {
+      "file": "src/apps/RssReader.tsx",
+      "kind": "placeholder",
+      "text": "Feed name"
+    },
+    {
+      "file": "src/apps/RssReader.tsx",
+      "kind": "placeholder",
+      "text": "Feed URL (e.g., https://example.com/feed.xml)"
+    },
+    {
+      "file": "src/apps/RssReader.tsx",
+      "kind": "text",
+      "text": "Add Feed"
+    },
+    {
+      "file": "src/apps/ScreenRecorder.tsx",
+      "kind": "text",
+      "text": "Recording Mode"
+    },
+    {
+      "file": "src/apps/ScreenRecorder.tsx",
+      "kind": "text",
+      "text": "Settings"
+    },
+    {
+      "file": "src/apps/ScreenRecorder.tsx",
+      "kind": "text",
+      "text": "Quality"
+    },
+    {
+      "file": "src/apps/ScreenRecorder.tsx",
+      "kind": "text",
+      "text": "Low"
+    },
+    {
+      "file": "src/apps/ScreenRecorder.tsx",
+      "kind": "text",
+      "text": "Medium"
+    },
+    {
+      "file": "src/apps/ScreenRecorder.tsx",
+      "kind": "text",
+      "text": "High"
+    },
+    {
+      "file": "src/apps/ScreenRecorder.tsx",
+      "kind": "text",
+      "text": "15 fps"
+    },
+    {
+      "file": "src/apps/ScreenRecorder.tsx",
+      "kind": "text",
+      "text": "30 fps"
+    },
+    {
+      "file": "src/apps/ScreenRecorder.tsx",
+      "kind": "text",
+      "text": "60 fps"
+    },
+    {
+      "file": "src/apps/ScreenRecorder.tsx",
+      "kind": "text",
+      "text": "Start Recording"
+    },
+    {
+      "file": "src/apps/ScreenRecorder.tsx",
+      "kind": "text",
+      "text": ") : recorderState === 'recording' ? ("
+    },
+    {
+      "file": "src/apps/ScreenRecorder.tsx",
+      "kind": "text",
+      "text": "Pause"
+    },
+    {
+      "file": "src/apps/ScreenRecorder.tsx",
+      "kind": "text",
+      "text": "Stop Recording"
+    },
+    {
+      "file": "src/apps/ScreenRecorder.tsx",
+      "kind": "text",
+      "text": ") : recorderState === 'paused' ? ("
+    },
+    {
+      "file": "src/apps/ScreenRecorder.tsx",
+      "kind": "text",
+      "text": "Resume"
+    },
+    {
+      "file": "src/apps/ScreenRecorder.tsx",
+      "kind": "text",
+      "text": "Stop"
+    },
+    {
+      "file": "src/apps/ScreenRecorder.tsx",
+      "kind": "text",
+      "text": "No recordings yet"
+    },
+    {
+      "file": "src/apps/Settings.tsx",
+      "kind": "text",
+      "text": "Background"
+    },
+    {
+      "file": "src/apps/Settings.tsx",
+      "kind": "text",
+      "text": "Notifications"
+    },
+    {
+      "file": "src/apps/Settings.tsx",
+      "kind": "text",
+      "text": "Notification Center"
+    },
+    {
+      "file": "src/apps/Settings.tsx",
+      "kind": "text",
+      "text": "Open Center"
+    },
+    {
+      "file": "src/apps/Settings.tsx",
+      "kind": "text",
+      "text": "Clear All"
+    },
+    {
+      "file": "src/apps/Settings.tsx",
+      "kind": "text",
+      "text": "Recent"
+    },
+    {
+      "file": "src/apps/Settings.tsx",
+      "kind": "text",
+      "text": "No recent notifications."
+    },
+    {
+      "file": "src/apps/Settings.tsx",
+      "kind": "text",
+      "text": "Privacy"
+    },
+    {
+      "file": "src/apps/Settings.tsx",
+      "kind": "text",
+      "text": "Private AI shell"
+    },
+    {
+      "file": "src/apps/Settings.tsx",
+      "kind": "text",
+      "text": "TytusOS shows daemon/pod state from your local Tytus daemon. Browser-side telemetry and fake device controls are intentionally not exposed."
+    },
+    {
+      "file": "src/apps/Settings.tsx",
+      "kind": "text",
+      "text": "Lock Screen Now"
+    },
+    {
+      "file": "src/apps/Settings.tsx",
+      "kind": "text",
+      "text": "About"
+    },
+    {
+      "file": "src/apps/Settings.tsx",
+      "kind": "text",
+      "text": "TytusOS"
+    },
+    {
+      "file": "src/apps/Settings.tsx",
+      "kind": "text",
+      "text": "Web shell for your private AI pod"
+    },
+    {
+      "file": "src/apps/Settings.tsx",
+      "kind": "text",
+      "text": "Software Update"
+    },
+    {
+      "file": "src/apps/Settings.tsx",
+      "kind": "text",
+      "text": "Checking…"
+    },
+    {
+      "file": "src/apps/Settings.tsx",
+      "kind": "text",
+      "text": "Check for updates"
+    },
+    {
+      "file": "src/apps/Settings.tsx",
+      "kind": "text",
+      "text": "Automatic update checks"
+    },
+    {
+      "file": "src/apps/Settings.tsx",
+      "kind": "text",
+      "text": "Update channel"
+    },
+    {
+      "file": "src/apps/Settings.tsx",
+      "kind": "text",
+      "text": "Open Tytus Home"
+    },
+    {
+      "file": "src/apps/Settings.tsx",
+      "kind": "text",
+      "text": "Refresh daemon state"
+    },
+    {
+      "file": "src/apps/Settings.tsx",
+      "kind": "text",
+      "text": "Plan & Units"
+    },
+    {
+      "file": "src/apps/Settings.tsx",
+      "kind": "text",
+      "text": "Loading plan…"
+    },
+    {
+      "file": "src/apps/Settings.tsx",
+      "kind": "text",
+      "text": "Plan & Units"
+    },
+    {
+      "file": "src/apps/Settings.tsx",
+      "kind": "text",
+      "text": "Tier"
+    },
+    {
+      "file": "src/apps/Settings.tsx",
+      "kind": "text",
+      "text": "Upgrade plan"
+    },
+    {
+      "file": "src/apps/Settings.tsx",
+      "kind": "text",
+      "text": "Breakdown"
+    },
+    {
+      "file": "src/apps/Settings.tsx",
+      "kind": "text",
+      "text": "Total"
+    },
+    {
+      "file": "src/apps/Settings.tsx",
+      "kind": "text",
+      "text": "Units are consumed by allocated agents (nemoclaw = 1 unit, hermes = 2 units). Included AIL pods don't count against your unit budget."
+    },
+    {
+      "file": "src/apps/Settings.tsx",
+      "kind": "text",
+      "text": "Pods"
+    },
+    {
+      "file": "src/apps/Settings.tsx",
+      "kind": "text",
+      "text": "Loading pods…"
+    },
+    {
+      "file": "src/apps/Settings.tsx",
+      "kind": "text",
+      "text": "Pods"
+    },
+    {
+      "file": "src/apps/Settings.tsx",
+      "kind": "text",
+      "text": "+ Allocate pod"
+    },
+    {
+      "file": "src/apps/Settings.tsx",
+      "kind": "text",
+      "text": "No pods yet"
+    },
+    {
+      "file": "src/apps/Settings.tsx",
+      "kind": "text",
+      "text": "Allocate your first pod to start using Tytus. The Agents tab has the catalog of available agents."
+    },
+    {
+      "file": "src/apps/Settings.tsx",
+      "kind": "text",
+      "text": "Browse agents →"
+    },
+    {
+      "file": "src/apps/Settings.tsx",
+      "kind": "text",
+      "text": "Free with your account · doesn't count against units"
+    },
+    {
+      "file": "src/apps/Settings.tsx",
+      "kind": "text",
+      "text": "API URL"
+    },
+    {
+      "file": "src/apps/Settings.tsx",
+      "kind": "text",
+      "text": "Public"
+    },
+    {
+      "file": "src/apps/Settings.tsx",
+      "kind": "text",
+      "text": "UI URL"
+    },
+    {
+      "file": "src/apps/Settings.tsx",
+      "kind": "text",
+      "text": "Key"
+    },
+    {
+      "file": "src/apps/Settings.tsx",
+      "kind": "aria-label",
+      "text": "Refresh"
+    },
+    {
+      "file": "src/apps/Settings.tsx",
+      "kind": "text",
+      "text": "Refresh"
+    },
+    {
+      "file": "src/apps/Settings.tsx",
+      "kind": "text",
+      "text": "Agents"
+    },
+    {
+      "file": "src/apps/Settings.tsx",
+      "kind": "text",
+      "text": "Install an agent into a pod. Each install consumes the agent's unit cost."
+    },
+    {
+      "file": "src/apps/Settings.tsx",
+      "kind": "text",
+      "text": "Loading catalog…"
+    },
+    {
+      "file": "src/apps/Settings.tsx",
+      "kind": "text",
+      "text": "Retry"
+    },
+    {
+      "file": "src/apps/Settings.tsx",
+      "kind": "text",
+      "text": "Website"
+    },
+    {
+      "file": "src/apps/Settings.tsx",
+      "kind": "text",
+      "text": "GitHub"
+    },
+    {
+      "file": "src/apps/Settings.tsx",
+      "kind": "text",
+      "text": "Install"
+    },
+    {
+      "file": "src/apps/Settings.tsx",
+      "kind": "aria-label",
+      "text": "Close"
+    },
+    {
+      "file": "src/apps/Settings.tsx",
+      "kind": "text",
+      "text": "The daemon will pick a free pod slot automatically. Allocation, image pull, and container start typically take 30–90 seconds."
+    },
+    {
+      "file": "src/apps/Settings.tsx",
+      "kind": "text",
+      "text": "Connecting to install stream…"
+    },
+    {
+      "file": "src/apps/Settings.tsx",
+      "kind": "text",
+      "text": "✓ Install complete — pod is ready"
+    },
+    {
+      "file": "src/apps/Settings.tsx",
+      "kind": "text",
+      "text": "Stream disconnected. Check Settings → Pods to verify."
+    },
+    {
+      "file": "src/apps/Settings.tsx",
+      "kind": "text",
+      "text": "Open assistant"
+    },
+    {
+      "file": "src/apps/Settings.tsx",
+      "kind": "text",
+      "text": "Connect messenger"
+    },
+    {
+      "file": "src/apps/Settings.tsx",
+      "kind": "text",
+      "text": "Cancel"
+    },
+    {
+      "file": "src/apps/Settings.tsx",
+      "kind": "text",
+      "text": "Cancel disabled while install runs."
+    },
+    {
+      "file": "src/apps/Settings.tsx",
+      "kind": "text",
+      "text": "Done"
+    },
+    {
+      "file": "src/apps/Settings.tsx",
+      "kind": "text",
+      "text": "Sign out of Tytus?"
+    },
+    {
+      "file": "src/apps/Settings.tsx",
+      "kind": "text",
+      "text": "revokes all pod allocations"
+    },
+    {
+      "file": "src/apps/Settings.tsx",
+      "kind": "text",
+      "text": "on this account."
+    },
+    {
+      "file": "src/apps/Settings.tsx",
+      "kind": "text",
+      "text": "You can always sign in again from the Tytus tray menu."
+    },
+    {
+      "file": "src/apps/Settings.tsx",
+      "kind": "text",
+      "text": "Cancel"
+    },
+    {
+      "file": "src/apps/Settings.tsx",
+      "kind": "text",
+      "text": "('SELECT COUNT(*) as n FROM api_history'), db.query"
+    },
+    {
+      "file": "src/apps/Settings.tsx",
+      "kind": "text",
+      "text": "('SELECT COUNT(*) as n FROM api_collections'), db.query"
+    },
+    {
+      "file": "src/apps/Settings.tsx",
+      "kind": "text",
+      "text": "Local data (SQLite)"
+    },
+    {
+      "file": "src/apps/Settings.tsx",
+      "kind": "text",
+      "text": "Browser-side database for collections, history, and future agent apps."
+    },
+    {
+      "file": "src/apps/Settings.tsx",
+      "kind": "text",
+      "text": "Download as a real"
+    },
+    {
+      "file": "src/apps/Settings.tsx",
+      "kind": "text",
+      "text": ", the SQLite Browser, or any tool that speaks the format."
+    },
+    {
+      "file": "src/apps/Settings.tsx",
+      "kind": "text",
+      "text": ".sqlite"
+    },
+    {
+      "file": "src/apps/Settings.tsx",
+      "kind": "text",
+      "text": "file. Open with"
+    },
+    {
+      "file": "src/apps/Settings.tsx",
+      "kind": "text",
+      "text": "sqlite3"
+    },
+    {
+      "file": "src/apps/Settings.tsx",
+      "kind": "text",
+      "text": "Account"
+    },
+    {
+      "file": "src/apps/Settings.tsx",
+      "kind": "text",
+      "text": "Sign out"
+    },
+    {
+      "file": "src/apps/Settings.tsx",
+      "kind": "text",
+      "text": "Sign-in is initiated from the Tytus tray menu ("
+    },
+    {
+      "file": "src/apps/Settings.tsx",
+      "kind": "text",
+      "text": "). TytusOS will pick up the new session automatically."
+    },
+    {
+      "file": "src/apps/Settings.tsx",
+      "kind": "text",
+      "text": "Sign in"
+    },
+    {
+      "file": "src/apps/Settings.tsx",
+      "kind": "text",
+      "text": "Daemon"
+    },
+    {
+      "file": "src/apps/Settings.tsx",
+      "kind": "text",
+      "text": "Uptime"
+    },
+    {
+      "file": "src/apps/Settings.tsx",
+      "kind": "text",
+      "text": "Tunnel"
+    },
+    {
+      "file": "src/apps/Settings.tsx",
+      "kind": "text",
+      "text": "Keychain"
+    },
+    {
+      "file": "src/apps/Settings.tsx",
+      "kind": "text",
+      "text": "Lifecycle"
+    },
+    {
+      "file": "src/apps/Settings.tsx",
+      "kind": "text",
+      "text": "Configuration"
+    },
+    {
+      "file": "src/apps/Settings.tsx",
+      "kind": "text",
+      "text": "Configure agent"
+    },
+    {
+      "file": "src/apps/Settings.tsx",
+      "kind": "text",
+      "text": "Runs"
+    },
+    {
+      "file": "src/apps/Settings.tsx",
+      "kind": "text",
+      "text": "in the internal TytusOS terminal."
+    },
+    {
+      "file": "src/apps/Settings.tsx",
+      "kind": "text",
+      "text": "tytus configure"
+    },
+    {
+      "file": "src/apps/Settings.tsx",
+      "kind": "text",
+      "text": "Configure flow started in the internal TytusOS Terminal."
+    },
+    {
+      "file": "src/apps/Settings.tsx",
+      "kind": "text",
+      "text": "Autostart"
+    },
+    {
+      "file": "src/apps/Settings.tsx",
+      "kind": "text",
+      "text": "Loading settings…"
+    },
+    {
+      "file": "src/apps/Settings.tsx",
+      "kind": "text",
+      "text": "Tray autostart"
+    },
+    {
+      "file": "src/apps/Settings.tsx",
+      "kind": "text",
+      "text": "Launch the menu-bar app at login."
+    },
+    {
+      "file": "src/apps/Settings.tsx",
+      "kind": "text",
+      "text": "Tunnel autostart"
+    },
+    {
+      "file": "src/apps/Settings.tsx",
+      "kind": "text",
+      "text": "Bring up the WireGuard tunnel at login."
+    },
+    {
+      "file": "src/apps/Settings.tsx",
+      "kind": "text",
+      "text": "Appearance"
+    },
+    {
+      "file": "src/apps/Settings.tsx",
+      "kind": "text",
+      "text": "Dark Mode"
+    },
+    {
+      "file": "src/apps/Settings.tsx",
+      "kind": "text",
+      "text": "Use dark theme across the shell."
+    },
+    {
+      "file": "src/apps/Settings.tsx",
+      "kind": "text",
+      "text": "Accent Color"
+    },
+    {
+      "file": "src/apps/Settings.tsx",
+      "kind": "text",
+      "text": "Show demo apps"
+    },
+    {
+      "file": "src/apps/Settings.tsx",
+      "kind": "text",
+      "text": "Reveal optional OS-feel demo apps in the App Launcher. Tytus product surfaces stay visible either way."
+    },
+    {
+      "file": "src/apps/Snake.tsx",
+      "kind": "text",
+      "text": "Snake"
+    },
+    {
+      "file": "src/apps/Snake.tsx",
+      "kind": "text",
+      "text": "Arrow keys or WASD to move"
+    },
+    {
+      "file": "src/apps/Snake.tsx",
+      "kind": "text",
+      "text": "Start Game"
+    },
+    {
+      "file": "src/apps/Snake.tsx",
+      "kind": "text",
+      "text": "Paused"
+    },
+    {
+      "file": "src/apps/Snake.tsx",
+      "kind": "text",
+      "text": "Resume"
+    },
+    {
+      "file": "src/apps/Snake.tsx",
+      "kind": "text",
+      "text": "Game Over"
+    },
+    {
+      "file": "src/apps/Snake.tsx",
+      "kind": "text",
+      "text": "Play Again"
+    },
+    {
+      "file": "src/apps/Snake.tsx",
+      "kind": "text",
+      "text": "P: Pause | Arrow keys / WASD: Move"
+    },
+    {
+      "file": "src/apps/Snake.tsx",
+      "kind": "text",
+      "text": "= GRID_SIZE || head.y"
+    },
+    {
+      "file": "src/apps/Solitaire.tsx",
+      "kind": "text",
+      "text": "Auto"
+    },
+    {
+      "file": "src/apps/Solitaire.tsx",
+      "kind": "text",
+      "text": "You Win!"
+    },
+    {
+      "file": "src/apps/Solitaire.tsx",
+      "kind": "text",
+      "text": "Play Again"
+    },
+    {
+      "file": "src/apps/Spreadsheet.tsx",
+      "kind": "title",
+      "text": "Bold"
+    },
+    {
+      "file": "src/apps/Spreadsheet.tsx",
+      "kind": "title",
+      "text": "Italic"
+    },
+    {
+      "file": "src/apps/Spreadsheet.tsx",
+      "kind": "title",
+      "text": "Background Color"
+    },
+    {
+      "file": "src/apps/Sudoku.tsx",
+      "kind": "text",
+      "text": "= '1' && e.key"
+    },
+    {
+      "file": "src/apps/Sudoku.tsx",
+      "kind": "text",
+      "text": "Sudoku"
+    },
+    {
+      "file": "src/apps/Sudoku.tsx",
+      "kind": "text",
+      "text": "Select difficulty"
+    },
+    {
+      "file": "src/apps/Sudoku.tsx",
+      "kind": "text",
+      "text": "Notes"
+    },
+    {
+      "file": "src/apps/Sudoku.tsx",
+      "kind": "text",
+      "text": "Hint"
+    },
+    {
+      "file": "src/apps/Sudoku.tsx",
+      "kind": "text",
+      "text": "Clear"
+    },
+    {
+      "file": "src/apps/Sudoku.tsx",
+      "kind": "text",
+      "text": "New"
+    },
+    {
+      "file": "src/apps/Sudoku.tsx",
+      "kind": "text",
+      "text": "Solved!"
+    },
+    {
+      "file": "src/apps/Sudoku.tsx",
+      "kind": "text",
+      "text": "New Puzzle"
+    },
+    {
+      "file": "src/apps/SystemMonitor.tsx",
+      "kind": "placeholder",
+      "text": "Search processes..."
+    },
+    {
+      "file": "src/apps/SystemMonitor.tsx",
+      "kind": "text",
+      "text": "End Process"
+    },
+    {
+      "file": "src/apps/SystemMonitor.tsx",
+      "kind": "text",
+      "text": "Status"
+    },
+    {
+      "file": "src/apps/SystemMonitor.tsx",
+      "kind": "text",
+      "text": "User"
+    },
+    {
+      "file": "src/apps/SystemMonitor.tsx",
+      "kind": "text",
+      "text": "Memory"
+    },
+    {
+      "file": "src/apps/SystemMonitor.tsx",
+      "kind": "text",
+      "text": "Network"
+    },
+    {
+      "file": "src/apps/Terminal.tsx",
+      "kind": "text",
+      "text": "new Promise"
+    },
+    {
+      "file": "src/apps/Terminal.tsx",
+      "kind": "text",
+      "text": "typeof v === 'object' && v !== null; async function startTerminal(body: TerminalStart): Promise"
+    },
+    {
+      "file": "src/apps/Terminal.tsx",
+      "kind": "text",
+      "text": "connecting"
+    },
+    {
+      "file": "src/apps/Tetris.tsx",
+      "kind": "text",
+      "text": "= 0 && nx"
+    },
+    {
+      "file": "src/apps/Tetris.tsx",
+      "kind": "text",
+      "text": "= 0 && ny"
+    },
+    {
+      "file": "src/apps/Tetris.tsx",
+      "kind": "text",
+      "text": "= 0 && nx"
+    },
+    {
+      "file": "src/apps/Tetris.tsx",
+      "kind": "text",
+      "text": "= 0 && ny"
+    },
+    {
+      "file": "src/apps/Tetris.tsx",
+      "kind": "text",
+      "text": "= 0 && nx"
+    },
+    {
+      "file": "src/apps/Tetris.tsx",
+      "kind": "text",
+      "text": "= 0 && ny"
+    },
+    {
+      "file": "src/apps/Tetris.tsx",
+      "kind": "text",
+      "text": "Start"
+    },
+    {
+      "file": "src/apps/Tetris.tsx",
+      "kind": "text",
+      "text": "Pause"
+    },
+    {
+      "file": "src/apps/Tetris.tsx",
+      "kind": "text",
+      "text": "Resume"
+    },
+    {
+      "file": "src/apps/Tetris.tsx",
+      "kind": "text",
+      "text": "Restart"
+    },
+    {
+      "file": "src/apps/Tetris.tsx",
+      "kind": "text",
+      "text": "←→: Move"
+    },
+    {
+      "file": "src/apps/Tetris.tsx",
+      "kind": "text",
+      "text": "↑: Rotate"
+    },
+    {
+      "file": "src/apps/Tetris.tsx",
+      "kind": "text",
+      "text": "↓: Soft drop"
+    },
+    {
+      "file": "src/apps/Tetris.tsx",
+      "kind": "text",
+      "text": "C: Hold"
+    },
+    {
+      "file": "src/apps/Tetris.tsx",
+      "kind": "text",
+      "text": "P: Pause"
+    },
+    {
+      "file": "src/apps/Tetris.tsx",
+      "kind": "text",
+      "text": "Space: Hard"
+    },
+    {
+      "file": "src/apps/Tetris.tsx",
+      "kind": "text",
+      "text": "Game Over"
+    },
+    {
+      "file": "src/apps/TextEditor.tsx",
+      "kind": "text",
+      "text": "lastIndex) newResult.push(node.slice(lastIndex, idx)); newResult.push("
+    },
+    {
+      "file": "src/apps/TextEditor.tsx",
+      "kind": "title",
+      "text": "New (Ctrl+N)"
+    },
+    {
+      "file": "src/apps/TextEditor.tsx",
+      "kind": "text",
+      "text": "New"
+    },
+    {
+      "file": "src/apps/TextEditor.tsx",
+      "kind": "title",
+      "text": "Open (Ctrl+O)"
+    },
+    {
+      "file": "src/apps/TextEditor.tsx",
+      "kind": "text",
+      "text": "Open"
+    },
+    {
+      "file": "src/apps/TextEditor.tsx",
+      "kind": "title",
+      "text": "Save (Ctrl+S)"
+    },
+    {
+      "file": "src/apps/TextEditor.tsx",
+      "kind": "text",
+      "text": "Save"
+    },
+    {
+      "file": "src/apps/TextEditor.tsx",
+      "kind": "text",
+      "text": "Find"
+    },
+    {
+      "file": "src/apps/TextEditor.tsx",
+      "kind": "title",
+      "text": "Word Wrap"
+    },
+    {
+      "file": "src/apps/TextEditor.tsx",
+      "kind": "title",
+      "text": "Line Numbers"
+    },
+    {
+      "file": "src/apps/TextEditor.tsx",
+      "kind": "placeholder",
+      "text": "Find..."
+    },
+    {
+      "file": "src/apps/TextEditor.tsx",
+      "kind": "text",
+      "text": "Open a file or create a new document"
+    },
+    {
+      "file": "src/apps/TextEditor.tsx",
+      "kind": "text",
+      "text": "New File"
+    },
+    {
+      "file": "src/apps/TextEditor.tsx",
+      "kind": "text",
+      "text": "Open File"
+    },
+    {
+      "file": "src/apps/TextEditor.tsx",
+      "kind": "text",
+      "text": "Recent Files"
+    },
+    {
+      "file": "src/apps/TextEditor.tsx",
+      "kind": "text",
+      "text": "Modified"
+    },
+    {
+      "file": "src/apps/TextEditor.tsx",
+      "kind": "text",
+      "text": "Open File"
+    },
+    {
+      "file": "src/apps/TicTacToe.tsx",
+      "kind": "text",
+      "text": "Tic-Tac-Toe"
+    },
+    {
+      "file": "src/apps/TicTacToe.tsx",
+      "kind": "text",
+      "text": "Choose game mode"
+    },
+    {
+      "file": "src/apps/TicTacToe.tsx",
+      "kind": "text",
+      "text": "2 Players"
+    },
+    {
+      "file": "src/apps/TicTacToe.tsx",
+      "kind": "text",
+      "text": "vs Computer"
+    },
+    {
+      "file": "src/apps/TicTacToe.tsx",
+      "kind": "text",
+      "text": "X Wins"
+    },
+    {
+      "file": "src/apps/TicTacToe.tsx",
+      "kind": "text",
+      "text": "Draws"
+    },
+    {
+      "file": "src/apps/TicTacToe.tsx",
+      "kind": "text",
+      "text": "O Wins"
+    },
+    {
+      "file": "src/apps/TicTacToe.tsx",
+      "kind": "text",
+      "text": "New Game"
+    },
+    {
+      "file": "src/apps/TicTacToe.tsx",
+      "kind": "text",
+      "text": "Reset"
+    },
+    {
+      "file": "src/apps/TicTacToe.tsx",
+      "kind": "text",
+      "text": "Menu"
+    },
+    {
+      "file": "src/apps/Todo.tsx",
+      "kind": "text",
+      "text": "New List"
+    },
+    {
+      "file": "src/apps/Todo.tsx",
+      "kind": "placeholder",
+      "text": "List name"
+    },
+    {
+      "file": "src/apps/Todo.tsx",
+      "kind": "text",
+      "text": "Add Task"
+    },
+    {
+      "file": "src/apps/Todo.tsx",
+      "kind": "placeholder",
+      "text": "What needs to be done?"
+    },
+    {
+      "file": "src/apps/Todo.tsx",
+      "kind": "text",
+      "text": "No Priority"
+    },
+    {
+      "file": "src/apps/Todo.tsx",
+      "kind": "text",
+      "text": "Low"
+    },
+    {
+      "file": "src/apps/Todo.tsx",
+      "kind": "text",
+      "text": "Medium"
+    },
+    {
+      "file": "src/apps/Todo.tsx",
+      "kind": "text",
+      "text": "High"
+    },
+    {
+      "file": "src/apps/Todo.tsx",
+      "kind": "text",
+      "text": "Cancel"
+    },
+    {
+      "file": "src/apps/Todo.tsx",
+      "kind": "text",
+      "text": "Add"
+    },
+    {
+      "file": "src/apps/Todo.tsx",
+      "kind": "text",
+      "text": "No tasks here"
+    },
+    {
+      "file": "src/apps/VideoPlayer.tsx",
+      "kind": "text",
+      "text": "Select a video to play"
+    },
+    {
+      "file": "src/apps/VideoPlayer.tsx",
+      "kind": "text",
+      "text": ") : ( /* Video playing */"
+    },
+    {
+      "file": "src/apps/VoiceRecorder.tsx",
+      "kind": "text",
+      "text": ") : recorderState === 'recording' ? ("
+    },
+    {
+      "file": "src/apps/VoiceRecorder.tsx",
+      "kind": "text",
+      "text": ") : recorderState === 'paused' ? ("
+    },
+    {
+      "file": "src/apps/VoiceRecorder.tsx",
+      "kind": "text",
+      "text": "No recordings yet"
+    },
+    {
+      "file": "src/apps/Weather.tsx",
+      "kind": "placeholder",
+      "text": "Search city..."
+    },
+    {
+      "file": "src/apps/Weather.tsx",
+      "kind": "text",
+      "text": "Hourly Forecast"
+    },
+    {
+      "file": "src/apps/Weather.tsx",
+      "kind": "text",
+      "text": "7-Day Forecast"
+    },
+    {
+      "file": "src/apps/Weather.tsx",
+      "kind": "text",
+      "text": "Sunrise"
+    },
+    {
+      "file": "src/apps/Weather.tsx",
+      "kind": "text",
+      "text": "Sunset"
+    },
+    {
+      "file": "src/apps/Whiteboard.tsx",
+      "kind": "text",
+      "text": "Note"
+    },
+    {
+      "file": "src/apps/Whiteboard.tsx",
+      "kind": "title",
+      "text": "Sticky Note"
+    },
+    {
+      "file": "src/apps/Whiteboard.tsx",
+      "kind": "placeholder",
+      "text": "Type..."
+    },
+    {
+      "file": "src/components/AilGatewayCard.tsx",
+      "kind": "text",
+      "text": "AIL LLM Gateway"
+    },
+    {
+      "file": "src/components/AilGatewayCard.tsx",
+      "kind": "text",
+      "text": "Included"
+    },
+    {
+      "file": "src/components/AilGatewayCard.tsx",
+      "kind": "text",
+      "text": "OpenAI-compatible · paste into Cursor, Claude Code, or any SDK · free, doesn't count against units"
+    },
+    {
+      "file": "src/components/AilGatewayCard.tsx",
+      "kind": "text",
+      "text": "More formats"
+    },
+    {
+      "file": "src/components/AilGatewayCard.tsx",
+      "kind": "text",
+      "text": "Open in"
+    },
+    {
+      "file": "src/components/AilGatewayCard.tsx",
+      "kind": "text",
+      "text": "Terminal — load AIL docs"
+    },
+    {
+      "file": "src/components/AilGatewayCard.tsx",
+      "kind": "text",
+      "text": "Terminal — chat with AIL"
+    },
+    {
+      "file": "src/components/AilGatewayCard.tsx",
+      "kind": "text",
+      "text": "System Terminal (with env)"
+    },
+    {
+      "file": "src/components/AilGatewayCard.tsx",
+      "kind": "text",
+      "text": "API Tester (preset collection)"
+    },
+    {
+      "file": "src/components/AilGatewayCard.tsx",
+      "kind": "text",
+      "text": "Paste-into-AI guide ↗"
+    },
+    {
+      "file": "src/components/AilGatewayCard.tsx",
+      "kind": "text",
+      "text": "API Key"
+    },
+    {
+      "file": "src/components/AilGatewayCard.tsx",
+      "kind": "aria-label",
+      "text": "Copy API key"
+    },
+    {
+      "file": "src/components/AppLauncher.tsx",
+      "kind": "text",
+      "text": "4); setCanScrollDown(el.scrollTop + el.clientHeight"
+    },
+    {
+      "file": "src/components/BootSequence.tsx",
+      "kind": "text",
+      "text": "tytusOS"
+    },
+    {
+      "file": "src/components/BootSequence.tsx",
+      "kind": "text",
+      "text": "= PHASE_LOADING && ("
+    },
+    {
+      "file": "src/components/BootSequence.tsx",
+      "kind": "text",
+      "text": "= PHASE_LOADING && ("
+    },
+    {
+      "file": "src/components/ContextMenu.tsx",
+      "kind": "text",
+      "text": "vh) y = vh - rect.height - 8; if (x"
+    },
+    {
+      "file": "src/components/DaemonOfflineBanner.tsx",
+      "kind": "text",
+      "text": "Retry"
+    },
+    {
+      "file": "src/components/DaemonOfflineBanner.tsx",
+      "kind": "text",
+      "text": "Daemon offline."
+    },
+    {
+      "file": "src/components/LockScreen.tsx",
+      "kind": "text",
+      "text": "Screen locked"
+    },
+    {
+      "file": "src/components/LoginScreen.tsx",
+      "kind": "text",
+      "text": "Tytus daemon is not running. Open the Tytus icon in your menu bar and choose"
+    },
+    {
+      "file": "src/components/LoginScreen.tsx",
+      "kind": "text",
+      "text": ". We'll auto-detect when it's back."
+    },
+    {
+      "file": "src/components/LoginScreen.tsx",
+      "kind": "text",
+      "text": "Start daemon"
+    },
+    {
+      "file": "src/components/LoginScreen.tsx",
+      "kind": "text",
+      "text": "Sign in here or from the Tytus tray. We open your browser with a one-time device code; this screen unlocks automatically after approval."
+    },
+    {
+      "file": "src/components/LoginScreen.tsx",
+      "kind": "text",
+      "text": "Browser opened"
+    },
+    {
+      "file": "src/components/LoginScreen.tsx",
+      "kind": "text",
+      "text": "Code:"
+    },
+    {
+      "file": "src/components/LoginScreen.tsx",
+      "kind": "text",
+      "text": "Open login page again"
+    },
+    {
+      "file": "src/components/LoginScreen.tsx",
+      "kind": "text",
+      "text": "Check again"
+    },
+    {
+      "file": "src/components/LoginScreen.tsx",
+      "kind": "text",
+      "text": "Sign in to Tytus"
+    },
+    {
+      "file": "src/components/LoginScreen.tsx",
+      "kind": "text",
+      "text": "Checking daemon…"
+    },
+    {
+      "file": "src/components/NotificationCenter.tsx",
+      "kind": "text",
+      "text": "No notifications"
+    },
+    {
+      "file": "src/components/NotificationCenter.tsx",
+      "kind": "text",
+      "text": "Notifications"
+    },
+    {
+      "file": "src/components/NotificationCenter.tsx",
+      "kind": "text",
+      "text": "Clear All"
+    },
+    {
+      "file": "src/components/NotificationCenter.tsx",
+      "kind": "text",
+      "text": "Do Not Disturb"
+    },
+    {
+      "file": "src/components/PodEnvPane.tsx",
+      "kind": "aria-label",
+      "text": "Filter env keys"
+    },
+    {
+      "file": "src/components/PodEnvPane.tsx",
+      "kind": "placeholder",
+      "text": "Filter…"
+    },
+    {
+      "file": "src/components/PodEnvPane.tsx",
+      "kind": "aria-label",
+      "text": "Refresh env"
+    },
+    {
+      "file": "src/components/PodEnvPane.tsx",
+      "kind": "text",
+      "text": "Refresh"
+    },
+    {
+      "file": "src/components/PodEnvPane.tsx",
+      "kind": "aria-label",
+      "text": "Close env pane"
+    },
+    {
+      "file": "src/components/PodEnvPane.tsx",
+      "kind": "text",
+      "text": ") : filteredVars.length === 0 ? ("
+    },
+    {
+      "file": "src/components/PodEnvPane.tsx",
+      "kind": "text",
+      "text": "Loading…"
+    },
+    {
+      "file": "src/components/TopPanel.tsx",
+      "kind": "aria-label",
+      "text": "Tytus menu"
+    },
+    {
+      "file": "src/components/TopPanel.tsx",
+      "kind": "title",
+      "text": "Tytus menu"
+    },
+    {
+      "file": "src/components/TopPanel.tsx",
+      "kind": "aria-label",
+      "text": "Open notification center"
+    },
+    {
+      "file": "src/components/TopPanel.tsx",
+      "kind": "title",
+      "text": "Notifications"
+    },
+    {
+      "file": "src/components/TopPanel.tsx",
+      "kind": "aria-label",
+      "text": "Confirm sign out"
+    },
+    {
+      "file": "src/components/ui/alert.tsx",
+      "kind": "text",
+      "text": "& VariantProps"
+    },
+    {
+      "file": "src/components/ui/badge.tsx",
+      "kind": "text",
+      "text": "& VariantProps"
+    },
+    {
+      "file": "src/components/ui/breadcrumb.tsx",
+      "kind": "aria-label",
+      "text": "breadcrumb"
+    },
+    {
+      "file": "src/components/ui/breadcrumb.tsx",
+      "kind": "text",
+      "text": "More"
+    },
+    {
+      "file": "src/components/ui/button-group.tsx",
+      "kind": "text",
+      "text": "& VariantProps"
+    },
+    {
+      "file": "src/components/ui/button.tsx",
+      "kind": "text",
+      "text": "& VariantProps"
+    },
+    {
+      "file": "src/components/ui/carousel.tsx",
+      "kind": "text",
+      "text": "Previous slide"
+    },
+    {
+      "file": "src/components/ui/carousel.tsx",
+      "kind": "text",
+      "text": "Next slide"
+    },
+    {
+      "file": "src/components/ui/carousel.tsx",
+      "kind": "text",
+      "text": "[0] api: ReturnType"
+    },
+    {
+      "file": "src/components/ui/chart.tsx",
+      "kind": "text",
+      "text": "& React.ComponentProps"
+    },
+    {
+      "file": "src/components/ui/chart.tsx",
+      "kind": "text",
+      "text": ") : ( !hideIndicator && ("
+    },
+    {
+      "file": "src/components/ui/chart.tsx",
+      "kind": "text",
+      "text": "& Pick"
+    },
+    {
+      "file": "src/components/ui/dialog.tsx",
+      "kind": "text",
+      "text": "Close"
+    },
+    {
+      "file": "src/components/ui/empty.tsx",
+      "kind": "text",
+      "text": "& VariantProps"
+    },
+    {
+      "file": "src/components/ui/field.tsx",
+      "kind": "text",
+      "text": "error?.message &&"
+    },
+    {
+      "file": "src/components/ui/field.tsx",
+      "kind": "text",
+      "text": "& VariantProps"
+    },
+    {
+      "file": "src/components/ui/form.tsx",
+      "kind": "text",
+      "text": "= FieldPath"
+    },
+    {
+      "file": "src/components/ui/form.tsx",
+      "kind": "text",
+      "text": "= FieldPath"
+    },
+    {
+      "file": "src/components/ui/input-group.tsx",
+      "kind": "text",
+      "text": "& VariantProps"
+    },
+    {
+      "file": "src/components/ui/input-group.tsx",
+      "kind": "text",
+      "text": "& VariantProps"
+    },
+    {
+      "file": "src/components/ui/item.tsx",
+      "kind": "text",
+      "text": "& VariantProps"
+    },
+    {
+      "file": "src/components/ui/item.tsx",
+      "kind": "text",
+      "text": "& VariantProps"
+    },
+    {
+      "file": "src/components/ui/pagination.tsx",
+      "kind": "text",
+      "text": "More pages"
+    },
+    {
+      "file": "src/components/ui/pagination.tsx",
+      "kind": "aria-label",
+      "text": "pagination"
+    },
+    {
+      "file": "src/components/ui/pagination.tsx",
+      "kind": "text",
+      "text": "& React.ComponentProps"
+    },
+    {
+      "file": "src/components/ui/pagination.tsx",
+      "kind": "aria-label",
+      "text": "Go to previous page"
+    },
+    {
+      "file": "src/components/ui/pagination.tsx",
+      "kind": "text",
+      "text": "Previous"
+    },
+    {
+      "file": "src/components/ui/pagination.tsx",
+      "kind": "aria-label",
+      "text": "Go to next page"
+    },
+    {
+      "file": "src/components/ui/pagination.tsx",
+      "kind": "text",
+      "text": "Next"
+    },
+    {
+      "file": "src/components/ui/sheet.tsx",
+      "kind": "text",
+      "text": "Close"
+    },
+    {
+      "file": "src/components/ui/sidebar.tsx",
+      "kind": "text",
+      "text": "Sidebar"
+    },
+    {
+      "file": "src/components/ui/sidebar.tsx",
+      "kind": "text",
+      "text": "Displays the mobile sidebar."
+    },
+    {
+      "file": "src/components/ui/sidebar.tsx",
+      "kind": "text",
+      "text": "Toggle Sidebar"
+    },
+    {
+      "file": "src/components/ui/sidebar.tsx",
+      "kind": "aria-label",
+      "text": "Toggle Sidebar"
+    },
+    {
+      "file": "src/components/ui/sidebar.tsx",
+      "kind": "title",
+      "text": "Toggle Sidebar"
+    },
+    {
+      "file": "src/components/ui/sonner.tsx",
+      "kind": "text",
+      "text": ", info:"
+    },
+    {
+      "file": "src/components/ui/sonner.tsx",
+      "kind": "text",
+      "text": ", warning:"
+    },
+    {
+      "file": "src/components/ui/sonner.tsx",
+      "kind": "text",
+      "text": ", error:"
+    },
+    {
+      "file": "src/components/ui/sonner.tsx",
+      "kind": "text",
+      "text": ", loading:"
+    },
+    {
+      "file": "src/components/ui/spinner.tsx",
+      "kind": "aria-label",
+      "text": "Loading"
+    },
+    {
+      "file": "src/components/ui/toggle-group.tsx",
+      "kind": "text",
+      "text": "& VariantProps"
+    },
+    {
+      "file": "src/components/ui/toggle-group.tsx",
+      "kind": "text",
+      "text": "& VariantProps"
+    },
+    {
+      "file": "src/components/ui/toggle.tsx",
+      "kind": "text",
+      "text": "& VariantProps"
+    },
+    {
+      "file": "src/components/UpgradeDaemonScreen.tsx",
+      "kind": "text",
+      "text": "Your tray daemon is out of date."
+    },
+    {
+      "file": "src/components/UpgradeDaemonScreen.tsx",
+      "kind": "text",
+      "text": "Upgrade in one line"
+    },
+    {
+      "file": "src/components/UpgradeDaemonScreen.tsx",
+      "kind": "aria-label",
+      "text": "Copy upgrade command"
+    },
+    {
+      "file": "src/components/UpgradeDaemonScreen.tsx",
+      "kind": "text",
+      "text": "Upgrade documentation →"
+    },
+    {
+      "file": "src/components/UpgradeDaemonScreen.tsx",
+      "kind": "text",
+      "text": "Already upgraded? Click"
+    },
+    {
+      "file": "src/components/UpgradeDaemonScreen.tsx",
+      "kind": "text",
+      "text": "below — TytusOS will poll the daemon again. You can also sign out from this screen if re-authenticating is what's needed."
+    },
+    {
+      "file": "src/components/UpgradeDaemonScreen.tsx",
+      "kind": "text",
+      "text": "Re-check"
+    },
+    {
+      "file": "src/components/UpgradeDaemonScreen.tsx",
+      "kind": "text",
+      "text": "Re-check"
+    },
+    {
+      "file": "src/components/WindowFrame.tsx",
+      "kind": "title",
+      "text": "Minimize"
+    },
+    {
+      "file": "src/components/WindowFrame.tsx",
+      "kind": "aria-label",
+      "text": "Minimize"
+    },
+    {
+      "file": "src/components/WindowFrame.tsx",
+      "kind": "title",
+      "text": "Close"
+    },
+    {
+      "file": "src/components/WindowFrame.tsx",
+      "kind": "aria-label",
+      "text": "Close"
+    },
+    {
+      "file": "src/components/ZeroPodsOverlay.tsx",
+      "kind": "text",
+      "text": "Allocate your first pod →"
+    },
+    {
+      "file": "src/components/ZeroPodsOverlay.tsx",
+      "kind": "text",
+      "text": "Already have pods? Refresh"
+    },
+    {
+      "file": "src/components/ZeroPodsOverlay.tsx",
+      "kind": "text",
+      "text": "Welcome to Tytus"
+    },
+    {
+      "file": "src/components/ZeroPodsOverlay.tsx",
+      "kind": "text",
+      "text": "You don't have any pods yet. Allocate your first pod to start using your private AI infrastructure."
+    }
+  ]
+}

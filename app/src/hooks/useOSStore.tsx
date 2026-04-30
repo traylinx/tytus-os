@@ -3,8 +3,9 @@
 // ============================================================
 
 import React, { createContext, useContext, useReducer, useCallback, useEffect } from 'react';
-import type { OSState, OSAction, Window, DesktopIcon, Notification, DockItem, WindowState } from '@/types';
+import type { OSState, OSAction, Window, DesktopIcon, Notification, DockItem, WindowArgs, WindowState } from '@/types';
 import { APP_REGISTRY, getAppById, getDefaultDockApps } from '@/apps/registry';
+import { DEFAULT_TYTUS_WALLPAPER } from '@/lib/brand';
 
 // ---- Window persistence ----
 const WINDOWS_STORAGE_KEY = 'tytus_windows';
@@ -64,6 +65,49 @@ const persistWindows = (windows: Window[]): void => {
   }
 };
 
+// ---- Per-app geometry persistence ----
+// Distinct from `tytus_windows` (which restores OPEN windows on reload).
+// This map is keyed by appId and survives close — so reopening an app
+// pulls back its last position+size instead of a fresh cascade default.
+const GEOMETRY_STORAGE_KEY = 'tytus_window_geometry';
+
+type WindowGeometry = { x: number; y: number; width: number; height: number };
+
+const isWindowGeometry = (v: unknown): v is WindowGeometry => {
+  if (!v || typeof v !== 'object') return false;
+  const r = v as Record<string, unknown>;
+  return (
+    typeof r.x === 'number' &&
+    typeof r.y === 'number' &&
+    typeof r.width === 'number' &&
+    typeof r.height === 'number'
+  );
+};
+
+const loadWindowGeometry = (): Record<string, WindowGeometry> => {
+  try {
+    const raw = localStorage.getItem(GEOMETRY_STORAGE_KEY);
+    if (!raw) return {};
+    const parsed: unknown = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') return {};
+    const out: Record<string, WindowGeometry> = {};
+    for (const [k, v] of Object.entries(parsed as Record<string, unknown>)) {
+      if (typeof k === 'string' && isWindowGeometry(v)) out[k] = v;
+    }
+    return out;
+  } catch {
+    return {};
+  }
+};
+
+const persistWindowGeometry = (geom: Record<string, WindowGeometry>): void => {
+  try {
+    localStorage.setItem(GEOMETRY_STORAGE_KEY, JSON.stringify(geom));
+  } catch {
+    /* ignore */
+  }
+};
+
 // ---- Helpers ----
 const generateId = () => Math.random().toString(36).slice(2) + Date.now().toString(36);
 
@@ -73,7 +117,7 @@ const createWindow = (
   state: OSState,
   appId: string,
   title?: string,
-  args?: import('@/types').WindowArgs,
+  args?: WindowArgs,
 ): Window => {
   const app = getAppById(appId);
   if (!app) throw new Error(`Unknown app: ${appId}`);
@@ -83,12 +127,27 @@ const createWindow = (
   const DOCK_HEIGHT = 48;
   const usableH = Math.max(MIN_VIEWPORT_H, vh - TOP_PANEL_HEIGHT - DOCK_HEIGHT - 20);
   const usableW = Math.max(MIN_VIEWPORT_W, vw - 40);
-  // Clamp the window's default size to the viewport so apps don't open off-screen
-  const width = Math.min(app.defaultSize.width, usableW);
-  const height = Math.min(app.defaultSize.height, usableH);
-  const offset = (state.windows.filter((w) => w.appId === appId && w.state !== 'minimized').length) * 30;
-  const x = Math.max(20, Math.min(vw - width - 20, 60 + offset));
-  const y = Math.max(TOP_PANEL_HEIGHT + 10, Math.min(vh - height - DOCK_HEIGHT - 20, 40 + offset));
+
+  // Prefer the user's last remembered geometry for this app, falling back
+  // to the registry default + cascade. Always clamp to the current viewport
+  // so a saved geometry from a wider monitor doesn't open off-screen.
+  const saved = state.windowGeometry[appId];
+  let width: number;
+  let height: number;
+  let x: number;
+  let y: number;
+  if (saved) {
+    width = Math.max(MIN_VIEWPORT_W, Math.min(saved.width, usableW));
+    height = Math.max(MIN_VIEWPORT_H, Math.min(saved.height, usableH));
+    x = Math.max(20, Math.min(vw - width - 20, saved.x));
+    y = Math.max(TOP_PANEL_HEIGHT + 10, Math.min(vh - height - DOCK_HEIGHT - 20, saved.y));
+  } else {
+    width = Math.min(app.defaultSize.width, usableW);
+    height = Math.min(app.defaultSize.height, usableH);
+    const offset = (state.windows.filter((w) => w.appId === appId && w.state !== 'minimized').length) * 30;
+    x = Math.max(20, Math.min(vw - width - 20, 60 + offset));
+    y = Math.max(TOP_PANEL_HEIGHT + 10, Math.min(vh - height - DOCK_HEIGHT - 20, 40 + offset));
+  }
   return {
     id,
     appId,
@@ -178,14 +237,14 @@ const buildInitialState = (): OSState => {
 
   return {
     bootPhase: 'off',
-    auth: { isAuthenticated: false, isGuest: false, userName: 'User' },
+    auth: { isAuthenticated: false, isGuest: false, userName: 'User', locked: false },
     windows: restoredWindows,
     apps: APP_REGISTRY,
     desktopIcons: loadDesktopIcons(),
     theme: {
       mode: 'dark',
       accent: '#7C4DFF',
-      wallpaper: '/wallpaper-default.jpg',
+      wallpaper: DEFAULT_TYTUS_WALLPAPER,
     },
     notifications: [],
     dockItems,
@@ -202,6 +261,7 @@ const buildInitialState = (): OSState => {
     nextZIndex,
     isAltTabbing: false,
     altTabIndex: 0,
+    windowGeometry: loadWindowGeometry(),
   };
 };
 
@@ -217,7 +277,7 @@ function osReducer(state: OSState, action: OSAction): OSState {
     case 'LOGIN': {
       return {
         ...state,
-        auth: { isAuthenticated: true, isGuest: action.isGuest, userName: action.isGuest ? 'Guest' : 'User' },
+        auth: { isAuthenticated: true, isGuest: action.isGuest, userName: action.isGuest ? 'Guest' : 'User', locked: false },
         bootPhase: 'desktop',
       };
     }
@@ -225,7 +285,7 @@ function osReducer(state: OSState, action: OSAction): OSState {
     case 'LOGOUT': {
       return {
         ...state,
-        auth: { isAuthenticated: false, isGuest: false, userName: 'User' },
+        auth: { isAuthenticated: false, isGuest: false, userName: 'User', locked: false },
         windows: [],
         bootPhase: 'login',
         activeWindowId: null,
@@ -233,11 +293,18 @@ function osReducer(state: OSState, action: OSAction): OSState {
     }
 
     case 'LOCK': {
-      // Returns to the login screen but keeps every open window and the layout
-      // intact. Unlocking via LOGIN drops you back where you were.
+      // Screen lock is local-only. Keep daemon auth + every open window intact;
+      // the dedicated lock screen hides the desktop until UNLOCK.
       return {
         ...state,
-        auth: { ...state.auth, isAuthenticated: false },
+        auth: { ...state.auth, locked: true },
+      };
+    }
+
+    case 'UNLOCK': {
+      return {
+        ...state,
+        auth: { ...state.auth, locked: false },
       };
     }
 
@@ -253,6 +320,53 @@ function osReducer(state: OSState, action: OSAction): OSState {
         activeWindowId: win.id,
         nextZIndex: state.nextZIndex + 1,
         dockItems: updatedDock,
+      };
+    }
+
+    case 'OPEN_OR_FOCUS_WINDOW': {
+      const existing = state.windows
+        .filter((w) => w.appId === action.appId)
+        .sort((a, b) => b.zIndex - a.zIndex)[0];
+
+      if (!existing) {
+        const win = createWindow(state, action.appId, action.title, action.args);
+        const newWindows = state.windows.map((w) => ({ ...w, isFocused: false }));
+        const updatedDock = state.dockItems.map((d) =>
+          d.appId === action.appId ? { ...d, isOpen: true, isFocused: true, bounce: true } : { ...d, isFocused: false }
+        );
+        return {
+          ...state,
+          windows: [...newWindows, win],
+          activeWindowId: win.id,
+          nextZIndex: state.nextZIndex + 1,
+          dockItems: updatedDock,
+        };
+      }
+
+      const nextZ = state.nextZIndex + 1;
+      return {
+        ...state,
+        windows: state.windows.map((w) =>
+          w.id === existing.id
+            ? {
+                ...w,
+                title: action.title || w.title,
+                args: action.args,
+                state: w.state === 'minimized' ? 'normal' : w.state,
+                position: w.state === 'minimized' ? (w.prevPosition || w.position) : w.position,
+                size: w.state === 'minimized' ? (w.prevSize || w.size) : w.size,
+                prevPosition: w.state === 'minimized' ? undefined : w.prevPosition,
+                prevSize: w.state === 'minimized' ? undefined : w.prevSize,
+                isFocused: true,
+                zIndex: nextZ,
+              }
+            : { ...w, isFocused: false }
+        ),
+        activeWindowId: existing.id,
+        nextZIndex: nextZ,
+        dockItems: state.dockItems.map((d) =>
+          d.appId === action.appId ? { ...d, isOpen: true, isFocused: true, bounce: true } : { ...d, isFocused: false }
+        ),
       };
     }
 
@@ -303,6 +417,9 @@ function osReducer(state: OSState, action: OSAction): OSState {
     case 'MAXIMIZE_WINDOW': {
       const vw = window.innerWidth;
       const vh = window.innerHeight;
+      // macOS-style fullscreen: window extends to viewport bottom; the
+      // dock floats over it. WindowFrame.tsx mirrors this with
+      // `calc(100vh - TOP_PANEL_HEIGHT)`.
       return {
         ...state,
         windows: state.windows.map((w) =>
@@ -313,7 +430,7 @@ function osReducer(state: OSState, action: OSAction): OSState {
                 prevPosition: { ...w.position },
                 prevSize: { ...w.size },
                 position: { x: 0, y: TOP_PANEL_HEIGHT },
-                size: { width: vw, height: vh - TOP_PANEL_HEIGHT - 48 },
+                size: { width: vw, height: vh - TOP_PANEL_HEIGHT },
               }
             : w
         ),
@@ -359,19 +476,60 @@ function osReducer(state: OSState, action: OSAction): OSState {
     }
 
     case 'MOVE_WINDOW': {
+      const target = state.windows.find((w) => w.id === action.windowId);
+      // Don't bake maximized geometry into the per-app memory — when the user
+      // un-maximizes we want their previous floating frame back.
+      const shouldRemember = target && target.state === 'normal';
+      const nextGeom = shouldRemember
+        ? {
+            ...state.windowGeometry,
+            [target.appId]: {
+              x: action.position.x,
+              y: action.position.y,
+              width: target.size.width,
+              height: target.size.height,
+            },
+          }
+        : state.windowGeometry;
       return {
         ...state,
         windows: state.windows.map((w) =>
           w.id === action.windowId ? { ...w, position: action.position } : w
         ),
+        windowGeometry: nextGeom,
       };
     }
 
     case 'RESIZE_WINDOW': {
+      const target = state.windows.find((w) => w.id === action.windowId);
+      const shouldRemember = target && target.state === 'normal';
+      const nextGeom = shouldRemember
+        ? {
+            ...state.windowGeometry,
+            [target.appId]: {
+              x: target.position.x,
+              y: target.position.y,
+              width: action.size.width,
+              height: action.size.height,
+            },
+          }
+        : state.windowGeometry;
       return {
         ...state,
         windows: state.windows.map((w) =>
           w.id === action.windowId ? { ...w, size: action.size } : w
+        ),
+        windowGeometry: nextGeom,
+      };
+    }
+
+    case 'UPDATE_WINDOW_TITLE': {
+      const title = action.title.trim();
+      if (!title) return state;
+      return {
+        ...state,
+        windows: state.windows.map((w) =>
+          w.id === action.windowId ? { ...w, title } : w
         ),
       };
     }
@@ -595,6 +753,12 @@ export const OSProvider: React.FC<{ children: React.ReactNode }> = ({ children }
   useEffect(() => {
     persistWindows(state.windows);
   }, [state.windows]);
+
+  // Per-app remembered geometry — survives close so reopening pulls
+  // back the user's last frame.
+  useEffect(() => {
+    persistWindowGeometry(state.windowGeometry);
+  }, [state.windowGeometry]);
 
   return (
     <OSContext.Provider value={{ state, dispatch }}>

@@ -26,6 +26,40 @@ export interface WindowArgs {
   file?: string;
   /** The pod the file lives on, when set. Optional for app-level launches. */
   podId?: string;
+  /** Hash route dispatch nonce. Distinguishes repeated tray clicks. */
+  routeNonce?: string;
+  /** Help app route request. */
+  help?: {
+    tab: 'doctor' | 'test' | 'logs' | 'about' | 'channels-catalog';
+    autoRun?: boolean;
+  };
+  /** Pod Inspector route request. Destructive actions still require UI confirm. */
+  podAction?: {
+    podId: string;
+    action: 'overview' | 'output' | 'restart' | 'revoke' | 'uninstall' | 'stop-forwarder';
+    params?: Record<string, string>;
+  };
+  /** Channels route request. */
+  channels?: {
+    podId: string;
+    action?: 'add' | 'remove';
+    type?: string;
+  };
+  /** Files route request. */
+  files?: {
+    podId: string;
+    tab?: 'inbox' | 'downloads' | 'shared';
+  };
+  /** Terminal launch request. `shell` opens the user's login shell; `tytus` runs an allow-listed Tytus CLI flow in a PTY. */
+  terminal?: {
+    command: 'shell' | 'tytus';
+    args?: string[];
+  };
+  /** API Tester preset request. `ail` seeds the Collections panel with the
+   * full AIL endpoint catalog wired to the active included pod's URL+key. */
+  apiTester?: {
+    collection?: 'ail';
+  };
 }
 
 export interface Window {
@@ -190,6 +224,11 @@ export interface AuthState {
   isAuthenticated: boolean;
   isGuest: boolean;
   userName: string;
+  /**
+   * Local screen lock. This is intentionally separate from daemon auth:
+   * lock hides the desktop without revoking pods or clearing tokens.
+   */
+  locked: boolean;
 }
 
 // --------------------------------------------------------
@@ -212,6 +251,11 @@ export interface OSState {
   nextZIndex: number;
   isAltTabbing: boolean;
   altTabIndex: number;
+  // Per-app remembered geometry. Written on every move/resize, read by
+  // OPEN_WINDOW / OPEN_OR_FOCUS_WINDOW so an app reopens at the user's
+  // last position+size instead of a cascade default. Keyed by appId so
+  // it survives even after every window of that app has been closed.
+  windowGeometry: Record<string, { x: number; y: number; width: number; height: number }>;
 }
 
 // --------------------------------------------------------
@@ -223,7 +267,9 @@ export type OSAction =
   | { type: 'LOGIN'; isGuest: boolean }
   | { type: 'LOGOUT' }
   | { type: 'LOCK' }
+  | { type: 'UNLOCK' }
   | { type: 'OPEN_WINDOW'; appId: string; title?: string; args?: WindowArgs }
+  | { type: 'OPEN_OR_FOCUS_WINDOW'; appId: string; title?: string; args?: WindowArgs }
   | { type: 'CLOSE_WINDOW'; windowId: string }
   | { type: 'MINIMIZE_WINDOW'; windowId: string }
   | { type: 'MAXIMIZE_WINDOW'; windowId: string }
@@ -231,6 +277,7 @@ export type OSAction =
   | { type: 'FOCUS_WINDOW'; windowId: string }
   | { type: 'MOVE_WINDOW'; windowId: string; position: Position }
   | { type: 'RESIZE_WINDOW'; windowId: string; size: Size }
+  | { type: 'UPDATE_WINDOW_TITLE'; windowId: string; title: string }
   | { type: 'SET_ACTIVE_WINDOW'; windowId: string | null }
   | { type: 'TOGGLE_APP_LAUNCHER' }
   | { type: 'SET_APP_LAUNCHER'; open: boolean }

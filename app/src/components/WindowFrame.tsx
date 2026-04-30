@@ -187,13 +187,15 @@ const WindowFrame = memo(function WindowFrame({ window: win, children }: WindowF
 
   // Maximized windows use viewport-relative CSS so they auto-track browser resize
   // without needing a JS resize listener. Stored size only applies when 'normal'.
-  // Maximized: 28px top panel + 56px dock + 6px lift + 6px buffer = 96px reserved below top panel
+  // macOS-style fullscreen: window extends to the viewport bottom and the dock
+  // floats on top of it (the dock's backdrop-blur keeps content visible
+  // beneath, and Dock.tsx pins itself above any window's z-index).
   const frameStyle: React.CSSProperties = isMaximized
     ? {
         left: 0,
         top: TOP_PANEL_HEIGHT,
         width: '100vw',
-        height: `calc(100vh - ${TOP_PANEL_HEIGHT}px - 68px)`,
+        height: `calc(100vh - ${TOP_PANEL_HEIGHT}px)`,
         zIndex: win.zIndex,
         borderRadius: 0,
       }
@@ -215,10 +217,10 @@ const WindowFrame = memo(function WindowFrame({ window: win, children }: WindowF
       data-window-title={win.title}
       style={{
         ...frameStyle,
-        border: `1px solid ${isFocused ? 'rgba(255,255,255,0.10)' : 'rgba(255,255,255,0.06)'}`,
+        border: `1px solid ${isFocused ? 'var(--border-default)' : 'var(--border-subtle)'}`,
         boxShadow: isFocused
-          ? '0 8px 32px rgba(0,0,0,0.5)'
-          : '0 2px 8px rgba(0,0,0,0.3)',
+          ? 'var(--chrome-shadow-focused)'
+          : 'var(--chrome-shadow-unfocused)',
         transition: isDragging || isResizing ? 'none' : 'box-shadow 150ms ease, border-color 150ms ease',
         overflow: 'hidden',
       }}
@@ -229,7 +231,7 @@ const WindowFrame = memo(function WindowFrame({ window: win, children }: WindowF
         className="relative z-10 flex items-center justify-between shrink-0"
         style={{
           height: 36,
-          background: isFocused ? '#1A1A1A' : '#141414',
+          background: isFocused ? 'var(--chrome-bg-active)' : 'var(--chrome-bg-inactive)',
           borderRadius: isMaximized ? 0 : 'var(--radius-lg) var(--radius-lg) 0 0',
           transition: 'background 150ms ease',
           cursor: isMaximized ? 'default' : isDragging ? 'grabbing' : 'grab',
@@ -244,7 +246,7 @@ const WindowFrame = memo(function WindowFrame({ window: win, children }: WindowF
           <span
             className="text-xs font-semibold truncate"
             style={{
-              color: isFocused ? '#E0E0E0' : '#9E9E9E',
+              color: isFocused ? 'var(--text-primary)' : 'var(--text-secondary)',
               transition: 'color 150ms ease',
             }}
           >
@@ -257,7 +259,7 @@ const WindowFrame = memo(function WindowFrame({ window: win, children }: WindowF
           <button
             onClick={handleMinimize}
             onMouseDown={(e) => e.stopPropagation()}
-            className="w-9 h-9 flex items-center justify-center text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-white/[0.06] transition-colors"
+            className="w-9 h-9 flex items-center justify-center text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors"
             title="Minimize"
             aria-label="Minimize"
           >
@@ -266,7 +268,7 @@ const WindowFrame = memo(function WindowFrame({ window: win, children }: WindowF
           <button
             onClick={handleMaximize}
             onMouseDown={(e) => e.stopPropagation()}
-            className="w-9 h-9 flex items-center justify-center text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-white/[0.06] transition-colors"
+            className="w-9 h-9 flex items-center justify-center text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors"
             title={isMaximized ? 'Restore' : 'Maximize'}
             aria-label={isMaximized ? 'Restore' : 'Maximize'}
           >
@@ -279,7 +281,7 @@ const WindowFrame = memo(function WindowFrame({ window: win, children }: WindowF
             style={{ borderRadius: isMaximized ? 0 : '0 var(--radius-lg) 0 0' }}
             onMouseEnter={(e) => {
               e.currentTarget.style.background = '#F44336';
-              e.currentTarget.style.color = 'white';
+              e.currentTarget.style.color = 'var(--text-on-accent, white)';
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.background = 'transparent';

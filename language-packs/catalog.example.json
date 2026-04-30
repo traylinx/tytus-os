@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "packs": [
+    {
+      "locale": "es",
+      "name": "Spanish",
+      "nativeName": "Español",
+      "version": "1.0.0",
+      "url": "https://raw.githubusercontent.com/traylinx/tytus-os-lang-es/main/tytus-os.es.json",
+      "sha256": "f17034c3f9cdb51c783daa009f105593aac2288ee03a35849804801068346e36"
+    }
+  ]
+}

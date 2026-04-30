@@ -51,11 +51,11 @@ export const parseHash = (hash: string): Route => {
   if (parts[0] === "run" && parts[1]) {
     return { kind: "run", action: parts[1], params: query };
   }
-  if (parts[0] === "pod" && parts[1] && parts[2]) {
+  if (parts[0] === "pod" && parts[1]) {
     return {
       kind: "pod",
       podId: parts[1],
-      action: parts[2],
+      action: parts[2] ?? "overview",
       params: query,
     };
   }

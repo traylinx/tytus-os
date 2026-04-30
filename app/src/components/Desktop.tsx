@@ -10,6 +10,7 @@ import { navigate } from '@/lib/router';
 import * as Icons from 'lucide-react';
 import { Box, Star } from 'lucide-react';
 import type { LucideProps } from 'lucide-react';
+import { useI18n } from '@/i18n';
 
 const DynamicIcon = ({ name, ...props }: { name: string } & LucideProps) => {
   const IconComp = (Icons as unknown as unknown as Record<string, React.ComponentType<LucideProps>>)[name];
@@ -51,7 +52,8 @@ const DRAG_THRESHOLD = 5; // px of pointer travel before we consider it a drag
 
 const Desktop = memo(function Desktop() {
   const { state, dispatch } = useOS();
-  const { desktopIcons, theme } = state;
+  const { t } = useI18n();
+  const { desktopIcons } = state;
   // Force re-render only on the icon currently being dragged so the
   // visual style (opacity 0.5) follows. We don't store position in state.
   const [draggingId, setDraggingId] = useState<string | null>(null);
@@ -210,11 +212,8 @@ const Desktop = memo(function Desktop() {
       ref={desktopRef}
       className="fixed inset-0 z-10"
       style={{
-        backgroundImage: `url(${theme.wallpaper})`,
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
         top: 28,
-        bottom: 68,  // matches dock lift+height (6 + 56 + 6 buffer)
+        bottom: 68, // matches dock lift+height (6 + 56 + 6 buffer)
       }}
       onContextMenu={handleDesktopContextMenu}
       onClick={() => {
@@ -249,13 +248,13 @@ const Desktop = memo(function Desktop() {
               y: e.clientY,
               menuType: 'file',
               items: [
-                { id: 'open', label: 'Open', icon: 'ExternalLink', action: `OPEN_APP:${icon.appId}` },
+                { id: 'open', label: t('context.open'), icon: 'ExternalLink', action: `OPEN_APP:${icon.appId}` },
                 { id: 'div1', label: '', action: '', divider: true },
-                { id: 'cut', label: 'Cut', icon: 'Scissors', action: 'CUT' },
-                { id: 'copy', label: 'Copy', icon: 'Copy', action: 'COPY' },
-                { id: 'rename', label: 'Rename', icon: 'Edit', action: 'RENAME' },
+                { id: 'cut', label: t('context.cut'), icon: 'Scissors', action: 'CUT' },
+                { id: 'copy', label: t('context.copy'), icon: 'Copy', action: 'COPY' },
+                { id: 'rename', label: t('context.rename'), icon: 'Edit', action: 'RENAME' },
                 { id: 'div2', label: '', action: '', divider: true },
-                { id: 'trash', label: 'Move to Trash', icon: 'Trash2', action: 'TRASH' },
+                { id: 'trash', label: t('context.moveToTrash'), icon: 'Trash2', action: 'TRASH' },
               ],
               contextData: { iconId: icon.id },
             });
@@ -283,7 +282,7 @@ const Desktop = memo(function Desktop() {
               background: icon.isSelected ? 'rgba(124,77,255,0.30)' : 'transparent',
             }}
           >
-            {icon.name}
+            {icon.appId ? t(`app.${icon.appId}.name`) : icon.name}
           </span>
         </div>
       ))}
@@ -365,7 +364,7 @@ const Desktop = memo(function Desktop() {
                 textShadow: '0 1px 3px rgba(0,0,0,0.8)',
               }}
             >
-              {`Pod ${podId}`}
+              {t('desktop.podLabel', { podId })}
             </span>
           </div>
         );
@@ -409,7 +408,7 @@ const Desktop = memo(function Desktop() {
             }}
           >
             <Icons.StarOff size={16} className="shrink-0" />
-            <span className="flex-1 text-left">Unpin</span>
+            <span className="flex-1 text-left">{t('desktop.unpin')}</span>
           </button>
         </div>
       )}

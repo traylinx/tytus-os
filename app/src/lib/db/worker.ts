@@ -1,0 +1,156 @@
+// ============================================================
+// SQLite worker — owns the OPFS database file
+// ============================================================
+//
+// Runs in a dedicated Web Worker (spawned by index.ts via `?worker`).
+// Uses the OPFS SAH-Pool VFS so we don't need COOP/COEP headers on
+// the host — which keeps tytus-cli's tray HTTP server simple.
+//
+// Protocol: main thread sends `{ id, op, sql?, bindings? }`, worker
+// replies with `{ id, ok, rows?, error? }`. Operations:
+//   init    — install OPFS pool, open `/tytusos.db`, run migrations
+//   exec    — run a multi-statement SQL string (no result rows)
+//   query   — run a single statement with bindings; reply rows
+//   run     — like query but no rows expected
+//   tx-*    — BEGIN IMMEDIATE / COMMIT / ROLLBACK
+//
+// If OPFS / SAH-Pool isn't available (e.g. older browser, private
+// mode in some configs), we fall back to an in-memory DB and the
+// reply payload signals it so the main thread can warn the user.
+
+/// <reference lib="webworker" />
+
+import sqlite3InitModule, {
+  type Database,
+  type Sqlite3Static,
+} from '@sqlite.org/sqlite-wasm';
+import { SCHEMA_V1, SCHEMA_VERSION } from './schema';
+
+declare const self: DedicatedWorkerGlobalScope;
+
+type WorkerMsg =
+  | { id: string; op: 'init' }
+  | { id: string; op: 'exec'; sql: string }
+  | { id: string; op: 'query'; sql: string; bindings?: unknown[] }
+  | { id: string; op: 'run'; sql: string; bindings?: unknown[] }
+  | { id: string; op: 'export' };
+
+interface InitOk { ok: true; persistent: boolean; version: number; libVersion: string; }
+interface RowsOk { ok: true; rows: Array<Record<string, unknown>>; }
+interface DoneOk { ok: true; }
+interface ExportOk { ok: true; bytes: Uint8Array; }
+interface Err { ok: false; error: string; }
+type Reply = (InitOk | RowsOk | DoneOk | ExportOk | Err) & { id: string };
+
+let sqlite3Singleton: Sqlite3Static | null = null;
+let db: Database | null = null;
+let persistent = false;
+
+const reply = (msg: Reply) => self.postMessage(msg);
+
+const openDb = async (): Promise<{ persistent: boolean; libVersion: string }> => {
+  const sqlite3: Sqlite3Static = await sqlite3InitModule();
+  sqlite3Singleton = sqlite3;
+
+  // SAH-Pool first — works without COOP/COEP and doesn't require
+  // SharedArrayBuffer. Falls back to a transient in-memory DB if the
+  // browser refuses (Safari < 17, private windows in some browsers).
+  try {
+    const pool = await sqlite3.installOpfsSAHPoolVfs({
+      name: 'tytus-opfs-pool',
+      initialCapacity: 4,
+      clearOnInit: false,
+    });
+    db = new pool.OpfsSAHPoolDb('/tytusos.db');
+    persistent = true;
+  } catch (err) {
+    console.warn('[sqlite] OPFS SAH pool unavailable, falling back to in-memory DB', err);
+    db = new sqlite3.oo1.DB(':memory:', 'ct');
+    persistent = false;
+  }
+
+  // PRAGMAs — match makakoo-core's defaults. journal_mode = WAL is a
+  // no-op on in-memory but harmless.
+  for (const stmt of [
+    'PRAGMA journal_mode = WAL',
+    'PRAGMA synchronous = NORMAL',
+    'PRAGMA busy_timeout = 5000',
+    'PRAGMA foreign_keys = ON',
+  ]) {
+    db.exec(stmt);
+  }
+
+  // Idempotent schema apply, then bump user_version.
+  db.exec(SCHEMA_V1);
+  db.exec(`PRAGMA user_version = ${SCHEMA_VERSION}`);
+
+  return { persistent, libVersion: sqlite3.version.libVersion };
+};
+
+const runQuery = (
+  sql: string,
+  bindings: unknown[] = [],
+): Array<Record<string, unknown>> => {
+  if (!db) throw new Error('db not initialized');
+  // `exec` with `returnValue: 'resultRows'` + `rowMode: 'object'` gives
+  // us the array-of-objects shape every repo wants.
+  const rows = db.exec({
+    sql,
+    bind: bindings as never,
+    returnValue: 'resultRows',
+    rowMode: 'object',
+  });
+  return rows as Array<Record<string, unknown>>;
+};
+
+self.addEventListener('message', async (e: MessageEvent<WorkerMsg>) => {
+  const msg = e.data;
+  try {
+    switch (msg.op) {
+      case 'init': {
+        const { persistent: p, libVersion } = await openDb();
+        reply({ id: msg.id, ok: true, persistent: p, version: SCHEMA_VERSION, libVersion });
+        return;
+      }
+      case 'exec': {
+        if (!db) throw new Error('db not initialized');
+        db.exec(msg.sql);
+        reply({ id: msg.id, ok: true });
+        return;
+      }
+      case 'query': {
+        const rows = runQuery(msg.sql, msg.bindings);
+        reply({ id: msg.id, ok: true, rows });
+        return;
+      }
+      case 'run': {
+        runQuery(msg.sql, msg.bindings);
+        reply({ id: msg.id, ok: true });
+        return;
+      }
+      case 'export': {
+        if (!db || !sqlite3Singleton) throw new Error('db not initialized');
+        // sqlite3_js_db_export serialises the live database into a
+        // standard SQLite file image — the same bytes a `cp foo.db`
+        // would produce. Works regardless of VFS (SAH-Pool, OPFS,
+        // in-memory). The Uint8Array is transferred — main thread
+        // wraps it in a Blob and triggers the download.
+        const bytes = sqlite3Singleton.capi.sqlite3_js_db_export(
+          (db as unknown as { pointer: number }).pointer,
+        );
+        // Postmessage with a transferable so we don't pay a clone.
+        const reply: ExportOk & { id: string } = {
+          id: msg.id, ok: true, bytes,
+        };
+        self.postMessage(reply, [bytes.buffer as ArrayBuffer]);
+        return;
+      }
+    }
+  } catch (err) {
+    reply({
+      id: msg.id,
+      ok: false,
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+});

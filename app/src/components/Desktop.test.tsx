@@ -1,14 +1,15 @@
-import { describe, expect, it } from 'vitest';
-import { render, fireEvent, act } from '@testing-library/react';
-import { useEffect } from 'react';
-import Desktop from '@/components/Desktop';
-import { OSProvider, useOS } from '@/hooks/useOSStore';
-import { DaemonClientProvider } from '@/hooks/useDaemonClient';
-import { DaemonStateProvider } from '@/hooks/useDaemonStateContext';
-import { createDaemonClient } from '@/lib/daemon';
-import { makeFakeFetch } from '@/test/fakeFetch';
-import { stateFixture } from '@/test/fixtures';
-import type { FC, ReactNode } from 'react';
+import { describe, expect, it } from "vitest";
+import { render, fireEvent, act } from "@testing-library/react";
+import { useEffect } from "react";
+import Desktop from "@/components/Desktop";
+import { OSProvider, useOS } from "@/hooks/useOSStore";
+import { DaemonClientProvider } from "@/hooks/useDaemonClient";
+import { DaemonStateProvider } from "@/hooks/useDaemonStateContext";
+import { I18nProvider } from "@/i18n";
+import { createDaemonClient } from "@/lib/daemon";
+import { makeFakeFetch } from "@/test/fakeFetch";
+import { stateFixture } from "@/test/fixtures";
+import type { FC, ReactNode } from "react";
 
 // Sprint Phase 4 — desktop icon drag fix.
 //
@@ -29,7 +30,7 @@ const Authenticate: FC<{ children: ReactNode }> = ({ children }) => {
   const { state, dispatch } = useOS();
   useEffect(() => {
     if (!state.auth.isAuthenticated) {
-      dispatch({ type: 'LOGIN', isGuest: false });
+      dispatch({ type: "LOGIN", isGuest: false });
     }
   }, [state.auth.isAuthenticated, dispatch]);
   return <>{children}</>;
@@ -37,30 +38,37 @@ const Authenticate: FC<{ children: ReactNode }> = ({ children }) => {
 
 const Harness: FC<{ children: ReactNode }> = ({ children }) => {
   const { fetch } = makeFakeFetch([
-    { method: 'GET', path: '/api/state', body: stateFixture },
+    { method: "GET", path: "/api/state", body: stateFixture },
   ]);
   const client = createDaemonClient({ fetch });
   return (
-    <DaemonClientProvider client={client}>
-      <DaemonStateProvider intervalMs={60_000}>
-        <OSProvider>
-          <Authenticate>{children}</Authenticate>
-        </OSProvider>
-      </DaemonStateProvider>
-    </DaemonClientProvider>
+    <I18nProvider>
+      <DaemonClientProvider client={client}>
+        <DaemonStateProvider intervalMs={60_000}>
+          <OSProvider>
+            <Authenticate>{children}</Authenticate>
+          </OSProvider>
+        </DaemonStateProvider>
+      </DaemonClientProvider>
+    </I18nProvider>
   );
 };
 
-const SeedIcon: FC<{ name: string; appId?: string; x: number; y: number }> = ({ name, appId, x, y }) => {
+const SeedIcon: FC<{ name: string; appId?: string; x: number; y: number }> = ({
+  name,
+  appId,
+  x,
+  y,
+}) => {
   const { state, dispatch } = useOS();
   const present = state.desktopIcons.some((i) => i.name === name);
   useEffect(() => {
     if (!present) {
       dispatch({
-        type: 'ADD_DESKTOP_ICON',
+        type: "ADD_DESKTOP_ICON",
         icon: {
           name,
-          icon: 'Box',
+          icon: "Box",
           appId,
           position: { x, y },
           isSelected: false,
@@ -73,25 +81,27 @@ const SeedIcon: FC<{ name: string; appId?: string; x: number; y: number }> = ({ 
 
 const fireWindowMouseMove = (clientX: number, clientY: number) => {
   act(() => {
-    window.dispatchEvent(new MouseEvent('mousemove', { clientX, clientY, bubbles: true }));
+    window.dispatchEvent(
+      new MouseEvent("mousemove", { clientX, clientY, bubbles: true }),
+    );
   });
 };
 
 const fireWindowMouseUp = () => {
   act(() => {
-    window.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+    window.dispatchEvent(new MouseEvent("mouseup", { bubbles: true }));
   });
 };
 
-describe('Desktop drag', () => {
-  it('cumulative sub-threshold ticks add up to a drag', async () => {
+describe("Desktop drag", () => {
+  it("cumulative sub-threshold ticks add up to a drag", async () => {
     const { container, findByText } = render(
       <Harness>
-        <SeedIcon name="Test1" appId="terminal" x={100} y={200} />
+        <SeedIcon name="Test1" x={100} y={200} />
         <Desktop />
       </Harness>,
     );
-    const icon = (await findByText('Test1')).closest('[style]') as HTMLElement;
+    const icon = (await findByText("Test1")).closest("[style]") as HTMLElement;
     expect(icon).not.toBeNull();
 
     fireEvent.mouseDown(icon, { clientX: 150, clientY: 250, button: 0 });
@@ -105,14 +115,14 @@ describe('Desktop drag', () => {
     void container; // ensure mount
   });
 
-  it('mouseup outside desktop element still ends the drag', async () => {
+  it("mouseup outside desktop element still ends the drag", async () => {
     const { findByText } = render(
       <Harness>
-        <SeedIcon name="Test2" appId="terminal" x={100} y={200} />
+        <SeedIcon name="Test2" x={100} y={200} />
         <Desktop />
       </Harness>,
     );
-    const icon = (await findByText('Test2')).closest('[style]') as HTMLElement;
+    const icon = (await findByText("Test2")).closest("[style]") as HTMLElement;
     fireEvent.mouseDown(icon, { clientX: 150, clientY: 250, button: 0 });
     fireWindowMouseMove(300, 400);
     fireWindowMouseUp();
@@ -121,21 +131,21 @@ describe('Desktop drag', () => {
     fireWindowMouseMove(500, 600);
   });
 
-  it('right-click does not start a drag', async () => {
+  it("right-click does not start a drag", async () => {
     const { findByText } = render(
       <Harness>
-        <SeedIcon name="Test3" appId="terminal" x={100} y={200} />
+        <SeedIcon name="Test3" x={100} y={200} />
         <Desktop />
       </Harness>,
     );
-    const icon = (await findByText('Test3')).closest('[style]') as HTMLElement;
+    const icon = (await findByText("Test3")).closest("[style]") as HTMLElement;
     // button: 2 = right click — should be ignored by the drag system
     fireEvent.mouseDown(icon, { clientX: 150, clientY: 250, button: 2 });
     fireWindowMouseMove(300, 400);
     fireWindowMouseUp();
   });
 
-  it('renders without errors when no icons present', () => {
+  it("renders without errors when no icons present", () => {
     render(
       <Harness>
         <Desktop />
@@ -143,14 +153,14 @@ describe('Desktop drag', () => {
     );
   });
 
-  it('cleans up window listeners on unmount mid-drag', async () => {
+  it("cleans up window listeners on unmount mid-drag", async () => {
     const { findByText, unmount } = render(
       <Harness>
-        <SeedIcon name="Test4" appId="terminal" x={100} y={200} />
+        <SeedIcon name="Test4" x={100} y={200} />
         <Desktop />
       </Harness>,
     );
-    const icon = (await findByText('Test4')).closest('[style]') as HTMLElement;
+    const icon = (await findByText("Test4")).closest("[style]") as HTMLElement;
     fireEvent.mouseDown(icon, { clientX: 150, clientY: 250, button: 0 });
     // Simulate unmount BEFORE mouseup. After unmount, dispatched events
     // must not throw — proves listeners were removed.
