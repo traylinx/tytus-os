@@ -10,7 +10,7 @@
 //
 // Phase 2 ships the API Tester migration: history + collections.
 
-export const SCHEMA_VERSION = 4;
+export const SCHEMA_VERSION = 6;
 
 export const SCHEMA_V1 = `
 CREATE TABLE IF NOT EXISTS api_history (
@@ -113,4 +113,26 @@ CREATE TABLE IF NOT EXISTS voice_recordings (
 );
 CREATE INDEX IF NOT EXISTS idx_voice_recordings_created
   ON voice_recordings(created_at DESC);
+`;
+
+// Schema V5: Music Creator — structured Track Specs.
+//
+// Adds a single nullable JSON column to music_creator_tracks so the
+// new structured controls (TrackSpecs) round-trip with each saved
+// track. ALTER TABLE is idempotent only via PRAGMA — the worker
+// guards re-application with user_version, so this runs exactly once.
+export const SCHEMA_V5 = `
+ALTER TABLE music_creator_tracks ADD COLUMN specs_json TEXT NOT NULL DEFAULT '';
+`;
+
+// Schema V6: Music Creator — cover art slot.
+//
+// Optional base64 data URL for per-track cover art. Empty when no
+// cover is set. Lope-negotiated 2026-05-01: ship the schema field
+// pre-extraction so Music Player inherits the spec shape cleanly
+// after the Tytus Apps Platform sprint extracts the three apps.
+// The actual cover-generation pipeline is deferred to a Host API
+// verb (`host.media.generateCover()`) defined during that sprint.
+export const SCHEMA_V6 = `
+ALTER TABLE music_creator_tracks ADD COLUMN cover_data_url TEXT NOT NULL DEFAULT '';
 `;

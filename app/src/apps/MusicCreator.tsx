@@ -112,6 +112,15 @@ interface SavedTrack {
   createdAt: number;
   // Audio is stored as a base64 data URL so it survives reloads.
   audioDataUrl: string;
+  // JSON-serialized TrackSpecs. Empty string = no specs were set
+  // when this track was generated. Always a string at the row layer
+  // so the SQLite repo doesn't need to handle null vs empty.
+  specsJson: string;
+  // Optional per-track cover art (base64 data URL). Empty string =
+  // no cover yet — UI falls back to the default Disc3 gradient
+  // glyph. Auto-generation is deferred to a Host API verb post-
+  // extraction; today the field is plumbed but never set inline.
+  coverDataUrl: string;
 }
 
 interface PodEndpoint {
@@ -560,14 +569,32 @@ const formatTime = (ms: number): string => {
 // IndexedDB v2) into SQLite. Idempotent — safe to call every load; once
 // drained the legacy stores are deleted so the migration no-ops forever.
 const migrateLegacyTracksToSqlite = async (): Promise<void> => {
+  // Older serialized payloads predate SCHEMA_V5 — coerce missing
+  // specsJson into an empty string so the row insert satisfies the
+  // NOT NULL column. Same shape regardless of source.
+  const normalize = (t: Partial<SavedTrack>): SavedTrack => ({
+    id: t.id ?? `t_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    title: t.title ?? 'Untitled',
+    styleTags: t.styleTags ?? '',
+    lyricsPreview: t.lyricsPreview ?? '',
+    durationMs: t.durationMs ?? 0,
+    bitrate: t.bitrate ?? 0,
+    sampleRate: t.sampleRate ?? 0,
+    sizeBytes: t.sizeBytes ?? 0,
+    createdAt: t.createdAt ?? Date.now(),
+    audioDataUrl: t.audioDataUrl ?? '',
+    specsJson: t.specsJson ?? '',
+    coverDataUrl: t.coverDataUrl ?? '',
+  });
+
   // Phase 1: drain localStorage (the very-first prototype storage).
   try {
     const raw = localStorage.getItem(LEGACY_LS_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed)) {
-        for (const track of parsed as SavedTrack[]) {
-          try { await insertTrackRow(track); } catch { /* skip */ }
+        for (const track of parsed as Partial<SavedTrack>[]) {
+          try { await insertTrackRow(normalize(track)); } catch { /* skip */ }
         }
       }
       localStorage.removeItem(LEGACY_LS_KEY);
@@ -578,7 +605,7 @@ const migrateLegacyTracksToSqlite = async (): Promise<void> => {
 
   // Phase 2: drain IndexedDB (the brief intermediate storage).
   try {
-    const tracks = await new Promise<SavedTrack[]>((resolve) => {
+    const tracks = await new Promise<Partial<SavedTrack>[]>((resolve) => {
       const req = indexedDB.open(LEGACY_IDB_NAME);
       req.onsuccess = () => {
         const db = req.result;
@@ -591,14 +618,14 @@ const migrateLegacyTracksToSqlite = async (): Promise<void> => {
         const getAll = tx.objectStore(LEGACY_IDB_STORE).getAll();
         getAll.onsuccess = () => {
           db.close();
-          resolve((getAll.result ?? []) as SavedTrack[]);
+          resolve((getAll.result ?? []) as Partial<SavedTrack>[]);
         };
         getAll.onerror = () => { db.close(); resolve([]); };
       };
       req.onerror = () => resolve([]);
     });
     for (const track of tracks) {
-      try { await insertTrackRow(track); } catch { /* skip */ }
+      try { await insertTrackRow(normalize(track)); } catch { /* skip */ }
     }
     if (tracks.length > 0) {
       indexedDB.deleteDatabase(LEGACY_IDB_NAME);
@@ -1082,6 +1109,319 @@ const FUN_MUSIC_TIPS = [
 ];
 
 // ──────────────────────────────────────────────────────────
+// Shared player — single <audio> element at workspace level,
+// surfaced both to the bottom MiniPlayer and to inline TrackCard
+// play buttons. Replaces the previous per-card private audio
+// element so two tracks can't play simultaneously and the
+// transport stays consistent across UI surfaces.
+// ──────────────────────────────────────────────────────────
+
+interface PlayerState {
+  trackId: string | null;
+  playing: boolean;
+  positionMs: number;
+  durationMs: number;
+  volume: number;
+}
+
+interface PlayerControls {
+  state: PlayerState;
+  queue: SavedTrack[];
+  play: (track: SavedTrack) => void;
+  pause: () => void;
+  toggle: (track?: SavedTrack) => void;
+  seek: (ms: number) => void;
+  setVolume: (v: number) => void;
+  next: () => void;
+  prev: () => void;
+}
+
+// usePlayer takes the queue + the audio ref as parameters so the
+// consumer owns the ref (React rules disallow surfacing refs from
+// hook return values through render). The hook only exposes plain
+// state + control functions; the consumer mounts <audio ref={...} />.
+function usePlayer(queue: SavedTrack[], audioRef: React.MutableRefObject<HTMLAudioElement | null>): PlayerControls {
+  const [state, setState] = useState<PlayerState>({
+    trackId: null, playing: false, positionMs: 0, durationMs: 0, volume: 1,
+  });
+
+  const play = useCallback((track: SavedTrack) => {
+    if (!track.audioDataUrl) return;
+    const a = audioRef.current;
+    if (!a) return;
+    if (state.trackId !== track.id) {
+      a.src = track.audioDataUrl;
+      setState((s) => ({ ...s, trackId: track.id, positionMs: 0, durationMs: track.durationMs || 0 }));
+    }
+    void a.play().catch(() => { /* user gesture race; ignore */ });
+  }, [state.trackId, audioRef]);
+
+  const pause = useCallback(() => {
+    audioRef.current?.pause();
+  }, [audioRef]);
+
+  const toggle = useCallback((track?: SavedTrack) => {
+    // If a different track is requested, switch to it.
+    if (track && state.trackId !== track.id) {
+      play(track);
+      return;
+    }
+    // Same track (or no track passed) — flip play/pause.
+    if (state.playing) pause();
+    else if (state.trackId) {
+      void audioRef.current?.play().catch(() => { /* ignore */ });
+    } else if (track) {
+      play(track);
+    }
+  }, [state.trackId, state.playing, play, pause, audioRef]);
+
+  const seek = useCallback((ms: number) => {
+    const a = audioRef.current;
+    if (!a) return;
+    a.currentTime = Math.max(0, ms / 1000);
+  }, [audioRef]);
+
+  const setVolume = useCallback((v: number) => {
+    const clamped = Math.max(0, Math.min(1, v));
+    if (audioRef.current) audioRef.current.volume = clamped;
+    setState((s) => ({ ...s, volume: clamped }));
+  }, [audioRef]);
+
+  const playable = useMemo(() => queue.filter((t) => t.audioDataUrl), [queue]);
+
+  const next = useCallback(() => {
+    if (!state.trackId || playable.length === 0) return;
+    const idx = playable.findIndex((t) => t.id === state.trackId);
+    if (idx < 0) return;
+    const n = playable[(idx + 1) % playable.length];
+    if (n) play(n);
+  }, [state.trackId, playable, play]);
+
+  const prev = useCallback(() => {
+    if (!state.trackId || playable.length === 0) return;
+    const idx = playable.findIndex((t) => t.id === state.trackId);
+    if (idx < 0) return;
+    const p = playable[(idx - 1 + playable.length) % playable.length];
+    if (p) play(p);
+  }, [state.trackId, playable, play]);
+
+  // Bridge audio element events back into React state. The element
+  // is mounted by the consumer (MusicCreator workspace) — we attach
+  // the listeners once it's in the DOM.
+  useEffect(() => {
+    const a = audioRef.current;
+    if (!a) return;
+    const onTime = () => setState((s) => ({ ...s, positionMs: a.currentTime * 1000 }));
+    const onMeta = () => setState((s) => ({
+      ...s,
+      durationMs: Number.isFinite(a.duration) ? a.duration * 1000 : s.durationMs,
+    }));
+    const onPlay = () => setState((s) => ({ ...s, playing: true }));
+    const onPause = () => setState((s) => ({ ...s, playing: false }));
+    const onEnd = () => {
+      // Auto-advance when there are >= 2 playable tracks; otherwise
+      // stop at the end without resetting trackId so the MiniPlayer
+      // stays visible with a "0:00" cursor for replay.
+      if (playable.length >= 2) {
+        const idx = playable.findIndex((t) => t.id === state.trackId);
+        if (idx >= 0 && idx + 1 < playable.length) {
+          play(playable[idx + 1]);
+          return;
+        }
+      }
+      setState((s) => ({ ...s, playing: false, positionMs: 0 }));
+    };
+    a.addEventListener('timeupdate', onTime);
+    a.addEventListener('loadedmetadata', onMeta);
+    a.addEventListener('play', onPlay);
+    a.addEventListener('pause', onPause);
+    a.addEventListener('ended', onEnd);
+    return () => {
+      a.removeEventListener('timeupdate', onTime);
+      a.removeEventListener('loadedmetadata', onMeta);
+      a.removeEventListener('play', onPlay);
+      a.removeEventListener('pause', onPause);
+      a.removeEventListener('ended', onEnd);
+    };
+  }, [playable, state.trackId, play, audioRef]);
+
+  return { state, queue, play, pause, toggle, seek, setVolume, next, prev };
+}
+
+// ──────────────────────────────────────────────────────────
+// MiniPlayer — bottom transport bar. Hidden until a track is
+// queued; once visible it stays so the user can scrub / replay
+// without re-opening a TrackCard. Same gradient + chrome as
+// the rest of the workspace so it reads as Tytus, not Spotify.
+// ──────────────────────────────────────────────────────────
+
+// Single avatar component used by every track surface. Renders
+// cover art when the track has one, otherwise a uniform Disc3
+// gradient glyph. Centralizing this keeps the cards / table
+// rows / mini-player consistent the moment cover generation
+// lands post-extraction (Host API verb).
+function TrackAvatar({
+  track, size, iconSize, radius,
+}: {
+  track: SavedTrack;
+  size: number;
+  iconSize: number;
+  radius: number;
+}) {
+  if (track.coverDataUrl) {
+    return (
+      <img
+        src={track.coverDataUrl}
+        alt=""
+        className="flex-shrink-0"
+        style={{
+          width: size,
+          height: size,
+          borderRadius: radius <= 6 ? 'var(--radius-md)' : 'var(--radius-xl)',
+          objectFit: 'cover',
+        }}
+      />
+    );
+  }
+  return (
+    <div
+      className="flex items-center justify-center flex-shrink-0"
+      style={{
+        width: size,
+        height: size,
+        borderRadius: radius <= 6 ? 'var(--radius-md)' : 'var(--radius-xl)',
+        background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))',
+      }}
+    >
+      <Disc3 size={iconSize} style={{ color: 'white' }} />
+    </div>
+  );
+}
+
+function MiniPlayer({ player }: { player: PlayerControls }) {
+  const { state, toggle, next, prev, seek, setVolume, queue } = player;
+  const track = queue.find((t) => t.id === state.trackId) ?? null;
+  if (!track) return null;
+
+  const dur = state.durationMs > 0 ? state.durationMs : track.durationMs;
+  const pos = Math.min(state.positionMs, dur || 0);
+  const pct = dur > 0 ? (pos / dur) * 100 : 0;
+
+  // Click-to-scrub on the progress track. Translate pixel offset →
+  // ms so the seek operates in the same unit the hook expects.
+  const onScrub = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!dur) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const ratio = (e.clientX - rect.left) / rect.width;
+    seek(Math.max(0, Math.min(1, ratio)) * dur);
+  };
+
+  return (
+    <div
+      className="flex-shrink-0 flex items-center gap-3 px-4"
+      style={{
+        height: 64,
+        borderTop: '1px solid var(--border-subtle)',
+        background: 'var(--bg-titlebar)',
+      }}
+    >
+      {/* Album avatar — uses cover art when present, otherwise the
+          Disc3 gradient glyph that matches the rest of the workspace.
+          Cover-generation pipeline lands post-extraction; the field
+          is plumbed today so this UI lights up the moment one's set. */}
+      <TrackAvatar track={track} size={40} iconSize={18} radius={6} />
+
+      <div className="flex flex-col min-w-0" style={{ width: 180 }}>
+        <div className="truncate" style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)' }}>
+          {track.title}
+        </div>
+        <div className="truncate" style={{ fontSize: 10, color: 'var(--text-disabled)' }}>
+          {track.styleTags && track.styleTags !== '—' ? track.styleTags : '—'}
+        </div>
+      </div>
+
+      {/* Transport — prev / play-pause / next. Play-pause is the
+          accent gradient pill; others are subtle. */}
+      <div className="flex items-center gap-1 flex-shrink-0">
+        <button
+          onClick={prev}
+          className="flex items-center justify-center rounded-md transition-all hover:bg-[var(--bg-hover)]"
+          style={{ width: 28, height: 28, color: 'var(--text-secondary)' }}
+          title="Previous"
+        >
+          <Play size={12} style={{ transform: 'rotate(180deg)' }} />
+        </button>
+        <button
+          onClick={() => toggle()}
+          className="flex items-center justify-center rounded-full transition-transform hover:scale-105"
+          style={{
+            width: 32, height: 32,
+            background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))',
+          }}
+          title={state.playing ? 'Pause' : 'Play'}
+        >
+          {state.playing
+            ? <Pause size={13} style={{ color: 'white' }} />
+            : <Play size={13} style={{ color: 'white', marginLeft: 1 }} />}
+        </button>
+        <button
+          onClick={next}
+          className="flex items-center justify-center rounded-md transition-all hover:bg-[var(--bg-hover)]"
+          style={{ width: 28, height: 28, color: 'var(--text-secondary)' }}
+          title="Next"
+        >
+          <Play size={12} />
+        </button>
+      </div>
+
+      {/* Scrubber — click-to-seek; current position fills with the
+          accent gradient. Times sit on either side. */}
+      <span
+        className="flex-shrink-0 tabular-nums"
+        style={{ fontSize: 10, color: 'var(--text-disabled)', minWidth: 36, textAlign: 'right' }}
+      >
+        {formatTime(pos)}
+      </span>
+      <div
+        onClick={onScrub}
+        className="flex-1 rounded-full overflow-hidden cursor-pointer"
+        style={{ height: 4, background: 'var(--bg-hover)' }}
+      >
+        <div
+          style={{
+            width: `${pct}%`,
+            height: '100%',
+            background: 'linear-gradient(to right, var(--accent-primary), var(--accent-secondary))',
+            transition: 'width 0.15s linear',
+          }}
+        />
+      </div>
+      <span
+        className="flex-shrink-0 tabular-nums"
+        style={{ fontSize: 10, color: 'var(--text-disabled)', minWidth: 36 }}
+      >
+        {formatTime(dur)}
+      </span>
+
+      {/* Volume — slim slider, doesn't crowd the transport.
+          Range input gets accent styling via accent-color. */}
+      <div className="flex items-center gap-1.5 flex-shrink-0" style={{ width: 100 }}>
+        <MonitorSpeaker size={12} style={{ color: 'var(--text-disabled)', flexShrink: 0 }} />
+        <input
+          type="range"
+          min={0}
+          max={1}
+          step={0.01}
+          value={state.volume}
+          onChange={(e) => setVolume(Number(e.target.value))}
+          style={{ width: '100%', accentColor: 'var(--accent-primary)' }}
+        />
+      </div>
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────
 // Empty state — shown when no pod is allocated
 // ──────────────────────────────────────────────────────────
 
@@ -1174,9 +1514,16 @@ function EmptyState({ retrying, onRetry }: EmptyStateProps) {
   );
 }
 
-// Standardised "field card" wrapper used by every form section. One
-// place for label styling, hint position, optional counter — so all
-// sections in the workspace share a single visual rhythm.
+// Standardised "field block" wrapper used by every form section.
+// Flat layout — no per-field card chrome. Sections sit on the form
+// background separated by spacing only, like Apple Music's edit
+// dialog. The cards-in-cards look the user flagged ("too much boxes
+// in boxes") came from every FieldCard rendering its own bordered
+// container; this version is just label + control + hint.
+//
+// Genre Palette + Track Specs DO get their own chrome (they render
+// their own outer divs, not via FieldCard) because they're distinct
+// interactive surfaces, not single-control fields.
 interface FieldCardProps {
   label: string;
   hint?: string;
@@ -1188,19 +1535,13 @@ interface FieldCardProps {
 }
 function FieldCard({ label, hint, counter, counterDanger, className, headerExtra, children }: FieldCardProps) {
   return (
-    <div
-      className={`rounded-xl p-3 ${className ?? ''}`}
-      style={{
-        background: 'var(--bg-titlebar)',
-        border: '1px solid var(--border-subtle)',
-      }}
-    >
-      <div className="flex items-center justify-between mb-2">
+    <div className={className}>
+      <div className="flex items-center justify-between mb-1.5">
         <label
           style={{
-            fontSize: 11,
+            fontSize: 10,
             fontWeight: 600,
-            color: 'var(--text-secondary)',
+            color: 'var(--text-disabled)',
             textTransform: 'uppercase',
             letterSpacing: 0.5,
           }}
@@ -1789,7 +2130,7 @@ function TrackSpecsCard({ specs, onChange, disabled }: TrackSpecsCardProps) {
               type="button"
               onClick={reset}
               disabled={disabled || !hasAny}
-              className="px-2 py-1 rounded transition-all hover:bg-[var(--bg-hover)] disabled:opacity-30"
+              className="px-2 py-1 rounded-md transition-all hover:bg-[var(--bg-hover)] disabled:opacity-30"
               style={{ fontSize: 10, color: 'var(--text-disabled)', background: 'transparent', border: 'none' }}
             >
               Clear all specs
@@ -1801,17 +2142,13 @@ function TrackSpecsCard({ specs, onChange, disabled }: TrackSpecsCardProps) {
   );
 }
 
-// Header for one logical section inside the specs panel. Keeps the
-// label style consistent with FieldCard but compact for sub-sections.
+// Header for one logical section inside the specs panel. Flat —
+// no border or background of its own; the outer panel chrome owns
+// all the box-drawing. Spotify/Apple-Music-style label-then-rows
+// instead of card-in-card.
 function SpecsSection({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div
-      className="rounded-lg p-2"
-      style={{
-        background: 'var(--bg-window)',
-        border: '1px solid var(--border-subtle)',
-      }}
-    >
+    <div className="flex flex-col gap-1.5">
       <div
         style={{
           fontSize: 9,
@@ -1819,12 +2156,11 @@ function SpecsSection({ label, children }: { label: string; children: React.Reac
           color: 'var(--text-disabled)',
           textTransform: 'uppercase',
           letterSpacing: 0.5,
-          marginBottom: 6,
         }}
       >
         {label}
       </div>
-      <div className="flex flex-col gap-1.5">{children}</div>
+      {children}
     </div>
   );
 }
@@ -1853,7 +2189,7 @@ function EnumSelect({
       value={value ?? ''}
       onChange={(e) => onChange(e.target.value === '' ? undefined : e.target.value)}
       disabled={disabled}
-      className="w-full px-2 py-1 rounded focus:outline-none disabled:opacity-50"
+      className="w-full px-2 py-1 rounded-md focus:outline-none disabled:opacity-50"
       style={{
         fontSize: 10,
         background: 'var(--bg-titlebar)',
@@ -1886,6 +2222,7 @@ function NumberInput({
       min={min}
       max={max}
       placeholder={placeholder}
+      className="w-full px-2 py-1 rounded-md focus:outline-none disabled:opacity-50"
       onChange={(e) => {
         const raw = e.target.value;
         if (raw === '') { onChange(undefined); return; }
@@ -1894,7 +2231,6 @@ function NumberInput({
         onChange(n);
       }}
       disabled={disabled}
-      className="w-full px-2 py-1 rounded focus:outline-none disabled:opacity-50"
       style={{
         fontSize: 10,
         background: 'var(--bg-titlebar)',
@@ -1922,7 +2258,7 @@ function TextInput({
       maxLength={maxLength}
       onChange={(e) => onChange(e.target.value)}
       disabled={disabled}
-      className="w-full px-2 py-1 rounded focus:outline-none disabled:opacity-50"
+      className="w-full px-2 py-1 rounded-md focus:outline-none disabled:opacity-50"
       style={{
         fontSize: 10,
         background: 'var(--bg-titlebar)',
@@ -1998,13 +2334,7 @@ function ChipMultiSelect({
     else onChange([...selected, opt]);
   };
   return (
-    <div
-      className="rounded-lg p-2"
-      style={{
-        background: 'var(--bg-window)',
-        border: '1px solid var(--border-subtle)',
-      }}
-    >
+    <div className="flex flex-col gap-1.5">
       <div
         style={{
           fontSize: 9,
@@ -2012,7 +2342,6 @@ function ChipMultiSelect({
           color: 'var(--text-disabled)',
           textTransform: 'uppercase',
           letterSpacing: 0.5,
-          marginBottom: 6,
         }}
       >
         {label}
@@ -2198,6 +2527,10 @@ interface TrackCardProps {
   onSaveSongToDesktop: (track: SavedTrack) => void;
   onSaveLyricsToDesktop: (track: SavedTrack) => void;
   onPlayInPlayer: (track: SavedTrack) => void;
+  // Shared player — cards no longer own audio elements; they
+  // surface play/pause via the workspace-level player so only
+  // one track plays at a time and the MiniPlayer stays in sync.
+  player: PlayerControls;
 }
 
 interface TrackMenuItemProps {
@@ -2228,19 +2561,184 @@ const TrackMenuItem: React.FC<TrackMenuItemProps> = ({ icon, label, onClick, dan
   </button>
 );
 
+// ──────────────────────────────────────────────────────────
+// TrackTable — Apple-Music-style compact list view of the
+// gallery. Toggleable from the rail header (Layers icon = cards,
+// FileMusic icon = list). Each row reads like a Songs-tab line:
+// title · style · duration · created. Click row = play; menu
+// kebab opens the same actions as TrackCard.
+// ──────────────────────────────────────────────────────────
+
+interface TrackTableProps {
+  tracks: SavedTrack[];
+  player: PlayerControls;
+  onLoad: (track: SavedTrack) => void;
+  onOpenLyrics: (track: SavedTrack) => void;
+  onDelete: (id: string) => void;
+}
+
+function TrackTable({ tracks, player, onLoad, onOpenLyrics, onDelete }: TrackTableProps) {
+  const { t } = useI18n();
+  return (
+    <div className="flex-1 overflow-y-auto invisible-scrollbar">
+      {/* Header row — small caps column labels. Duration + Created
+          align right so the numbers form a clean trailing column. */}
+      <div
+        className="grid items-center gap-2 px-2 sticky top-0 z-10"
+        style={{
+          gridTemplateColumns: '20px 1fr 60px 56px 18px',
+          height: 22,
+          fontSize: 9,
+          fontWeight: 600,
+          color: 'var(--text-disabled)',
+          textTransform: 'uppercase',
+          letterSpacing: 0.5,
+          background: 'var(--bg-titlebar)',
+          borderBottom: '1px solid var(--border-subtle)',
+        }}
+      >
+        <span></span>
+        <span>Title</span>
+        <span style={{ textAlign: 'right' }}>Time</span>
+        <span style={{ textAlign: 'right' }}>Added</span>
+        <span></span>
+      </div>
+      {tracks.map((track) => (
+        <TrackTableRow
+          key={track.id}
+          track={track}
+          player={player}
+          onLoad={onLoad}
+          onOpenLyrics={onOpenLyrics}
+          onDelete={onDelete}
+          translate={t}
+        />
+      ))}
+    </div>
+  );
+}
+
+function TrackTableRow({
+  track, player, onLoad, onOpenLyrics, onDelete, translate,
+}: {
+  track: SavedTrack;
+  player: PlayerControls;
+  onLoad: (track: SavedTrack) => void;
+  onOpenLyrics: (track: SavedTrack) => void;
+  onDelete: (id: string) => void;
+  translate: (key: string, vars?: Record<string, string | number>) => string;
+}) {
+  const [hover, setHover] = useState(false);
+  const isActive = player.state.trackId === track.id;
+  const playing = isActive && player.state.playing;
+  // Static date label — formats to "MMM d" so the column reads
+  // like Apple Music's "Date Added". Avoids Date.now() in render
+  // (impure) and the table doesn't need real-time relative times.
+  const dateLabel = new Date(track.createdAt).toLocaleDateString(undefined, {
+    month: 'short', day: 'numeric',
+  });
+
+  // Drag handler — same slim payload as TrackCard so the same drop
+  // targets accept rows from either view. Reuses MIME_TRACK so a
+  // table row can be dragged into the cover field, desktop, etc.
+  const handleDragStart = (e: React.DragEvent) => {
+    const payload: DraggedTrackPayload = {
+      id: track.id,
+      title: track.title,
+      styleTags: track.styleTags,
+      lyricsPreview: track.lyricsPreview,
+      durationMs: track.durationMs,
+      hasAudio: Boolean(track.audioDataUrl),
+    };
+    e.dataTransfer.setData(MIME_TRACK, JSON.stringify(payload));
+    if (track.lyricsPreview) e.dataTransfer.setData('text/plain', track.lyricsPreview);
+    e.dataTransfer.effectAllowed = 'copyMove';
+  };
+
+  return (
+    <div
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      draggable
+      onDragStart={handleDragStart}
+      onClick={() => track.audioDataUrl ? player.toggle(track) : onOpenLyrics(track)}
+      className="grid items-center gap-2 px-2 cursor-pointer transition-colors"
+      style={{
+        gridTemplateColumns: '20px 1fr 60px 56px 18px',
+        height: 30,
+        fontSize: 11,
+        background: isActive
+          ? 'var(--bg-selected)'
+          : hover ? 'var(--bg-hover)' : 'transparent',
+        color: 'var(--text-primary)',
+      }}
+      title={track.audioDataUrl ? (playing ? 'Click to pause' : 'Click to play') : 'Click to open lyrics'}
+    >
+      {/* Play / pause indicator. Active row shows pause; hover on
+          inactive shows play; otherwise a music note glyph. */}
+      <div className="flex items-center justify-center" style={{ color: isActive ? 'var(--accent-primary)' : 'var(--text-disabled)' }}>
+        {track.audioDataUrl ? (
+          playing ? <Pause size={11} /> : (hover ? <Play size={11} /> : <Music2 size={11} />)
+        ) : (
+          <NotebookText size={11} />
+        )}
+      </div>
+      <div className="min-w-0">
+        <div className="truncate" style={{ fontWeight: isActive ? 600 : 500 }}>
+          {track.title || translate('musiccreator.track.untitled')}
+        </div>
+        {track.styleTags && track.styleTags !== '—' && (
+          <div className="truncate" style={{ fontSize: 9, color: 'var(--text-disabled)' }}>
+            {track.styleTags}
+          </div>
+        )}
+      </div>
+      <span className="tabular-nums" style={{ textAlign: 'right', fontSize: 10, color: 'var(--text-disabled)' }}>
+        {track.durationMs > 0 ? formatTime(track.durationMs) : '—'}
+      </span>
+      <span style={{ textAlign: 'right', fontSize: 10, color: 'var(--text-disabled)' }}>
+        {dateLabel}
+      </span>
+      {/* Inline kebab menu — same actions as TrackCard but rendered
+          inline because the table row already carries the click target.
+          Opens via context menu so we don't need the portal/positioning
+          dance in this denser view. */}
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          // Cycle through three core actions inline. For full action
+          // surface, users still have the cards view + its kebab.
+          if (e.shiftKey) onOpenLyrics(track);
+          else if (e.altKey) onDelete(track.id);
+          else onLoad(track);
+        }}
+        className="flex items-center justify-center rounded-md transition-colors hover:bg-[var(--bg-selected)]"
+        style={{ width: 18, height: 18, color: 'var(--text-disabled)' }}
+        title="Click: load into form · Shift-click: open lyrics · Alt-click: delete"
+      >
+        <MoreVertical size={11} />
+      </button>
+    </div>
+  );
+}
+
 // Sidebar-friendly compact track row. Used inside the slim 260px gallery
 // rail — the bigger 2-column TrackCard layout doesn't fit there.
 function TrackCard({
   track, onDelete, onLoad, onOpenLyrics,
-  onSaveSongToDesktop, onSaveLyricsToDesktop, onPlayInPlayer,
+  onSaveSongToDesktop, onSaveLyricsToDesktop, onPlayInPlayer, player,
 }: TrackCardProps) {
   const { t } = useI18n();
-  const audioRef = useRef<HTMLAudioElement | null>(null);
   const kebabRef = useRef<HTMLButtonElement | null>(null);
-  const [playing, setPlaying] = useState(false);
-  const [progress, setProgress] = useState(0);
   const [hover, setHover] = useState(false);
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
+  // Derive playback state from the shared player so visuals stay
+  // in sync no matter who triggers play (card / mini-player / kebab).
+  const isActive = player.state.trackId === track.id;
+  const playing = isActive && player.state.playing;
+  const progress = isActive && player.state.durationMs > 0
+    ? player.state.positionMs / player.state.durationMs
+    : 0;
 
   // Click-outside dismissal — pop the menu shut on any window click that
   // isn't on the kebab itself or the menu portal.
@@ -2275,25 +2773,10 @@ function TrackCard({
 
   const callMenu = (fn: () => void) => () => { setMenu(null); fn(); };
 
-  useEffect(() => {
-    const a = audioRef.current;
-    if (!a) return;
-    const onTime = () => setProgress(a.currentTime / Math.max(a.duration, 0.01));
-    const onEnd = () => { setPlaying(false); setProgress(0); };
-    a.addEventListener('timeupdate', onTime);
-    a.addEventListener('ended', onEnd);
-    return () => {
-      a.removeEventListener('timeupdate', onTime);
-      a.removeEventListener('ended', onEnd);
-    };
-  }, []);
-
-  const toggle = () => {
-    const a = audioRef.current;
-    if (!a) return;
-    if (playing) { a.pause(); setPlaying(false); }
-    else { a.play(); setPlaying(true); }
-  };
+  // Toggle delegates to the shared player. If this card's track
+  // isn't the one playing, requesting play swaps the source and
+  // any previously playing track is paused automatically.
+  const toggle = () => player.toggle(track);
 
   const download = () => {
     const link = document.createElement('a');
@@ -2340,16 +2823,27 @@ function TrackCard({
         {track.audioDataUrl ? (
           <button
             onClick={toggle}
-            className="flex items-center justify-center rounded-md flex-shrink-0 transition-transform hover:scale-105"
-            style={{
-              width: 36, height: 36,
-              background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))',
-            }}
+            className="relative flex items-center justify-center flex-shrink-0 transition-transform hover:scale-105 group"
+            style={{ width: 36, height: 36 }}
             title={playing ? 'Pause' : 'Play'}
           >
-            {playing
-              ? <Pause size={14} style={{ color: 'white' }} />
-              : <Play size={14} style={{ color: 'white', marginLeft: 1 }} />}
+            {/* Cover art (or gradient fallback) sits behind a subtle
+                play/pause overlay. Hover dims the cover to keep the
+                control affordance visible even when art is dark. */}
+            <TrackAvatar track={track} size={36} iconSize={14} radius={6} />
+            <span
+              className="absolute inset-0 flex items-center justify-center rounded-md transition-opacity"
+              style={{
+                background: track.coverDataUrl
+                  ? 'rgba(0, 0, 0, 0.35)'
+                  : 'transparent',
+                borderRadius: 'var(--radius-md)',
+              }}
+            >
+              {playing
+                ? <Pause size={14} style={{ color: 'white' }} />
+                : <Play size={14} style={{ color: 'white', marginLeft: 1 }} />}
+            </span>
           </button>
         ) : (
           // Lyrics-only — no audio to play. Show the lyric-sheet glyph
@@ -2458,10 +2952,9 @@ function TrackCard({
           />
         </div>
       )}
-
-      {track.audioDataUrl && (
-        <audio ref={audioRef} src={track.audioDataUrl} preload="none" />
-      )}
+      {/* Audio element lives at workspace level (shared player) — the
+          card no longer mounts its own <audio>, so multiple cards
+          can never sound at once. */}
     </div>
   );
 }
@@ -2537,26 +3030,44 @@ export default function MusicCreator() {
   const [gallery, setGallery] = useState<SavedTrack[]>([]);
   const [galleryError, setGalleryError] = useState<string | null>(null);
   const [gallerySearch, setGallerySearch] = useState('');
+  // 'cards' (current rich rail) or 'list' (Apple-Music-style table).
+  const [galleryView, setGalleryView] = useState<'cards' | 'list'>('cards');
   // Persisted user prefs — model overrides, preferred pod, etc.
   const [creatorSettings, setCreatorSettings] = useState<MusicCreatorSettings>(DEFAULT_CREATOR_SETTINGS);
   const [settingsOpen, setSettingsOpen] = useState(false);
 
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      await Promise.all([
-        migrateLegacyTracksToSqlite(),
-        migrateLegacyRecordingsToSqlite(),
-      ]);
-      const [loaded, prefs, recs] = await Promise.all([
+      try {
+        await Promise.all([
+          migrateLegacyTracksToSqlite(),
+          migrateLegacyRecordingsToSqlite(),
+        ]);
+      } catch (e) {
+        console.warn('[Juli3ta] Legacy migration failed (non-fatal):', e);
+      }
+      // Each load is wrapped independently so a transient error in one
+      // (e.g. a stale schema after a worker restart) doesn't blank the
+      // others. Tracks are by far the most visible — if listTracks
+      // throws despite the repo's defensive fallback, surface the error
+      // to the gallery banner so the user sees "something went wrong"
+      // instead of a silent empty rail.
+      const [loadedRes, prefsRes, recsRes] = await Promise.allSettled([
         listTracks(),
         loadCreatorSettings(),
         listRecordings(),
       ]);
       if (cancelled) return;
-      setGallery(loaded);
-      setCreatorSettings(prefs);
-      setVoiceRecordings(recs);
+      if (loadedRes.status === 'fulfilled') {
+        setGallery(loadedRes.value);
+      } else {
+        console.error('[Juli3ta] listTracks failed:', loadedRes.reason);
+        setGalleryError('Could not load saved tracks — try reloading the app. Your data is still in SQLite.');
+      }
+      if (prefsRes.status === 'fulfilled') setCreatorSettings(prefsRes.value);
+      if (recsRes.status === 'fulfilled') setVoiceRecordings(recsRes.value);
     })();
     return () => { cancelled = true; };
   }, []);
@@ -2799,6 +3310,8 @@ export default function MusicCreator() {
           sizeBytes: 0,
           createdAt: Date.now(),
           audioDataUrl: '', // no audio
+          specsJson: countSetSpecs(specs) > 0 ? JSON.stringify(specs) : '',
+          coverDataUrl: '', // covers come post-extraction via Host API
         };
         await saveTrack(sheetTrack);
         // Project the lyric sheet into the VFS so it shows up in the
@@ -2853,6 +3366,8 @@ export default function MusicCreator() {
         sizeBytes: song.data.size_bytes ?? 0,
         createdAt: Date.now(),
         audioDataUrl,
+        specsJson: countSetSpecs(specs) > 0 ? JSON.stringify(specs) : '',
+        coverDataUrl: '', // covers come post-extraction via Host API
       };
 
       console.info('[Juli3ta] Saving generated song:', { id: newTrack.id, title: newTrack.title, durationMs: newTrack.durationMs, sizeBytes: newTrack.sizeBytes });
@@ -2886,7 +3401,7 @@ export default function MusicCreator() {
       generatingRef.current = false;
     }
   }, [
-    endpoint, theme, lyrics, songName, style, instrumental, mode, refAudioBase64, t,
+    endpoint, theme, lyrics, songName, style, specs, instrumental, mode, refAudioBase64, t,
     saveTrack, creatorSettings, mirrorAudioToVfs, mirrorLyricsToVfs, addNotification,
   ]);
 
@@ -3145,6 +3660,15 @@ export default function MusicCreator() {
     const cleanTitle = track.title.replace(/\s*\((lyrics|cover)\)\s*$/, '');
     setSongName(cleanTitle);
     setInstrumental(false);
+    // Round-trip the structured specs panel. Treat parse errors
+    // as "no specs" rather than throwing — older tracks predate
+    // SCHEMA_V5 so the column is empty and that's fine.
+    if (track.specsJson) {
+      try { setSpecs(JSON.parse(track.specsJson) as TrackSpecs); }
+      catch { setSpecs({}); }
+    } else {
+      setSpecs({});
+    }
     if (!track.audioDataUrl) setMode('lyricsOnly');
     else setMode('compose');
   }, []);
@@ -3359,6 +3883,16 @@ export default function MusicCreator() {
       || g.styleTags.toLowerCase().includes(q));
   }, [gallery, gallerySearch]);
 
+  // Player owns one <audio> element shared by every play surface
+  // (TrackCard, TrackTable row, MiniPlayer). The ref is created here
+  // (consumer owns refs per React strict rules) and passed both to
+  // the hook (which attaches event listeners) and the <audio> JSX
+  // mounted at the bottom of the workspace. Passing the visible
+  // gallery as the queue means prev/next walks whatever the user
+  // currently sees — search-filtered or not.
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const player = usePlayer(visibleGallery, audioRef);
+
   // ─── Render ────────────────────────────────────────────
 
   if (!endpoint) return <EmptyState retrying={resolving} onRetry={resolveNow} />;
@@ -3388,15 +3922,49 @@ export default function MusicCreator() {
           <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)' }}>
             {t('musiccreator.gallery.title')}
           </div>
-          <div className="ml-auto" style={{ fontSize: 10, color: 'var(--text-disabled)' }}>
-            {gallerySearch.trim()
-              ? `${visibleGallery.length} / ${gallery.length}`
-              : t(
-                gallery.length === 1
-                  ? 'musiccreator.gallery.count.one'
-                  : 'musiccreator.gallery.count.other',
-                { n: gallery.length },
-              )}
+          <div className="ml-auto flex items-center gap-2">
+            <span style={{ fontSize: 10, color: 'var(--text-disabled)' }}>
+              {gallerySearch.trim()
+                ? `${visibleGallery.length} / ${gallery.length}`
+                : t(
+                  gallery.length === 1
+                    ? 'musiccreator.gallery.count.one'
+                    : 'musiccreator.gallery.count.other',
+                  { n: gallery.length },
+                )}
+            </span>
+            {/* View toggle — cards (default rich rail) vs list (Apple
+                Music-style table). Persists in component state only;
+                each open of the workspace starts in cards mode. */}
+            <div
+              className="flex rounded-md overflow-hidden flex-shrink-0"
+              style={{ border: '1px solid var(--border-subtle)' }}
+            >
+              <button
+                onClick={() => setGalleryView('cards')}
+                className="flex items-center justify-center transition-all"
+                style={{
+                  width: 22, height: 22,
+                  background: galleryView === 'cards' ? 'var(--bg-hover)' : 'transparent',
+                  color: galleryView === 'cards' ? 'var(--text-primary)' : 'var(--text-disabled)',
+                }}
+                title="Cards"
+              >
+                <Layers size={11} />
+              </button>
+              <button
+                onClick={() => setGalleryView('list')}
+                className="flex items-center justify-center transition-all"
+                style={{
+                  width: 22, height: 22,
+                  background: galleryView === 'list' ? 'var(--bg-hover)' : 'transparent',
+                  color: galleryView === 'list' ? 'var(--text-primary)' : 'var(--text-disabled)',
+                }}
+                title="List"
+              >
+                <FileMusic size={11} />
+              </button>
+            </div>
           </div>
         </div>
 
@@ -3463,18 +4031,29 @@ export default function MusicCreator() {
           </div>
         ) : (
           <div className="flex-1 overflow-y-auto invisible-scrollbar p-1.5 flex flex-col gap-0.5">
-            {visibleGallery.map((track) => (
-              <TrackCard
-                key={track.id}
-                track={track}
-                onDelete={deleteTrack}
+            {galleryView === 'list' ? (
+              <TrackTable
+                tracks={visibleGallery}
+                player={player}
                 onLoad={loadTrack}
                 onOpenLyrics={openLyricsInEditor}
-                onSaveSongToDesktop={saveSongToDesktop}
-                onSaveLyricsToDesktop={saveLyricsToDesktop}
-                onPlayInPlayer={playTrackInPlayer}
+                onDelete={deleteTrack}
               />
-            ))}
+            ) : (
+              visibleGallery.map((track) => (
+                <TrackCard
+                  key={track.id}
+                  track={track}
+                  onDelete={deleteTrack}
+                  onLoad={loadTrack}
+                  onOpenLyrics={openLyricsInEditor}
+                  onSaveSongToDesktop={saveSongToDesktop}
+                  onSaveLyricsToDesktop={saveLyricsToDesktop}
+                  onPlayInPlayer={playTrackInPlayer}
+                  player={player}
+                />
+              ))
+            )}
           </div>
         )}
       </aside>
@@ -3644,6 +4223,145 @@ export default function MusicCreator() {
             )}
           </div>
         </div>
+
+        {/* Metadata strip — Song Name + Instrumental toggle. They're
+            track metadata, not content — pinning them to the top means
+            the form area below is purely about composition (theme,
+            style, genre, specs, lyrics). Reclaims ~80px of scrolling
+            real estate the old per-field cards used. */}
+        <div
+          className="flex items-center gap-3 px-5 flex-shrink-0"
+          style={{
+            height: 40,
+            borderBottom: '1px solid var(--border-subtle)',
+            background: 'var(--bg-window)',
+          }}
+        >
+          <label
+            htmlFor="juli3ta-song-name"
+            style={{
+              fontSize: 10,
+              fontWeight: 600,
+              color: 'var(--text-disabled)',
+              textTransform: 'uppercase',
+              letterSpacing: 0.5,
+              flexShrink: 0,
+            }}
+          >
+            {t('musiccreator.songName.label')}
+          </label>
+          <input
+            id="juli3ta-song-name"
+            value={songName}
+            onChange={(e) => setSongName(e.target.value)}
+            onDragOver={acceptDrag}
+            onDrop={handleSongNameDrop}
+            placeholder={t('musiccreator.songName.placeholder')}
+            disabled={busy}
+            className="flex-1 px-2 py-1 rounded-md focus:outline-none disabled:opacity-50"
+            style={{
+              fontSize: 12,
+              background: 'transparent',
+              border: '1px solid transparent',
+              color: 'var(--text-primary)',
+              minWidth: 0,
+            }}
+          />
+          {/* Instrumental toggle — was inline with the Lyrics header.
+              Pinned here next to Song Name because both are knobs that
+              affect the whole generation, not a single field. */}
+          <label
+            htmlFor="juli3ta-instrumental"
+            className="flex items-center gap-2 cursor-pointer select-none flex-shrink-0"
+            style={{ fontSize: 11, color: 'var(--text-secondary)' }}
+          >
+            {t('musiccreator.lyrics.instrumental')}
+            <Switch
+              id="juli3ta-instrumental"
+              checked={instrumental}
+              onCheckedChange={setInstrumental}
+              disabled={busy}
+            />
+          </label>
+        </div>
+
+        {/* Status bar — unified zone for progress, tips, and errors.
+            Sits between the action toolbar and the form so the user
+            looks at one slim band for "what is the app doing right
+            now?". Apple-Music-inspired layout, but uses the same
+            bg-titlebar / accent gradient as the rest of Tytus OS so
+            it visually disappears into the chrome when idle. */}
+        {(busy || error || galleryError) && (
+          <div
+            className="flex-shrink-0"
+            style={{
+              borderBottom: '1px solid var(--border-subtle)',
+              background: error
+                ? 'rgba(255, 82, 82, 0.06)'
+                : galleryError
+                  ? 'rgba(251, 191, 36, 0.06)'
+                  : 'var(--bg-titlebar)',
+            }}
+          >
+            {busy && (
+              <div className="overflow-hidden" style={{ height: 2, background: 'var(--bg-hover)' }}>
+                <div
+                  style={{
+                    width: `${progress * 100}%`,
+                    height: '100%',
+                    background: 'linear-gradient(to right, var(--accent-primary), var(--accent-secondary))',
+                    transition: 'width 0.25s ease',
+                  }}
+                />
+              </div>
+            )}
+            <div className="flex items-center gap-2 px-5" style={{ height: 30, fontSize: 11 }}>
+              {error ? (
+                <>
+                  <AlertCircle size={12} style={{ color: '#ff5252', flexShrink: 0 }} />
+                  <span className="flex-1 truncate" style={{ color: '#ff8a80' }} title={error}>
+                    {error}
+                  </span>
+                  <button
+                    onClick={() => setError(null)}
+                    className="rounded-md transition-all hover:bg-[var(--bg-hover)] flex-shrink-0 flex items-center justify-center"
+                    style={{ width: 18, height: 18, color: 'var(--text-secondary)' }}
+                    title={t('musiccreator.error.dismiss')}
+                  >
+                    <X size={11} />
+                  </button>
+                </>
+              ) : busy ? (
+                <>
+                  <Loader2 size={11} className="animate-spin" style={{ color: 'var(--accent-primary)', flexShrink: 0 }} />
+                  <span className="flex-1 truncate" style={{ color: 'var(--text-secondary)' }}>
+                    {phase === 'lyrics'
+                      ? FUN_LYRICS_TIPS[tipIndex % FUN_LYRICS_TIPS.length]
+                      : FUN_MUSIC_TIPS[tipIndex % FUN_MUSIC_TIPS.length]}
+                  </span>
+                  <span style={{ fontSize: 10, color: 'var(--text-disabled)', flexShrink: 0 }}>
+                    {phase === 'lyrics' ? 'Step 1 / 2 · Lyrics' : 'Step 2 / 2 · Music'}
+                  </span>
+                </>
+              ) : (
+                <>
+                  <AlertCircle size={12} style={{ color: '#fbbf24', flexShrink: 0 }} />
+                  <span className="flex-1 truncate" style={{ color: '#fde68a' }} title={galleryError ?? ''}>
+                    {galleryError}
+                  </span>
+                  <button
+                    onClick={() => setGalleryError(null)}
+                    className="rounded-md transition-all hover:bg-[var(--bg-hover)] flex-shrink-0 flex items-center justify-center"
+                    style={{ width: 18, height: 18, color: 'var(--text-secondary)' }}
+                    title="Dismiss"
+                  >
+                    <X size={11} />
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Scrollable form area */}
         <div className="flex-1 overflow-y-auto invisible-scrollbar">
@@ -4139,27 +4857,14 @@ export default function MusicCreator() {
           <TrackSpecsCard specs={specs} onChange={setSpecs} disabled={busy} />
         </div>
 
-        {/* Lyrics — full width so the editor breathes */}
+        {/* Lyrics — full width so the editor breathes. The Instrumental
+            toggle moved to the workspace metadata strip (below mode tabs)
+            so Lyrics owns this zone uncluttered. */}
         <FieldCard
           label={t('musiccreator.lyrics.label')}
           counter={`${lyricsCount} / ${MAX_LYRICS}`}
           counterDanger={lyricsCount > MAX_LYRICS}
           className="mb-4"
-          headerExtra={
-            <label
-              htmlFor="juli3ta-instrumental"
-              className="flex items-center gap-2 cursor-pointer select-none"
-              style={{ fontSize: 11, color: 'var(--text-secondary)' }}
-            >
-              {t('musiccreator.lyrics.instrumental')}
-              <Switch
-                id="juli3ta-instrumental"
-                checked={instrumental}
-                onCheckedChange={setInstrumental}
-                disabled={busy}
-              />
-            </label>
-          }
         >
           <textarea
             value={lyrics}
@@ -4193,117 +4898,24 @@ export default function MusicCreator() {
           </div>
         </FieldCard>
 
-        {/* Song name */}
-        <FieldCard
-          label={t('musiccreator.songName.label')}
-          className="mb-4"
-        >
-          <input
-            value={songName}
-            onChange={(e) => setSongName(e.target.value)}
-            onDragOver={acceptDrag}
-            onDrop={handleSongNameDrop}
-            placeholder={t('musiccreator.songName.placeholder')}
-            disabled={busy}
-            className="w-full px-3 py-2 rounded-lg focus:outline-none disabled:opacity-50"
-            style={{
-              fontSize: 12,
-              background: 'var(--bg-window)',
-              border: '1px solid var(--border-subtle)',
-              color: 'var(--text-primary)',
-            }}
-          />
-        </FieldCard>
+        {/* Song Name moved to the metadata strip below the mode tabs.
+            It's metadata, not content — keeping it inline at the top
+            saves ~80px of vertical space and the input stays visible
+            while the user is editing other fields. */}
 
-        {/* Generation errors moved to the bottom progress strip so the
-            user looks at one zone for "how is my song doing?". The strip
-            below now renders busy / error / idle states. */}
-
-        {/* Persistence warning — fired when a saved track failed to write
-            to IndexedDB (denied storage, full disk, private mode). The
-            track is still in memory; user just won't see it after reload. */}
-        {galleryError && (
-          <div
-            className="mb-3 flex items-start gap-2 px-3 py-2 rounded-lg"
-            style={{ background: 'rgba(251, 191, 36, 0.1)', border: '1px solid rgba(251, 191, 36, 0.3)' }}
-          >
-            <AlertCircle size={14} style={{ color: '#fbbf24', flexShrink: 0, marginTop: 2 }} />
-            <div className="flex-1" style={{ fontSize: 11, color: '#fde68a' }}>{galleryError}</div>
-            <button
-              onClick={() => setGalleryError(null)}
-              className="rounded-md transition-all hover:bg-[var(--bg-hover)]"
-              style={{ width: 18, height: 18, color: 'var(--text-secondary)', flexShrink: 0 }}
-              title="Dismiss"
-            >
-              ×
-            </button>
-          </div>
-        )}
+        {/* Status, progress, and errors all moved to the unified
+            WorkspaceStatusBar between the mode tabs and the form
+            (search for "Status bar — unified zone"). */}
         </div>{/* /px-6 py-5 */}
         </div>{/* /scrollable form area */}
 
-        {/* Status strip — single zone for "how is my song doing?".
-            States:
-              busy → bar fills, friendly tip rotates
-              error → red bar, error message + dismiss
-              idle → hidden, no chrome
-            Sits at the very bottom of the form so the user's eye doesn't
-            have to hunt for the failure on a 400 / network / abort. */}
-        {(busy || error) && (
-          <div
-            className="flex-shrink-0"
-            style={{
-              borderTop: '1px solid var(--border-subtle)',
-              background: error ? 'rgba(255, 82, 82, 0.06)' : 'var(--bg-titlebar)',
-            }}
-          >
-            <div
-              className="overflow-hidden"
-              style={{ height: 3, background: 'var(--bg-hover)' }}
-            >
-              <div
-                style={{
-                  width: error ? '100%' : `${progress * 100}%`,
-                  height: '100%',
-                  background: error
-                    ? 'linear-gradient(to right, #ff5252, #ff8a80)'
-                    : 'linear-gradient(to right, var(--accent-primary), var(--accent-secondary))',
-                  transition: 'width 0.25s ease',
-                }}
-              />
-            </div>
-            <div
-              className="flex items-start gap-2 px-5 py-2"
-              style={{ fontSize: 11 }}
-            >
-              {error ? (
-                <>
-                  <AlertCircle size={13} style={{ color: '#ff5252', flexShrink: 0, marginTop: 2 }} />
-                  <div className="flex-1" style={{ color: '#ff8a80', lineHeight: 1.4 }}>
-                    {error}
-                  </div>
-                  <button
-                    onClick={() => setError(null)}
-                    className="rounded-md transition-all hover:bg-[var(--bg-hover)] flex-shrink-0"
-                    style={{ width: 18, height: 18, color: 'var(--text-secondary)' }}
-                    title={t('musiccreator.error.dismiss')}
-                  >
-                    <X size={12} />
-                  </button>
-                </>
-              ) : (
-                <>
-                  <Loader2 size={12} className="animate-spin" style={{ color: 'var(--text-secondary)', marginTop: 2 }} />
-                  <span style={{ color: 'var(--text-secondary)' }}>
-                    {phase === 'lyrics'
-                      ? FUN_LYRICS_TIPS[tipIndex % FUN_LYRICS_TIPS.length]
-                      : FUN_MUSIC_TIPS[tipIndex % FUN_MUSIC_TIPS.length]}
-                  </span>
-                </>
-              )}
-            </div>
-          </div>
-        )}
+        {/* Bottom bar — Spotify-inspired persistent transport. Hidden
+            when no track has been queued; once a track plays it stays
+            visible so the user can scrub / replay without re-opening
+            the gallery card. The single shared <audio> element below
+            is what every play button in the workspace drives. */}
+        <MiniPlayer player={player} />
+        <audio ref={audioRef} preload="none" style={{ display: 'none' }} />
       </div>{/* /MAIN workspace */}
 
       {/* In-app help drawer — slides in over both panes. */}

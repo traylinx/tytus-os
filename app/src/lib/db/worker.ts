@@ -24,7 +24,7 @@ import sqlite3InitModule, {
   type Database,
   type Sqlite3Static,
 } from '@sqlite.org/sqlite-wasm';
-import { SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_VERSION } from './schema';
+import { SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_VERSION } from './schema';
 
 declare const self: DedicatedWorkerGlobalScope;
 
@@ -80,11 +80,47 @@ const openDb = async (): Promise<{ persistent: boolean; libVersion: string }> =>
     db.exec(stmt);
   }
 
-  // Idempotent schema apply, then bump user_version.
+  // V1-V4 are idempotent (CREATE IF NOT EXISTS), so apply unconditionally.
+  // V5+ uses ALTER TABLE which is NOT idempotent — gate on the actual
+  // table schema (PRAGMA table_info) rather than user_version. We hit
+  // a case in dev where user_version was bumped to 5 but the ALTER had
+  // never landed (HMR-driven worker restart mid-init), leaving rows
+  // unreadable because every repo SELECT referenced specs_json. Reading
+  // table_info is bulletproof: if the column is missing for any reason,
+  // we add it now.
   db.exec(SCHEMA_V1);
   db.exec(SCHEMA_V2);
   db.exec(SCHEMA_V3);
   db.exec(SCHEMA_V4);
+
+  // Reusable column-presence ALTER. Each ALTER is gated on the actual
+  // schema rather than user_version, so a stuck migration in a previous
+  // run (HMR-driven worker restart, parallel init, etc.) self-heals on
+  // the next boot. Add new V*+1 migrations by appending another call.
+  const ensureColumn = (column: string, ddl: string, label: string) => {
+    const cols = db!.exec({
+      sql: 'PRAGMA table_info(music_creator_tracks)',
+      returnValue: 'resultRows',
+      rowMode: 'object',
+    }) as unknown as Array<{ name: string }>;
+    if (cols.some((c) => c.name === column)) return;
+    try {
+      db!.exec(ddl);
+    } catch (e) {
+      const after = db!.exec({
+        sql: 'PRAGMA table_info(music_creator_tracks)',
+        returnValue: 'resultRows',
+        rowMode: 'object',
+      }) as unknown as Array<{ name: string }>;
+      if (!after.some((c) => c.name === column)) {
+        console.error(`[sqlite] ${label} ALTER failed and column still missing`, e);
+      }
+    }
+  };
+
+  ensureColumn('specs_json', SCHEMA_V5, 'SCHEMA_V5');
+  ensureColumn('cover_data_url', SCHEMA_V6, 'SCHEMA_V6');
+
   db.exec(`PRAGMA user_version = ${SCHEMA_VERSION}`);
 
   return { persistent, libVersion: sqlite3.version.libVersion };
