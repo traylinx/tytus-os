@@ -160,11 +160,12 @@ interface StyleGroup {
   chips: readonly string[];
 }
 
-// Curated 16-family / ~120-genre hierarchy. Sourced from the canonical
-// genre spec (popular families × representative subgenres) so the palette
-// roughly mirrors how streaming services organise their catalogues. Two
-// non-genre groups stay at the end (Mood, Kids/Holiday) because creators
-// reach for those as descriptors more than as genres.
+// Curated 19-family / ~220-genre hierarchy. Sourced from the canonical
+// genre spec (popular families × representative subgenres, including
+// Flamenco palos and avant-garde) so the palette roughly mirrors how
+// streaming services organise their catalogues. Two non-genre groups
+// stay at the end (Mood, Kids/Holiday) because creators reach for those
+// as descriptors more than as genres.
 const STYLE_GROUPS: readonly StyleGroup[] = [
   {
     label: 'Pop & Mainstream',
@@ -237,6 +238,14 @@ const STYLE_GROUPS: readonly StyleGroup[] = [
     ],
   },
   {
+    label: 'Flamenco',
+    chips: [
+      'Flamenco', 'Bulerías', 'Soleá', 'Alegrías', 'Seguiriyas',
+      'Tangos (flamenco)', 'Tientos', 'Fandangos (flamenco)', 'Sevillanas',
+      'Tarantas', 'Malagueñas', 'Granaínas',
+    ],
+  },
+  {
     label: 'Reggae, Dub & Dancehall',
     chips: [
       'Reggae', 'Roots reggae', 'Dancehall', 'Dub', 'Reggae fusion',
@@ -272,7 +281,7 @@ const STYLE_GROUPS: readonly StyleGroup[] = [
     ],
   },
   {
-    label: 'Urban Latino',
+    label: 'Reggaeton-Adjacent Urban Latin',
     chips: [
       'Urbano Latino', 'Dembow', 'Perreo', 'Moombahton', 'Latin drill',
     ],
@@ -295,8 +304,13 @@ const STYLE_GROUPS: readonly StyleGroup[] = [
   {
     label: 'Experimental & Avant-Garde',
     chips: [
-      'Experimental', 'Noise', 'Avant-garde', 'Industrial',
-      'IDM (Intelligent dance music)',
+      'Experimental', 'Avant-garde', 'Musique concrète', 'Electroacoustic music',
+      'Minimalism', 'Drone music', 'Noise music', 'Harsh noise',
+      'Free improvisation', 'Free jazz', 'Industrial', 'Power electronics',
+      'IDM (Intelligent dance music)', 'Math rock', 'No wave',
+      'Experimental rock', 'Avant-pop', 'Experimental pop', 'Vaporwave',
+      'Deconstructed club', 'Glitch', 'Sound art', 'Tape music',
+      'Soundscape composition',
     ],
   },
   {
@@ -318,6 +332,203 @@ const STYLE_GROUPS: readonly StyleGroup[] = [
 // Flat list — used for the palette header counter ("56 chips · click to
 // add") and for legacy "surprise me" sampling.
 const STYLE_PRESETS: readonly string[] = STYLE_GROUPS.flatMap((g) => g.chips);
+
+// ──────────────────────────────────────────────────────────
+// Track specs — structured controls that compile into the
+// Style prompt before submission. Mirrors the canonical
+// track_specs_schema (subset: detection-only audio_features
+// and abstract texture/melody fields are intentionally out).
+// All fields optional; an empty TrackSpecs compiles to "".
+// ──────────────────────────────────────────────────────────
+
+type TempoClass = 'very_slow' | 'slow' | 'medium' | 'fast' | 'very_fast';
+type TimeSignature = '3/4' | '4/4' | '6/8' | '7/8' | '5/4' | 'other';
+type RhythmFeel = 'straight' | 'swing' | 'shuffled' | 'syncopated' | 'polyrhythmic' | 'free';
+type GroovePattern = 'four_on_the_floor' | 'halftime' | 'doubletime' | 'broken_beat' | 'backbeat' | 'free';
+type SongForm = 'verse_chorus' | 'aaba' | 'drop_based' | 'loop_based' | 'through_composed' | 'strophic';
+type KeyName = 'C' | 'Db' | 'D' | 'Eb' | 'E' | 'F' | 'Gb' | 'G' | 'Ab' | 'A' | 'Bb' | 'B';
+type MusicalMode = 'major' | 'minor' | 'dorian' | 'mixolydian' | 'phrygian' | 'lydian' | 'locrian';
+type DynamicRange = 'narrow' | 'medium' | 'wide';
+type CrescendoShape = 'none' | 'gradual' | 'sudden';
+type Intensity = 'low' | 'medium' | 'high';
+type EraRef = '60s' | '70s' | '80s' | '90s' | '2000s' | '2010s' | '2020s' | 'timeless';
+type CulturalRegion = 'global' | 'us_uk' | 'latin' | 'afrobeats_scene' | 'kpop_scene' | 'jpop_scene' | 'caribbean' | 'middle_east' | 'asia_other' | 'europe_other';
+type VocalGender = 'male' | 'female' | 'mixed' | 'other' | 'none';
+
+interface TrackSpecs {
+  structure?: {
+    tempo_bpm?: number;
+    tempo_class?: TempoClass;
+    time_signature?: TimeSignature;
+    rhythm_feel?: RhythmFeel;
+    groove_pattern?: GroovePattern;
+    song_form?: SongForm;
+    length_seconds?: number;
+  };
+  tonal?: {
+    key?: KeyName;
+    mode?: MusicalMode;
+  };
+  instrumentation?: {
+    primary_instruments?: string[];
+    has_vocals?: boolean;
+    vocal_style?: string[];
+    vocal_gender?: VocalGender;
+    vocal_processing?: string[];
+    language_iso639_1?: string;
+  };
+  dynamics?: {
+    overall_dynamic_range?: DynamicRange;
+    has_big_drops?: boolean;
+    crescendo_shape?: CrescendoShape;
+  };
+  mood?: {
+    primary_moods?: string[];
+    emotional_intensity?: Intensity;
+    occasion_tags?: string[];
+  };
+  context?: {
+    era_reference?: EraRef;
+    cultural_region?: CulturalRegion;
+    explicit_lyrics?: boolean;
+    intended_use?: string[];
+  };
+}
+
+// Option lists used by the panel UI. Kept inline (not exported) because
+// they're tightly coupled to the prompt-compile logic below — changing
+// an enum here means both the chip and the resulting prose update.
+const TEMPO_CLASSES: readonly TempoClass[] = ['very_slow', 'slow', 'medium', 'fast', 'very_fast'];
+const TIME_SIGS: readonly TimeSignature[] = ['3/4', '4/4', '6/8', '7/8', '5/4', 'other'];
+const RHYTHM_FEELS: readonly RhythmFeel[] = ['straight', 'swing', 'shuffled', 'syncopated', 'polyrhythmic', 'free'];
+const GROOVES: readonly GroovePattern[] = ['four_on_the_floor', 'halftime', 'doubletime', 'broken_beat', 'backbeat', 'free'];
+const SONG_FORMS: readonly SongForm[] = ['verse_chorus', 'aaba', 'drop_based', 'loop_based', 'through_composed', 'strophic'];
+const KEYS: readonly KeyName[] = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
+const MODES: readonly MusicalMode[] = ['major', 'minor', 'dorian', 'mixolydian', 'phrygian', 'lydian', 'locrian'];
+const DYNAMIC_RANGES: readonly DynamicRange[] = ['narrow', 'medium', 'wide'];
+const CRESCENDOS: readonly CrescendoShape[] = ['none', 'gradual', 'sudden'];
+const INTENSITIES: readonly Intensity[] = ['low', 'medium', 'high'];
+const ERAS: readonly EraRef[] = ['60s', '70s', '80s', '90s', '2000s', '2010s', '2020s', 'timeless'];
+const CULTURAL_REGIONS: readonly CulturalRegion[] = ['global', 'us_uk', 'latin', 'afrobeats_scene', 'kpop_scene', 'jpop_scene', 'caribbean', 'middle_east', 'asia_other', 'europe_other'];
+const VOCAL_GENDERS: readonly VocalGender[] = ['male', 'female', 'mixed', 'other', 'none'];
+const PRIMARY_INSTRUMENTS: readonly string[] = [
+  'drums_acoustic', 'drum_machine', 'percussion', 'bass_electric', 'bass_synth',
+  'bass_upright', 'electric_guitar', 'acoustic_guitar', 'piano', 'keys_synth',
+  'organ', 'strings', 'brass', 'woodwinds', 'synth_pad', 'synth_lead',
+  'pluck_synth', 'fx', 'lead_vocal', 'choir',
+];
+const VOCAL_STYLES: readonly string[] = ['sung', 'rap', 'spoken_word', 'chant', 'choir', 'vocoder'];
+const VOCAL_PROCESSING: readonly string[] = [
+  'dry', 'reverb', 'delay', 'autotune_light', 'autotune_heavy', 'distortion',
+  'chorus', 'double_tracked',
+];
+const PRIMARY_MOODS: readonly string[] = [
+  'happy', 'uplifting', 'dark', 'melancholic', 'dreamy', 'chill', 'epic',
+  'romantic', 'energetic', 'aggressive',
+];
+const OCCASION_TAGS: readonly string[] = [
+  'party', 'club', 'study', 'sleep', 'workout', 'background', 'focus',
+  'film_trailer', 'game', 'kids', 'holiday_christmas',
+];
+const INTENDED_USES: readonly string[] = [
+  'background', 'featured_listen', 'sync_film', 'sync_ad', 'game', 'live_show_intro',
+];
+
+// Renders snake_case enum values as natural English ("four on the floor",
+// "spoken word"). Kept here so both the prompt compile and the panel
+// labels share one capitalization / spacing rule.
+const humanize = (raw: string): string => raw.replace(/_/g, ' ');
+
+// Pure function — turn a TrackSpecs into a single-line prompt suffix
+// suitable for appending to the user's free-text Style. Empty in →
+// empty out, so callers don't need to special-case the "no specs" path.
+const compileSpecsToText = (s: TrackSpecs): string => {
+  const lines: string[] = [];
+
+  // Structure
+  const structure: string[] = [];
+  if (s.structure?.tempo_bpm) structure.push(`${s.structure.tempo_bpm} BPM`);
+  else if (s.structure?.tempo_class) structure.push(`${humanize(s.structure.tempo_class)} tempo`);
+  if (s.structure?.time_signature && s.structure.time_signature !== 'other') {
+    structure.push(`${s.structure.time_signature} time`);
+  }
+  if (s.structure?.rhythm_feel) structure.push(`${s.structure.rhythm_feel} feel`);
+  if (s.structure?.groove_pattern) structure.push(`${humanize(s.structure.groove_pattern)} groove`);
+  if (s.structure?.song_form) structure.push(`${humanize(s.structure.song_form)} form`);
+  if (s.structure?.length_seconds) structure.push(`~${s.structure.length_seconds}s`);
+  if (structure.length) lines.push(structure.join(', '));
+
+  // Key
+  if (s.tonal?.key) {
+    const k = s.tonal.mode ? `${s.tonal.key} ${s.tonal.mode}` : s.tonal.key;
+    lines.push(`Key: ${k}`);
+  }
+
+  // Instruments
+  if (s.instrumentation?.primary_instruments?.length) {
+    lines.push(`Instruments: ${s.instrumentation.primary_instruments.map(humanize).join(', ')}`);
+  }
+
+  // Vocals
+  if (s.instrumentation?.has_vocals === false) {
+    lines.push('Instrumental, no vocals');
+  } else if (
+    s.instrumentation?.has_vocals
+    || s.instrumentation?.vocal_style?.length
+    || s.instrumentation?.vocal_gender
+    || s.instrumentation?.vocal_processing?.length
+  ) {
+    const v: string[] = [];
+    if (s.instrumentation.vocal_gender && s.instrumentation.vocal_gender !== 'none') {
+      v.push(s.instrumentation.vocal_gender);
+    }
+    if (s.instrumentation.vocal_style?.length) {
+      v.push(s.instrumentation.vocal_style.map(humanize).join('/'));
+    } else if (v.length === 0) {
+      v.push('vocals');
+    }
+    let line = v.join(' ');
+    if (s.instrumentation.vocal_processing?.length) {
+      line += ` with ${s.instrumentation.vocal_processing.map(humanize).join(' + ')}`;
+    }
+    lines.push(line);
+  }
+  if (s.instrumentation?.language_iso639_1) {
+    lines.push(`Language: ${s.instrumentation.language_iso639_1}`);
+  }
+
+  // Dynamics
+  const dyn: string[] = [];
+  if (s.dynamics?.overall_dynamic_range) dyn.push(`${s.dynamics.overall_dynamic_range} dynamics`);
+  if (s.dynamics?.crescendo_shape && s.dynamics.crescendo_shape !== 'none') {
+    dyn.push(`${s.dynamics.crescendo_shape} crescendo`);
+  }
+  if (s.dynamics?.has_big_drops) dyn.push('big drops');
+  if (dyn.length) lines.push(dyn.join(', '));
+
+  // Mood
+  if (s.mood?.primary_moods?.length) {
+    lines.push(`Mood: ${s.mood.primary_moods.join(', ')}`);
+  }
+  if (s.mood?.emotional_intensity) lines.push(`${s.mood.emotional_intensity} intensity`);
+  if (s.mood?.occasion_tags?.length) {
+    lines.push(`For: ${s.mood.occasion_tags.map(humanize).join(', ')}`);
+  }
+
+  // Context
+  const ctx: string[] = [];
+  if (s.context?.era_reference) ctx.push(`${s.context.era_reference} era`);
+  if (s.context?.cultural_region && s.context.cultural_region !== 'global') {
+    ctx.push(`${humanize(s.context.cultural_region)} scene`);
+  }
+  if (s.context?.intended_use?.length) {
+    ctx.push(`use: ${s.context.intended_use.map(humanize).join('/')}`);
+  }
+  if (s.context?.explicit_lyrics) ctx.push('explicit lyrics');
+  if (ctx.length) lines.push(ctx.join(', '));
+
+  return lines.join('. ');
+};
 
 const LYRIC_TEMPLATES = [
   '[Intro]\n\n[Verse]\n\n[Chorus]\n\n[Verse]\n\n[Chorus]\n\n[Bridge]\n\n[Outro]',
@@ -1239,6 +1450,625 @@ function ChipButton({
   );
 }
 
+// ──────────────────────────────────────────────────────────
+// Track Specs panel — collapsible structured controls that
+// compile into the Style prompt at submission time. Sits
+// just below the Style textarea so the relationship is
+// visible: text field for free prose, panel for structured
+// hints, both fold into one prompt before AIL.
+// ──────────────────────────────────────────────────────────
+
+interface TrackSpecsCardProps {
+  specs: TrackSpecs;
+  onChange: (next: TrackSpecs) => void;
+  disabled?: boolean;
+}
+
+function TrackSpecsCard({ specs, onChange, disabled }: TrackSpecsCardProps) {
+  const [open, setOpen] = useState(false);
+  const compiled = useMemo(() => compileSpecsToText(specs), [specs]);
+  const hasAny = compiled.length > 0;
+
+  // Helper: shallow-merge a sub-object update so callers don't repeat
+  // the spread boilerplate. `null` removes the sub-object entirely.
+  const patch = useCallback(
+    <K extends keyof TrackSpecs>(key: K, value: TrackSpecs[K] | null) => {
+      const next = { ...specs };
+      if (value === null) delete next[key];
+      else next[key] = value;
+      onChange(next);
+    },
+    [specs, onChange],
+  );
+
+  const reset = () => onChange({});
+
+  return (
+    <div
+      className="rounded-xl"
+      style={{
+        background: 'var(--bg-titlebar)',
+        border: '1px solid var(--border-subtle)',
+      }}
+    >
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="w-full flex items-center justify-between p-3 hover:opacity-90"
+        style={{ background: 'transparent', border: 'none', cursor: 'pointer' }}
+      >
+        <div className="flex items-center gap-2">
+          <Layers size={14} style={{ color: 'var(--text-secondary)' }} />
+          <span
+            style={{
+              fontSize: 11,
+              fontWeight: 600,
+              color: 'var(--text-secondary)',
+              textTransform: 'uppercase',
+              letterSpacing: 0.5,
+            }}
+          >
+            Track Specs
+          </span>
+          <span style={{ fontSize: 10, color: 'var(--text-disabled)' }}>
+            {hasAny ? 'compiled into Style on generate' : 'optional structured controls'}
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          {hasAny && !open && (
+            <span
+              className="px-2 py-0.5 rounded-full"
+              style={{
+                fontSize: 9,
+                background: 'var(--accent-primary)',
+                color: 'white',
+                fontWeight: 600,
+              }}
+            >
+              {countSetSpecs(specs)} set
+            </span>
+          )}
+          <ChevronDown
+            size={14}
+            style={{
+              color: 'var(--text-secondary)',
+              transform: open ? 'rotate(180deg)' : 'none',
+              transition: 'transform 0.15s',
+            }}
+          />
+        </div>
+      </button>
+
+      {open && (
+        <div
+          className="px-3 pb-3 pt-0"
+          style={{ borderTop: '1px solid var(--border-subtle)' }}
+        >
+          {/* Live preview of the compiled suffix — gives the user a clear
+              sense of what their selections will inject into the prompt. */}
+          {hasAny && (
+            <div
+              className="rounded-lg p-2 mt-3 mb-3"
+              style={{
+                background: 'var(--bg-window)',
+                border: '1px dashed var(--border-subtle)',
+                fontSize: 10,
+                color: 'var(--text-secondary)',
+                lineHeight: 1.5,
+              }}
+            >
+              <span style={{ color: 'var(--text-disabled)', fontWeight: 600 }}>preview · </span>
+              {compiled}
+            </div>
+          )}
+
+          <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))' }}>
+            {/* Structure */}
+            <SpecsSection label="Structure">
+              <SpecsRow label="Tempo (BPM)">
+                <NumberInput
+                  value={specs.structure?.tempo_bpm}
+                  onChange={(v) => patch('structure', { ...specs.structure, tempo_bpm: v })}
+                  min={40}
+                  max={260}
+                  placeholder="120"
+                  disabled={disabled}
+                />
+              </SpecsRow>
+              <SpecsRow label="Tempo class">
+                <EnumSelect
+                  value={specs.structure?.tempo_class}
+                  options={TEMPO_CLASSES}
+                  onChange={(v) => patch('structure', { ...specs.structure, tempo_class: v as TempoClass | undefined })}
+                  disabled={disabled}
+                />
+              </SpecsRow>
+              <SpecsRow label="Time signature">
+                <EnumSelect
+                  value={specs.structure?.time_signature}
+                  options={TIME_SIGS}
+                  onChange={(v) => patch('structure', { ...specs.structure, time_signature: v as TimeSignature | undefined })}
+                  disabled={disabled}
+                />
+              </SpecsRow>
+              <SpecsRow label="Rhythm feel">
+                <EnumSelect
+                  value={specs.structure?.rhythm_feel}
+                  options={RHYTHM_FEELS}
+                  onChange={(v) => patch('structure', { ...specs.structure, rhythm_feel: v as RhythmFeel | undefined })}
+                  disabled={disabled}
+                />
+              </SpecsRow>
+              <SpecsRow label="Groove">
+                <EnumSelect
+                  value={specs.structure?.groove_pattern}
+                  options={GROOVES}
+                  onChange={(v) => patch('structure', { ...specs.structure, groove_pattern: v as GroovePattern | undefined })}
+                  disabled={disabled}
+                />
+              </SpecsRow>
+              <SpecsRow label="Form">
+                <EnumSelect
+                  value={specs.structure?.song_form}
+                  options={SONG_FORMS}
+                  onChange={(v) => patch('structure', { ...specs.structure, song_form: v as SongForm | undefined })}
+                  disabled={disabled}
+                />
+              </SpecsRow>
+              <SpecsRow label="Length (s)">
+                <NumberInput
+                  value={specs.structure?.length_seconds}
+                  onChange={(v) => patch('structure', { ...specs.structure, length_seconds: v })}
+                  min={10}
+                  max={600}
+                  placeholder="180"
+                  disabled={disabled}
+                />
+              </SpecsRow>
+            </SpecsSection>
+
+            {/* Key */}
+            <SpecsSection label="Key">
+              <SpecsRow label="Pitch">
+                <EnumSelect
+                  value={specs.tonal?.key}
+                  options={KEYS}
+                  onChange={(v) => patch('tonal', { ...specs.tonal, key: v as KeyName | undefined })}
+                  disabled={disabled}
+                />
+              </SpecsRow>
+              <SpecsRow label="Mode">
+                <EnumSelect
+                  value={specs.tonal?.mode}
+                  options={MODES}
+                  onChange={(v) => patch('tonal', { ...specs.tonal, mode: v as MusicalMode | undefined })}
+                  disabled={disabled}
+                />
+              </SpecsRow>
+            </SpecsSection>
+
+            {/* Dynamics */}
+            <SpecsSection label="Dynamics">
+              <SpecsRow label="Range">
+                <EnumSelect
+                  value={specs.dynamics?.overall_dynamic_range}
+                  options={DYNAMIC_RANGES}
+                  onChange={(v) => patch('dynamics', { ...specs.dynamics, overall_dynamic_range: v as DynamicRange | undefined })}
+                  disabled={disabled}
+                />
+              </SpecsRow>
+              <SpecsRow label="Crescendo">
+                <EnumSelect
+                  value={specs.dynamics?.crescendo_shape}
+                  options={CRESCENDOS}
+                  onChange={(v) => patch('dynamics', { ...specs.dynamics, crescendo_shape: v as CrescendoShape | undefined })}
+                  disabled={disabled}
+                />
+              </SpecsRow>
+              <SpecsRow label="Big drops">
+                <BoolToggle
+                  value={specs.dynamics?.has_big_drops}
+                  onChange={(v) => patch('dynamics', { ...specs.dynamics, has_big_drops: v })}
+                  disabled={disabled}
+                />
+              </SpecsRow>
+            </SpecsSection>
+
+            {/* Context */}
+            <SpecsSection label="Context">
+              <SpecsRow label="Era">
+                <EnumSelect
+                  value={specs.context?.era_reference}
+                  options={ERAS}
+                  onChange={(v) => patch('context', { ...specs.context, era_reference: v as EraRef | undefined })}
+                  disabled={disabled}
+                />
+              </SpecsRow>
+              <SpecsRow label="Region">
+                <EnumSelect
+                  value={specs.context?.cultural_region}
+                  options={CULTURAL_REGIONS}
+                  onChange={(v) => patch('context', { ...specs.context, cultural_region: v as CulturalRegion | undefined })}
+                  disabled={disabled}
+                />
+              </SpecsRow>
+              <SpecsRow label="Intensity">
+                <EnumSelect
+                  value={specs.mood?.emotional_intensity}
+                  options={INTENSITIES}
+                  onChange={(v) => patch('mood', { ...specs.mood, emotional_intensity: v as Intensity | undefined })}
+                  disabled={disabled}
+                />
+              </SpecsRow>
+              <SpecsRow label="Explicit lyrics">
+                <BoolToggle
+                  value={specs.context?.explicit_lyrics}
+                  onChange={(v) => patch('context', { ...specs.context, explicit_lyrics: v })}
+                  disabled={disabled}
+                />
+              </SpecsRow>
+            </SpecsSection>
+          </div>
+
+          {/* Multi-select chip groups — full-width rows below the grid. */}
+          <div className="mt-4 flex flex-col gap-3">
+            <ChipMultiSelect
+              label="Primary instruments"
+              options={PRIMARY_INSTRUMENTS}
+              selected={specs.instrumentation?.primary_instruments ?? []}
+              onChange={(arr) => patch('instrumentation', { ...specs.instrumentation, primary_instruments: arr.length ? arr : undefined })}
+              disabled={disabled}
+            />
+            <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))' }}>
+              <SpecsSection label="Vocals">
+                <SpecsRow label="Has vocals">
+                  <BoolTriToggle
+                    value={specs.instrumentation?.has_vocals}
+                    onChange={(v) => patch('instrumentation', { ...specs.instrumentation, has_vocals: v })}
+                    disabled={disabled}
+                  />
+                </SpecsRow>
+                <SpecsRow label="Gender">
+                  <EnumSelect
+                    value={specs.instrumentation?.vocal_gender}
+                    options={VOCAL_GENDERS}
+                    onChange={(v) => patch('instrumentation', { ...specs.instrumentation, vocal_gender: v as VocalGender | undefined })}
+                    disabled={disabled}
+                  />
+                </SpecsRow>
+                <SpecsRow label="Language (ISO)">
+                  <TextInput
+                    value={specs.instrumentation?.language_iso639_1 ?? ''}
+                    onChange={(v) => patch('instrumentation', { ...specs.instrumentation, language_iso639_1: v.trim() || undefined })}
+                    placeholder="en, es, ja…"
+                    maxLength={5}
+                    disabled={disabled}
+                  />
+                </SpecsRow>
+              </SpecsSection>
+              <ChipMultiSelect
+                label="Vocal style"
+                options={VOCAL_STYLES}
+                selected={specs.instrumentation?.vocal_style ?? []}
+                onChange={(arr) => patch('instrumentation', { ...specs.instrumentation, vocal_style: arr.length ? arr : undefined })}
+                disabled={disabled}
+              />
+              <ChipMultiSelect
+                label="Vocal processing"
+                options={VOCAL_PROCESSING}
+                selected={specs.instrumentation?.vocal_processing ?? []}
+                onChange={(arr) => patch('instrumentation', { ...specs.instrumentation, vocal_processing: arr.length ? arr : undefined })}
+                disabled={disabled}
+              />
+            </div>
+            <ChipMultiSelect
+              label="Primary moods"
+              options={PRIMARY_MOODS}
+              selected={specs.mood?.primary_moods ?? []}
+              onChange={(arr) => patch('mood', { ...specs.mood, primary_moods: arr.length ? arr : undefined })}
+              disabled={disabled}
+            />
+            <ChipMultiSelect
+              label="Occasion tags"
+              options={OCCASION_TAGS}
+              selected={specs.mood?.occasion_tags ?? []}
+              onChange={(arr) => patch('mood', { ...specs.mood, occasion_tags: arr.length ? arr : undefined })}
+              disabled={disabled}
+            />
+            <ChipMultiSelect
+              label="Intended use"
+              options={INTENDED_USES}
+              selected={specs.context?.intended_use ?? []}
+              onChange={(arr) => patch('context', { ...specs.context, intended_use: arr.length ? arr : undefined })}
+              disabled={disabled}
+            />
+          </div>
+
+          <div className="flex justify-end mt-3">
+            <button
+              type="button"
+              onClick={reset}
+              disabled={disabled || !hasAny}
+              className="px-2 py-1 rounded transition-all hover:bg-[var(--bg-hover)] disabled:opacity-30"
+              style={{ fontSize: 10, color: 'var(--text-disabled)', background: 'transparent', border: 'none' }}
+            >
+              Clear all specs
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Header for one logical section inside the specs panel. Keeps the
+// label style consistent with FieldCard but compact for sub-sections.
+function SpecsSection({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div
+      className="rounded-lg p-2"
+      style={{
+        background: 'var(--bg-window)',
+        border: '1px solid var(--border-subtle)',
+      }}
+    >
+      <div
+        style={{
+          fontSize: 9,
+          fontWeight: 600,
+          color: 'var(--text-disabled)',
+          textTransform: 'uppercase',
+          letterSpacing: 0.5,
+          marginBottom: 6,
+        }}
+      >
+        {label}
+      </div>
+      <div className="flex flex-col gap-1.5">{children}</div>
+    </div>
+  );
+}
+
+function SpecsRow({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex items-center justify-between gap-2">
+      <span style={{ fontSize: 10, color: 'var(--text-secondary)', flexShrink: 0, minWidth: 90 }}>{label}</span>
+      <div style={{ flex: 1, minWidth: 0 }}>{children}</div>
+    </div>
+  );
+}
+
+// Small uniform select used by every enum row in the panel. Empty
+// option clears the field (renders as undefined in the spec object).
+function EnumSelect({
+  value, options, onChange, disabled,
+}: {
+  value: string | undefined;
+  options: readonly string[];
+  onChange: (v: string | undefined) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <select
+      value={value ?? ''}
+      onChange={(e) => onChange(e.target.value === '' ? undefined : e.target.value)}
+      disabled={disabled}
+      className="w-full px-2 py-1 rounded focus:outline-none disabled:opacity-50"
+      style={{
+        fontSize: 10,
+        background: 'var(--bg-titlebar)',
+        border: '1px solid var(--border-subtle)',
+        color: 'var(--text-primary)',
+      }}
+    >
+      <option value="">—</option>
+      {options.map((o) => (
+        <option key={o} value={o}>{humanize(o)}</option>
+      ))}
+    </select>
+  );
+}
+
+function NumberInput({
+  value, onChange, min, max, placeholder, disabled,
+}: {
+  value: number | undefined;
+  onChange: (v: number | undefined) => void;
+  min?: number;
+  max?: number;
+  placeholder?: string;
+  disabled?: boolean;
+}) {
+  return (
+    <input
+      type="number"
+      value={value ?? ''}
+      min={min}
+      max={max}
+      placeholder={placeholder}
+      onChange={(e) => {
+        const raw = e.target.value;
+        if (raw === '') { onChange(undefined); return; }
+        const n = Number(raw);
+        if (!Number.isFinite(n)) return;
+        onChange(n);
+      }}
+      disabled={disabled}
+      className="w-full px-2 py-1 rounded focus:outline-none disabled:opacity-50"
+      style={{
+        fontSize: 10,
+        background: 'var(--bg-titlebar)',
+        border: '1px solid var(--border-subtle)',
+        color: 'var(--text-primary)',
+      }}
+    />
+  );
+}
+
+function TextInput({
+  value, onChange, placeholder, maxLength, disabled,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+  maxLength?: number;
+  disabled?: boolean;
+}) {
+  return (
+    <input
+      type="text"
+      value={value}
+      placeholder={placeholder}
+      maxLength={maxLength}
+      onChange={(e) => onChange(e.target.value)}
+      disabled={disabled}
+      className="w-full px-2 py-1 rounded focus:outline-none disabled:opacity-50"
+      style={{
+        fontSize: 10,
+        background: 'var(--bg-titlebar)',
+        border: '1px solid var(--border-subtle)',
+        color: 'var(--text-primary)',
+      }}
+    />
+  );
+}
+
+// Two-state checkbox: undefined ↔ true. Used for "Big drops",
+// "Explicit lyrics" — features users either care about or don't.
+function BoolToggle({
+  value, onChange, disabled,
+}: {
+  value: boolean | undefined;
+  onChange: (v: boolean | undefined) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <input
+      type="checkbox"
+      checked={!!value}
+      onChange={(e) => onChange(e.target.checked ? true : undefined)}
+      disabled={disabled}
+      style={{ cursor: disabled ? 'not-allowed' : 'pointer' }}
+    />
+  );
+}
+
+// Three-state toggle: undefined → 'yes' → 'no' → undefined. Used for
+// has_vocals where "no vocals" is meaningfully different from
+// "unspecified" and we want both expressible without two checkboxes.
+function BoolTriToggle({
+  value, onChange, disabled,
+}: {
+  value: boolean | undefined;
+  onChange: (v: boolean | undefined) => void;
+  disabled?: boolean;
+}) {
+  const next = value === undefined ? true : value === true ? false : undefined;
+  const label = value === undefined ? 'auto' : value ? 'yes' : 'no';
+  return (
+    <button
+      type="button"
+      onClick={() => onChange(next)}
+      disabled={disabled}
+      className="px-2 py-0.5 rounded-full"
+      style={{
+        fontSize: 10,
+        background: value === true ? 'var(--accent-primary)' : value === false ? '#555' : 'var(--bg-titlebar)',
+        color: value === undefined ? 'var(--text-secondary)' : 'white',
+        border: '1px solid var(--border-subtle)',
+        cursor: disabled ? 'not-allowed' : 'pointer',
+      }}
+    >
+      {label}
+    </button>
+  );
+}
+
+function ChipMultiSelect({
+  label, options, selected, onChange, disabled,
+}: {
+  label: string;
+  options: readonly string[];
+  selected: readonly string[];
+  onChange: (arr: string[]) => void;
+  disabled?: boolean;
+}) {
+  const toggle = (opt: string) => {
+    if (selected.includes(opt)) onChange(selected.filter((s) => s !== opt));
+    else onChange([...selected, opt]);
+  };
+  return (
+    <div
+      className="rounded-lg p-2"
+      style={{
+        background: 'var(--bg-window)',
+        border: '1px solid var(--border-subtle)',
+      }}
+    >
+      <div
+        style={{
+          fontSize: 9,
+          fontWeight: 600,
+          color: 'var(--text-disabled)',
+          textTransform: 'uppercase',
+          letterSpacing: 0.5,
+          marginBottom: 6,
+        }}
+      >
+        {label}
+        {selected.length > 0 && (
+          <span style={{ marginLeft: 6, color: 'var(--accent-primary)' }}>
+            · {selected.length}
+          </span>
+        )}
+      </div>
+      <div className="flex items-center gap-1 flex-wrap">
+        {options.map((opt) => {
+          const active = selected.includes(opt);
+          return (
+            <button
+              key={opt}
+              type="button"
+              onClick={() => toggle(opt)}
+              disabled={disabled}
+              className="flex items-center gap-1 px-2 py-1 rounded-full transition-all hover:opacity-90 disabled:opacity-40"
+              style={{
+                fontSize: 10,
+                background: active ? 'var(--accent-primary)' : 'var(--bg-titlebar)',
+                color: active ? 'white' : 'var(--text-secondary)',
+                border: '1px solid var(--border-subtle)',
+                cursor: disabled ? 'not-allowed' : 'pointer',
+              }}
+            >
+              {active && <Check size={10} />}
+              {humanize(opt)}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// Counts how many spec fields are set so the collapsed header can show
+// a meaningful badge. Walks one level deep — sub-objects with no truthy
+// fields don't count.
+function countSetSpecs(s: TrackSpecs): number {
+  let n = 0;
+  const walk = (obj: unknown) => {
+    if (!obj || typeof obj !== 'object') return;
+    for (const v of Object.values(obj as Record<string, unknown>)) {
+      if (v === undefined || v === null) continue;
+      if (Array.isArray(v)) { if (v.length) n += 1; continue; }
+      if (typeof v === 'object') { walk(v); continue; }
+      if (v === '' || v === false) continue;
+      n += 1;
+    }
+  };
+  walk(s);
+  return n;
+}
+
 // One colour: green = endpoint reachable + has a usable music model.
 // Amber = reachable but no model match (still usable for some flows).
 // We pick the colour from the endpoint's discovered models rather than
@@ -1663,6 +2493,10 @@ export default function MusicCreator() {
   const [style, setStyle] = useState('');
   const [songName, setSongName] = useState('');
   const [instrumental, setInstrumental] = useState(false);
+  // Structured spec controls — empty-by-default; `compileSpecsToText`
+  // returns "" when no fields are set, so the request flow doesn't need
+  // to special-case "no specs".
+  const [specs, setSpecs] = useState<TrackSpecs>({});
 
   // Cover-mode state
   const [refAudioName, setRefAudioName] = useState<string | null>(null);
@@ -1889,7 +2723,15 @@ export default function MusicCreator() {
         },
       };
 
-      // Step 1: lyrics (skip if user supplied their own).
+      // Compile structured Track Specs into a prose suffix once per
+      // generate. Empty when no fields are set; otherwise reads like
+      // "120 BPM, 4/4 time. Key: A minor. Instruments: piano, drums.".
+      const specsText = compileSpecsToText(specs);
+
+      // Step 1: lyrics (skip if user supplied their own). The lyrics
+      // prompt is the user's free-text Theme plus the compiled specs
+      // so the songwriter sees the same constraints the music model
+      // will (mood/era/intensity all matter for lyric tone).
       let useLyrics = lyrics.trim();
       let resolvedTitle = songName.trim();
       let resolvedStyle = style.trim();
@@ -1901,7 +2743,10 @@ export default function MusicCreator() {
           return;
         }
         setPhase('lyrics');
-        generatedLyrics = await callLyrics(effectiveEndpoint, theme.trim(), controller.signal);
+        const themePrompt = specsText
+          ? `${theme.trim()}\n\nMusical context: ${specsText}`
+          : theme.trim();
+        generatedLyrics = await callLyrics(effectiveEndpoint, themePrompt, controller.signal);
         useLyrics = generatedLyrics.lyrics;
         if (!resolvedTitle) resolvedTitle = generatedLyrics.song_title;
         if (!resolvedStyle) resolvedStyle = generatedLyrics.style_tags;
@@ -1971,13 +2816,16 @@ export default function MusicCreator() {
         return;
       }
 
-      // Step 2: music (or cover).
+      // Step 2: music (or cover). Fold compiled specs into the style
+      // prompt so structured controls reach the model — the user's free
+      // text comes first (highest signal), specs follow as descriptors.
       setPhase('song');
+      const musicPrompt = [resolvedStyle, specsText].filter((p) => p && p.length > 0).join('. ');
       const song = await callMusic(
         effectiveEndpoint,
         {
           lyrics: useLyrics,
-          prompt: resolvedStyle || undefined,
+          prompt: musicPrompt || undefined,
           instrumental,
           refAudioBase64: mode === 'cover' ? refAudioBase64 ?? undefined : undefined,
         },
@@ -2464,7 +3312,7 @@ export default function MusicCreator() {
         id: 'song',
         label: 'Song',
         items: [
-          { id: 'new', label: 'New Song', onSelect: () => { setMode('compose'); setTheme(''); setLyrics(''); setStyle(''); setSongName(''); } },
+          { id: 'new', label: 'New Song', onSelect: () => { setMode('compose'); setTheme(''); setLyrics(''); setStyle(''); setSongName(''); setSpecs({}); } },
           { id: 'surprise', label: 'Surprise me…', onSelect: () => surpriseMe() },
           { id: 'mode-cover', label: 'Cover Mode', onSelect: () => setMode('cover') },
           { id: 'mode-lyrics', label: 'Lyrics Only Mode', onSelect: () => setMode('lyricsOnly') },
@@ -3282,6 +4130,14 @@ export default function MusicCreator() {
             form rhythm stays tight; expanded shows every group at once.
             5-year-old-friendly: kids can scan all chips when expanded. */}
         <GenrePaletteCard onPick={addStyleChip} disabled={busy} />
+
+        {/* Structured Track Specs — collapsed by default. When fields
+            are set, compileSpecsToText folds them into the prompt at
+            generation time so the user can either type freely OR use
+            the structured controls (or both). */}
+        <div className="mt-3">
+          <TrackSpecsCard specs={specs} onChange={setSpecs} disabled={busy} />
+        </div>
 
         {/* Lyrics — full width so the editor breathes */}
         <FieldCard
