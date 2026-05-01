@@ -49,6 +49,7 @@ import {
   updateTrackStyle as updateTrackStyleRow,
   updateTrackLyrics as updateTrackLyricsRow,
   updateTrackSpecs as updateTrackSpecsRow,
+  updateTrackTheme as updateTrackThemeRow,
   loadSettings as loadCreatorSettings,
   saveSettings as saveCreatorSettings,
   type MusicCreatorSettings,
@@ -126,6 +127,10 @@ interface SavedTrack {
   // glyph. Auto-generation is deferred to a Host API verb post-
   // extraction; today the field is plumbed but never set inline.
   coverDataUrl: string;
+  // Free-text theme (creative-brief prompt) the user typed when
+  // generating the track. Empty for tracks generated before V7.
+  // Persisted so reopening a track in Restyle restores Theme too.
+  theme: string;
 }
 
 interface PodEndpoint {
@@ -692,6 +697,7 @@ const migrateLegacyTracksToSqlite = async (): Promise<void> => {
     audioDataUrl: t.audioDataUrl ?? '',
     specsJson: t.specsJson ?? '',
     coverDataUrl: t.coverDataUrl ?? '',
+    theme: t.theme ?? '',
   });
 
   // Phase 1: drain localStorage (the very-first prototype storage).
@@ -979,7 +985,13 @@ const resolveAllLiveEndpoints = async (
 // signal so Cancel still wins, but a stalled fetch self-aborts at the
 // timeout boundary and surfaces a real error.
 const LYRICS_TIMEOUT_MS = 60_000;   // /music/lyrics is text — fast.
-const MUSIC_TIMEOUT_MS = 180_000;   // /music/generations — up to ~2 min on cold.
+// /music/generations runs the underlying audio model — fast on local
+// switchAILocal (~30–60s for a 1–3 min track) but remote AIL pods
+// regularly stretch past 3 min when the queue is busy. 5 minutes
+// covers the slow case without leaving the user with a runaway
+// request that never resolves. Set per smoke pass 2026-05-01 where
+// remote `ail-music` exceeded the previous 3-min ceiling.
+const MUSIC_TIMEOUT_MS = 300_000;
 const PROBE_TIMEOUT_MS = 8_000;     // /v1/models reachability probe — must be quick.
 
 // Combine an optional user-driven AbortSignal with a wall-clock timeout.
@@ -1183,7 +1195,7 @@ const callLyrics = async (
   endpoint.models.allIds.filter(isChatty).forEach(pushChat);
   if (chatPool.length === 0) {
     throw new Error(
-      `Lyrics endpoint failed and no chat backup model is available for ${endpoint.label}. Pick one in Music Creator Settings.`,
+      `Lyrics endpoint failed and no chat backup model is available for ${endpoint.label}. Pick one in Juli3ta Settings.`,
     );
   }
   const sys = `You are a songwriter. Given a theme, write a complete singable song.
@@ -1411,7 +1423,7 @@ const callImageGen = async (
   pushUniq(endpoint.models.image);
   endpoint.models.allIds.filter(isImagey).forEach(pushUniq);
   if (modelIds.length === 0) {
-    throw new Error(`This endpoint (${endpoint.label}) doesn't expose an image-generation model. Pick one in Music Creator Settings → Cover art, or upload your own image.`);
+    throw new Error(`This endpoint (${endpoint.label}) doesn't expose an image-generation model. Pick one in Juli3ta Settings → Cover art, or upload your own image.`);
   }
   return tryWithModelFallback(modelIds, async (modelId) => {
     const timeout = withTimeout(signal, IMAGE_TIMEOUT_MS);
@@ -1564,6 +1576,12 @@ interface PlayerControls {
   play: (track: SavedTrack) => void;
   pause: () => void;
   toggle: (track?: SavedTrack) => void;
+  // Load a track into the player WITHOUT starting playback. The
+  // MiniPlayer + cover surface as if the track were paused so the
+  // user sees what they selected and the Play button is one click
+  // away. Used by the in-app player view when the user clicks a
+  // sidebar row — explicit play stays a deliberate action.
+  select: (track: SavedTrack) => void;
   seek: (ms: number) => void;
   setVolume: (v: number) => void;
   next: () => void;
@@ -1578,6 +1596,27 @@ function usePlayer(queue: SavedTrack[], audioRef: React.MutableRefObject<HTMLAud
   const [state, setState] = useState<PlayerState>({
     trackId: null, playing: false, positionMs: 0, durationMs: 0, volume: 1,
   });
+
+  // Pre-load a track without starting playback. The bottom MiniPlayer
+  // reads `state.trackId` to decide what to show, so `select` flips
+  // that field + sets the audio element's src so a follow-up Play
+  // button click is instantaneous (no decode delay).
+  const select = useCallback((track: SavedTrack) => {
+    if (!track.audioDataUrl) return;
+    const a = audioRef.current;
+    if (!a) return;
+    if (state.trackId !== track.id) {
+      a.src = track.audioDataUrl;
+      a.pause();
+      setState((s) => ({
+        ...s,
+        trackId: track.id,
+        playing: false,
+        positionMs: 0,
+        durationMs: track.durationMs || 0,
+      }));
+    }
+  }, [state.trackId, audioRef]);
 
   const play = useCallback((track: SavedTrack) => {
     if (!track.audioDataUrl) return;
@@ -1679,7 +1718,7 @@ function usePlayer(queue: SavedTrack[], audioRef: React.MutableRefObject<HTMLAud
     };
   }, [playable, state.trackId, play, audioRef]);
 
-  return { state, queue, play, pause, toggle, seek, setVolume, next, prev };
+  return { state, queue, play, pause, toggle, select, seek, setVolume, next, prev };
 }
 
 // ──────────────────────────────────────────────────────────
@@ -3100,6 +3139,15 @@ interface TrackCardProps {
   onPlayInPlayer: (track: SavedTrack) => void;
   onRename: (id: string, title: string) => void;
   onEditCover: (track: SavedTrack) => void;
+  // Single-click on the card body — switches the workspace to player
+  // view and shows this track. Optional; when absent the card falls
+  // back to its old behaviour (kebab + drag-only). The play button +
+  // kebab still own their own click handlers and stopPropagation.
+  onSelect?: (track: SavedTrack) => void;
+  // Whether this card is the one currently shown in the player view.
+  // Drives the "selected" highlight in the sidebar so the user can
+  // see which row maps to the open pane.
+  selected?: boolean;
   // Shared player — cards no longer own audio elements; they
   // surface play/pause via the workspace-level player so only
   // one track plays at a time and the MiniPlayer stays in sync.
@@ -3356,7 +3404,8 @@ function TrackTableRow({
 // rail — the bigger 2-column TrackCard layout doesn't fit there.
 function TrackCard({
   track, onDelete, onLoad, onOpenLyrics,
-  onSaveSongToDesktop, onSaveLyricsToDesktop, onPlayInPlayer, onRename, onEditCover, player,
+  onSaveSongToDesktop, onSaveLyricsToDesktop, onPlayInPlayer, onRename, onEditCover,
+  onSelect, selected, player,
 }: TrackCardProps) {
   const { t } = useI18n();
   const kebabRef = useRef<HTMLButtonElement | null>(null);
@@ -3451,13 +3500,14 @@ function TrackCard({
       onMouseLeave={() => setHover(false)}
       draggable
       onDragStart={handleDragStart}
+      onClick={() => onSelect?.(track)}
       className="rounded-lg px-2 py-2 transition-all"
       style={{
-        background: hover ? 'var(--bg-hover)' : 'transparent',
-        border: '1px solid transparent',
-        cursor: 'grab',
+        background: selected ? 'var(--bg-selected)' : hover ? 'var(--bg-hover)' : 'transparent',
+        border: selected ? '1px solid var(--accent-primary)' : '1px solid transparent',
+        cursor: onSelect ? 'pointer' : 'grab',
       }}
-      title="Drag to Desktop, Cover field, Text Editor, or any text field"
+      title={onSelect ? 'Click to open in player · drag to other fields' : 'Drag to Desktop, Cover field, Text Editor, or any text field'}
     >
       <div className="flex items-center gap-2">
         {track.audioDataUrl ? (
@@ -3685,7 +3735,7 @@ function CoverArtModal({
       return;
     }
     if (!endpoint.models.image) {
-      setErr(`This endpoint (${endpoint.label}) has no image model. Pick one in Music Creator Settings → Cover art.`);
+      setErr(`This endpoint (${endpoint.label}) has no image model. Pick one in Juli3ta Settings → Cover art.`);
       return;
     }
     if (busy) return;
@@ -3940,7 +3990,6 @@ interface SongCardModalProps {
   lyrics: string;
   specs: TrackSpecs;
   coverDataUrl: string;
-  coverPrompt: string;
   endpoint: PodEndpoint | null;
   busy: boolean;
   onRegenerate: () => void;
@@ -3949,9 +3998,28 @@ interface SongCardModalProps {
   onClose: () => void;
 }
 
+function ModalDetailSection({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <div
+        style={{
+          fontSize: 10, fontWeight: 600, color: 'var(--text-disabled)',
+          textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4,
+        }}
+      >
+        {label}
+      </div>
+      <div style={{ fontSize: 12, color: 'var(--text-primary)', whiteSpace: 'pre-wrap' }}>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+
 function SongCardModal({
   songName, mode, theme, style, intent, lyrics, specs,
-  coverDataUrl, coverPrompt: _coverPrompt,
+  coverDataUrl,
   endpoint, busy,
   onRegenerate, onUpload, onClear, onClose,
 }: SongCardModalProps) {
@@ -3970,22 +4038,6 @@ function SongCardModal({
 
   const modeLabel = mode === 'restyle' ? 'Restyle' : mode === 'lyricsOnly' ? 'Lyrics only' : 'Song';
   const cleanTitle = (songName.trim().replace(/\s*\((lyrics|cover|restyle)\)\s*$/, '')) || 'Untitled';
-
-  const Section = ({ label, children }: { label: string; children: React.ReactNode }) => (
-    <div>
-      <div
-        style={{
-          fontSize: 10, fontWeight: 600, color: 'var(--text-disabled)',
-          textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4,
-        }}
-      >
-        {label}
-      </div>
-      <div style={{ fontSize: 12, color: 'var(--text-primary)', whiteSpace: 'pre-wrap' }}>
-        {children}
-      </div>
-    </div>
-  );
 
   return createPortal(
     <div
@@ -4128,16 +4180,16 @@ function SongCardModal({
             </div>
 
             {theme.trim() && (
-              <Section label="Theme">{theme.trim()}</Section>
+              <ModalDetailSection label="Theme">{theme.trim()}</ModalDetailSection>
             )}
             {intent.trim() && (
-              <Section label="Lyrics Direction">{intent.trim()}</Section>
+              <ModalDetailSection label="Lyrics Direction">{intent.trim()}</ModalDetailSection>
             )}
             {setCount > 0 && specsSummary && (
-              <Section label={`Track Specs (${setCount} set)`}>{specsSummary}</Section>
+              <ModalDetailSection label={`Track Specs (${setCount} set)`}>{specsSummary}</ModalDetailSection>
             )}
             {lyrics.trim() && (
-              <Section label="Lyrics">
+              <ModalDetailSection label="Lyrics">
                 <div
                   className="rounded-md px-3 py-2 invisible-scrollbar"
                   style={{
@@ -4151,7 +4203,7 @@ function SongCardModal({
                 >
                   {lyrics}
                 </div>
-              </Section>
+              </ModalDetailSection>
             )}
             {!theme.trim() && !intent.trim() && setCount === 0 && !lyrics.trim() && (
               <div style={{ fontSize: 11, color: 'var(--text-disabled)', fontStyle: 'italic' }}>
@@ -4181,6 +4233,418 @@ function SongCardModal({
 }
 
 // ──────────────────────────────────────────────────────────
+// PlayerView — Spotify-inspired now-playing pane that takes over
+// the right-side workspace when the user switches to the Player
+// tab. Sidebar gallery + bottom MiniPlayer stay; only this pane
+// changes.
+//
+// Layout: top row = big cover (320×320) + title/style + transport
+// (Play/Prev/Next + scrubber + time). Below = scrollable detail
+// area with theme, Lyrics Direction, specs summary, and lyrics.
+// All read-only here — to edit, the user clicks "Edit in Creator".
+// ──────────────────────────────────────────────────────────
+interface PlayerViewProps {
+  track: SavedTrack | null;
+  player: PlayerControls;
+  onEditInCreator: (track: SavedTrack) => void;
+  onSwitchToCreator: () => void;
+}
+
+// File-detail formatters used by the Player view's "About this
+// track" card. Keep them pure so future export/share flows can
+// re-use them without re-deriving in JSX.
+function formatBytes(n: number): string {
+  if (!n || n <= 0) return '—';
+  const kb = n / 1024;
+  if (kb < 1024) return `${kb.toFixed(1)} KB`;
+  return `${(kb / 1024).toFixed(2)} MB`;
+}
+function formatKbps(n: number): string {
+  if (!n || n <= 0) return '—';
+  return `${Math.round(n / 1000)} kbps`;
+}
+function formatHz(n: number): string {
+  if (!n || n <= 0) return '—';
+  return `${(n / 1000).toFixed(1)} kHz`;
+}
+function formatCreatedAt(ms: number): string {
+  if (!ms) return '—';
+  try {
+    return new Date(ms).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+  } catch { return '—'; }
+}
+
+// Shape every populated TrackSpecs field into grouped (label, value)
+// rows so the Player can render structured spec cards (Structure,
+// Tonal, Instrumentation, Dynamics, Mood, Context). Empty groups
+// omit themselves so we never render a blank header.
+type PlayerSpecRow = { label: string; value: string };
+type PlayerSpecGroup = { label: string; rows: PlayerSpecRow[] };
+function buildPlayerSpecGroups(s: TrackSpecs): PlayerSpecGroup[] {
+  const groups: PlayerSpecGroup[] = [];
+  const structure: PlayerSpecRow[] = [];
+  if (s.structure?.tempo_bpm) structure.push({ label: 'Tempo', value: `${s.structure.tempo_bpm} BPM` });
+  else if (s.structure?.tempo_class) structure.push({ label: 'Tempo', value: humanize(s.structure.tempo_class) });
+  if (s.structure?.time_signature && s.structure.time_signature !== 'other') structure.push({ label: 'Time', value: s.structure.time_signature });
+  if (s.structure?.rhythm_feel) structure.push({ label: 'Feel', value: humanize(s.structure.rhythm_feel) });
+  if (s.structure?.groove_pattern) structure.push({ label: 'Groove', value: humanize(s.structure.groove_pattern) });
+  if (s.structure?.song_form) structure.push({ label: 'Form', value: humanize(s.structure.song_form) });
+  if (s.structure?.length_seconds) structure.push({ label: 'Length', value: `~${s.structure.length_seconds}s` });
+  if (structure.length) groups.push({ label: 'Structure', rows: structure });
+
+  const tonal: PlayerSpecRow[] = [];
+  if (s.tonal?.key) tonal.push({ label: 'Key', value: s.tonal.key });
+  if (s.tonal?.mode) tonal.push({ label: 'Mode', value: humanize(s.tonal.mode) });
+  if (tonal.length) groups.push({ label: 'Tonal', rows: tonal });
+
+  const instr: PlayerSpecRow[] = [];
+  if (s.instrumentation?.primary_instruments?.length) {
+    instr.push({ label: 'Instruments', value: s.instrumentation.primary_instruments.map(humanize).join(', ') });
+  }
+  if (s.instrumentation?.has_vocals === false) {
+    instr.push({ label: 'Vocals', value: 'Instrumental' });
+  } else if (s.instrumentation?.has_vocals
+    || s.instrumentation?.vocal_style?.length
+    || s.instrumentation?.vocal_gender
+    || s.instrumentation?.vocal_processing?.length
+  ) {
+    const v: string[] = [];
+    if (s.instrumentation.vocal_gender && s.instrumentation.vocal_gender !== 'none') v.push(humanize(s.instrumentation.vocal_gender));
+    if (s.instrumentation.vocal_style?.length) v.push(s.instrumentation.vocal_style.map(humanize).join('/'));
+    instr.push({ label: 'Vocals', value: v.length ? v.join(' ') : 'With vocals' });
+    if (s.instrumentation.vocal_processing?.length) {
+      instr.push({ label: 'Processing', value: s.instrumentation.vocal_processing.map(humanize).join(' + ') });
+    }
+  }
+  if (s.instrumentation?.language_iso639_1) {
+    instr.push({ label: 'Language', value: s.instrumentation.language_iso639_1.toUpperCase() });
+  }
+  if (instr.length) groups.push({ label: 'Instrumentation', rows: instr });
+
+  const dyn: PlayerSpecRow[] = [];
+  if (s.dynamics?.overall_dynamic_range) dyn.push({ label: 'Range', value: humanize(s.dynamics.overall_dynamic_range) });
+  if (s.dynamics?.crescendo_shape && s.dynamics.crescendo_shape !== 'none') dyn.push({ label: 'Crescendo', value: humanize(s.dynamics.crescendo_shape) });
+  if (s.dynamics?.has_big_drops) dyn.push({ label: 'Big drops', value: 'Yes' });
+  if (dyn.length) groups.push({ label: 'Dynamics', rows: dyn });
+
+  const mood: PlayerSpecRow[] = [];
+  if (s.mood?.primary_moods?.length) mood.push({ label: 'Moods', value: s.mood.primary_moods.join(', ') });
+  if (s.mood?.emotional_intensity) mood.push({ label: 'Intensity', value: humanize(s.mood.emotional_intensity) });
+  if (s.mood?.occasion_tags?.length) mood.push({ label: 'For', value: s.mood.occasion_tags.map(humanize).join(', ') });
+  if (mood.length) groups.push({ label: 'Mood', rows: mood });
+
+  const ctx: PlayerSpecRow[] = [];
+  if (s.context?.era_reference) ctx.push({ label: 'Era', value: humanize(s.context.era_reference) });
+  if (s.context?.cultural_region && s.context.cultural_region !== 'global') ctx.push({ label: 'Region', value: humanize(s.context.cultural_region) });
+  if (s.context?.intended_use?.length) ctx.push({ label: 'Use', value: s.context.intended_use.map(humanize).join('/') });
+  if (s.context?.explicit_lyrics) ctx.push({ label: 'Explicit', value: 'Yes' });
+  if (ctx.length) groups.push({ label: 'Context', rows: ctx });
+
+  return groups;
+}
+
+function PlayerKVRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-baseline gap-2" style={{ fontSize: 12 }}>
+      <span style={{ color: 'var(--text-disabled)', flexShrink: 0, minWidth: 86 }}>{label}</span>
+      <span style={{ color: 'var(--text-primary)' }}>{value}</span>
+    </div>
+  );
+}
+
+function PlayerInfoCard({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div
+      className="rounded-xl px-4 py-4"
+      style={{
+        background: 'var(--bg-titlebar)',
+        border: '1px solid var(--border-subtle)',
+      }}
+    >
+      <div
+        style={{
+          fontSize: 10, fontWeight: 700, color: 'var(--text-disabled)',
+          textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 10,
+        }}
+      >
+        {label}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function PlayerView({ track, player, onEditInCreator, onSwitchToCreator }: PlayerViewProps) {
+  const { t } = useI18n();
+  const specsJson = track?.specsJson ?? '';
+
+  // Parse persisted specs blob so we can render structured groups.
+  const specs = useMemo<TrackSpecs>(() => {
+    if (!specsJson) return {};
+    try { return JSON.parse(specsJson) as TrackSpecs; }
+    catch { return {}; }
+  }, [specsJson]);
+  const intent = (specs.intent ?? '').trim();
+  const specGroups = useMemo(() => buildPlayerSpecGroups(specs), [specs]);
+
+  if (!track) {
+    return (
+      <div className="flex-1 flex flex-col items-center justify-center px-8" style={{ background: 'var(--bg-window)' }}>
+        <div
+          className="rounded-2xl mb-5 flex items-center justify-center"
+          style={{
+            width: 120, height: 120,
+            background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))',
+            boxShadow: 'var(--shadow-md)',
+          }}
+        >
+          <Disc3 size={56} style={{ color: 'white', opacity: 0.85 }} />
+        </div>
+        <div style={{ fontSize: 16, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 6 }}>
+          {t('musiccreator.player.empty.title')}
+        </div>
+        <div style={{ fontSize: 12, color: 'var(--text-secondary)', textAlign: 'center', maxWidth: 360 }}>
+          {t('musiccreator.player.empty.body')}
+        </div>
+        <button
+          onClick={onSwitchToCreator}
+          className="mt-5 flex items-center gap-1.5 px-4 rounded-lg transition-all hover:scale-[1.02]"
+          style={{
+            height: 32,
+            fontSize: 12,
+            fontWeight: 600,
+            color: 'white',
+            background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))',
+            boxShadow: 'var(--shadow-md)',
+          }}
+        >
+          <Sparkles size={13} />
+          {t('musiccreator.player.empty.openCreator')}
+        </button>
+      </div>
+    );
+  }
+
+  const cleanTitle = track.title.replace(/\s*\((lyrics|cover|restyle)\)\s*$/, '') || 'Untitled';
+  const hasAudio = Boolean(track.audioDataUrl);
+  const styleClean = track.styleTags && track.styleTags !== '—' ? track.styleTags : '';
+  // True when the track being viewed is also the one currently in
+  // the MiniPlayer. Drives the Play/Pause toggle on the cover + the
+  // primary action button — without this, the button would always
+  // say "Play" even after the track was started.
+  const isViewingActive = player.state.trackId === track.id;
+  const playerPlaying = isViewingActive && player.state.playing;
+
+  return (
+    <div className="flex-1 flex flex-col min-h-0 overflow-hidden" style={{ background: 'var(--bg-window)' }}>
+      {/* Hero strip — cover + title + sub + Edit. The bottom MiniPlayer
+          owns transport (play/prev/next/scrubber) so we deliberately
+          don't repeat it here. Slim hero leaves more room for the
+          lyrics + info rail underneath. */}
+      <div
+        className="flex-shrink-0 px-6 pt-6 pb-5 flex flex-wrap gap-5 items-end"
+        style={{ borderBottom: '1px solid var(--border-subtle)' }}
+      >
+        {/* Cover with hover Play overlay (Spotify pattern). When this
+            is the active track and it's playing the overlay shows
+            Pause; otherwise Play. Click → toggles playback. The
+            cover stays clickable even when not hovered for touch. */}
+        <button
+          type="button"
+          onClick={() => { if (hasAudio) player.toggle(track); }}
+          disabled={!hasAudio}
+          className="rounded-xl overflow-hidden flex-shrink-0 relative group disabled:cursor-not-allowed"
+          style={{
+            width: 180,
+            height: 180,
+            background: track.coverDataUrl
+              ? `url(${track.coverDataUrl}) center/cover no-repeat`
+              : 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))',
+            border: '1px solid var(--border-subtle)',
+            boxShadow: 'var(--shadow-lg)',
+            cursor: hasAudio ? 'pointer' : 'default',
+          }}
+          title={hasAudio ? (isViewingActive && playerPlaying ? 'Pause' : 'Play') : 'Lyric sheet — no audio'}
+        >
+          {!track.coverDataUrl && (
+            <div className="absolute inset-0 flex items-center justify-center">
+              <Disc3 size={56} style={{ color: 'white', opacity: 0.7 }} />
+            </div>
+          )}
+          {hasAudio && (
+            <div
+              className="absolute inset-0 flex items-center justify-center transition-opacity"
+              style={{
+                background: 'rgba(0,0,0,0.45)',
+                opacity: isViewingActive && playerPlaying ? 0 : 1,
+              }}
+            >
+              <div
+                className="flex items-center justify-center rounded-full transition-transform group-hover:scale-110"
+                style={{
+                  width: 64, height: 64,
+                  background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))',
+                  boxShadow: '0 8px 24px rgba(124, 77, 255, 0.5)',
+                }}
+              >
+                {isViewingActive && playerPlaying
+                  ? <Pause size={26} style={{ color: 'white' }} />
+                  : <Play size={26} style={{ color: 'white', marginLeft: 3 }} />}
+              </div>
+            </div>
+          )}
+        </button>
+
+        <div className="flex-1 min-w-0 flex flex-col gap-2" style={{ minWidth: 280 }}>
+          <div
+            style={{
+              fontSize: 9, fontWeight: 700, letterSpacing: 1,
+              color: 'var(--accent-primary)', textTransform: 'uppercase',
+            }}
+          >
+            {hasAudio ? t('musiccreator.player.eyebrow.track') : t('musiccreator.player.eyebrow.lyricSheet')}
+          </div>
+          <div
+            className="leading-tight"
+            style={{
+              fontSize: 30, fontWeight: 800, color: 'var(--text-primary)',
+              letterSpacing: '-0.02em',
+              wordBreak: 'break-word',
+            }}
+          >
+            {cleanTitle}
+          </div>
+          <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
+            <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>Juli3ta</span>
+            {styleClean && (<><span style={{ margin: '0 6px', opacity: 0.5 }}>·</span>{styleClean}</>)}
+            {track.durationMs > 0 && (<><span style={{ margin: '0 6px', opacity: 0.5 }}>·</span>{formatTime(track.durationMs)}</>)}
+          </div>
+          {/* Action row — primary Play (gradient) + secondary Remix.
+              Play is the primary action because Sebastian's Spotify-like
+              flow is "click song → see info → press Play". The library
+              click no longer auto-loads the MiniPlayer, so this button
+              is what actually puts the track into transport. */}
+          <div className="mt-2 flex items-center gap-2 flex-wrap">
+            {hasAudio && (
+              <button
+                onClick={() => player.toggle(track)}
+                className="flex items-center gap-1.5 px-4 rounded-full transition-all hover:scale-[1.03] active:scale-[0.98]"
+                style={{
+                  height: 36,
+                  fontSize: 12,
+                  fontWeight: 700,
+                  color: 'white',
+                  background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))',
+                  boxShadow: '0 6px 18px rgba(124, 77, 255, 0.45)',
+                  border: 'none',
+                }}
+                title={isViewingActive && playerPlaying ? 'Pause' : 'Play'}
+              >
+                {isViewingActive && playerPlaying
+                  ? <><Pause size={13} /> {t('musiccreator.player.pause')}</>
+                  : <><Play size={13} style={{ marginLeft: 1 }} /> {t('musiccreator.player.play')}</>}
+              </button>
+            )}
+            <button
+              onClick={() => onEditInCreator(track)}
+              className="flex items-center gap-1.5 px-3 rounded-lg transition-all hover:bg-[var(--bg-hover)]"
+              style={{
+                height: 30,
+                fontSize: 11,
+                color: 'var(--text-secondary)',
+                background: 'var(--bg-titlebar)',
+                border: '1px solid var(--border-subtle)',
+              }}
+              title={t('musiccreator.player.remixInRestyle.tip')}
+            >
+              <Wand2 size={12} />
+              {t('musiccreator.player.remixInRestyle')}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Body — Lyrics on the left (big, readable), info rail on the
+          right (cards: Lyrics Direction, structured Specs by group,
+          About this track). Wraps on narrow windows so the rail
+          stacks below the lyrics. Single scroll context so long
+          lyrics don't clip the rail. */}
+      <div className="flex-1 overflow-y-auto invisible-scrollbar px-6 py-5">
+        <div className="flex flex-wrap gap-5 items-start">
+          {/* Lyrics column */}
+          <div className="flex-1 min-w-0" style={{ minWidth: 320 }}>
+            <div
+              style={{
+                fontSize: 10, fontWeight: 700, color: 'var(--text-disabled)',
+                textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 10,
+              }}
+            >
+              {t('musiccreator.player.lyrics')}
+            </div>
+            {track.lyricsPreview ? (
+              <div
+                style={{
+                  fontSize: 14,
+                  lineHeight: 1.75,
+                  whiteSpace: 'pre-wrap',
+                  color: 'var(--text-primary)',
+                }}
+              >
+                {track.lyricsPreview}
+              </div>
+            ) : (
+              <div style={{ fontSize: 12, color: 'var(--text-disabled)', fontStyle: 'italic' }}>
+                {t('musiccreator.player.lyrics.empty')}
+              </div>
+            )}
+          </div>
+
+          {/* Info rail. Each card is independent so adding/removing
+              one doesn't reflow the others. Width capped so the
+              lyrics get the rest of the space. */}
+          <div className="flex flex-col gap-4" style={{ width: 320, flexShrink: 0 }}>
+            {track.theme.trim() && (
+              <PlayerInfoCard label={t('musiccreator.player.theme')}>
+                <div style={{ fontSize: 12, color: 'var(--text-primary)', whiteSpace: 'pre-wrap', lineHeight: 1.55 }}>
+                  {track.theme.trim()}
+                </div>
+              </PlayerInfoCard>
+            )}
+            {intent && (
+              <PlayerInfoCard label={t('musiccreator.player.lyricsDirection')}>
+                <div style={{ fontSize: 12, color: 'var(--text-primary)', whiteSpace: 'pre-wrap', lineHeight: 1.55 }}>
+                  {intent}
+                </div>
+              </PlayerInfoCard>
+            )}
+            {specGroups.map((g) => (
+              <PlayerInfoCard key={g.label} label={g.label}>
+                <div className="flex flex-col gap-1.5">
+                  {g.rows.map((r) => (
+                    <PlayerKVRow key={`${g.label}-${r.label}`} label={r.label} value={r.value} />
+                  ))}
+                </div>
+              </PlayerInfoCard>
+            ))}
+            <PlayerInfoCard label={t('musiccreator.player.about')}>
+              <div className="flex flex-col gap-1.5">
+                <PlayerKVRow label={t('musiccreator.player.about.created')} value={formatCreatedAt(track.createdAt)} />
+                {hasAudio && track.durationMs > 0 && <PlayerKVRow label={t('musiccreator.player.about.duration')} value={formatTime(track.durationMs)} />}
+                {hasAudio && track.bitrate > 0 && <PlayerKVRow label={t('musiccreator.player.about.bitrate')} value={formatKbps(track.bitrate)} />}
+                {hasAudio && track.sampleRate > 0 && <PlayerKVRow label={t('musiccreator.player.about.sampleRate')} value={formatHz(track.sampleRate)} />}
+                {hasAudio && track.sizeBytes > 0 && <PlayerKVRow label={t('musiccreator.player.about.size')} value={formatBytes(track.sizeBytes)} />}
+                {styleClean && <PlayerKVRow label={t('musiccreator.player.about.style')} value={styleClean} />}
+                <PlayerKVRow label={t('musiccreator.player.about.format')} value={hasAudio ? t('musiccreator.player.about.format.mp3') : t('musiccreator.player.about.format.lyricSheet')} />
+              </div>
+            </PlayerInfoCard>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────
 // Main component
 // ──────────────────────────────────────────────────────────
 
@@ -4204,6 +4668,17 @@ export default function MusicCreator() {
   const [mode, setMode] = useState<Mode>('compose');
   // In-app help drawer.
   const [helpOpen, setHelpOpen] = useState(false);
+  // Top-level view inside the Juli3ta window. 'creator' = the
+  // composition form (theme/style/lyrics/specs/cover). 'player' = a
+  // Spotify-style now-playing pane that takes over the right side. The
+  // sidebar gallery + bottom mini-player stay in both views; only the
+  // middle workspace pane swaps. Default to creator so a fresh launch
+  // lands the user on Create Song, not on an empty player.
+  const [view, setView] = useState<'creator' | 'player'>('creator');
+  // Which saved track the player view is showing. null = "no track
+  // selected yet" → the player falls back to the currently playing one
+  // (or the most recent in the gallery) so the pane is never empty.
+  const [selectedPlayerTrackId, setSelectedPlayerTrackId] = useState<string | null>(null);
 
   // Form state
   const [theme, setTheme] = useState('');
@@ -4246,6 +4721,11 @@ export default function MusicCreator() {
   const [refSampleInfo, setRefSampleInfo] = useState<string | null>(null);
   const [extracting, setExtracting] = useState(false);
   const [showRecordingsPicker, setShowRecordingsPicker] = useState(false);
+  // Juli3ta-track picker. Lets the user grab a saved song from the
+  // gallery as the reference audio for Restyle — without re-uploading
+  // the same MP3 they already generated. Mirrors showRecordingsPicker
+  // structure so both pickers share the same overlay/scrollable shell.
+  const [showSongsPicker, setShowSongsPicker] = useState(false);
   // Hydrated async from SQLite (after the legacy localStorage drain in
   // the boot effect below). Starts empty so the first paint isn't blocked
   // by the migration roundtrip.
@@ -4623,6 +5103,7 @@ export default function MusicCreator() {
           // the form (uploaded or pre-generated) — image autogen during
           // Write Lyrics is skipped to keep the call cheap.
           coverDataUrl: coverDataUrl,
+          theme: theme,
         };
         const sheetSaved = await saveTrack(sheetTrack);
         // Only mirror to the VFS when the SQLite write succeeded —
@@ -4729,6 +5210,7 @@ export default function MusicCreator() {
         audioDataUrl,
         specsJson: countSetSpecs(specs) > 0 ? JSON.stringify(specs) : '',
         coverDataUrl: finalCoverDataUrl,
+        theme: theme,
       };
       // Reflect the freshly-generated cover in the form so the user
       // sees the same art the saved row carries. Always sync (even
@@ -4750,7 +5232,7 @@ export default function MusicCreator() {
         mirrorLyricsToVfs(newTrack);
         addNotification({
           appId: 'musiccreator',
-          appName: 'Music Creator',
+          appName: 'Juli3ta',
           appIcon: 'Sparkles',
           title: t('musiccreator.notify.songReadyTitle'),
           message: t('musiccreator.notify.songReadyBody', { title: newTrack.title }),
@@ -4981,6 +5463,19 @@ export default function MusicCreator() {
   const openRecordingsPicker = () => {
     setShowRecordingsPicker(true);
     void listRecordings().then((recs) => setVoiceRecordings(recs)).catch(() => undefined);
+  };
+
+  // Pick a saved Juli3ta track as the reference audio for Restyle.
+  // The track's audioDataUrl is already a complete MP3 data URL on
+  // the row, so we hand it straight to ingestSourceAudio (which
+  // accepts string sources). The picker pulls from the live gallery
+  // so newly generated tracks appear without a reload.
+  const openSongsPicker = () => setShowSongsPicker(true);
+  const handlePickSong = (t: SavedTrack) => {
+    setShowSongsPicker(false);
+    if (!t.audioDataUrl) return;
+    const cleanTitle = t.title.replace(/\s*\((lyrics|cover|restyle)\)\s*$/, '') || 'Untitled';
+    void ingestSourceAudio(t.audioDataUrl, `${cleanTitle}.mp3`);
   };
 
   const clearRefAudio = () => {
@@ -5429,10 +5924,21 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
     }
   }, []);
 
+  const setTrackTheme = useCallback(async (id: string, nextTheme: string) => {
+    setGallery((g) => g.map((tr) => (tr.id === id ? { ...tr, theme: nextTheme } : tr)));
+    try {
+      await updateTrackThemeRow(id, nextTheme);
+      setGalleryError(null);
+    } catch (e) {
+      const msg = (e as Error).message || 'Database write failed';
+      setGalleryError(`Couldn't save theme — ${msg}.`);
+    }
+  }, []);
+
   // Auto-persist form edits when a saved track is loaded. Without this,
-  // the user types a new title (or edits style/lyrics/specs) and only
-  // the in-memory form state changes — reopening the track in the player
-  // (or any other app reading from SQLite) shows the OLD values.
+  // the user types a new title (or edits style/theme/lyrics/specs) and
+  // only the in-memory form state changes — reopening the track in the
+  // player (or any other app reading from SQLite) shows the OLD values.
   // Compares against the live gallery row, debounces 600ms so we don't
   // hammer the DB on every keystroke, and skips writes that are no-ops.
   useEffect(() => {
@@ -5445,6 +5951,7 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
       if (!row) return;
       const titleNext = songName.trim() || row.title;
       const styleNext = style.trim();
+      const themeNext = theme;
       const specsNext = countSetSpecs(specs) > 0 ? JSON.stringify(specs) : '';
       // Normalise the placeholder dash that loadTrack maps to '' so the
       // round-trip ('—' → '' → '—') doesn't trigger a phantom write.
@@ -5453,9 +5960,10 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
       if (rowStyleNorm !== styleNext) void setTrackStyle(id, styleNext);
       if ((row.lyricsPreview || '') !== lyrics) void setTrackLyrics(id, lyrics);
       if ((row.specsJson || '') !== specsNext) void setTrackSpecs(id, specsNext);
+      if ((row.theme || '') !== themeNext) void setTrackTheme(id, themeNext);
     }, 600);
     return () => clearTimeout(handle);
-  }, [loadedTrackId, songName, style, lyrics, specs, gallery, renameTrack, setTrackStyle, setTrackLyrics, setTrackSpecs]);
+  }, [loadedTrackId, songName, style, theme, lyrics, specs, gallery, renameTrack, setTrackStyle, setTrackLyrics, setTrackSpecs, setTrackTheme]);
 
   // Modal state: which saved track's cover the user is editing. Null
   // means closed. Keeping state at the parent so a re-render of the
@@ -5471,12 +5979,16 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
 
   // Load a saved track back into the form so the user can edit/remix
   // without retyping. Strips the "(lyrics)" / "(cover)" suffix we add
-  // at save time so the title round-trips cleanly. Picks a sensible
-  // mode: lyrics-only sheets reopen in lyrics mode; everything else
-  // lands in compose mode so the user can hit Create Song again.
+  // at save time so the title round-trips cleanly. Lyrics-only sheets
+  // reopen in lyrics mode; tracks with audio land in Restyle so editing
+  // an existing song means remixing it (the source audio is auto-loaded
+  // as the reference). This mirrors how Spotify's "remix this track"
+  // flow works — the user is always restyling a real performance, not
+  // creating from scratch by accident.
   const loadTrack = useCallback((track: SavedTrack) => {
     setLyrics(track.lyricsPreview ?? '');
     setStyle(track.styleTags && track.styleTags !== '—' ? track.styleTags : '');
+    setTheme(track.theme ?? '');
     const cleanTitle = track.title.replace(/\s*\((lyrics|cover|restyle)\)\s*$/, '');
     setSongName(cleanTitle);
     setInstrumental(false);
@@ -5497,26 +6009,32 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
     setCoverPrompt('');
     setLoadedTrackId(track.id);
     // Stale form state from a previous mode shouldn't bleed into this
-    // load. Clear errors and the restyle-only ref-audio triplet so the
-    // user doesn't see a "Restyle needs a reference audio" banner on a
-    // freshly loaded compose track. Active template + instrumental are
-    // reset because the loaded track's lyrics already encode the form.
+    // load. Clear errors. Active template + instrumental are reset
+    // because the loaded track's lyrics already encode the form.
     setError(null);
     setActiveTemplate(null);
     setInstrumental(false);
-    setRefAudioBase64(null);
-    setRefAudioName(null);
-    setRefSampleInfo(null);
-    if (!track.audioDataUrl) setMode('lyricsOnly');
-    else setMode('compose');
-  }, []);
+    if (!track.audioDataUrl) {
+      // No audio → can only edit the lyric sheet.
+      setRefAudioBase64(null);
+      setRefAudioName(null);
+      setRefSampleInfo(null);
+      setMode('lyricsOnly');
+    } else {
+      // Audio track → land in Restyle and pre-load this track as the
+      // reference so the user can change Theme/Style/Lyrics and hit
+      // Restyle without first re-uploading their own song.
+      setMode('restyle');
+      void ingestSourceAudio(track.audioDataUrl, `${cleanTitle}.mp3`);
+    }
+  }, [ingestSourceAudio]);
 
   const openLyricsInEditor = useCallback((track: SavedTrack) => {
     const nodeId = mirrorLyricsToVfs(track);
     if (!nodeId) {
       addNotification({
         appId: 'musiccreator',
-        appName: 'Music Creator',
+        appName: 'Juli3ta',
         appIcon: 'AlertCircle',
         title: t('musiccreator.notify.noLyricsTitle'),
         message: t('musiccreator.notify.noLyricsBody'),
@@ -5566,7 +6084,7 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
     }
     addNotification({
       appId: 'musiccreator',
-      appName: 'Music Creator',
+      appName: 'Juli3ta',
       appIcon: 'Sparkles',
       title: t('musiccreator.notify.savedToDesktopTitle'),
       message: t('musiccreator.notify.savedToDesktopBody', { name: fileName }),
@@ -5594,6 +6112,7 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
       args: { music: { trackId: track.id } },
     });
   }, [dispatch]);
+
 
   // ── DnD: parse a drop and pull a usable string out of it ─────
   // Track payloads carry both the JSON track metadata AND a plain-text
@@ -5668,7 +6187,7 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
   // app-specific items: Song > New / Surprise / Open Help, View > Help,
   // Settings, plus the standard Window/Help groups other apps have.
   const shellMenuModel = useMemo(() => ({
-    appLabel: 'Music Creator',
+    appLabel: 'Juli3ta',
     groups: [
       {
         id: 'song',
@@ -5713,8 +6232,10 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
         id: 'view',
         label: 'View',
         items: [
+          { id: 'view-creator', label: 'Creator', onSelect: () => setView('creator') },
+          { id: 'view-player', label: 'Player', onSelect: () => setView('player') },
           { id: 'open-help', label: 'How it works…', onSelect: () => setHelpOpen(true) },
-          { id: 'open-settings', label: 'Music Creator Settings…', onSelect: () => setSettingsOpen(true) },
+          { id: 'open-settings', label: 'Juli3ta Settings…', onSelect: () => setSettingsOpen(true) },
         ],
       },
       {
@@ -5759,6 +6280,22 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
   // currently sees — search-filtered or not.
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const player = usePlayer(visibleGallery, audioRef);
+
+  // In-app player view handoff. Clicking a track in the sidebar
+  // switches the workspace pane to the player view and selects that
+  // track — but does NOT auto-play. Users explicitly press the Play
+  // button (in the bottom MiniPlayer) to start audio so a stray
+  // sidebar click never blares music in a quiet room. Declared AFTER
+  // usePlayer so the deps array isn't read in TDZ at render time.
+  const openInPlayer = useCallback((track: SavedTrack) => {
+    // Only update the Player view's "what am I looking at" pointer.
+    // Crucially we do NOT touch the MiniPlayer (no player.select / no
+    // player.play): clicking a library row should never interrupt
+    // what's already playing. Playback only starts when the user hits
+    // the explicit Play button in the Player view's track info.
+    setSelectedPlayerTrackId(track.id);
+    setView('player');
+  }, []);
 
   // ─── Render ────────────────────────────────────────────
 
@@ -5920,6 +6457,8 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
                   onPlayInPlayer={playTrackInPlayer}
                   onRename={renameTrack}
                   onEditCover={setCoverEditTrack}
+                  onSelect={openInPlayer}
+                  selected={view === 'player' && selectedPlayerTrackId === track.id}
                   player={player}
                 />
               ))
@@ -5968,6 +6507,43 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
               Juli3ta
             </div>
           </div>
+          {/* View tabs — Creator / Player. Top-level segmented control;
+              swaps the right pane between the composition form and the
+              Spotify-style now-playing pane. Sidebar gallery and bottom
+              MiniPlayer stay in both views. Sits next to the wordmark
+              so it reads as a primary navigation, not a sub-action. */}
+          <div
+            className="flex items-center gap-0.5 ml-4 rounded-lg p-0.5 flex-shrink-0"
+            style={{
+              background: 'var(--bg-window)',
+              border: '1px solid var(--border-subtle)',
+            }}
+          >
+            {([
+              { id: 'creator' as const, icon: <Sparkles size={12} />, label: t('musiccreator.view.creator'), tip: t('musiccreator.view.creator.tip') },
+              { id: 'player' as const, icon: <Play size={12} />, label: t('musiccreator.view.player'), tip: t('musiccreator.view.player.tip') },
+            ]).map((v) => (
+              <button
+                key={v.id}
+                onClick={() => setView(v.id)}
+                title={v.tip}
+                className="flex items-center gap-1.5 px-3 rounded-md transition-all"
+                style={{
+                  height: 28,
+                  fontSize: 11,
+                  fontWeight: view === v.id ? 600 : 500,
+                  color: view === v.id ? 'white' : 'var(--text-secondary)',
+                  background: view === v.id
+                    ? 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))'
+                    : 'transparent',
+                  border: 'none',
+                }}
+              >
+                {v.icon}
+                {v.label}
+              </button>
+            ))}
+          </div>
           {/* Right cluster: connection picker + Surprise + Settings + Help.
               All four buttons share the same 32px height and bordered chip
               shape so the row reads as a single coherent toolbar. */}
@@ -5998,7 +6574,7 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
                 background: 'var(--bg-window)',
                 border: '1px solid var(--border-subtle)',
               }}
-              title="Music Creator Settings"
+              title="Juli3ta Settings"
             >
               <Settings2 size={14} />
             </button>
@@ -6017,6 +6593,28 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
             </button>
           </div>
         </div>
+
+        {/* Player view replaces the entire creator chrome (mode tabs
+            → form → bottom Generate row) when the user clicks the
+            Player tab or selects a sidebar track. The MiniPlayer at
+            the very bottom of the workspace stays mounted in both
+            views so playback never gets interrupted by a tab swap. */}
+        {view === 'player' && (
+          <PlayerView
+            track={(() => {
+              const candId = selectedPlayerTrackId ?? player.state.trackId ?? gallery[0]?.id ?? null;
+              return candId ? gallery.find((t) => t.id === candId) ?? null : null;
+            })()}
+            player={player}
+            onSwitchToCreator={() => setView('creator')}
+            onEditInCreator={(track) => {
+              loadTrack(track);
+              setView('creator');
+            }}
+          />
+        )}
+
+        {view === 'creator' && (<>
 
         {/* Mode tabs + primary action — same row. The Create button sits
             at the right edge so the form's primary CTA is always one
@@ -6308,7 +6906,7 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
                 )}
               </div>
             ) : (
-              <div className="grid grid-cols-3 gap-2 mt-1">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-1">
                 <button
                   onClick={() => setRecOpen(true)}
                   disabled={busy}
@@ -6341,6 +6939,24 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
                   <span style={{ fontSize: 9, color: 'var(--text-disabled)' }}>mp3 · wav · flac</span>
                 </button>
                 <button
+                  onClick={openSongsPicker}
+                  disabled={busy || gallery.filter((t) => t.audioDataUrl).length === 0}
+                  className="flex flex-col items-center justify-center gap-1 py-3 rounded-lg transition-all hover:bg-[var(--bg-hover)] disabled:opacity-50"
+                  style={{
+                    fontSize: 11,
+                    color: 'var(--text-secondary)',
+                    background: 'var(--bg-titlebar)',
+                    border: '1px dashed var(--accent-primary)',
+                  }}
+                  title="Use a song from your Juli3ta library as the reference"
+                >
+                  <Disc3 size={16} style={{ color: 'var(--accent-primary)' }} />
+                  <span style={{ fontSize: 11, fontWeight: 600 }}>{t('musiccreator.restyle.button.mySongs')}</span>
+                  <span style={{ fontSize: 9, color: 'var(--text-disabled)' }}>
+                    {t('musiccreator.restyle.button.mySongs.count', { count: gallery.filter((tr) => tr.audioDataUrl).length })}
+                  </span>
+                </button>
+                <button
                   onClick={openRecordingsPicker}
                   disabled={busy}
                   className="flex flex-col items-center justify-center gap-1 py-3 rounded-lg transition-all hover:bg-[var(--bg-hover)] disabled:opacity-50 relative"
@@ -6350,11 +6966,12 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
                     background: 'var(--bg-titlebar)',
                     border: '1px dashed var(--border-subtle)',
                   }}
+                  title="Pick a Voice Recorder clip"
                 >
-                  <FileMusic size={16} />
-                  <span style={{ fontSize: 11, fontWeight: 600 }}>From library</span>
+                  <Mic size={16} />
+                  <span style={{ fontSize: 11, fontWeight: 600 }}>{t('musiccreator.restyle.button.voiceClips')}</span>
                   <span style={{ fontSize: 9, color: 'var(--text-disabled)' }}>
-                    {voiceRecordings.length} saved
+                    {t('musiccreator.restyle.button.voiceClips.count', { count: voiceRecordings.length })}
                   </span>
                 </button>
               </div>
@@ -6658,6 +7275,105 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
                   >
                     Tip: open Voice Recorder to capture more
                   </a>
+                </div>
+              </div>
+            )}
+
+            {/* Juli3ta-songs picker modal. Same shell as the recordings
+                picker — overlay → centered card → scrollable list with
+                cover thumbnails so users can pick a saved song as the
+                Restyle reference without re-uploading the MP3. */}
+            {showSongsPicker && (
+              <div
+                className="absolute inset-0 z-30 flex items-center justify-center"
+                style={{ background: 'rgba(0,0,0,0.5)' }}
+                onClick={() => setShowSongsPicker(false)}
+              >
+                <div
+                  onClick={(e) => e.stopPropagation()}
+                  className="rounded-xl overflow-hidden flex flex-col"
+                  style={{
+                    width: 420,
+                    maxHeight: 520,
+                    background: 'var(--bg-window)',
+                    border: '1px solid var(--border-subtle)',
+                    boxShadow: 'var(--shadow-lg)',
+                  }}
+                >
+                  <div
+                    className="px-4 py-3 flex items-center justify-between"
+                    style={{ borderBottom: '1px solid var(--border-subtle)' }}
+                  >
+                    <div className="flex items-center gap-2">
+                      <Disc3 size={14} style={{ color: 'var(--accent-primary)' }} />
+                      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>
+                        {t('musiccreator.restyle.songsPicker.title')}
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => setShowSongsPicker(false)}
+                      className="p-1 rounded-md hover:bg-[var(--bg-hover)]"
+                      style={{ color: 'var(--text-secondary)' }}
+                      title="Close"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                  <div className="flex-1 overflow-y-auto invisible-scrollbar">
+                    {(() => {
+                      const songs = gallery.filter((t) => t.audioDataUrl);
+                      if (songs.length === 0) {
+                        return (
+                          <div className="flex flex-col items-center justify-center py-10 px-6 text-center gap-2">
+                            <Disc3 size={28} style={{ color: 'var(--text-disabled)' }} />
+                            <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                              {t('musiccreator.restyle.songsPicker.empty.title')}
+                            </div>
+                            <div style={{ fontSize: 11, color: 'var(--text-disabled)', maxWidth: 320 }}>
+                              {t('musiccreator.restyle.songsPicker.empty.body')}
+                            </div>
+                          </div>
+                        );
+                      }
+                      return songs.map((s) => {
+                        const sec = s.durationMs / 1000;
+                        const tooShort = sec > 0 && sec < 6;
+                        const cleanTitle = s.title.replace(/\s*\((lyrics|cover|restyle)\)\s*$/, '') || 'Untitled';
+                        return (
+                          <button
+                            key={s.id}
+                            onClick={() => !tooShort && handlePickSong(s)}
+                            disabled={tooShort}
+                            className="w-full flex items-center gap-3 px-4 py-3 transition-all hover:bg-[var(--bg-hover)] disabled:opacity-40 disabled:cursor-not-allowed text-left"
+                            style={{ borderBottom: '1px solid var(--border-subtle)' }}
+                          >
+                            <div
+                              className="rounded-lg flex-shrink-0 overflow-hidden flex items-center justify-center"
+                              style={{
+                                width: 40, height: 40,
+                                background: s.coverDataUrl
+                                  ? `url(${s.coverDataUrl}) center/cover no-repeat`
+                                  : 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))',
+                                border: '1px solid var(--border-subtle)',
+                              }}
+                            >
+                              {!s.coverDataUrl && <Disc3 size={18} style={{ color: 'white', opacity: 0.85 }} />}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="truncate" style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 600 }}>
+                                {cleanTitle}
+                              </div>
+                              <div className="truncate" style={{ fontSize: 11, color: 'var(--text-disabled)' }}>
+                                {sec > 0 ? `${Math.floor(sec / 60)}:${Math.floor(sec % 60).toString().padStart(2, '0')}` : '—'}
+                                {s.styleTags && s.styleTags !== '—' && ` · ${s.styleTags}`}
+                                {tooShort && ' · too short for cover (need ≥6 s)'}
+                              </div>
+                            </div>
+                          </button>
+                        );
+                      });
+                    })()}
+                  </div>
                 </div>
               </div>
             )}
@@ -7081,6 +7797,8 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
         </div>{/* /px-6 py-5 */}
         </div>{/* /scrollable form area */}
 
+        </>)}{/* /view === 'creator' */}
+
         {/* Bottom bar — Spotify-inspired persistent transport. Hidden
             when no track has been queued; once a track plays it stays
             visible so the user can scrub / replay without re-opening
@@ -7139,7 +7857,6 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
           lyrics={lyrics}
           specs={specs}
           coverDataUrl={coverDataUrl}
-          coverPrompt={coverPrompt}
           endpoint={endpoint}
           busy={coverBusy}
           onRegenerate={regenerateCover}
@@ -7217,7 +7934,7 @@ function SettingsDialog({ settings, endpoints, onChange, onClose }: SettingsDial
         >
           <Settings2 size={14} style={{ color: 'var(--accent-primary)' }} />
           <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>
-            Music Creator Settings
+            Juli3ta Settings
           </div>
           <button
             onClick={onClose}

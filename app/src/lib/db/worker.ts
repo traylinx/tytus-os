@@ -24,7 +24,7 @@ import sqlite3InitModule, {
   type Database,
   type Sqlite3Static,
 } from '@sqlite.org/sqlite-wasm';
-import { SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_VERSION } from './schema';
+import { SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_VERSION } from './schema';
 
 declare const self: DedicatedWorkerGlobalScope;
 
@@ -120,6 +120,7 @@ const openDb = async (): Promise<{ persistent: boolean; libVersion: string }> =>
 
   ensureColumn('specs_json', SCHEMA_V5, 'SCHEMA_V5');
   ensureColumn('cover_data_url', SCHEMA_V6, 'SCHEMA_V6');
+  ensureColumn('theme', SCHEMA_V7, 'SCHEMA_V7');
 
   db.exec(`PRAGMA user_version = ${SCHEMA_VERSION}`);
 

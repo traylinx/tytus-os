@@ -10,7 +10,7 @@
 //
 // Phase 2 ships the API Tester migration: history + collections.
 
-export const SCHEMA_VERSION = 6;
+export const SCHEMA_VERSION = 7;
 
 export const SCHEMA_V1 = `
 CREATE TABLE IF NOT EXISTS api_history (
@@ -135,4 +135,16 @@ ALTER TABLE music_creator_tracks ADD COLUMN specs_json TEXT NOT NULL DEFAULT '';
 // verb (`host.media.generateCover()`) defined during that sprint.
 export const SCHEMA_V6 = `
 ALTER TABLE music_creator_tracks ADD COLUMN cover_data_url TEXT NOT NULL DEFAULT '';
+`;
+
+// Schema V7: Music Creator — theme (creative-brief prompt).
+//
+// Stores the free-text Theme the user typed when generating the
+// track ("describe the song: vibe, mood, story, era…"). Was lost on
+// reload before V7 — reopening a track in Restyle showed empty
+// Theme even though the user originally wrote one. Persisting it
+// closes the round-trip so the form fully restores from any saved
+// row. Default empty string for backfill compatibility.
+export const SCHEMA_V7 = `
+ALTER TABLE music_creator_tracks ADD COLUMN theme TEXT NOT NULL DEFAULT '';
 `;

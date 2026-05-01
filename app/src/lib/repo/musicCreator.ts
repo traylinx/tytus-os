@@ -31,6 +31,11 @@ export interface SavedTrackRow {
   // post-extraction (Host API verb); this field exists today so the
   // schema is locked before extraction.
   coverDataUrl: string;
+  // Free-text theme (creative-brief prompt) the user typed when the
+  // track was generated. Round-trips so reopening a track in Restyle
+  // restores the original Theme box. Empty for tracks generated
+  // before V7 (the schema column defaults to '').
+  theme: string;
 }
 
 interface DBRow {
@@ -46,6 +51,7 @@ interface DBRow {
   audio_data_url: string;
   specs_json: string;
   cover_data_url: string;
+  theme: string;
 }
 
 const fromDb = (r: DBRow): SavedTrackRow => ({
@@ -61,22 +67,28 @@ const fromDb = (r: DBRow): SavedTrackRow => ({
   audioDataUrl: r.audio_data_url,
   specsJson: r.specs_json ?? '',
   coverDataUrl: r.cover_data_url ?? '',
+  theme: r.theme ?? '',
 });
 
 // True iff the thrown SQLite error indicates a column that we ALTER
-// in for the V5/V6 migrations is missing. Lets repos fall back to the
-// pre-V5 / pre-V6 column list rather than blanking the gallery when
-// an HMR-driven worker restart races the migration.
-const isMissingColumn = (e: unknown, col: 'specs_json' | 'cover_data_url'): boolean =>
+// in for V5/V6/V7 is missing. Lets repos fall back to the older
+// column lists rather than blanking the gallery when an HMR-driven
+// worker restart races the migration.
+const isMissingColumn = (e: unknown, col: 'specs_json' | 'cover_data_url' | 'theme'): boolean =>
   new RegExp(`no such column:\\s*${col}`, 'i').test(String(e));
 
 const isMissingAddedColumn = (e: unknown): boolean =>
-  isMissingColumn(e, 'specs_json') || isMissingColumn(e, 'cover_data_url');
+  isMissingColumn(e, 'specs_json')
+  || isMissingColumn(e, 'cover_data_url')
+  || isMissingColumn(e, 'theme');
 
-// Pre-V6 SELECT — drops cover_data_url so it works on stuck schemas.
+// Pre-V7 SELECT — drops `theme`. specs + cover still present.
+const SELECT_BASE_NO_THEME = `id, title, style_tags, lyrics_preview, duration_ms, bitrate,
+              sample_rate, size_bytes, created_at, audio_data_url, specs_json, cover_data_url`;
+// Pre-V6 SELECT — drops cover_data_url + theme.
 const SELECT_BASE_NO_COVER = `id, title, style_tags, lyrics_preview, duration_ms, bitrate,
               sample_rate, size_bytes, created_at, audio_data_url, specs_json`;
-// Pre-V5 SELECT — drops specs_json + cover_data_url.
+// Pre-V5 SELECT — drops specs_json + cover_data_url + theme.
 const SELECT_BASE_NO_SPECS = `id, title, style_tags, lyrics_preview, duration_ms, bitrate,
               sample_rate, size_bytes, created_at, audio_data_url`;
 
@@ -86,36 +98,63 @@ const fallbackSelect = async (
   params: SqlValue[],
   e: unknown,
 ): Promise<DBRow[]> => {
+  // Theme column missing → drop it; cover + specs may still be present.
+  if (isMissingColumn(e, 'theme')) {
+    try {
+      const rows = await db.query<Omit<DBRow, 'theme'>>(
+        `SELECT ${SELECT_BASE_NO_THEME} FROM music_creator_tracks ${whereClause}`,
+        params,
+      );
+      return rows.map((r) => ({ ...r, theme: '' }));
+    } catch (e2) {
+      if (!isMissingColumn(e2, 'cover_data_url')) throw e2;
+      // Cover ALSO missing — fall further.
+      try {
+        const rows = await db.query<Omit<DBRow, 'cover_data_url' | 'theme'>>(
+          `SELECT ${SELECT_BASE_NO_COVER} FROM music_creator_tracks ${whereClause}`,
+          params,
+        );
+        return rows.map((r) => ({ ...r, cover_data_url: '', theme: '' }));
+      } catch (e3) {
+        if (!isMissingColumn(e3, 'specs_json')) throw e3;
+        const rows = await db.query<Omit<DBRow, 'specs_json' | 'cover_data_url' | 'theme'>>(
+          `SELECT ${SELECT_BASE_NO_SPECS} FROM music_creator_tracks ${whereClause}`,
+          params,
+        );
+        return rows.map((r) => ({ ...r, specs_json: '', cover_data_url: '', theme: '' }));
+      }
+    }
+  }
   // Cover column missing → drop it; specs may still be present.
   if (isMissingColumn(e, 'cover_data_url')) {
     try {
-      const rows = await db.query<Omit<DBRow, 'cover_data_url'>>(
+      const rows = await db.query<Omit<DBRow, 'cover_data_url' | 'theme'>>(
         `SELECT ${SELECT_BASE_NO_COVER} FROM music_creator_tracks ${whereClause}`,
         params,
       );
-      return rows.map((r) => ({ ...r, cover_data_url: '' }));
+      return rows.map((r) => ({ ...r, cover_data_url: '', theme: '' }));
     } catch (e2) {
       if (!isMissingColumn(e2, 'specs_json')) throw e2;
-      const rows = await db.query<Omit<DBRow, 'specs_json' | 'cover_data_url'>>(
+      const rows = await db.query<Omit<DBRow, 'specs_json' | 'cover_data_url' | 'theme'>>(
         `SELECT ${SELECT_BASE_NO_SPECS} FROM music_creator_tracks ${whereClause}`,
         params,
       );
-      return rows.map((r) => ({ ...r, specs_json: '', cover_data_url: '' }));
+      return rows.map((r) => ({ ...r, specs_json: '', cover_data_url: '', theme: '' }));
     }
   }
-  // Specs column missing → drop both (cover column was added after specs).
+  // Specs column missing → drop everything added after.
   if (isMissingColumn(e, 'specs_json')) {
-    const rows = await db.query<Omit<DBRow, 'specs_json' | 'cover_data_url'>>(
+    const rows = await db.query<Omit<DBRow, 'specs_json' | 'cover_data_url' | 'theme'>>(
       `SELECT ${SELECT_BASE_NO_SPECS} FROM music_creator_tracks ${whereClause}`,
       params,
     );
-    return rows.map((r) => ({ ...r, specs_json: '', cover_data_url: '' }));
+    return rows.map((r) => ({ ...r, specs_json: '', cover_data_url: '', theme: '' }));
   }
   throw e;
 };
 
 const SELECT_FULL = `id, title, style_tags, lyrics_preview, duration_ms, bitrate,
-              sample_rate, size_bytes, created_at, audio_data_url, specs_json, cover_data_url`;
+              sample_rate, size_bytes, created_at, audio_data_url, specs_json, cover_data_url, theme`;
 
 export const listTracks = async (): Promise<SavedTrackRow[]> => {
   const db = getDb();
@@ -170,12 +209,28 @@ export const insertTrack = async (track: SavedTrackRow): Promise<void> => {
     await db.run(
       `INSERT OR REPLACE INTO music_creator_tracks
          (id, title, style_tags, lyrics_preview, duration_ms, bitrate,
-          sample_rate, size_bytes, created_at, audio_data_url, specs_json, cover_data_url)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [...baseParams, track.specsJson, track.coverDataUrl],
+          sample_rate, size_bytes, created_at, audio_data_url, specs_json, cover_data_url, theme)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [...baseParams, track.specsJson, track.coverDataUrl, track.theme],
     );
   } catch (e) {
     if (!isMissingAddedColumn(e)) throw e;
+    // Theme column missing → write everything except theme.
+    if (isMissingColumn(e, 'theme')) {
+      try {
+        await db.run(
+          `INSERT OR REPLACE INTO music_creator_tracks
+             (id, title, style_tags, lyrics_preview, duration_ms, bitrate,
+              sample_rate, size_bytes, created_at, audio_data_url, specs_json, cover_data_url)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [...baseParams, track.specsJson, track.coverDataUrl],
+        );
+        return;
+      } catch (e2) {
+        if (!isMissingColumn(e2, 'cover_data_url')) throw e2;
+        // Theme + cover both missing — fall through to specs-only path.
+      }
+    }
     // Cover column missing → write specs_json only.
     if (isMissingColumn(e, 'cover_data_url')) {
       try {
@@ -189,12 +244,12 @@ export const insertTrack = async (track: SavedTrackRow): Promise<void> => {
         return;
       } catch (e2) {
         if (!isMissingColumn(e2, 'specs_json')) throw e2;
-        // Both columns missing — fall through to the pre-V5 insert.
+        // All added columns missing — fall through to the pre-V5 insert.
       }
     }
-    // Pre-V5 fallback: drop both specs_json and cover_data_url. The
-    // caller's panel state simply won't round-trip until the next
-    // reload heals the schema.
+    // Pre-V5 fallback: drop everything added after V4. The caller's
+    // panel state simply won't round-trip until the next reload heals
+    // the schema.
     await db.run(
       `INSERT OR REPLACE INTO music_creator_tracks
          (id, title, style_tags, lyrics_preview, duration_ms, bitrate,
@@ -266,6 +321,21 @@ export const updateTrackSpecs = async (id: string, specsJson: string): Promise<v
   } catch (e) {
     if (!new RegExp('no such column:\\s*specs_json', 'i').test(String(e))) throw e;
     console.warn('[musicCreator] updateTrackSpecs skipped — pre-V5 schema');
+  }
+};
+
+// Update theme (creative-brief prompt) for a saved track. Same
+// auto-save pattern as the other field-level updaters. Pre-V7
+// schemas silently no-op so the form's debounce doesn't surface
+// scary errors during the migration window.
+export const updateTrackTheme = async (id: string, theme: string): Promise<void> => {
+  const db = getDb();
+  if (!db) throw new Error('Database not ready');
+  try {
+    await db.run('UPDATE music_creator_tracks SET theme = ? WHERE id = ?', [theme, id]);
+  } catch (e) {
+    if (!new RegExp('no such column:\\s*theme', 'i').test(String(e))) throw e;
+    console.warn('[musicCreator] updateTrackTheme skipped — pre-V7 schema');
   }
 };
 
