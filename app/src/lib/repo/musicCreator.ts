@@ -211,6 +211,35 @@ export const deleteTrack = async (id: string): Promise<void> => {
   await db.run('DELETE FROM music_creator_tracks WHERE id = ?', [id]);
 };
 
+// Rename a track. Trims + clamps to 200 chars to keep DB rows sane and
+// match the inline-edit input limit. Returns the persisted title so the
+// caller can mirror it into in-memory state without re-reading the row.
+export const renameTrack = async (id: string, title: string): Promise<string> => {
+  const db = getDb();
+  if (!db) throw new Error('Database not ready');
+  const next = title.trim().slice(0, 200) || 'Untitled';
+  await db.run('UPDATE music_creator_tracks SET title = ? WHERE id = ?', [next, id]);
+  return next;
+};
+
+// Update a track's album-cover-art image. Empty string clears it
+// (UI falls back to the gradient placeholder). Defensive against the
+// pre-V6 schema: if cover_data_url doesn't exist yet we silently no-op
+// rather than throw, matching the rest of the repo's fallback discipline.
+export const updateTrackCover = async (id: string, coverDataUrl: string): Promise<void> => {
+  const db = getDb();
+  if (!db) throw new Error('Database not ready');
+  try {
+    await db.run('UPDATE music_creator_tracks SET cover_data_url = ? WHERE id = ?', [coverDataUrl, id]);
+  } catch (e) {
+    if (!new RegExp('no such column:\\s*cover_data_url', 'i').test(String(e))) throw e;
+    // Pre-V6 schema — V6 ALTER hasn't run yet. Skip silently; the next
+    // reload will heal the schema and the user can retry. Logging only
+    // because this is an expected transient race in dev.
+    console.warn('[musicCreator] updateTrackCover skipped — pre-V6 schema');
+  }
+};
+
 // ── Settings kv store ────────────────────────────────────────
 
 export const getSetting = async <T>(key: string, fallback: T): Promise<T> => {
@@ -242,9 +271,10 @@ export const putSetting = async (key: string, value: unknown): Promise<void> => 
 
 export interface ModelOverrides {
   music?: string;          // override what we'd auto-pick from /v1/models
-  cover?: string;
+  cover?: string;          // music-cover / restyle (audio style transfer)
   lyrics?: string;
   lyricsBackup?: string;   // chat-completions model used when lyrics errors
+  image?: string;          // album-cover-art image generation model
 }
 
 export interface MusicCreatorSettings {

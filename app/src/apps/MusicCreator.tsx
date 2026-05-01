@@ -29,10 +29,10 @@ import {
   Trash2, AlertCircle, FileMusic, Shuffle, Plus, Mic, Disc3,
   HelpCircle, Square, MonitorSpeaker, Layers, ChevronDown, Check,
   Settings2, X, Monitor, MoreVertical, NotebookText, Music2, Search,
+  Pencil, Image as ImageIcon, Upload, RefreshCw, ChevronUp,
 } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import JulietaHelp from './JulietaHelp';
-import { Switch } from '@/components/ui/switch';
 import { useDaemonStateContext } from '@/hooks/useDaemonStateContext';
 import { useShellMenuRegistration } from '@/hooks/useShellMenu';
 import { useCurrentWindow } from '@/hooks/useCurrentWindow';
@@ -44,6 +44,8 @@ import {
   getTrackById,
   insertTrack as insertTrackRow,
   deleteTrack as deleteTrackRow,
+  renameTrack as renameTrackRow,
+  updateTrackCover as updateTrackCoverRow,
   loadSettings as loadCreatorSettings,
   saveSettings as saveCreatorSettings,
   type MusicCreatorSettings,
@@ -148,9 +150,14 @@ interface PodEndpoint {
 // parse song_title / style_tags / lyrics out of the response.
 interface DiscoveredModels {
   music: string | null;          // default song-from-lyrics generation
-  cover: string | null;          // cover / style-transfer generation
+  cover: string | null;          // music-cover / restyle (audio style transfer)
   lyrics: string | null;         // dedicated /music/lyrics model id
   lyricsBackup: string | null;   // chat model used when `lyrics` errors
+  // Image-generation model id for album-cover-art creation. Populated
+  // by the `/v1/models` regex matcher; null if the endpoint doesn't
+  // expose one. The cover-art generator gracefully degrades to "no
+  // auto art" when this is null — track is still saved.
+  image: string | null;
   allIds: readonly string[];     // full /v1/models id list — populates Settings dropdowns
 }
 
@@ -402,6 +409,13 @@ interface TrackSpecs {
     explicit_lyrics?: boolean;
     intended_use?: string[];
   };
+  // Free-form user direction for lyrics: mood, perspective, taboo
+  // lines, references, "make it bilingual", etc. Surfaced as its own
+  // textarea on the form (not a chip in the SpecsCard) and threaded
+  // into the lyrics LLM prompt as `User intent: ...`. Lives in
+  // TrackSpecs so it round-trips for free via specsJson — no schema
+  // bump needed.
+  intent?: string;
 }
 
 // Option lists used by the panel UI. Kept inline (not exported) because
@@ -447,6 +461,43 @@ const INTENDED_USES: readonly string[] = [
 // "spoken word"). Kept here so both the prompt compile and the panel
 // labels share one capitalization / spacing rule.
 const humanize = (raw: string): string => raw.replace(/_/g, ' ');
+
+// Synthesize a short title from whatever the user gave us. Best-effort,
+// pure (no AI). Order:
+//   1. First non-tag line of lyrics that looks like a hook (4+ words,
+//      not all caps, no [Section] markers).
+//   2. First 6 words of the theme.
+//   3. First 6 words of the style.
+//   4. "Untitled".
+// Used as the last-resort fallback when both songName and the lyrics
+// model's song_title field are empty / literally "Untitled".
+const synthesizeTitleLocal = (
+  lyrics: string,
+  theme: string,
+  style: string,
+): string => {
+  const cleanLine = (s: string) => s.trim().replace(/^[-••\d.)(]+\s*/, '').trim();
+  const words = (s: string, n: number) => cleanLine(s).split(/\s+/).slice(0, n).join(' ');
+  if (lyrics) {
+    const candidate = lyrics
+      .split('\n')
+      .map((l) => l.trim())
+      .find((l) => l && !l.startsWith('[') && !l.startsWith('(') && l.split(/\s+/).length >= 3);
+    if (candidate) {
+      const trimmed = words(candidate, 6).replace(/[,.!?;:—-]+$/, '').trim();
+      if (trimmed.length >= 3) return trimmed;
+    }
+  }
+  if (theme.trim()) {
+    const t = words(theme, 6).replace(/[,.!?;:—-]+$/, '').trim();
+    if (t.length >= 3) return t;
+  }
+  if (style.trim()) {
+    const s = words(style, 4).replace(/[,.!?;:—-]+$/, '').trim();
+    if (s.length >= 3) return s;
+  }
+  return 'Untitled';
+};
 
 // Pure function — turn a TrackSpecs into a single-line prompt suffix
 // suitable for appending to the user's free-text Style. Empty in →
@@ -539,10 +590,63 @@ const compileSpecsToText = (s: TrackSpecs): string => {
   return lines.join('. ');
 };
 
-const LYRIC_TEMPLATES = [
-  '[Intro]\n\n[Verse]\n\n[Chorus]\n\n[Verse]\n\n[Chorus]\n\n[Bridge]\n\n[Outro]',
-  '[Verse]\n\n[Chorus]\n\n[Verse]\n\n[Chorus]\n\n[Outro]',
-  '[Inst]\n\n[Verse]\n\n[Chorus]\n\n[Inst]\n\n[Outro]',
+// Named lyric structures. Each carries a `skeleton` (the raw text
+// the user gets when they click the chip — instant scaffolding for
+// hand-writing) AND a `prompt` (the structural constraint sent to
+// the lyrics-generation LLM when this template is the active one).
+//
+// Picking a template before clicking "Write Lyrics" makes the model
+// produce lyrics that actually fit the structure — much better than
+// the model picking its own form and the user re-templating after.
+//
+// Keys/structures sourced from common songwriting forms (verse-
+// chorus is ~70% of charts, AABA is the standard for ballads /
+// jazz, drop-based fits EDM / pop dance, narrative is for storytelling
+// folk / rap, hook-loop is for trap / hip-hop).
+interface LyricTemplate {
+  id: string;
+  label: string;
+  description: string;
+  skeleton: string;
+  prompt: string;
+}
+
+const LYRIC_TEMPLATES: readonly LyricTemplate[] = [
+  {
+    id: 'verse_chorus',
+    label: 'Verse-Chorus',
+    description: 'Pop / rock standard — radio-friendly, repeating chorus.',
+    skeleton: '[Verse 1]\n\n\n[Chorus]\n\n\n[Verse 2]\n\n\n[Chorus]\n\n\n[Bridge]\n\n\n[Chorus]\n\n\n[Outro]\n',
+    prompt: 'Use the standard verse-chorus form: [Verse 1] (4 lines, set up the story), [Chorus] (4 lines, the hook with the song title or central image, repeated identically each time), [Verse 2] (4 lines, deepen or twist the story), [Chorus] (same as before), [Bridge] (2-4 lines, contrast — new perspective or emotional turn), [Chorus] (final repeat), [Outro] (1-2 lines, resolution).',
+  },
+  {
+    id: 'aaba',
+    label: 'AABA Ballad',
+    description: 'Storytelling / jazz — three matching verses with a contrasting bridge.',
+    skeleton: '[Verse A]\n\n\n[Verse A2]\n\n\n[Bridge B]\n\n\n[Verse A3]\n',
+    prompt: 'Use the AABA form (Tin Pan Alley / classic ballad): [Verse A] 8 lines establishing scene + mood, [Verse A2] 8 lines same melody-shape, advances the story, [Bridge B] 8 lines contrasting key/melody/perspective — the emotional climb, [Verse A3] 8 lines returning to the original feel for resolution. Maintain consistent rhyme scheme across the A sections (typically AABB or ABAB).',
+  },
+  {
+    id: 'drop',
+    label: 'Drop / EDM',
+    description: 'Build-up → drop → repeat — for dance, EDM, pop dance.',
+    skeleton: '[Intro]\n\n\n[Verse]\n\n\n[Pre-Chorus / Build]\n\n\n[Drop / Hook]\n\n\n[Verse 2]\n\n\n[Pre-Chorus / Build]\n\n\n[Drop / Hook]\n\n\n[Outro]\n',
+    prompt: 'Use the drop-based EDM form: [Intro] 1-2 atmospheric lines, [Verse] 4 lines low energy, [Pre-Chorus / Build] 2-4 lines ramping up tension with shorter phrases, [Drop / Hook] 2-4 short repeating lines (the chant — designed to be screamed at a festival), [Verse 2] same shape as Verse 1 with story progression, [Pre-Chorus / Build] same, [Drop / Hook] (identical repeat), [Outro] 1-2 lines fading. Keep the Drop simple, percussive, easy to repeat.',
+  },
+  {
+    id: 'narrative',
+    label: 'Narrative',
+    description: 'Story-first — folk, country, rap, story-rap, country.',
+    skeleton: '[Verse 1 — setup]\n\n\n[Verse 2 — rising action]\n\n\n[Hook / Refrain]\n\n\n[Verse 3 — climax]\n\n\n[Hook / Refrain]\n\n\n[Verse 4 — resolution]\n\n\n[Final Hook]\n',
+    prompt: 'Use a narrative arc form: each verse advances the story (setup → rising action → climax → resolution). [Verse 1 — setup] 4-6 lines introducing characters and stakes, [Verse 2 — rising action] 4-6 lines escalating, [Hook / Refrain] 2-4 lines stating the song\'s core truth or feeling, [Verse 3 — climax] 4-6 lines at maximum tension, [Hook / Refrain] (repeat), [Verse 4 — resolution] 4-6 lines after the climax — what changed, what was learned, [Final Hook]. The hook should feel different in meaning each time it returns even though the words repeat.',
+  },
+  {
+    id: 'hook_loop',
+    label: 'Hook-Loop',
+    description: 'Trap / hip-hop / rap — short hook, two verses, post-hook.',
+    skeleton: '[Hook]\n\n\n[Verse 1]\n\n\n[Hook]\n\n\n[Verse 2]\n\n\n[Hook]\n\n\n[Post-Hook / Outro]\n',
+    prompt: 'Use the hook-loop trap form: [Hook] 4 short, repeatable lines (this is the heart — written FIRST, designed to loop), [Verse 1] 12-16 lines with internal rhyme and triplet flow, [Hook] (identical repeat), [Verse 2] 12-16 lines escalating energy or content, [Hook] (identical repeat), [Post-Hook / Outro] 2-4 lines — sometimes ad-libs or a tag. Verses should rhyme densely (multisyllabic, internal). Keep the Hook 4 lines max — repetition is the engine.',
+  },
 ];
 
 // Legacy storage keys — gallery was briefly in localStorage (quota
@@ -638,7 +742,7 @@ const migrateLegacyTracksToSqlite = async (): Promise<void> => {
 // Empty model map — unresolved candidates start here, get filled in by
 // `discoverModels` after the endpoint passes its reachability probe.
 const NO_MODELS: DiscoveredModels = {
-  music: null, cover: null, lyrics: null, lyricsBackup: null, allIds: [],
+  music: null, cover: null, lyrics: null, lyricsBackup: null, image: null, allIds: [],
 };
 
 // Static candidate list — we'll race them with a HEAD probe to pick the
@@ -755,7 +859,27 @@ const pickModels = (ids: readonly string[]): DiscoveredModels => {
     /./,  // last-resort: any non-music id at all
   ]);
 
-  return { music, cover, lyrics, lyricsBackup, allIds: ids };
+  // Image-gen model. Priority order matters because switchAILocal's
+  // `ail-image` alias on the local gateway routes to BFL/FLUX which
+  // has its own credit pool (and can 402 out independently of MiniMax),
+  // while `minimax:image-01` calls the user's MiniMax token plan
+  // directly. Always prefer the MiniMax path first, fall through to
+  // BFL/DALL-E/FLUX/SDXL if MiniMax isn't on this endpoint.
+  const image = findIn(ids, [
+    /(^|[/:])minimax:image-01$/,            // local switchAILocal canonical
+    /(^|[/:])image-01$/,                     // bare alias (no provider prefix)
+    /(^|[/:])minimax:image$/,
+    /(^|[/:])minimax:cover-art$/,
+    /(^|[/:])ail-image$/,                    // remote AIL pod alias
+    /(^|[/:])dall-?e/i,
+    /(^|[/:])flux/i,
+    /(^|[/:])sdxl/i,
+    /image[-_:]?(gen|01)/i,
+    /image/i,
+    /diffusion/i,
+  ]);
+
+  return { music, cover, lyrics, lyricsBackup, image, allIds: ids };
 };
 
 // Combined reachability + discovery in a single call to /v1/models.
@@ -875,6 +999,72 @@ const withTimeout = (
   return { signal: ctrl.signal, dispose: () => clearTimeout(timer) };
 };
 
+// Retryable HTTP statuses for ALL gateway calls. Borrowed from the
+// lyrics path which had this set first (now also imposed on music,
+// image, and chat-fallback paths so failures fall through consistently).
+// 402 Payment Required (one upstream provider out of credits — try the
+// next id, e.g. switchAILocal routes `ail-image` → BFL/FLUX which can
+// 402 while `minimax:image-01` still has quota), 408 Request Timeout,
+// 425 Too Early, 429 Too Many, 500/502/503/504 transient gateway
+// errors. Hard 4xx (400/401/403/404) are NOT here — those are config
+// bugs that retrying won't fix.
+const RETRYABLE_GATEWAY_STATUSES = new Set([402, 408, 425, 429, 500, 502, 503, 504]);
+
+// Error subclass that carries the HTTP status. Lets the multi-model
+// fallback loop tell "retryable" (try next model) from "fatal" (throw
+// immediately) without parsing the message string.
+class GatewayError extends Error {
+  status: number;
+  body: string;
+  constructor(status: number, body: string, message?: string) {
+    super(message ?? `HTTP ${status}: ${body.slice(0, 200)}`);
+    this.name = 'GatewayError';
+    this.status = status;
+    this.body = body;
+  }
+}
+
+// Iterate a list of model ids, calling `attempt(modelId)` for each.
+// Retryable HTTP errors (RETRYABLE_GATEWAY_STATUSES) and TypeError
+// (network/CORS flap) fall through to the next id. AbortError throws
+// immediately so user-driven cancels never burn extra models. Hard
+// errors throw immediately.
+//
+// `kind` is just for the "all models exhausted" message ("music",
+// "image", "lyrics", "chat assist"). Empty input => throws synchronously.
+const tryWithModelFallback = async <T,>(
+  modelIds: readonly string[],
+  attempt: (modelId: string) => Promise<T>,
+  kind: string,
+): Promise<T> => {
+  if (modelIds.length === 0) {
+    throw new Error(`No ${kind}-capable models available on this endpoint.`);
+  }
+  let lastErr: unknown = null;
+  for (const id of modelIds) {
+    try {
+      return await attempt(id);
+    } catch (e) {
+      // Cancel always wins — never burn the rest of the pool.
+      if ((e as Error).name === 'AbortError' || (e as Error).name === 'TimeoutError') {
+        throw e;
+      }
+      // Network errors (TypeError on fetch) → try next.
+      if (e instanceof TypeError) { lastErr = e; continue; }
+      // Gateway errors with a retryable status → try next.
+      if (e instanceof GatewayError && RETRYABLE_GATEWAY_STATUSES.has(e.status)) {
+        lastErr = e;
+        continue;
+      }
+      // Anything else (hard 4xx, parse error, validation throw) is fatal —
+      // retrying won't help and a different model would just burn quota.
+      throw e;
+    }
+  }
+  const lastMsg = (lastErr as Error)?.message ?? 'unknown';
+  throw new Error(`All ${kind} models exhausted. Last error: ${lastMsg}. Wait for the rate limit to reset, or pick a different endpoint in Settings.`);
+};
+
 interface LyricsResponse {
   song_title: string;
   style_tags: string;
@@ -968,10 +1158,21 @@ const callLyrics = async (
   }
 
   // ── Backup: chat-completions with JSON-output prompt ───
-  const backupModel = endpoint.models.lyricsBackup;
-  if (!backupModel) {
+  // Build a chat-model pool: lyricsBackup first, then any other
+  // chat-shaped id from /v1/models. Excludes audio/embed/image/rerank
+  // ids so the loop doesn't waste calls on non-text models.
+  const isChatty = (id: string) =>
+    !/music|cover|tts|stt|transcribe|whisper|embed|image|diffusion|dall-?e|flux|sdxl|rerank/i.test(id);
+  const chatSeen = new Set<string>();
+  const chatPool: string[] = [];
+  const pushChat = (id: string | null | undefined) => {
+    if (id && !chatSeen.has(id)) { chatSeen.add(id); chatPool.push(id); }
+  };
+  pushChat(endpoint.models.lyricsBackup);
+  endpoint.models.allIds.filter(isChatty).forEach(pushChat);
+  if (chatPool.length === 0) {
     throw new Error(
-      `Lyrics endpoint failed and no chat backup model is configured for ${endpoint.label}. Pick one in Music Creator Settings.`,
+      `Lyrics endpoint failed and no chat backup model is available for ${endpoint.label}. Pick one in Music Creator Settings.`,
     );
   }
   const sys = `You are a songwriter. Given a theme, write a complete singable song.
@@ -981,51 +1182,79 @@ Respond with VALID JSON ONLY in exactly this shape, nothing else:
   "style_tags": "comma, separated, style, hints",
   "lyrics": "[Verse]\\nFour lines\\n\\n[Chorus]\\nFour lines\\n\\n[Verse]\\nFour lines\\n\\n[Chorus]\\nFour lines\\n\\n[Bridge]\\nTwo lines\\n\\n[Outro]\\nTwo lines"
 }`;
-  const chatBody = {
-    model: backupModel,
-    messages: [
-      { role: 'system', content: sys },
-      { role: 'user', content: `Theme: ${prompt}` },
-    ],
-    temperature: 0.85,
-    response_format: { type: 'json_object' },
-  };
-  const fallbackTimeout = withTimeout(signal, LYRICS_TIMEOUT_MS);
-  let fallbackResp: Response;
-  try {
-    fallbackResp = await fetch(`${endpoint.url}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${endpoint.apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(chatBody),
-      signal: fallbackTimeout.signal,
-    });
-  } catch (e) {
-    if ((e as Error).name === 'TimeoutError') {
-      throw new Error(`Lyrics backup model timed out after ${LYRICS_TIMEOUT_MS / 1000}s.`);
+  const parsed = await tryWithModelFallback(chatPool, async (modelId) => {
+    // Some gateways/models reject `response_format: json_object` (older
+    // MiniMax aliases, Hermes). On a fatal 400 with that param we retry
+    // the SAME model without it before falling through to the next id.
+    const baseBody: Record<string, unknown> = {
+      model: modelId,
+      messages: [
+        { role: 'system', content: sys },
+        { role: 'user', content: `Theme: ${prompt}` },
+      ],
+      temperature: 0.85,
+    };
+    const sendChat = async (withJsonMode: boolean): Promise<LyricsResponse> => {
+      const fallbackTimeout = withTimeout(signal, LYRICS_TIMEOUT_MS);
+      let resp: Response;
+      try {
+        resp = await fetch(`${endpoint.url}/chat/completions`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${endpoint.apiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(
+            withJsonMode
+              ? { ...baseBody, response_format: { type: 'json_object' } }
+              : baseBody,
+          ),
+          signal: fallbackTimeout.signal,
+        });
+      } catch (e) {
+        if ((e as Error).name === 'TimeoutError') {
+          throw new Error(`Lyrics backup model timed out after ${LYRICS_TIMEOUT_MS / 1000}s.`);
+        }
+        throw e;
+      } finally {
+        fallbackTimeout.dispose();
+      }
+      if (!resp.ok) {
+        const errBody = await resp.text().catch(() => '');
+        throw new GatewayError(resp.status, errBody, `Lyrics fallback HTTP ${resp.status}: ${errBody.slice(0, 300)}`);
+      }
+      const data = (await resp.json()) as { choices?: Array<{ message?: { content?: string } }> };
+      const content = data.choices?.[0]?.message?.content?.trim() ?? '';
+      if (!content) {
+        throw new GatewayError(502, '', 'Lyrics fallback returned empty content');
+      }
+      const stripped = content.replace(/^```(?:json)?\s*/, '').replace(/\s*```$/, '');
+      let p: LyricsResponse;
+      try {
+        p = JSON.parse(stripped) as LyricsResponse;
+      } catch {
+        // Treat parse failure as 502 so the multi-model loop tries the
+        // next chat id rather than dying on one model's prose habit.
+        console.warn('[callLyrics] non-JSON fallback content:', content.slice(0, 400));
+        throw new GatewayError(502, content.slice(0, 200), `Lyrics fallback returned non-JSON content: ${content.slice(0, 200)}`);
+      }
+      if (!p.lyrics) {
+        throw new GatewayError(502, '', 'Lyrics fallback JSON missing "lyrics" field');
+      }
+      return p;
+    };
+    try {
+      return await sendChat(true);
+    } catch (e) {
+      // 400 with json mode → retry without it ONCE on the same model.
+      // Don't downgrade other 4xx (401/403/404 are real config errors).
+      if (e instanceof GatewayError && e.status === 400 && /response_format|json_object/i.test(e.body)) {
+        console.warn('[callLyrics] model rejected json_object, retrying without:', modelId);
+        return await sendChat(false);
+      }
+      throw e;
     }
-    throw e;
-  } finally {
-    fallbackTimeout.dispose();
-  }
-  if (!fallbackResp.ok) {
-    const errBody = await fallbackResp.text().catch(() => '');
-    throw new Error(`Lyrics fallback HTTP ${fallbackResp.status}: ${errBody.slice(0, 300)}`);
-  }
-  const data = (await fallbackResp.json()) as { choices?: Array<{ message?: { content?: string } }> };
-  const content = data.choices?.[0]?.message?.content?.trim() ?? '';
-  if (!content) throw new Error('Lyrics fallback returned empty content');
-  // Some chat models wrap JSON in ```json ... ``` fences — strip if present.
-  const stripped = content.replace(/^```(?:json)?\s*/, '').replace(/\s*```$/, '');
-  let parsed: LyricsResponse;
-  try {
-    parsed = JSON.parse(stripped) as LyricsResponse;
-  } catch {
-    throw new Error(`Lyrics fallback returned non-JSON content: ${content.slice(0, 200)}`);
-  }
-  if (!parsed.lyrics) throw new Error('Lyrics fallback JSON missing "lyrics" field');
+  }, 'chat-lyrics');
   return {
     song_title: parsed.song_title || 'Untitled',
     style_tags: parsed.style_tags || '',
@@ -1048,47 +1277,205 @@ const callMusic = async (
   signal?: AbortSignal,
 ): Promise<MusicResponse> => {
   const isCover = !!args.refAudioBase64;
-  const modelId = isCover ? endpoint.models.cover : endpoint.models.music;
-  if (!modelId) {
+  // Model pool for the multi-model fallback. Primary first, then any
+  // other music-shaped ids on the endpoint that aren't the cover model
+  // (the cover model only works with audio_base64). For restyle, prefer
+  // cover-shaped ids; the regular music model is the last-resort fallback
+  // since it ignores audio_base64. Without a list at all, the call fails
+  // with a friendly "no music model" error.
+  const isMusicy = (id: string) =>
+    /music/i.test(id) && !/cover/i.test(id);
+  const isCoverModel = (id: string) => /cover/i.test(id);
+  const seen = new Set<string>();
+  const pushUniq = (acc: string[], id: string | null | undefined) => {
+    if (id && !seen.has(id)) { seen.add(id); acc.push(id); }
+  };
+  const modelIds: string[] = [];
+  if (isCover) {
+    pushUniq(modelIds, endpoint.models.cover);
+    endpoint.models.allIds.filter(isCoverModel).forEach((id) => pushUniq(modelIds, id));
+    pushUniq(modelIds, endpoint.models.music);
+  } else {
+    pushUniq(modelIds, endpoint.models.music);
+    endpoint.models.allIds.filter(isMusicy).forEach((id) => pushUniq(modelIds, id));
+  }
+  if (modelIds.length === 0) {
     throw new Error(
       isCover
         ? `This endpoint (${endpoint.label}) doesn't expose a music-cover model. Try a different connection.`
         : `This endpoint (${endpoint.label}) doesn't expose a music model. Try a different connection.`,
     );
   }
-  const body: Record<string, unknown> = {
-    model: modelId,
-    lyrics: args.lyrics,
-  };
-  if (args.prompt) body.prompt = args.prompt;
-  if (args.instrumental) body.instrumental = true;
-  if (isCover) body.audio_base64 = args.refAudioBase64;
-
-  const musicTimeout = withTimeout(signal, MUSIC_TIMEOUT_MS);
-  let r: Response;
-  try {
-    r = await fetch(`${endpoint.url}/music/generations`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${endpoint.apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(body),
-      signal: musicTimeout.signal,
-    });
-  } catch (e) {
-    if ((e as Error).name === 'TimeoutError') {
-      throw new Error(`Music generation timed out after ${MUSIC_TIMEOUT_MS / 1000}s. Try a shorter lyric or a different endpoint.`);
+  return tryWithModelFallback(modelIds, async (modelId) => {
+    const body: Record<string, unknown> = {
+      model: modelId,
+      lyrics: args.lyrics,
+    };
+    if (args.prompt) body.prompt = args.prompt;
+    if (args.instrumental) body.instrumental = true;
+    if (isCover) body.audio_base64 = args.refAudioBase64;
+    const musicTimeout = withTimeout(signal, MUSIC_TIMEOUT_MS);
+    let r: Response;
+    try {
+      r = await fetch(`${endpoint.url}/music/generations`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${endpoint.apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body),
+        signal: musicTimeout.signal,
+      });
+    } catch (e) {
+      if ((e as Error).name === 'TimeoutError') {
+        throw new Error(`Music generation timed out after ${MUSIC_TIMEOUT_MS / 1000}s. Try a shorter lyric or a different endpoint.`);
+      }
+      throw e;
+    } finally {
+      musicTimeout.dispose();
     }
-    throw e;
-  } finally {
-    musicTimeout.dispose();
+    if (!r.ok) {
+      const errBody = await r.text().catch(() => '');
+      throw new GatewayError(r.status, errBody, `Music HTTP ${r.status}: ${errBody.slice(0, 300)}`);
+    }
+    const json = await r.json() as MusicResponse;
+    // Validate inside the helper so multi-model fallback can retry on
+    // empty/malformed responses (some gateways 200-respond with no audio
+    // when an upstream flaps).
+    if (!json?.data?.audio || typeof json.data.audio !== 'string' || json.data.audio.length < 100) {
+      throw new GatewayError(502, '', 'Music gen returned no audio data — gateway accepted the call but upstream returned nothing.');
+    }
+    return json;
+  }, isCover ? 'music-cover' : 'music');
+};
+
+// ──────────────────────────────────────────────────────────
+// Image generation — album-cover art for tracks
+// ──────────────────────────────────────────────────────────
+//
+// Two pure functions:
+//   - deriveCoverPrompt(title, theme, style) — a dependable auto-prompt
+//     when the user hasn't typed their own. Squeezes the song's identity
+//     into a short, image-friendly description ("album cover art for a
+//     <style> song titled '<title>'. Mood: <theme excerpt>. <visual
+//     style hint>.").
+//   - callImageGen(endpoint, prompt, signal) — POSTs to /v1/images/
+//     generations, accepts a few common response shapes (b64_json, url,
+//     {data:{image}}), returns a base64 data URL ready to drop into <img>
+//     or persist to coverDataUrl. Fails soft: throws with a clear message
+//     on HTTP error / unparseable body so the caller can choose to swallow
+//     and save the track without art.
+
+const IMAGE_TIMEOUT_MS = 60_000;
+
+const deriveCoverPrompt = (title: string, theme: string, style: string): string => {
+  const cleanTitle = title.trim().replace(/\s*\((lyrics|cover|restyle)\)\s*$/, '') || 'a song';
+  const styleHint = style.trim().split(/[,;\n]/).slice(0, 3).join(', ').trim();
+  // Theme excerpt — keep it short and treat it as a mood hint, not a
+  // literal scene. Image models can't reliably draw a 4-sentence story.
+  const themeExcerpt = theme.trim().split(/[.!?\n]/)[0]?.slice(0, 140).trim() ?? '';
+  const parts: string[] = [
+    `Square album cover art for a song titled "${cleanTitle}".`,
+  ];
+  if (styleHint) parts.push(`Genre: ${styleHint}.`);
+  if (themeExcerpt) parts.push(`Mood: ${themeExcerpt}.`);
+  parts.push('Editorial, expressive, vivid colors, no text, no words, no logos, no lyrics overlay.');
+  return parts.join(' ');
+};
+
+const callImageGen = async (
+  endpoint: PodEndpoint,
+  prompt: string,
+  signal?: AbortSignal,
+): Promise<string> => {
+  // Build the same primary-then-pool fallback list the music path uses.
+  // Image-shaped ids are anything matching image|diffusion|dall-?e|flux|sdxl.
+  const isImagey = (id: string) =>
+    /image|diffusion|dall-?e|flux|sdxl/i.test(id);
+  const seen = new Set<string>();
+  const modelIds: string[] = [];
+  const pushUniq = (id: string | null | undefined) => {
+    if (id && !seen.has(id)) { seen.add(id); modelIds.push(id); }
+  };
+  pushUniq(endpoint.models.image);
+  endpoint.models.allIds.filter(isImagey).forEach(pushUniq);
+  if (modelIds.length === 0) {
+    throw new Error(`This endpoint (${endpoint.label}) doesn't expose an image-generation model. Pick one in Music Creator Settings → Cover art, or upload your own image.`);
   }
-  if (!r.ok) {
-    const errBody = await r.text().catch(() => '');
-    throw new Error(`Music HTTP ${r.status}: ${errBody.slice(0, 300)}`);
-  }
-  return r.json();
+  return tryWithModelFallback(modelIds, async (modelId) => {
+    const timeout = withTimeout(signal, IMAGE_TIMEOUT_MS);
+    // OpenAI-compatible body shape: model + prompt + size + n. We always
+    // ask for square 1024 because it matches the cover-art aspect ratio
+    // and works on every gateway we've seen. response_format: b64_json so
+    // we don't have to follow a separate URL fetch.
+    const body = {
+      model: modelId,
+      prompt,
+      size: '1024x1024',
+      n: 1,
+      response_format: 'b64_json',
+    };
+    let resp: Response;
+    try {
+      resp = await fetch(`${endpoint.url}/images/generations`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${endpoint.apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body),
+        signal: timeout.signal,
+      });
+    } catch (e) {
+      if ((e as Error).name === 'TimeoutError') {
+        throw new Error(`Cover-art request timed out after ${IMAGE_TIMEOUT_MS / 1000}s.`);
+      }
+      throw e;
+    } finally {
+      timeout.dispose();
+    }
+    if (!resp.ok) {
+      const errBody = await resp.text().catch(() => '');
+      throw new GatewayError(resp.status, errBody, `Cover-art HTTP ${resp.status}: ${errBody.slice(0, 200)}`);
+    }
+    // Common shapes seen in the wild:
+    //   { data: [ { b64_json: "..." } ] }            (OpenAI canonical)
+    //   { data: [ { url: "https://..." } ] }         (URL-only path)
+    //   { data: { image: "<base64>" } }              (some MiniMax aliases)
+    //   { image: "<base64>" }                         (bare)
+    //   { images: [ { b64_json: ... } ] }             (multi-image)
+    const json = await resp.json() as Record<string, unknown>;
+    const tryB64 = (v: unknown): string | null => {
+      if (typeof v !== 'string' || !v.length) return null;
+      return v.startsWith('data:') ? v : `data:image/png;base64,${v}`;
+    };
+    const tryUrl = (v: unknown): string | null =>
+      typeof v === 'string' && /^https?:\/\//i.test(v) ? v : null;
+
+    const dataField = json.data;
+    if (Array.isArray(dataField) && dataField[0]) {
+      const first = dataField[0] as Record<string, unknown>;
+      const out = tryB64(first.b64_json) ?? tryUrl(first.url);
+      if (out) return out;
+      throw new GatewayError(502, '', 'Cover-art response missing b64_json/url in data[0]');
+    }
+    if (dataField && typeof dataField === 'object') {
+      const inner = dataField as Record<string, unknown>;
+      const direct = tryB64(inner.image) ?? tryB64(inner.b64_json) ?? tryUrl(inner.url);
+      if (direct) return direct;
+    }
+    const bare = tryB64(json.image) ?? tryB64(json.b64_json);
+    if (bare) return bare;
+    const imagesField = json.images;
+    if (Array.isArray(imagesField) && imagesField[0]) {
+      const first = imagesField[0] as Record<string, unknown>;
+      const img = tryB64(first.b64_json) ?? tryB64(first.image) ?? tryUrl(first.url);
+      if (img) return img;
+    }
+    // Unparseable response — treat as 502 so the next image model gets a
+    // shot. If every image model is broken we surface the last error.
+    throw new GatewayError(502, '', `Cover-art response shape not recognised: ${JSON.stringify(json).slice(0, 200)}`);
+  }, 'image');
 };
 
 // Friendly progress copy that rotates while we wait. Every line is a
@@ -1254,6 +1641,92 @@ function usePlayer(queue: SavedTrack[], audioRef: React.MutableRefObject<HTMLAud
 // without re-opening a TrackCard. Same gradient + chrome as
 // the rest of the workspace so it reads as Tytus, not Spotify.
 // ──────────────────────────────────────────────────────────
+
+// Inline toggle that uses Tytus accent colours directly. The shadcn
+// Switch we tried first depended on theme tokens (--primary, --input)
+// that don't exist in this project — its track was rendering
+// transparent against bg-window so the metadata strip looked broken.
+// This one always shows: white thumb, accent track when on, hover-bg
+// track when off, hard-coded so it never disappears regardless of
+// background.
+function TytusToggle({
+  checked, onChange, disabled, id,
+}: {
+  checked: boolean;
+  onChange: (next: boolean) => void;
+  disabled?: boolean;
+  id?: string;
+}) {
+  return (
+    <button
+      id={id}
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      onClick={() => !disabled && onChange(!checked)}
+      disabled={disabled}
+      className="relative shrink-0 rounded-full transition-all disabled:opacity-40"
+      style={{
+        width: 30,
+        height: 16,
+        background: checked
+          ? 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))'
+          : 'var(--bg-hover)',
+        border: '1px solid var(--border-subtle)',
+        cursor: disabled ? 'not-allowed' : 'pointer',
+      }}
+    >
+      <span
+        className="absolute rounded-full transition-transform"
+        style={{
+          top: 1,
+          left: 1,
+          width: 12,
+          height: 12,
+          background: 'white',
+          transform: checked ? 'translateX(14px)' : 'translateX(0)',
+          boxShadow: '0 1px 2px rgba(0,0,0,0.4)',
+        }}
+      />
+    </button>
+  );
+}
+
+// One-shape AI assist button — used by every "ask the LLM to fill
+// this for me" surface (Theme/Style/Lyrics). Same accent gradient
+// as Create / Generate so the user reads them all as "this kicks
+// off an AI action". Spinner replaces the sparkles glyph in flight.
+function AIAssistButton({
+  label, tooltip, onClick, busy, disabled,
+}: {
+  label: string;
+  tooltip: string;
+  onClick: () => void;
+  busy: boolean;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className="flex items-center gap-1 px-2 py-0.5 rounded-md transition-all hover:scale-105 disabled:opacity-40 disabled:hover:scale-100"
+      style={{
+        fontSize: 10,
+        fontWeight: 600,
+        color: 'white',
+        background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))',
+        border: '1px solid transparent',
+      }}
+      title={tooltip}
+    >
+      {busy
+        ? <Loader2 size={10} className="animate-spin" />
+        : <Sparkles size={10} />}
+      {busy ? '…' : label}
+    </button>
+  );
+}
 
 // Single avatar component used by every track surface. Renders
 // cover art when the track has one, otherwise a uniform Disc3
@@ -1536,7 +2009,7 @@ interface FieldCardProps {
 function FieldCard({ label, hint, counter, counterDanger, className, headerExtra, children }: FieldCardProps) {
   return (
     <div className={className}>
-      <div className="flex items-center justify-between mb-1.5">
+      <div className="flex items-center justify-between mb-2">
         <label
           style={{
             fontSize: 10,
@@ -1549,7 +2022,7 @@ function FieldCard({ label, hint, counter, counterDanger, className, headerExtra
           {label}
         </label>
         {(headerExtra || counter) && (
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             {headerExtra}
             {counter && (
               <span
@@ -1567,7 +2040,7 @@ function FieldCard({ label, hint, counter, counterDanger, className, headerExtra
       </div>
       {children}
       {hint && (
-        <div style={{ fontSize: 10, color: 'var(--text-disabled)', marginTop: 6 }}>
+        <div style={{ fontSize: 10, color: 'var(--text-disabled)', marginTop: 8 }}>
           {hint}
         </div>
       )}
@@ -1803,9 +2276,16 @@ interface TrackSpecsCardProps {
   specs: TrackSpecs;
   onChange: (next: TrackSpecs) => void;
   disabled?: boolean;
+  // AI-driven "fill in the blanks" hook — when present, renders an
+  // Optimize button in the panel header that calls an LLM with the
+  // current Theme + Style + Lyrics + existing specs and returns a
+  // proposed full TrackSpecs object. Workspace owns the call so the
+  // panel stays presentation-only.
+  onOptimize?: () => void;
+  optimizing?: boolean;
 }
 
-function TrackSpecsCard({ specs, onChange, disabled }: TrackSpecsCardProps) {
+function TrackSpecsCard({ specs, onChange, disabled, onOptimize, optimizing }: TrackSpecsCardProps) {
   const [open, setOpen] = useState(false);
   const compiled = useMemo(() => compileSpecsToText(specs), [specs]);
   const hasAny = compiled.length > 0;
@@ -1832,13 +2312,13 @@ function TrackSpecsCard({ specs, onChange, disabled }: TrackSpecsCardProps) {
         border: '1px solid var(--border-subtle)',
       }}
     >
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        className="w-full flex items-center justify-between p-3 hover:opacity-90"
-        style={{ background: 'transparent', border: 'none', cursor: 'pointer' }}
-      >
-        <div className="flex items-center gap-2">
+      <div className="flex items-center justify-between p-3">
+        <button
+          type="button"
+          onClick={() => setOpen((o) => !o)}
+          className="flex items-center gap-2 flex-1 hover:opacity-90 text-left"
+          style={{ background: 'transparent', border: 'none', cursor: 'pointer' }}
+        >
           <Layers size={14} style={{ color: 'var(--text-secondary)' }} />
           <span
             style={{
@@ -1854,8 +2334,32 @@ function TrackSpecsCard({ specs, onChange, disabled }: TrackSpecsCardProps) {
           <span style={{ fontSize: 10, color: 'var(--text-disabled)' }}>
             {hasAny ? 'compiled into Style on generate' : 'optional structured controls'}
           </span>
-        </div>
+        </button>
         <div className="flex items-center gap-2">
+          {/* AI Optimize — fills the entire panel from theme/style/
+              lyrics via an LLM call. Only rendered when the workspace
+              wired in the callback (gated on having an LLM endpoint). */}
+          {onOptimize && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onOptimize(); if (!open) setOpen(true); }}
+              disabled={disabled || optimizing}
+              className="flex items-center gap-1 px-2 py-1 rounded-md transition-all disabled:opacity-40 hover:scale-105"
+              style={{
+                fontSize: 10,
+                fontWeight: 600,
+                color: 'white',
+                background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))',
+                border: '1px solid transparent',
+              }}
+              title="Use AI to fill optimal specs from your theme + style + lyrics"
+            >
+              {optimizing
+                ? <Loader2 size={11} className="animate-spin" />
+                : <Sparkles size={11} />}
+              {optimizing ? 'Optimizing…' : 'AI Optimize'}
+            </button>
+          )}
           {hasAny && !open && (
             <span
               className="px-2 py-0.5 rounded-full"
@@ -1869,16 +2373,23 @@ function TrackSpecsCard({ specs, onChange, disabled }: TrackSpecsCardProps) {
               {countSetSpecs(specs)} set
             </span>
           )}
-          <ChevronDown
-            size={14}
-            style={{
-              color: 'var(--text-secondary)',
-              transform: open ? 'rotate(180deg)' : 'none',
-              transition: 'transform 0.15s',
-            }}
-          />
+          <button
+            type="button"
+            onClick={() => setOpen((o) => !o)}
+            className="flex items-center justify-center"
+            style={{ background: 'transparent', border: 'none', cursor: 'pointer', width: 18, height: 18 }}
+          >
+            <ChevronDown
+              size={14}
+              style={{
+                color: 'var(--text-secondary)',
+                transform: open ? 'rotate(180deg)' : 'none',
+                transition: 'transform 0.15s',
+              }}
+            />
+          </button>
         </div>
-      </button>
+      </div>
 
       {open && (
         <div
@@ -2527,6 +3038,8 @@ interface TrackCardProps {
   onSaveSongToDesktop: (track: SavedTrack) => void;
   onSaveLyricsToDesktop: (track: SavedTrack) => void;
   onPlayInPlayer: (track: SavedTrack) => void;
+  onRename: (id: string, title: string) => void;
+  onEditCover: (track: SavedTrack) => void;
   // Shared player — cards no longer own audio elements; they
   // surface play/pause via the workspace-level player so only
   // one track plays at a time and the MiniPlayer stays in sync.
@@ -2575,9 +3088,10 @@ interface TrackTableProps {
   onLoad: (track: SavedTrack) => void;
   onOpenLyrics: (track: SavedTrack) => void;
   onDelete: (id: string) => void;
+  onRename: (id: string, title: string) => void;
 }
 
-function TrackTable({ tracks, player, onLoad, onOpenLyrics, onDelete }: TrackTableProps) {
+function TrackTable({ tracks, player, onLoad, onOpenLyrics, onDelete, onRename }: TrackTableProps) {
   const { t } = useI18n();
   return (
     <div className="flex-1 overflow-y-auto invisible-scrollbar">
@@ -2611,6 +3125,7 @@ function TrackTable({ tracks, player, onLoad, onOpenLyrics, onDelete }: TrackTab
           onLoad={onLoad}
           onOpenLyrics={onOpenLyrics}
           onDelete={onDelete}
+          onRename={onRename}
           translate={t}
         />
       ))}
@@ -2619,18 +3134,28 @@ function TrackTable({ tracks, player, onLoad, onOpenLyrics, onDelete }: TrackTab
 }
 
 function TrackTableRow({
-  track, player, onLoad, onOpenLyrics, onDelete, translate,
+  track, player, onLoad, onOpenLyrics, onDelete, onRename, translate,
 }: {
   track: SavedTrack;
   player: PlayerControls;
   onLoad: (track: SavedTrack) => void;
   onOpenLyrics: (track: SavedTrack) => void;
   onDelete: (id: string) => void;
+  onRename: (id: string, title: string) => void;
   translate: (key: string, vars?: Record<string, string | number>) => string;
 }) {
   const [hover, setHover] = useState(false);
+  // Inline rename state. `editing` is the buffer the input edits;
+  // committing on Enter / blur calls onRename, Escape discards.
+  const [editing, setEditing] = useState<string | null>(null);
   const isActive = player.state.trackId === track.id;
   const playing = isActive && player.state.playing;
+  const commitRename = () => {
+    if (editing === null) return;
+    const next = editing.trim();
+    setEditing(null);
+    if (next && next !== track.title) onRename(track.id, next);
+  };
   // Static date label — formats to "MMM d" so the column reads
   // like Apple Music's "Date Added". Avoids Date.now() in render
   // (impure) and the table doesn't need real-time relative times.
@@ -2684,13 +3209,51 @@ function TrackTableRow({
         )}
       </div>
       <div className="min-w-0">
-        <div className="truncate" style={{ fontWeight: isActive ? 600 : 500 }}>
-          {track.title || translate('musiccreator.track.untitled')}
-        </div>
-        {track.styleTags && track.styleTags !== '—' && (
-          <div className="truncate" style={{ fontSize: 9, color: 'var(--text-disabled)' }}>
-            {track.styleTags}
-          </div>
+        {editing !== null ? (
+          // Inline rename editor — Enter commits, Escape cancels, blur
+          // also commits so the user can click anywhere else and not
+          // lose the edit. autoFocus + onClick.stopPropagation so the
+          // row's own click handler (play/toggle) doesn't fire.
+          <input
+            autoFocus
+            value={editing}
+            onChange={(e) => setEditing(e.target.value)}
+            onClick={(e) => e.stopPropagation()}
+            onKeyDown={(e) => {
+              e.stopPropagation();
+              if (e.key === 'Enter') commitRename();
+              else if (e.key === 'Escape') setEditing(null);
+            }}
+            onBlur={commitRename}
+            maxLength={200}
+            className="w-full px-1 py-0 rounded-md focus:outline-none focus:ring-1"
+            style={{
+              fontSize: 11,
+              fontWeight: isActive ? 600 : 500,
+              background: 'var(--bg-window)',
+              border: '1px solid var(--accent-primary)',
+              color: 'var(--text-primary)',
+            }}
+          />
+        ) : (
+          <>
+            <div
+              className="truncate"
+              style={{ fontWeight: isActive ? 600 : 500 }}
+              onDoubleClick={(e) => {
+                e.stopPropagation();
+                setEditing(track.title);
+              }}
+              title="Double-click to rename"
+            >
+              {track.title || translate('musiccreator.track.untitled')}
+            </div>
+            {track.styleTags && track.styleTags !== '—' && (
+              <div className="truncate" style={{ fontSize: 9, color: 'var(--text-disabled)' }}>
+                {track.styleTags}
+              </div>
+            )}
+          </>
         )}
       </div>
       <span className="tabular-nums" style={{ textAlign: 'right', fontSize: 10, color: 'var(--text-disabled)' }}>
@@ -2726,12 +3289,22 @@ function TrackTableRow({
 // rail — the bigger 2-column TrackCard layout doesn't fit there.
 function TrackCard({
   track, onDelete, onLoad, onOpenLyrics,
-  onSaveSongToDesktop, onSaveLyricsToDesktop, onPlayInPlayer, player,
+  onSaveSongToDesktop, onSaveLyricsToDesktop, onPlayInPlayer, onRename, onEditCover, player,
 }: TrackCardProps) {
   const { t } = useI18n();
   const kebabRef = useRef<HTMLButtonElement | null>(null);
   const [hover, setHover] = useState(false);
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
+  // Inline rename state. Same shape as TrackTableRow — `editing`
+  // is the input buffer; null = not editing. Keeps the kebab menu
+  // and double-click-to-rename in sync.
+  const [editing, setEditing] = useState<string | null>(null);
+  const commitRename = () => {
+    if (editing === null) return;
+    const next = editing.trim();
+    setEditing(null);
+    if (next && next !== track.title) onRename(track.id, next);
+  };
   // Derive playback state from the shared player so visuals stay
   // in sync no matter who triggers play (card / mini-player / kebab).
   const isActive = player.state.trackId === track.id;
@@ -2861,9 +3434,41 @@ function TrackCard({
           </div>
         )}
         <div className="flex-1 min-w-0">
-          <div className="truncate" style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)' }}>
-            {track.title || t('musiccreator.track.untitled')}
-          </div>
+          {editing !== null ? (
+            <input
+              autoFocus
+              value={editing}
+              onChange={(e) => setEditing(e.target.value)}
+              onClick={(e) => e.stopPropagation()}
+              onKeyDown={(e) => {
+                e.stopPropagation();
+                if (e.key === 'Enter') commitRename();
+                else if (e.key === 'Escape') setEditing(null);
+              }}
+              onBlur={commitRename}
+              maxLength={200}
+              className="w-full px-1.5 py-0.5 rounded-md focus:outline-none focus:ring-1"
+              style={{
+                fontSize: 12,
+                fontWeight: 600,
+                background: 'var(--bg-window)',
+                border: '1px solid var(--accent-primary)',
+                color: 'var(--text-primary)',
+              }}
+            />
+          ) : (
+            <div
+              className="truncate"
+              style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)' }}
+              onDoubleClick={(e) => {
+                e.stopPropagation();
+                setEditing(track.title);
+              }}
+              title="Double-click to rename"
+            >
+              {track.title || t('musiccreator.track.untitled')}
+            </div>
+          )}
           <div className="truncate" style={{ fontSize: 10, color: 'var(--text-disabled)' }}>
             {track.durationMs > 0 ? formatTime(track.durationMs) : t('musiccreator.track.lyricsOnly')}
             {track.styleTags && track.styleTags !== '—' && ` · ${track.styleTags}`}
@@ -2931,6 +3536,8 @@ function TrackCard({
           )}
 
           <div style={{ height: 1, background: 'var(--border-subtle)', margin: '4px 6px' }} />
+          <TrackMenuItem icon={<Pencil size={14} />} label="Rename" onClick={callMenu(() => setEditing(track.title))} />
+          <TrackMenuItem icon={<ImageIcon size={14} />} label="Edit cover art" onClick={callMenu(() => onEditCover(track))} />
           <TrackMenuItem icon={<FileMusic size={14} />} label={t('musiccreator.track.loadIntoForm')} onClick={callMenu(() => onLoad(track))} />
           <TrackMenuItem icon={<Trash2 size={14} />} label={t('musiccreator.track.delete')} onClick={callMenu(() => onDelete(track.id))} danger />
         </div>,
@@ -2960,10 +3567,268 @@ function TrackCard({
 }
 
 // ──────────────────────────────────────────────────────────
+// CoverArtModal — edit album-cover art for a saved track
+// ──────────────────────────────────────────────────────────
+//
+// Opens from the TrackCard kebab. Same affordances as the inline
+// CoverArtPanel: thumbnail preview + Edit prompt textarea +
+// Regenerate / Upload / Clear / Save / Cancel. Lives as a real
+// dialog (overlay + portal) so it scopes to the workspace pane
+// rather than competing with the form.
+function CoverArtModal({
+  track, endpoint, onSave, onClose,
+}: {
+  track: SavedTrack;
+  endpoint: PodEndpoint | null;
+  onSave: (id: string, coverDataUrl: string) => void;
+  onClose: () => void;
+}) {
+  const [draftCover, setDraftCover] = useState(track.coverDataUrl);
+  const [prompt, setPrompt] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement | null>(null);
+  const cleanTitle = track.title.replace(/\s*\((lyrics|cover|restyle)\)\s*$/, '');
+  const placeholder = deriveCoverPrompt(cleanTitle, '', track.styleTags || '');
+
+  const onRegenerate = async () => {
+    if (!endpoint) {
+      setErr('Connect to a pod to generate cover art.');
+      return;
+    }
+    if (!endpoint.models.image) {
+      setErr(`This endpoint (${endpoint.label}) has no image model. Pick one in Music Creator Settings → Cover art.`);
+      return;
+    }
+    setBusy(true);
+    setErr(null);
+    try {
+      const finalPrompt = (prompt.trim() || placeholder).slice(0, 1500);
+      const out = await callImageGen(endpoint, finalPrompt);
+      setDraftCover(out);
+    } catch (e) {
+      setErr((e as Error).message || 'Cover-art generation failed.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const onUpload = (file: File) => {
+    if (!file.type.startsWith('image/')) {
+      setErr('That file is not an image.');
+      return;
+    }
+    if (file.size > 4 * 1024 * 1024) {
+      setErr('Image is too big (limit 4 MB).');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onerror = () => setErr('Could not read that image.');
+    reader.onload = () => {
+      const result = reader.result;
+      if (typeof result === 'string') setDraftCover(result);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[4000] flex items-center justify-center"
+      style={{ background: 'rgba(0,0,0,0.55)' }}
+      onClick={onClose}
+    >
+      <div
+        className="rounded-xl shadow-2xl"
+        style={{
+          width: 480,
+          maxWidth: 'calc(100vw - 48px)',
+          background: 'var(--bg-window)',
+          border: '1px solid var(--border-default)',
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div
+          className="flex items-center gap-2 px-4 py-3"
+          style={{ borderBottom: '1px solid var(--border-subtle)' }}
+        >
+          <ImageIcon size={14} style={{ color: 'var(--accent-primary)' }} />
+          <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>
+            Cover Art — {cleanTitle || 'Untitled'}
+          </span>
+          <button
+            onClick={onClose}
+            className="ml-auto rounded-md hover:bg-[var(--bg-hover)] flex items-center justify-center"
+            style={{ width: 24, height: 24, color: 'var(--text-secondary)' }}
+            title="Close"
+          >
+            <X size={14} />
+          </button>
+        </div>
+        <div className="p-4 flex flex-col gap-3">
+          <div className="flex gap-3">
+            <div
+              className="rounded-lg overflow-hidden flex-shrink-0 relative"
+              style={{
+                width: 140,
+                height: 140,
+                background: draftCover
+                  ? `url(${draftCover}) center/cover no-repeat`
+                  : 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))',
+                border: '1px solid var(--border-subtle)',
+              }}
+            >
+              {!draftCover && (
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <ImageIcon size={36} style={{ color: 'white', opacity: 0.85 }} />
+                </div>
+              )}
+              {busy && (
+                <div className="absolute inset-0 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.5)' }}>
+                  <Loader2 size={24} className="animate-spin" style={{ color: 'white' }} />
+                </div>
+              )}
+            </div>
+            <div className="flex-1 flex flex-col gap-2 min-w-0">
+              <button
+                onClick={onRegenerate}
+                disabled={busy || !endpoint?.models.image}
+                className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg disabled:opacity-40"
+                style={{
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: 'white',
+                  background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))',
+                  border: '1px solid transparent',
+                  cursor: (busy || !endpoint?.models.image) ? 'not-allowed' : 'pointer',
+                }}
+              >
+                {busy ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
+                {draftCover ? 'Regenerate' : 'Generate'}
+              </button>
+              <button
+                onClick={() => fileRef.current?.click()}
+                disabled={busy}
+                className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg disabled:opacity-40 hover:bg-[var(--bg-hover)]"
+                style={{
+                  fontSize: 12,
+                  color: 'var(--text-secondary)',
+                  background: 'var(--bg-titlebar)',
+                  border: '1px solid var(--border-subtle)',
+                }}
+              >
+                <Upload size={12} />
+                Upload
+              </button>
+              {draftCover && (
+                <button
+                  onClick={() => setDraftCover('')}
+                  disabled={busy}
+                  className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg disabled:opacity-40 hover:bg-[var(--bg-hover)]"
+                  style={{
+                    fontSize: 12,
+                    color: 'var(--text-disabled)',
+                    background: 'var(--bg-titlebar)',
+                    border: '1px solid var(--border-subtle)',
+                  }}
+                >
+                  <X size={12} />
+                  Clear
+                </button>
+              )}
+            </div>
+          </div>
+          <div>
+            <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-disabled)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>
+              Prompt
+            </div>
+            <textarea
+              value={prompt}
+              onChange={(e) => setPrompt(e.target.value)}
+              placeholder={placeholder}
+              disabled={busy}
+              rows={3}
+              className="w-full px-3 py-2 rounded-lg resize-none focus:outline-none disabled:opacity-50"
+              style={{
+                fontSize: 11,
+                background: 'var(--bg-window)',
+                border: '1px solid var(--border-subtle)',
+                color: 'var(--text-primary)',
+              }}
+            />
+          </div>
+          {err && (
+            <div
+              className="flex items-center gap-2 px-3 py-2 rounded-lg"
+              style={{
+                fontSize: 11,
+                color: '#ff8a80',
+                background: 'rgba(255,82,82,0.06)',
+                border: '1px solid rgba(255,82,82,0.18)',
+              }}
+            >
+              <AlertCircle size={12} style={{ flexShrink: 0 }} />
+              {err}
+            </div>
+          )}
+        </div>
+        <div
+          className="flex items-center gap-2 px-4 py-3"
+          style={{ borderTop: '1px solid var(--border-subtle)' }}
+        >
+          <button
+            onClick={onClose}
+            disabled={busy}
+            className="px-3 py-1.5 rounded-lg ml-auto disabled:opacity-40 hover:bg-[var(--bg-hover)]"
+            style={{
+              fontSize: 12,
+              color: 'var(--text-secondary)',
+              background: 'var(--bg-titlebar)',
+              border: '1px solid var(--border-subtle)',
+            }}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={() => { onSave(track.id, draftCover); onClose(); }}
+            disabled={busy}
+            className="px-3 py-1.5 rounded-lg disabled:opacity-40"
+            style={{
+              fontSize: 12,
+              fontWeight: 600,
+              color: 'white',
+              background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))',
+              border: '1px solid transparent',
+            }}
+          >
+            Save
+          </button>
+        </div>
+        <input
+          ref={fileRef}
+          type="file"
+          accept="image/png,image/jpeg,image/webp,image/gif"
+          style={{ display: 'none' }}
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) onUpload(file);
+            e.target.value = '';
+          }}
+        />
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
+// ──────────────────────────────────────────────────────────
 // Main component
 // ──────────────────────────────────────────────────────────
 
-type Mode = 'compose' | 'cover' | 'lyricsOnly';
+// Mode "restyle" is the song-cover / style-transfer flow (formerly
+// "cover"). Renamed because users were confusing it with album cover
+// art — Restyle takes a reference audio clip and re-sings the song in
+// that style. The album-art panel is a separate first-class feature.
+type Mode = 'compose' | 'restyle' | 'lyricsOnly';
 
 export default function MusicCreator() {
   const daemon = useDaemonStateContext();
@@ -2983,13 +3848,31 @@ export default function MusicCreator() {
   // Form state
   const [theme, setTheme] = useState('');
   const [lyrics, setLyrics] = useState('');
+  // Active lyric template — when set, the generation flow appends
+  // its `prompt` to the lyrics-write call so the model produces
+  // lyrics that fit the chosen song form. null = let the model
+  // pick its own structure (current default behavior).
+  const [activeTemplate, setActiveTemplate] = useState<LyricTemplate | null>(null);
   const [style, setStyle] = useState('');
   const [songName, setSongName] = useState('');
   const [instrumental, setInstrumental] = useState(false);
+  // Cover-art state. coverDataUrl is the live preview (base64 data URL
+  // or '' for no art). coverPrompt is the user-overridable prompt; when
+  // empty, deriveCoverPrompt() is used at gen time. coverAuto controls
+  // whether the next Create Song auto-generates art (default ON, user
+  // can opt out per-session). coverBusy is the spinner flag.
+  const [coverDataUrl, setCoverDataUrl] = useState('');
+  const [coverPrompt, setCoverPrompt] = useState('');
+  const [coverAuto, setCoverAuto] = useState(true);
+  const [coverBusy, setCoverBusy] = useState(false);
   // Structured spec controls — empty-by-default; `compileSpecsToText`
   // returns "" when no fields are set, so the request flow doesn't need
   // to special-case "no specs".
   const [specs, setSpecs] = useState<TrackSpecs>({});
+  // True while the AI Optimize button is in flight. Used to disable
+  // the button + show a spinner; cleared in finally so a failed call
+  // doesn't leave the button stuck.
+  const [optimizingSpecs, setOptimizingSpecs] = useState(false);
 
   // Cover-mode state
   const [refAudioName, setRefAudioName] = useState<string | null>(null);
@@ -3002,6 +3885,10 @@ export default function MusicCreator() {
   // by the migration roundtrip.
   const [voiceRecordings, setVoiceRecordings] = useState<VoiceRecording[]>([]);
   const refFileInputRef = useRef<HTMLInputElement | null>(null);
+  // Cover-art file picker — separate from refFileInputRef (audio).
+  const coverFileInputRef = useRef<HTMLInputElement | null>(null);
+  // Local UI state — collapse/expand the prompt textarea.
+  const [coverPromptOpen, setCoverPromptOpen] = useState(false);
   // Cover-sample strategy: single best window OR best-of mix.
   const [sampleStrategy, setSampleStrategy] = useState<'best' | 'mix'>('best');
 
@@ -3073,18 +3960,22 @@ export default function MusicCreator() {
   }, []);
 
   // Persist a new track to SQLite, then prepend to in-memory state. If
-  // the write fails (DB not ready, OPFS denied), surface the error so
-  // the user knows the song won't survive a reload — it's still playable
-  // for this session.
-  const saveTrack = useCallback(async (track: SavedTrack) => {
+  // the write fails (DB not ready, OPFS denied), DON'T pollute the
+  // gallery with a row that won't survive a reload — surface the error
+  // and return false so the caller can skip side effects (VFS mirroring,
+  // success notification). If the user wants to keep an in-flight result
+  // visible, they can retry from the form (lyrics/audio still in state).
+  const saveTrack = useCallback(async (track: SavedTrack): Promise<boolean> => {
     try {
       await insertTrackRow(track);
       setGalleryError(null);
+      setGallery((g) => [track, ...g]);
+      return true;
     } catch (e) {
       const msg = (e as Error).message || 'Database write failed';
-      setGalleryError(`Couldn't save "${track.title}" — ${msg}. Track is playable in this session only.`);
+      setGalleryError(`Couldn't save "${track.title}" — ${msg}. Try again or check the console.`);
+      return false;
     }
-    setGallery((g) => [track, ...g]);
   }, []);
 
   const persistSettings = useCallback(async (next: MusicCreatorSettings) => {
@@ -3132,13 +4023,21 @@ export default function MusicCreator() {
   }, []);
 
   const abortRef = useRef<AbortController | null>(null);
+  // AI-assist controller — separate from `abortRef` because Cancel
+  // (Generate) shouldn't kill an Inspire/Suggest/Polish/Optimize that
+  // happens to be running, and vice versa. Each AI assist call grabs
+  // its signal off this ref; the unmount cleanup aborts both refs.
+  const aiAbortRef = useRef<AbortController | null>(null);
   // In-flight guard. Tracks a generation across the brief window between
   // a click and React rendering the Cancel button. Without this a fast
   // double-click fires two parallel `callLyrics` requests — the second
   // abort cancels the JS promise but the server already accepted both.
   const generatingRef = useRef(false);
 
-  useEffect(() => () => abortRef.current?.abort(), []);
+  useEffect(() => () => {
+    abortRef.current?.abort();
+    aiAbortRef.current?.abort();
+  }, []);
 
   // Fake progress + rotating tip while a real call is in flight.
   useEffect(() => {
@@ -3177,7 +4076,7 @@ export default function MusicCreator() {
     if (!track.lyricsPreview) return null;
     const musicFolderId = fsApi.ensureUserFolder('Music');
     if (!musicFolderId) return null;
-    const fileName = `${sanitizeFileName(track.title.replace(/\s*\((lyrics|cover)\)\s*$/, ''))}.lyrics.txt`;
+    const fileName = `${sanitizeFileName(track.title.replace(/\s*\((lyrics|cover|restyle)\)\s*$/, ''))}.lyrics.txt`;
     const existing = fsApi.findChildByName(musicFolderId, fileName);
     if (existing) {
       fsApi.writeFile(existing.id, track.lyricsPreview);
@@ -3192,7 +4091,7 @@ export default function MusicCreator() {
     if (!track.audioDataUrl) return null;
     const musicFolderId = fsApi.ensureUserFolder('Music');
     if (!musicFolderId) return null;
-    const fileName = `${sanitizeFileName(track.title.replace(/\s*\((lyrics|cover)\)\s*$/, ''))}.mp3`;
+    const fileName = `${sanitizeFileName(track.title.replace(/\s*\((lyrics|cover|restyle)\)\s*$/, ''))}.mp3`;
     const existing = fsApi.findChildByName(musicFolderId, fileName);
     if (existing) return existing.id;
     return fsApi.createFile(musicFolderId, fileName, '', {
@@ -3204,6 +4103,15 @@ export default function MusicCreator() {
   const generate = useCallback(async () => {
     if (!endpoint) {
       setError(t('musiccreator.error.noPod'));
+      return;
+    }
+    // Restyle preflight — validate BEFORE any network call so we don't
+    // burn lyrics/cover quota only to tell the user mid-flight that
+    // they forgot the reference audio. (The same check runs again
+    // post-lyrics for defence-in-depth, but this one is the first
+    // gate.)
+    if (mode === 'restyle' && !refAudioBase64) {
+      setError('Restyle needs a reference audio file. Drop one in below.');
       return;
     }
     // In-flight guard: drop duplicate clicks before phase flips.
@@ -3230,6 +4138,7 @@ export default function MusicCreator() {
           cover: overrides.cover || endpoint.models.cover,
           lyrics: overrides.lyrics || endpoint.models.lyrics,
           lyricsBackup: overrides.lyricsBackup || endpoint.models.lyricsBackup,
+          image: overrides.image || endpoint.models.image,
           allIds: endpoint.models.allIds,
         },
       };
@@ -3249,14 +4158,25 @@ export default function MusicCreator() {
       let generatedLyrics: Awaited<ReturnType<typeof callLyrics>> | null = null;
 
       if (!useLyrics && !instrumental) {
-        if (!theme.trim()) {
+        if (!theme.trim() && !(specs.intent ?? '').trim()) {
           setError(t('musiccreator.error.noInput'));
           return;
         }
         setPhase('lyrics');
-        const themePrompt = specsText
-          ? `${theme.trim()}\n\nMusical context: ${specsText}`
-          : theme.trim();
+        // Compose the lyrics prompt: theme + user intent + specs + (optional)
+        // song form constraint. The User intent block is the user's free
+        // direction (perspective, mood, language, taboo lines) — surfaced
+        // separately so the model treats it as instruction, not subject.
+        // activeTemplate?.prompt steers the model to produce lyrics that
+        // actually fit the selected structure instead of the model picking
+        // its own form by default.
+        const promptParts: string[] = [];
+        if (theme.trim()) promptParts.push(theme.trim());
+        const intent = (specs.intent ?? '').trim();
+        if (intent) promptParts.push(`User intent (must respect): ${intent}`);
+        if (specsText) promptParts.push(`Musical context: ${specsText}`);
+        if (activeTemplate) promptParts.push(`Structure: ${activeTemplate.prompt}`);
+        const themePrompt = promptParts.join('\n\n');
         generatedLyrics = await callLyrics(effectiveEndpoint, themePrompt, controller.signal);
         useLyrics = generatedLyrics.lyrics;
         if (!resolvedTitle) resolvedTitle = generatedLyrics.song_title;
@@ -3276,6 +4196,10 @@ export default function MusicCreator() {
         // there's no audio to listen to — without this the form looked
         // empty after generation finished.
         setLyrics(generatedLyrics.lyrics);
+        // The chat-fallback path returns the literal string "Untitled"
+        // when the model didn't fill song_title — treat that as missing
+        // so we fall through to local synthesis below.
+        if (resolvedTitle === 'Untitled') resolvedTitle = '';
         if (resolvedTitle && !songName.trim()) setSongName(resolvedTitle);
         if (resolvedStyle && !style.trim()) setStyle(resolvedStyle);
         if (generatedLyrics.usedFallback) {
@@ -3292,6 +4216,19 @@ export default function MusicCreator() {
         setError(t('musiccreator.error.lyricsTooLong', { count: useLyrics.length, max: MAX_LYRICS }));
         setPhase('idle');
         return;
+      }
+
+      // Final title resolution. By the time we get here every save path
+      // needs a real title — `resolvedTitle` may still be empty if the
+      // user supplied lyrics, the lyrics fallback returned no song_title,
+      // or instrumental mode skipped lyrics entirely. Synthesize a short
+      // local title from lyrics → theme → style so the gallery never
+      // shows "Untitled" except when the user had nothing at all.
+      if (!resolvedTitle.trim()) {
+        resolvedTitle = synthesizeTitleLocal(useLyrics, theme, resolvedStyle || style);
+        if (resolvedTitle && resolvedTitle !== 'Untitled' && !songName.trim()) {
+          setSongName(resolvedTitle);
+        }
       }
 
       // Lyrics-only mode → save the full lyric sheet as a track and stop.
@@ -3311,50 +4248,109 @@ export default function MusicCreator() {
           createdAt: Date.now(),
           audioDataUrl: '', // no audio
           specsJson: countSetSpecs(specs) > 0 ? JSON.stringify(specs) : '',
-          coverDataUrl: '', // covers come post-extraction via Host API
+          // Lyric sheets keep whatever cover art the user attached in
+          // the form (uploaded or pre-generated) — image autogen during
+          // Write Lyrics is skipped to keep the call cheap.
+          coverDataUrl: coverDataUrl,
         };
-        await saveTrack(sheetTrack);
-        // Project the lyric sheet into the VFS so it shows up in the
-        // Files app and can be edited in Text Editor like a real .txt.
-        mirrorLyricsToVfs(sheetTrack);
+        const sheetSaved = await saveTrack(sheetTrack);
+        // Only mirror to the VFS when the SQLite write succeeded —
+        // otherwise we'd ship a `.lyrics.txt` whose refTrackId points
+        // at a non-existent row, leaving a ghost shortcut after reload.
+        if (sheetSaved) mirrorLyricsToVfs(sheetTrack);
         setPhase('idle');
         setProgress(0);
         return;
       }
 
-      // Cover mode requires a reference-audio upload.
-      if (mode === 'cover' && !refAudioBase64) {
-        setError('Cover mode needs a reference audio file. Drop one in below.');
+      // Restyle mode requires a reference-audio upload.
+      if (mode === 'restyle' && !refAudioBase64) {
+        setError('Restyle needs a reference audio file. Drop one in below.');
         setPhase('idle');
         return;
       }
 
-      // Step 2: music (or cover). Fold compiled specs into the style
-      // prompt so structured controls reach the model — the user's free
-      // text comes first (highest signal), specs follow as descriptors.
+      // Step 2: music (or restyle) + cover art in parallel. Cover art
+      // is opt-out (coverAuto) and only kicks in when the endpoint has
+      // an image model and the user hasn't already supplied / generated
+      // one. Failures are swallowed — the song saves without art rather
+      // than aborting the whole flow. Music is the gating call: its
+      // success/failure decides whether we save the row at all.
       setPhase('song');
       const musicPrompt = [resolvedStyle, specsText].filter((p) => p && p.length > 0).join('. ');
-      const song = await callMusic(
+      const musicPromise = callMusic(
         effectiveEndpoint,
         {
           lyrics: useLyrics,
           prompt: musicPrompt || undefined,
           instrumental,
-          refAudioBase64: mode === 'cover' ? refAudioBase64 ?? undefined : undefined,
+          refAudioBase64: mode === 'restyle' ? refAudioBase64 ?? undefined : undefined,
         },
         controller.signal,
       );
+      const wantsAutoCover = coverAuto
+        && !coverDataUrl
+        && !!effectiveEndpoint.models.image;
+      // Capture the user's pre-existing cover (from upload or prior
+      // gen) so a failed auto-gen falls back to it instead of blanking.
+      const existingCover = coverDataUrl;
+      const coverPromise: Promise<string> = wantsAutoCover
+        ? callImageGen(
+            effectiveEndpoint,
+            (coverPrompt.trim() || deriveCoverPrompt(resolvedTitle, theme, resolvedStyle || style)).slice(0, 1500),
+            controller.signal,
+          ).catch((e: Error) => {
+            // User-driven cancel (Cancel button or unmount) shouldn't
+            // surface as a "Cover-art skipped" warning — that would
+            // misattribute their action as a system failure. Re-throw
+            // so the outer catch's AbortError handler swallows it.
+            if (e.name === 'AbortError') throw e;
+            // Real image-gen failure is non-fatal. Surface a soft
+            // warning so the user knows why the track has no cover,
+            // but let the song save go through. Return whatever cover
+            // they had before so an upload doesn't get clobbered.
+            console.warn('[Juli3ta] Cover-art generation failed:', e);
+            setGalleryError(`Cover-art skipped: ${e.message}`);
+            return existingCover;
+          })
+        : Promise.resolve(existingCover);
+      // allSettled instead of all so we can short-circuit cover when
+      // music rejects — otherwise the cover request keeps burning the
+      // image quota and its eventual catch fires a phantom banner long
+      // after the user has dismissed the music error and moved on.
+      let song: MusicResponse;
+      let finalCoverDataUrl: string;
+      try {
+        const settled = await Promise.allSettled([musicPromise, coverPromise]);
+        const musicResult = settled[0];
+        const coverResult = settled[1];
+        if (musicResult.status === 'rejected') {
+          // Cover may still be in flight (or just rejected). The shared
+          // controller.signal has already been used by both calls, so a
+          // user cancel kills both; for a music-side failure we abort
+          // the controller now to short-circuit the cover.
+          controller.abort();
+          throw musicResult.reason;
+        }
+        song = musicResult.value;
+        finalCoverDataUrl = coverResult.status === 'fulfilled'
+          ? coverResult.value
+          : existingCover;
+      } catch (e) {
+        throw e;
+      }
 
       // Validate the response shape before assuming success. Some
       // gateways return 200 with an empty/error body when an upstream
-      // fails — we'd silently save an unplayable track without this.
+      // fails — callMusic now validates internally and throws, so this
+      // is a defence-in-depth check that should never fire.
       if (!song?.data?.audio || typeof song.data.audio !== 'string' || song.data.audio.length < 100) {
         const traceId = song?.trace_id ? ` (trace ${song.trace_id})` : '';
         throw new Error(`Music gen returned no audio data${traceId}. Try again or pick a different model in Settings.`);
       }
 
       const audioDataUrl = `data:audio/mpeg;base64,${song.data.audio}`;
-      const titleSuffix = mode === 'cover' ? ' (cover)' : '';
+      const titleSuffix = mode === 'restyle' ? ' (restyle)' : '';
       const newTrack: SavedTrack = {
         id: `t_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
         title: (resolvedTitle || t('musiccreator.track.untitled')) + titleSuffix,
@@ -3367,23 +4363,35 @@ export default function MusicCreator() {
         createdAt: Date.now(),
         audioDataUrl,
         specsJson: countSetSpecs(specs) > 0 ? JSON.stringify(specs) : '',
-        coverDataUrl: '', // covers come post-extraction via Host API
+        coverDataUrl: finalCoverDataUrl,
       };
+      // Reflect the freshly-generated cover in the form so the user
+      // sees the same art the saved row carries. Always sync (even
+      // when finalCoverDataUrl === '') so a swallowed auto-gen failure
+      // doesn't leave the form showing stale art that doesn't match
+      // what's saved.
+      setCoverDataUrl(finalCoverDataUrl);
 
       console.info('[Juli3ta] Saving generated song:', { id: newTrack.id, title: newTrack.title, durationMs: newTrack.durationMs, sizeBytes: newTrack.sizeBytes });
-      await saveTrack(newTrack);
-      // Mirror to the VFS so the song shows up in Files (~/Music/Title.mp3
-      // as a shortcut) and the lyrics show up as ~/Music/Title.lyrics.txt.
-      mirrorAudioToVfs(newTrack);
-      mirrorLyricsToVfs(newTrack);
-      addNotification({
-        appId: 'musiccreator',
-        appName: 'Music Creator',
-        appIcon: 'Sparkles',
-        title: t('musiccreator.notify.songReadyTitle'),
-        message: t('musiccreator.notify.songReadyBody', { title: newTrack.title }),
-        isRead: false,
-      });
+      const saved = await saveTrack(newTrack);
+      // Only run the side effects (VFS mirrors, success notification)
+      // when the row actually landed in SQLite. Otherwise the user
+      // would see a "Song ready" toast next to a yellow "couldn't save"
+      // banner, plus orphan shortcuts in Files.
+      if (saved) {
+        // Mirror to the VFS so the song shows up in Files (~/Music/Title.mp3
+        // as a shortcut) and the lyrics show up as ~/Music/Title.lyrics.txt.
+        mirrorAudioToVfs(newTrack);
+        mirrorLyricsToVfs(newTrack);
+        addNotification({
+          appId: 'musiccreator',
+          appName: 'Music Creator',
+          appIcon: 'Sparkles',
+          title: t('musiccreator.notify.songReadyTitle'),
+          message: t('musiccreator.notify.songReadyBody', { title: newTrack.title }),
+          isRead: false,
+        });
+      }
       setPhase('idle');
       setProgress(0);
     } catch (e) {
@@ -3401,8 +4409,9 @@ export default function MusicCreator() {
       generatingRef.current = false;
     }
   }, [
-    endpoint, theme, lyrics, songName, style, specs, instrumental, mode, refAudioBase64, t,
+    endpoint, theme, lyrics, songName, style, specs, activeTemplate, instrumental, mode, refAudioBase64, t,
     saveTrack, creatorSettings, mirrorAudioToVfs, mirrorLyricsToVfs, addNotification,
+    coverAuto, coverDataUrl, coverPrompt,
   ]);
 
   const handleRefAudioPick = () => refFileInputRef.current?.click();
@@ -3620,9 +4629,328 @@ export default function MusicCreator() {
     setPhase('idle');
   };
 
-  const insertTemplate = (tpl: string) => {
-    setLyrics((cur) => cur ? `${cur}\n${tpl}` : tpl);
-  };
+  // Generic chat-completions assistant. Every AI button on this
+  // workspace routes through this. Defensive design:
+  //  - 429 on the primary chat model → fall through to other chat-
+  //    capable models in `endpoint.models.allIds` until one
+  //    succeeds (so a daily-quota cap on `ail-compound` doesn't
+  //    block the entire app).
+  //  - No automatic retry on empty content — that doubled the
+  //    request rate and burned through quotas during dev. The
+  //    empty case now throws a clear error and the user re-clicks
+  //    if they want another roll.
+  //  - Tries multiple response shapes (some MiniMax/legacy chat-
+  //    compat APIs expose `text` or `delta.content` instead of
+  //    `message.content`).
+  //  - Single in-flight request per button (callers gate on aiBusy).
+  const callAIAssist = useCallback(async (
+    systemPrompt: string,
+    userPayload: unknown,
+    opts?: { temperature?: number; maxTokens?: number; signal?: AbortSignal },
+  ): Promise<string> => {
+    if (!endpoint) throw new Error('No endpoint connected');
+
+    // Pull text out of whatever shape the upstream returns.
+    type ChoiceLike = {
+      message?: { content?: string | null };
+      delta?: { content?: string | null };
+      text?: string | null;
+    };
+    const extractContent = (data: unknown): string => {
+      const d = data as { choices?: ChoiceLike[]; output_text?: string };
+      const c = d.choices?.[0];
+      const candidates: Array<string | null | undefined> = [
+        c?.message?.content,
+        c?.delta?.content,
+        c?.text,
+        d.output_text,
+      ];
+      for (const v of candidates) {
+        if (typeof v === 'string' && v.trim().length > 0) return v.trim();
+      }
+      return '';
+    };
+
+    // Build the chat-model pool the same way the lyrics fallback does
+    // (lyricsBackup first, then anything chat-shaped). Excludes
+    // music/cover/tts/stt/embed/image/diffusion/rerank.
+    const isChatty = (id: string) =>
+      !/music|cover|tts|stt|transcribe|whisper|embed|image|diffusion|dall-?e|flux|sdxl|rerank/i.test(id);
+    const seen = new Set<string>();
+    const tryOrder: string[] = [];
+    const pushUniq = (id: string | null | undefined) => {
+      if (id && !seen.has(id)) { seen.add(id); tryOrder.push(id); }
+    };
+    pushUniq(endpoint.models.lyricsBackup);
+    endpoint.models.allIds.filter(isChatty).forEach(pushUniq);
+    if (tryOrder.length === 0) {
+      throw new Error('No chat model available on this endpoint. Pick a different connection in Settings.');
+    }
+
+    const userMsg = typeof userPayload === 'string' ? userPayload : JSON.stringify(userPayload);
+    const baseTemp = opts?.temperature ?? 0.5;
+    const maxTokens = Math.max(opts?.maxTokens ?? 800, 400);
+    // Per-call wall-clock cap. Lyrics path uses 60s; chat assists are
+    // shorter prompts so 45s is comfortable but doesn't let a stuck
+    // gateway lock the AI button forever (the original bug).
+    const ASSIST_TIMEOUT_MS = 45_000;
+
+    return tryWithModelFallback(tryOrder, async (modelId) => {
+      const t = withTimeout(opts?.signal, ASSIST_TIMEOUT_MS);
+      let r: Response;
+      try {
+        r = await fetch(`${endpoint.url}/chat/completions`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${endpoint.apiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: modelId,
+            messages: [
+              { role: 'system', content: systemPrompt },
+              { role: 'user', content: userMsg },
+            ],
+            temperature: baseTemp,
+            max_tokens: maxTokens,
+          }),
+          signal: t.signal,
+        });
+      } catch (e) {
+        if ((e as Error).name === 'TimeoutError') {
+          throw new Error(`AI assist timed out after ${ASSIST_TIMEOUT_MS / 1000}s.`);
+        }
+        throw e;
+      } finally {
+        t.dispose();
+      }
+      if (!r.ok) {
+        const errBody = await r.text().catch(() => '');
+        throw new GatewayError(r.status, errBody, `AI assist HTTP ${r.status}: ${errBody.slice(0, 200)}`);
+      }
+      const rawJson = await r.json();
+      const content = extractContent(rawJson);
+      if (!content) {
+        // Empty content gets retried as a 502 so the next chat model
+        // gets a shot — same shape as a transient gateway error.
+        console.warn('[Juli3ta] empty AI assist content from', modelId, rawJson);
+        throw new GatewayError(502, '', `Model "${modelId}" returned empty content`);
+      }
+      return content.replace(/^```(?:json)?\s*/, '').replace(/\s*```$/, '');
+    }, 'chat-assist');
+  }, [endpoint]);
+
+  // AI-driven Track Specs optimizer. Sends the current Theme + Style
+  // + Lyrics + existing specs JSON to a chat-completions model on the
+  // active endpoint and asks for an optimal full TrackSpecs JSON
+  // back. Merges the response into the specs panel — user can still
+  // edit any field after, and Clear All resets to empty.
+  const optimizeSpecs = useCallback(async () => {
+    if (!endpoint) return;
+    setOptimizingSpecs(true);
+    setError(null);
+    try {
+      const sys = `You are a music-production assistant. Given a theme, style, and (optionally) lyrics, return ONE JSON object that fills in optimal Track Specs for the song.
+
+Output schema (every field optional, OMIT fields you can't infer confidently):
+{
+  "structure": {
+    "tempo_bpm": 40-260,
+    "tempo_class": "very_slow"|"slow"|"medium"|"fast"|"very_fast",
+    "time_signature": "3/4"|"4/4"|"6/8"|"7/8"|"5/4"|"other",
+    "rhythm_feel": "straight"|"swing"|"shuffled"|"syncopated"|"polyrhythmic"|"free",
+    "groove_pattern": "four_on_the_floor"|"halftime"|"doubletime"|"broken_beat"|"backbeat"|"free",
+    "song_form": "verse_chorus"|"aaba"|"drop_based"|"loop_based"|"through_composed"|"strophic",
+    "length_seconds": 10-600
+  },
+  "tonal": { "key": "C"|"Db"|...|"B", "mode": "major"|"minor"|"dorian"|"mixolydian"|"phrygian"|"lydian"|"locrian" },
+  "instrumentation": {
+    "primary_instruments": ["drums_acoustic","drum_machine","percussion","bass_electric","bass_synth","bass_upright","electric_guitar","acoustic_guitar","piano","keys_synth","organ","strings","brass","woodwinds","synth_pad","synth_lead","pluck_synth","fx","lead_vocal","choir"],
+    "has_vocals": true|false,
+    "vocal_style": ["sung"|"rap"|"spoken_word"|"chant"|"choir"|"vocoder"],
+    "vocal_gender": "male"|"female"|"mixed"|"other"|"none",
+    "vocal_processing": ["dry"|"reverb"|"delay"|"autotune_light"|"autotune_heavy"|"distortion"|"chorus"|"double_tracked"],
+    "language_iso639_1": "en"|"es"|...
+  },
+  "dynamics": {
+    "overall_dynamic_range": "narrow"|"medium"|"wide",
+    "has_big_drops": true|false,
+    "crescendo_shape": "none"|"gradual"|"sudden"
+  },
+  "mood": {
+    "primary_moods": ["happy"|"uplifting"|"dark"|"melancholic"|"dreamy"|"chill"|"epic"|"romantic"|"energetic"|"aggressive"],
+    "emotional_intensity": "low"|"medium"|"high",
+    "occasion_tags": ["party"|"club"|"study"|"sleep"|"workout"|"background"|"focus"|"film_trailer"|"game"|"kids"|"holiday_christmas"]
+  },
+  "context": {
+    "era_reference": "60s"|"70s"|"80s"|"90s"|"2000s"|"2010s"|"2020s"|"timeless",
+    "cultural_region": "global"|"us_uk"|"latin"|"afrobeats_scene"|"kpop_scene"|"jpop_scene"|"caribbean"|"middle_east"|"asia_other"|"europe_other",
+    "explicit_lyrics": true|false,
+    "intended_use": ["background"|"featured_listen"|"sync_film"|"sync_ad"|"game"|"live_show_intro"]
+  }
+}
+
+Return ONLY the JSON. No markdown, no explanation, no code fences.`;
+      aiAbortRef.current?.abort();
+      aiAbortRef.current = new AbortController();
+      const stripped = await callAIAssist(sys, {
+        theme: theme || null,
+        style: style || null,
+        lyrics: lyrics ? lyrics.slice(0, 1500) : null,
+        existing_specs: countSetSpecs(specs) > 0 ? specs : null,
+      }, { temperature: 0.4, signal: aiAbortRef.current.signal });
+      let parsed: TrackSpecs;
+      try {
+        parsed = JSON.parse(stripped) as TrackSpecs;
+      } catch {
+        throw new Error(`Optimize returned non-JSON: ${stripped.slice(0, 160)}`);
+      }
+      // Preserve the user's free-form lyrics intent — the optimizer's
+      // schema doesn't include it, so a naive overwrite would wipe
+      // whatever the user typed in the Lyrics Direction field.
+      setSpecs((prev) => ({ ...parsed, intent: prev.intent }));
+    } catch (e) {
+      setError((e as Error).message || 'Optimize failed.');
+    } finally {
+      setOptimizingSpecs(false);
+    }
+  }, [endpoint, theme, style, lyrics, specs, callAIAssist]);
+
+  // Three text-driven AI assists. Each shares the same in-flight ref
+  // so a single button at a time is active and we can show a spinner
+  // on whichever is running. callAIAssist normalizes the chat call.
+  const [aiBusy, setAiBusy] = useState<null | 'theme' | 'style' | 'lyrics'>(null);
+
+  // Cover-art regenerate. Uses coverPrompt if set, otherwise derives
+  // one from title/theme/style. Same multi-model fallback discipline
+  // as the lyrics path: if image is rate-limited we surface the error
+  // so the user can retry, but we don't auto-retry (to avoid quota
+  // multipliers like the 100-request burst we hit on lyrics retry).
+  const regenerateCover = useCallback(async () => {
+    if (!endpoint) return;
+    if (!endpoint.models.image) {
+      setError(`This endpoint (${endpoint.label}) doesn't expose an image model. Pick one in Settings → Cover art, or upload your own image.`);
+      return;
+    }
+    // Concurrency guard — rapid double-clicks would otherwise fire
+    // parallel image calls and last-writer-wins clobbers coverDataUrl.
+    if (coverBusy) return;
+    // Reuse aiAbortRef so the unmount cleanup also kills any in-flight
+    // image gen, and a second click cancels the previous request
+    // instead of layering a new one on top.
+    aiAbortRef.current?.abort();
+    aiAbortRef.current = new AbortController();
+    const signal = aiAbortRef.current.signal;
+    setCoverBusy(true);
+    setError(null);
+    try {
+      const finalPrompt = (coverPrompt.trim() || deriveCoverPrompt(songName, theme, style)).slice(0, 1500);
+      const out = await callImageGen(endpoint, finalPrompt, signal);
+      if (signal.aborted) return;
+      setCoverDataUrl(out);
+    } catch (e) {
+      if ((e as Error).name === 'AbortError') return;
+      setError((e as Error).message || 'Cover-art generation failed.');
+    } finally {
+      setCoverBusy(false);
+    }
+  }, [endpoint, coverPrompt, songName, theme, style, coverBusy]);
+
+  // Upload-from-disk handler. Reads the file as a base64 data URL and
+  // shoves it straight into coverDataUrl so the user can ship a custom
+  // image without burning the AI quota. ≤4 MB cap to keep the SQLite
+  // row size reasonable (audio data URLs already dominate).
+  const handleCoverUpload = useCallback((file: File) => {
+    if (!file.type.startsWith('image/')) {
+      setError('That file is not an image. Pick a PNG/JPG/WebP.');
+      return;
+    }
+    if (file.size > 4 * 1024 * 1024) {
+      setError('Cover image is too big (limit 4 MB). Try a smaller file.');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onerror = () => setError('Could not read that image file.');
+    reader.onload = () => {
+      const result = reader.result;
+      if (typeof result === 'string' && result.startsWith('data:image/')) {
+        setCoverDataUrl(result);
+      }
+    };
+    reader.readAsDataURL(file);
+  }, []);
+
+  const inspireTheme = useCallback(async () => {
+    if (aiBusy) return;
+    setAiBusy('theme');
+    setError(null);
+    try {
+      const sys = `You are a creative songwriter. Given a Style description (genre, mood, instrumentation hints), write a vivid one-paragraph THEME for the song — a setting, a story arc, an emotional core. Keep it 2-4 sentences, evocative but specific. Plain prose only, no headers, no markdown, no quotes.`;
+      aiAbortRef.current?.abort();
+      aiAbortRef.current = new AbortController();
+      const out = await callAIAssist(sys, {
+        style: style || 'pop',
+        existing_theme: theme || null,
+      }, { temperature: 0.85, maxTokens: 200, signal: aiAbortRef.current.signal });
+      setTheme(out);
+    } catch (e) {
+      setError((e as Error).message || 'Theme inspiration failed.');
+    } finally {
+      setAiBusy(null);
+    }
+  }, [aiBusy, callAIAssist, style, theme]);
+
+  const suggestStyle = useCallback(async () => {
+    if (aiBusy) return;
+    setAiBusy('style');
+    setError(null);
+    try {
+      const sys = `You are a music-production assistant. Given a song THEME, propose a Style description: a comma-separated list of genre + mood + tempo + instrument cues (8-12 tags). Plain text, lowercase, comma-separated, no headers, no markdown, no surrounding prose. Example: "indie folk, acoustic, melancholic, 80 bpm, fingerpicked guitar, soft female vocals, reverb-heavy".`;
+      aiAbortRef.current?.abort();
+      aiAbortRef.current = new AbortController();
+      const out = await callAIAssist(sys, {
+        theme: theme || 'a quiet evening',
+        existing_style: style || null,
+      }, { temperature: 0.7, maxTokens: 120, signal: aiAbortRef.current.signal });
+      setStyle(out.replace(/^["']|["']$/g, ''));
+    } catch (e) {
+      setError((e as Error).message || 'Style suggestion failed.');
+    } finally {
+      setAiBusy(null);
+    }
+  }, [aiBusy, callAIAssist, theme, style]);
+
+  const polishLyrics = useCallback(async () => {
+    if (aiBusy) return;
+    if (!lyrics.trim()) {
+      setError('Nothing to polish — write some lyrics first.');
+      return;
+    }
+    setAiBusy('lyrics');
+    setError(null);
+    try {
+      const sys = `You are a senior songwriter. Polish the user's lyrics for flow, rhyme, imagery, and structural balance. Preserve the user's intent and language. Keep [Verse], [Chorus], [Bridge], [Intro], [Outro], [Inst] section markers if present (or add appropriate ones). Return ONLY the polished lyrics — no commentary, no markdown, no quotes.`;
+      aiAbortRef.current?.abort();
+      aiAbortRef.current = new AbortController();
+      const out = await callAIAssist(sys, {
+        style: style || null,
+        lyrics,
+      }, { temperature: 0.6, maxTokens: 1200, signal: aiAbortRef.current.signal });
+      if (out.length > MAX_LYRICS) {
+        setError(`Polished lyrics exceeded ${MAX_LYRICS} chars (${out.length}). Trimming the original first might help.`);
+        return;
+      }
+      setLyrics(out);
+    } catch (e) {
+      setError((e as Error).message || 'Lyrics polish failed.');
+    } finally {
+      setAiBusy(null);
+    }
+  }, [aiBusy, callAIAssist, style, lyrics]);
+
+  // (insertTemplate retired — LYRIC_TEMPLATES are now structured
+  // {skeleton, prompt} objects and the click handler lives in the
+  // template-chip render so it can also flip activeTemplate.)
 
   const addStyleChip = (chip: string) => {
     setStyle((s) => s ? `${s}, ${chip.toLowerCase()}` : chip.toLowerCase());
@@ -3649,6 +4977,42 @@ export default function MusicCreator() {
     void deleteTrackRow(id).catch((e: unknown) => console.warn('Track delete failed:', e));
   }, []);
 
+  // Rename a saved track inline. Optimistic UI: in-memory gallery
+  // updates first so the row reflects the new name immediately; the
+  // SQLite write settles in the background. If the write fails, surface
+  // a banner — the next reload would resurrect the old name otherwise
+  // and the user would silently lose the edit.
+  const renameTrack = useCallback(async (id: string, nextTitle: string) => {
+    const trimmed = nextTitle.trim().slice(0, 200) || 'Untitled';
+    setGallery((g) => g.map((tr) => (tr.id === id ? { ...tr, title: trimmed } : tr)));
+    try {
+      await renameTrackRow(id, trimmed);
+      setGalleryError(null);
+    } catch (e) {
+      const msg = (e as Error).message || 'Database write failed';
+      setGalleryError(`Couldn't rename track — ${msg}.`);
+    }
+  }, []);
+
+  // Update a saved track's album-cover-art. Same optimistic pattern as
+  // renameTrack — UI updates immediately, DB settles in the background.
+  // Empty string = clear the cover (revert to gradient placeholder).
+  const setTrackCover = useCallback(async (id: string, nextCover: string) => {
+    setGallery((g) => g.map((tr) => (tr.id === id ? { ...tr, coverDataUrl: nextCover } : tr)));
+    try {
+      await updateTrackCoverRow(id, nextCover);
+      setGalleryError(null);
+    } catch (e) {
+      const msg = (e as Error).message || 'Database write failed';
+      setGalleryError(`Couldn't save cover art — ${msg}.`);
+    }
+  }, []);
+
+  // Modal state: which saved track's cover the user is editing. Null
+  // means closed. Keeping state at the parent so a re-render of the
+  // sidebar (e.g. after rename) doesn't wipe the modal.
+  const [coverEditTrack, setCoverEditTrack] = useState<SavedTrack | null>(null);
+
   // Load a saved track back into the form so the user can edit/remix
   // without retyping. Strips the "(lyrics)" / "(cover)" suffix we add
   // at save time so the title round-trips cleanly. Picks a sensible
@@ -3657,7 +5021,7 @@ export default function MusicCreator() {
   const loadTrack = useCallback((track: SavedTrack) => {
     setLyrics(track.lyricsPreview ?? '');
     setStyle(track.styleTags && track.styleTags !== '—' ? track.styleTags : '');
-    const cleanTitle = track.title.replace(/\s*\((lyrics|cover)\)\s*$/, '');
+    const cleanTitle = track.title.replace(/\s*\((lyrics|cover|restyle)\)\s*$/, '');
     setSongName(cleanTitle);
     setInstrumental(false);
     // Round-trip the structured specs panel. Treat parse errors
@@ -3669,6 +5033,12 @@ export default function MusicCreator() {
     } else {
       setSpecs({});
     }
+    // Hydrate cover-art state. coverDataUrl rides on the track row; the
+    // prompt isn't persisted (it can drift from the title), so we leave
+    // it empty and the Edit prompt textarea will show the freshly-derived
+    // auto-prompt as its placeholder.
+    setCoverDataUrl(track.coverDataUrl ?? '');
+    setCoverPrompt('');
     if (!track.audioDataUrl) setMode('lyricsOnly');
     else setMode('compose');
   }, []);
@@ -3738,13 +5108,13 @@ export default function MusicCreator() {
 
   const saveSongToDesktop = useCallback((track: SavedTrack) => {
     if (!track.audioDataUrl) return;
-    const baseName = sanitizeFileName(track.title.replace(/\s*\((lyrics|cover)\)\s*$/, ''));
+    const baseName = sanitizeFileName(track.title.replace(/\s*\((lyrics|cover|restyle)\)\s*$/, ''));
     placeDesktopFile(`${baseName}.mp3`, '', { mimeType: 'audio/mpeg', refTrackId: track.id }, track.id);
   }, [placeDesktopFile]);
 
   const saveLyricsToDesktop = useCallback((track: SavedTrack) => {
     if (!track.lyricsPreview) return;
-    const baseName = sanitizeFileName(track.title.replace(/\s*\((lyrics|cover)\)\s*$/, ''));
+    const baseName = sanitizeFileName(track.title.replace(/\s*\((lyrics|cover|restyle)\)\s*$/, ''));
     placeDesktopFile(`${baseName}.lyrics.txt`, track.lyricsPreview, { mimeType: 'text/plain' }, `${track.id}-lyrics`);
   }, [placeDesktopFile]);
 
@@ -3776,7 +5146,7 @@ export default function MusicCreator() {
     if (payload && payload.lyricsPreview) {
       e.preventDefault();
       setLyrics(payload.lyricsPreview);
-      const cleanTitle = payload.title.replace(/\s*\((lyrics|cover)\)\s*$/, '');
+      const cleanTitle = payload.title.replace(/\s*\((lyrics|cover|restyle)\)\s*$/, '');
       if (!songName.trim() && cleanTitle) setSongName(cleanTitle);
       if (!style.trim() && payload.styleTags && payload.styleTags !== '—') setStyle(payload.styleTags);
       return;
@@ -3797,7 +5167,7 @@ export default function MusicCreator() {
     if (payload) {
       e.preventDefault();
       // Theme = creative brief. Use the title + style as a hint.
-      const cleanTitle = payload.title.replace(/\s*\((lyrics|cover)\)\s*$/, '');
+      const cleanTitle = payload.title.replace(/\s*\((lyrics|cover|restyle)\)\s*$/, '');
       const text = payload.styleTags && payload.styleTags !== '—'
         ? `Inspired by "${cleanTitle}" — ${payload.styleTags}`
         : `Inspired by "${cleanTitle}"`;
@@ -3809,7 +5179,7 @@ export default function MusicCreator() {
     const payload = readTrackPayload(e);
     if (payload) {
       e.preventDefault();
-      setSongName(payload.title.replace(/\s*\((lyrics|cover)\)\s*$/, ''));
+      setSongName(payload.title.replace(/\s*\((lyrics|cover|restyle)\)\s*$/, ''));
     }
   }, [readTrackPayload]);
 
@@ -3836,9 +5206,9 @@ export default function MusicCreator() {
         id: 'song',
         label: 'Song',
         items: [
-          { id: 'new', label: 'New Song', onSelect: () => { setMode('compose'); setTheme(''); setLyrics(''); setStyle(''); setSongName(''); setSpecs({}); } },
+          { id: 'new', label: 'New Song', onSelect: () => { setMode('compose'); setTheme(''); setLyrics(''); setStyle(''); setSongName(''); setSpecs({}); setActiveTemplate(null); setInstrumental(false); setCoverDataUrl(''); setCoverPrompt(''); setCoverPromptOpen(false); } },
           { id: 'surprise', label: 'Surprise me…', onSelect: () => surpriseMe() },
-          { id: 'mode-cover', label: 'Cover Mode', onSelect: () => setMode('cover') },
+          { id: 'mode-restyle', label: 'Restyle Mode', onSelect: () => setMode('restyle') },
           { id: 'mode-lyrics', label: 'Lyrics Only Mode', onSelect: () => setMode('lyricsOnly') },
         ],
       },
@@ -4038,6 +5408,7 @@ export default function MusicCreator() {
                 onLoad={loadTrack}
                 onOpenLyrics={openLyricsInEditor}
                 onDelete={deleteTrack}
+                onRename={renameTrack}
               />
             ) : (
               visibleGallery.map((track) => (
@@ -4050,6 +5421,8 @@ export default function MusicCreator() {
                   onSaveSongToDesktop={saveSongToDesktop}
                   onSaveLyricsToDesktop={saveLyricsToDesktop}
                   onPlayInPlayer={playTrackInPlayer}
+                  onRename={renameTrack}
+                  onEditCover={setCoverEditTrack}
                   player={player}
                 />
               ))
@@ -4158,17 +5531,21 @@ export default function MusicCreator() {
             borderBottom: '1px solid var(--border-subtle)',
           }}
         >
+          {/* Mode tabs. "Restyle" replaced "Cover" because users were
+              confusing it with album cover art (which is now a separate
+              first-class panel below). Wand icon reads as "transform"
+              not "image". */}
           {([
-            { id: 'compose' as Mode, label: '🎵 Song', tip: 'Theme → lyrics → music' },
-            { id: 'cover' as Mode,   label: '🎨 Cover', tip: 'Reference audio → restyle' },
-            { id: 'lyricsOnly' as Mode, label: '✍️ Lyrics', tip: 'Words only, no audio' },
+            { id: 'compose' as Mode, icon: <Music2 size={13} />, label: 'Song', tip: 'Theme → lyrics → music' },
+            { id: 'restyle' as Mode, icon: <Wand2 size={13} />, label: 'Restyle', tip: 'Re-sing your song in the style of a reference track' },
+            { id: 'lyricsOnly' as Mode, icon: <NotebookText size={13} />, label: 'Lyrics', tip: 'Words only, no audio' },
           ]).map((m) => (
             <button
               key={m.id}
               onClick={() => setMode(m.id)}
               disabled={busy}
               title={m.tip}
-              className="px-4 rounded-lg transition-all disabled:opacity-50"
+              className="flex items-center gap-1.5 px-4 rounded-lg transition-all disabled:opacity-50"
               style={{
                 height: 32,
                 fontSize: 12,
@@ -4180,6 +5557,7 @@ export default function MusicCreator() {
                 border: mode === m.id ? '1px solid transparent' : '1px solid var(--border-subtle)',
               }}
             >
+              {m.icon}
               {m.label}
             </button>
           ))}
@@ -4214,8 +5592,8 @@ export default function MusicCreator() {
                 }}
               >
                 <Wand2 size={13} />
-                {mode === 'cover'
-                  ? 'Create Cover'
+                {mode === 'restyle'
+                  ? 'Restyle Song'
                   : mode === 'lyricsOnly'
                     ? 'Write Lyrics'
                     : t('musiccreator.button.create')}
@@ -4258,31 +5636,36 @@ export default function MusicCreator() {
             onDrop={handleSongNameDrop}
             placeholder={t('musiccreator.songName.placeholder')}
             disabled={busy}
-            className="flex-1 px-2 py-1 rounded-md focus:outline-none disabled:opacity-50"
+            className="flex-1 px-2.5 py-1 rounded-md focus:outline-none focus:ring-1 disabled:opacity-50"
             style={{
               fontSize: 12,
-              background: 'transparent',
-              border: '1px solid transparent',
+              background: 'var(--bg-titlebar)',
+              border: '1px solid var(--border-subtle)',
               color: 'var(--text-primary)',
               minWidth: 0,
             }}
           />
-          {/* Instrumental toggle — was inline with the Lyrics header.
-              Pinned here next to Song Name because both are knobs that
-              affect the whole generation, not a single field. */}
-          <label
-            htmlFor="juli3ta-instrumental"
-            className="flex items-center gap-2 cursor-pointer select-none flex-shrink-0"
-            style={{ fontSize: 11, color: 'var(--text-secondary)' }}
-          >
-            {t('musiccreator.lyrics.instrumental')}
-            <Switch
-              id="juli3ta-instrumental"
-              checked={instrumental}
-              onCheckedChange={setInstrumental}
-              disabled={busy}
-            />
-          </label>
+          {/* Instrumental toggle — pinned next to Song Name because
+              it's a generation-wide knob, not a per-field setting.
+              Hidden in lyrics-only mode where vocals are required
+              by definition (toggling it would only confuse). Uses
+              the in-house TytusToggle because the shadcn Switch
+              renders transparent on bg-window backgrounds. */}
+          {mode !== 'lyricsOnly' && (
+            <label
+              htmlFor="juli3ta-instrumental"
+              className="flex items-center gap-2 cursor-pointer select-none flex-shrink-0"
+              style={{ fontSize: 11, color: 'var(--text-secondary)' }}
+            >
+              {t('musiccreator.lyrics.instrumental')}
+              <TytusToggle
+                id="juli3ta-instrumental"
+                checked={instrumental}
+                onChange={setInstrumental}
+                disabled={busy}
+              />
+            </label>
+          )}
         </div>
 
         {/* Status bar — unified zone for progress, tips, and errors.
@@ -4367,8 +5750,8 @@ export default function MusicCreator() {
         <div className="flex-1 overflow-y-auto invisible-scrollbar">
         <div className="px-6 py-5">
 
-        {/* Cover-mode reference-audio dropper (full width) */}
-        {mode === 'cover' && (
+        {/* Restyle-mode reference-audio dropper (full width) */}
+        {mode === 'restyle' && (
           <div
             className="mb-5"
             onDragOver={(e) => {
@@ -4789,13 +6172,22 @@ export default function MusicCreator() {
             position) so the rhythm reads as a uniform grid. Lyrics
             spans full-width below because the editor needs the room. */}
         <div
-          className="grid gap-4 mb-4"
+          className="grid gap-5 mb-5"
           style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))' }}
         >
           {/* Theme */}
           <FieldCard
             label={t('musiccreator.theme.label')}
             hint={t('musiccreator.theme.hint')}
+            headerExtra={
+              <AIAssistButton
+                label="Inspire"
+                tooltip="Use AI to write a theme based on your Style"
+                onClick={inspireTheme}
+                busy={aiBusy === 'theme'}
+                disabled={busy || aiBusy !== null}
+              />
+            }
           >
             <textarea
               value={theme}
@@ -4823,6 +6215,15 @@ export default function MusicCreator() {
             label={t('musiccreator.style.label')}
             counter={`${styleCount} / ${MAX_STYLE}`}
             hint="Type freely or pick from the genre palette below."
+            headerExtra={
+              <AIAssistButton
+                label="Suggest"
+                tooltip="Use AI to suggest a Style from your Theme"
+                onClick={suggestStyle}
+                busy={aiBusy === 'style'}
+                disabled={busy || aiBusy !== null}
+              />
+            }
           >
             <textarea
               value={style}
@@ -4843,35 +6244,253 @@ export default function MusicCreator() {
           </FieldCard>
         </div>
 
-        {/* Genre palette — full-width, grouped, collapsible. Default
-            collapsed to a compact "current category + browse all" so the
-            form rhythm stays tight; expanded shows every group at once.
-            5-year-old-friendly: kids can scan all chips when expanded. */}
-        <GenrePaletteCard onPick={addStyleChip} disabled={busy} />
+        {/* Genre palette + Track Specs — full-width interactive
+            surfaces. Hidden in Lyrics-only mode because lyrics
+            generation doesn't use musical structure or chip-driven
+            genre cues; that mode is laser-focused on theme → text. */}
+        {mode !== 'lyricsOnly' && (
+          <div className="flex flex-col gap-4 mb-5">
+            <GenrePaletteCard onPick={addStyleChip} disabled={busy} />
+            <TrackSpecsCard
+              specs={specs}
+              onChange={setSpecs}
+              disabled={busy}
+              onOptimize={optimizeSpecs}
+              optimizing={optimizingSpecs}
+            />
+          </div>
+        )}
 
-        {/* Structured Track Specs — collapsed by default. When fields
-            are set, compileSpecsToText folds them into the prompt at
-            generation time so the user can either type freely OR use
-            the structured controls (or both). */}
-        <div className="mt-3">
-          <TrackSpecsCard specs={specs} onChange={setSpecs} disabled={busy} />
-        </div>
+        {/* Cover Art — first-class album-cover panel. Auto checkbox =
+            generate at save time using title + theme + style. Edit
+            prompt = user-overridable. Regenerate / Upload / Clear are
+            the manual escape hatches. Lives in its own card so the
+            user reads it as "this is the album cover", not Restyle
+            (which is now the audio style-transfer mode). */}
+        <FieldCard
+          label="Cover Art"
+          hint={endpoint?.models.image
+            ? 'Auto-generated when you create the song. Override the prompt or upload your own image.'
+            : 'No image model on this endpoint — pick one in Settings → Cover art, or upload your own image below.'}
+          className="mb-5"
+          headerExtra={
+            <label className="flex items-center gap-2 cursor-pointer select-none" style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
+              Auto-generate
+              <TytusToggle
+                checked={coverAuto}
+                onChange={setCoverAuto}
+                disabled={busy || !endpoint?.models.image}
+              />
+            </label>
+          }
+        >
+          <div className="flex gap-3">
+            {/* Thumbnail. 88px square — matches the sidebar rail aesthetic
+                without dominating the form. Click → upload (cheap path);
+                gradient placeholder when no art yet. */}
+            <button
+              type="button"
+              onClick={() => coverFileInputRef.current?.click()}
+              disabled={busy}
+              className="relative flex-shrink-0 rounded-lg overflow-hidden transition-all hover:opacity-90 disabled:opacity-50"
+              style={{
+                width: 88,
+                height: 88,
+                background: coverDataUrl
+                  ? `url(${coverDataUrl}) center/cover no-repeat`
+                  : 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))',
+                border: '1px solid var(--border-subtle)',
+                cursor: busy ? 'not-allowed' : 'pointer',
+              }}
+              title={coverDataUrl ? 'Click to upload a different image' : 'Click to upload an image, or use Generate below'}
+            >
+              {!coverDataUrl && (
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <ImageIcon size={28} style={{ color: 'white', opacity: 0.85 }} />
+                </div>
+              )}
+              {coverBusy && (
+                <div
+                  className="absolute inset-0 flex items-center justify-center"
+                  style={{ background: 'rgba(0,0,0,0.5)' }}
+                >
+                  <Loader2 size={20} className="animate-spin" style={{ color: 'white' }} />
+                </div>
+              )}
+            </button>
+            {/* Action stack — Generate / Upload / Clear / Edit prompt.
+                Wraps so the form stays usable on narrow windows. */}
+            <div className="flex-1 min-w-0 flex flex-col gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={regenerateCover}
+                  disabled={busy || coverBusy || !endpoint?.models.image}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all disabled:opacity-40"
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 600,
+                    color: 'white',
+                    background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))',
+                    border: '1px solid transparent',
+                    cursor: (busy || coverBusy || !endpoint?.models.image) ? 'not-allowed' : 'pointer',
+                  }}
+                  title={endpoint?.models.image ? 'Generate cover art from the prompt below' : 'No image model available'}
+                >
+                  {coverBusy
+                    ? <Loader2 size={11} className="animate-spin" />
+                    : <Sparkles size={11} />}
+                  {coverDataUrl ? 'Regenerate' : 'Generate'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => coverFileInputRef.current?.click()}
+                  disabled={busy}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all disabled:opacity-40 hover:bg-[var(--bg-hover)]"
+                  style={{
+                    fontSize: 11,
+                    color: 'var(--text-secondary)',
+                    background: 'var(--bg-titlebar)',
+                    border: '1px solid var(--border-subtle)',
+                  }}
+                  title="Upload your own image (PNG/JPG/WebP, max 4 MB)"
+                >
+                  <Upload size={11} />
+                  Upload
+                </button>
+                {coverDataUrl && (
+                  <button
+                    type="button"
+                    onClick={() => setCoverDataUrl('')}
+                    disabled={busy}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all disabled:opacity-40 hover:bg-[var(--bg-hover)]"
+                    style={{
+                      fontSize: 11,
+                      color: 'var(--text-disabled)',
+                      background: 'var(--bg-titlebar)',
+                      border: '1px solid var(--border-subtle)',
+                    }}
+                    title="Remove the cover and fall back to the gradient placeholder"
+                  >
+                    <X size={11} />
+                    Clear
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setCoverPromptOpen((v) => !v)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all hover:bg-[var(--bg-hover)] ml-auto"
+                  style={{
+                    fontSize: 10,
+                    color: 'var(--text-disabled)',
+                    background: 'transparent',
+                    border: '1px solid transparent',
+                  }}
+                  title="Edit the cover-art prompt"
+                >
+                  {coverPromptOpen ? <ChevronUp size={11} /> : <Pencil size={11} />}
+                  {coverPromptOpen ? 'Hide prompt' : 'Edit prompt'}
+                </button>
+              </div>
+              {/* Prompt textarea — collapsible. Placeholder = the
+                  derived auto-prompt so the user can see what we'd
+                  send if they typed nothing. Editing here only affects
+                  manual Generate / Regenerate; the auto-at-save path
+                  re-derives at save time so a stale prompt doesn't
+                  surprise the user after they edited the title. */}
+              {coverPromptOpen && (
+                <textarea
+                  value={coverPrompt}
+                  onChange={(e) => setCoverPrompt(e.target.value)}
+                  placeholder={deriveCoverPrompt(songName, theme, style)}
+                  disabled={busy}
+                  rows={3}
+                  className="w-full px-3 py-2 rounded-lg resize-none focus:outline-none disabled:opacity-50"
+                  style={{
+                    fontSize: 11,
+                    background: 'var(--bg-window)',
+                    border: '1px solid var(--border-subtle)',
+                    color: 'var(--text-primary)',
+                  }}
+                />
+              )}
+            </div>
+          </div>
+          {/* Hidden file input wired to both the thumbnail and Upload
+              button. Resets value after each pick so the same file can
+              be selected twice in a row (browser quirk). */}
+          <input
+            ref={coverFileInputRef}
+            type="file"
+            accept="image/png,image/jpeg,image/webp,image/gif"
+            style={{ display: 'none' }}
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) handleCoverUpload(file);
+              e.target.value = '';
+            }}
+          />
+        </FieldCard>
+
+        {/* Lyrics Direction — free-form intent prompt. Sits above the
+            lyrics editor because it's about HOW the lyrics should read
+            (perspective, language, taboo lines, cultural references)
+            whereas Theme is the WHAT. Persists per-track via the specs
+            blob (no schema bump needed) so reloading a track restores
+            the direction it was generated with. Hidden in cover mode
+            because cover-of-existing-track flow doesn't write lyrics. */}
+        {mode !== 'restyle' && !instrumental && (
+          <FieldCard
+            label="Lyrics Direction"
+            hint="Free-form direction for the lyrics — perspective, language, taboo lines, references. Sent to the AI alongside Theme and the song form below."
+            className="mb-5"
+            counter={(specs.intent ?? '').length > 0 ? `${(specs.intent ?? '').length} chars` : undefined}
+          >
+            <textarea
+              value={specs.intent ?? ''}
+              onChange={(e) => setSpecs((s) => ({ ...s, intent: e.target.value }))}
+              placeholder='e.g. "first-person, mostly Spanish with one English chorus, mention rain, no clichés"'
+              disabled={busy}
+              rows={2}
+              className="w-full px-3 py-2 rounded-lg resize-none focus:outline-none disabled:opacity-50"
+              style={{
+                fontSize: 11,
+                background: 'var(--bg-window)',
+                border: '1px solid var(--border-subtle)',
+                color: 'var(--text-primary)',
+              }}
+            />
+          </FieldCard>
+        )}
 
         {/* Lyrics — full width so the editor breathes. The Instrumental
             toggle moved to the workspace metadata strip (below mode tabs)
             so Lyrics owns this zone uncluttered. */}
         <FieldCard
           label={t('musiccreator.lyrics.label')}
-          counter={`${lyricsCount} / ${MAX_LYRICS}`}
-          counterDanger={lyricsCount > MAX_LYRICS}
-          className="mb-4"
+          counter={instrumental ? 'instrumental — no vocals' : `${lyricsCount} / ${MAX_LYRICS}`}
+          counterDanger={!instrumental && lyricsCount > MAX_LYRICS}
+          className="mb-5"
+          headerExtra={
+            !instrumental ? (
+              <AIAssistButton
+                label="Polish"
+                tooltip="Use AI to refine flow, rhyme, and structure"
+                onClick={polishLyrics}
+                busy={aiBusy === 'lyrics'}
+                disabled={busy || aiBusy !== null || !lyrics.trim()}
+              />
+            ) : undefined
+          }
         >
           <textarea
             value={lyrics}
             onChange={(e) => setLyrics(e.target.value)}
             onDragOver={acceptDrag}
             onDrop={handleLyricsDrop}
-            placeholder={t('musiccreator.lyrics.placeholder')}
+            placeholder={instrumental
+              ? '🎻 Instrumental mode — turn off the toggle above to write lyrics'
+              : t('musiccreator.lyrics.placeholder')}
             disabled={busy || instrumental}
             rows={8}
             className="w-full px-3 py-2 rounded-lg resize-none focus:outline-none disabled:opacity-50 font-mono"
@@ -4882,19 +6501,67 @@ export default function MusicCreator() {
               color: 'var(--text-primary)',
             }}
           />
-          <div className="flex items-center gap-1 mt-2">
-            {LYRIC_TEMPLATES.map((tpl, i) => (
-              <button
-                key={i}
-                onClick={() => insertTemplate(tpl)}
-                disabled={busy}
-                className="px-2 py-0.5 rounded-md transition-all hover:bg-[var(--bg-hover)] disabled:opacity-40"
-                style={{ fontSize: 10, color: 'var(--text-secondary)' }}
-                title={t('musiccreator.lyrics.templateTitle')}
-              >
-                + {t('musiccreator.lyrics.template', { n: i + 1 })}
-              </button>
-            ))}
+          {/* Song-form templates. A click does two things at once:
+              - Inserts the empty section skeleton into the lyrics
+                editor so hand-writing has scaffolding.
+              - Selects the template, so when the user clicks
+                Write Lyrics / Create Song the LLM gets the
+                structure prompt and produces lyrics that actually
+                fit the form. Clicking the active template again
+                deselects it (returns to "let model choose" mode).
+              The active template gets the accent gradient so the
+              user can see at a glance which form is "armed". */}
+          <div className="flex items-center gap-1 mt-2 flex-wrap">
+            <span
+              style={{
+                fontSize: 9,
+                fontWeight: 600,
+                color: 'var(--text-disabled)',
+                textTransform: 'uppercase',
+                letterSpacing: 0.5,
+                marginRight: 4,
+              }}
+            >
+              Song form
+            </span>
+            {LYRIC_TEMPLATES.map((tpl) => {
+              const active = activeTemplate?.id === tpl.id;
+              return (
+                <button
+                  key={tpl.id}
+                  onClick={() => {
+                    if (active) {
+                      setActiveTemplate(null);
+                    } else {
+                      setActiveTemplate(tpl);
+                      // Only paste the skeleton when the editor is
+                      // empty — pre-existing lyrics get respected so
+                      // re-clicking a template doesn't nuke work.
+                      if (!lyrics.trim()) setLyrics(tpl.skeleton);
+                    }
+                  }}
+                  disabled={busy}
+                  className="px-2 py-0.5 rounded-full transition-all disabled:opacity-40"
+                  style={{
+                    fontSize: 10,
+                    fontWeight: active ? 600 : 500,
+                    color: active ? 'white' : 'var(--text-secondary)',
+                    background: active
+                      ? 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))'
+                      : 'var(--bg-titlebar)',
+                    border: '1px solid var(--border-subtle)',
+                  }}
+                  title={tpl.description + (active ? ' · click to clear' : ' · click to use this form')}
+                >
+                  {active ? '✓ ' : ''}{tpl.label}
+                </button>
+              );
+            })}
+            {activeTemplate && (
+              <span style={{ fontSize: 9, color: 'var(--accent-primary)', marginLeft: 4 }}>
+                AI will use this structure
+              </span>
+            )}
           </div>
         </FieldCard>
 
@@ -4937,6 +6604,18 @@ export default function MusicCreator() {
           endpoints={endpoints}
           onChange={persistSettings}
           onClose={() => setSettingsOpen(false)}
+        />
+      )}
+
+      {/* Cover-art editor for saved tracks. Closes on overlay click,
+          Esc, or Save/Cancel. Mounts via portal so it overlays the
+          whole window — matches ApiTester's modal positioning. */}
+      {coverEditTrack && (
+        <CoverArtModal
+          track={coverEditTrack}
+          endpoint={endpoint}
+          onSave={setTrackCover}
+          onClose={() => setCoverEditTrack(null)}
         />
       )}
     </div>
@@ -5078,23 +6757,29 @@ function SettingsDialog({ settings, endpoints, onChange, onClose }: SettingsDial
                     key: keyof ModelOverrides;
                     label: string;
                     discovered: string | null;
-                    kind: 'music' | 'cover' | 'lyrics' | 'chat';
+                    kind: 'music' | 'cover' | 'lyrics' | 'chat' | 'image';
                   }> = [
-                    { key: 'music',        label: 'Music',          discovered: ep.models.music,        kind: 'music' as const },
-                    { key: 'cover',        label: 'Cover',          discovered: ep.models.cover,        kind: 'cover' as const },
-                    { key: 'lyrics',       label: 'Lyrics',         discovered: ep.models.lyrics,       kind: 'lyrics' as const },
+                    { key: 'music',        label: 'Music',           discovered: ep.models.music,        kind: 'music' as const },
+                    { key: 'cover',        label: 'Restyle',         discovered: ep.models.cover,        kind: 'cover' as const },
+                    { key: 'lyrics',       label: 'Lyrics',          discovered: ep.models.lyrics,       kind: 'lyrics' as const },
                     { key: 'lyricsBackup', label: 'Lyrics fallback', discovered: ep.models.lyricsBackup, kind: 'chat' as const },
+                    { key: 'image',        label: 'Cover art',       discovered: ep.models.image,        kind: 'image' as const },
                   ];
                   // Filter the dropdown options by slot kind so users
                   // pick from the right pool: music slots see music ids,
-                  // the chat-fallback slot only sees chat-shaped ids.
+                  // image only sees image ids, chat-fallback only chat.
                   const isMusicy = (id: string) =>
                     /music|cover/i.test(id);
-                  const optionsForSlot = (kind: 'music' | 'cover' | 'lyrics' | 'chat'): readonly string[] => {
+                  const isImagey = (id: string) =>
+                    /image|diffusion|dall-?e|flux|sdxl/i.test(id);
+                  const optionsForSlot = (kind: 'music' | 'cover' | 'lyrics' | 'chat' | 'image'): readonly string[] => {
                     if (kind === 'chat') {
-                      return ep.models.allIds.filter((id) => !/music|cover|tts|stt|transcribe|whisper|embed|image/i.test(id));
+                      return ep.models.allIds.filter((id) => !/music|cover|tts|stt|transcribe|whisper|embed|image|diffusion|dall-?e|flux|sdxl/i.test(id));
                     }
-                    return ep.models.allIds.filter((id) => isMusicy(id));
+                    if (kind === 'image') {
+                      return ep.models.allIds.filter(isImagey);
+                    }
+                    return ep.models.allIds.filter(isMusicy);
                   };
                   return (
                     <div
