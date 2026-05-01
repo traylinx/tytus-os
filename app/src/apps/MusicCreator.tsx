@@ -1404,17 +1404,29 @@ const callImageGen = async (
   }
   return tryWithModelFallback(modelIds, async (modelId) => {
     const timeout = withTimeout(signal, IMAGE_TIMEOUT_MS);
-    // OpenAI-compatible body shape: model + prompt + size + n. We always
-    // ask for square 1024 because it matches the cover-art aspect ratio
-    // and works on every gateway we've seen. response_format: b64_json so
-    // we don't have to follow a separate URL fetch.
-    const body = {
-      model: modelId,
-      prompt,
-      size: '1024x1024',
-      n: 1,
-      response_format: 'b64_json',
-    };
+    // MiniMax-compatible body shape (verified 2026-05-01 against both
+    // local switchAILocal `minimax:image-01` and remote AIL pod
+    // `ail-image` — both reject `response_format: 'b64_json'` with
+    // status_code 2013 and require `aspect_ratio` over `size`).
+    // For OpenAI-/BFL-/SDXL-style models we send a hybrid body: every
+    // gateway we've tested ignores unknown fields, so including BOTH
+    // `aspect_ratio` and `size` plus `response_format: 'base64'` works
+    // for MiniMax while OpenAI-compat models still see what they need.
+    const isMinimaxShape = /minimax|ail-image|image-01/i.test(modelId);
+    const body: Record<string, unknown> = isMinimaxShape
+      ? {
+          model: modelId,
+          prompt,
+          aspect_ratio: '1:1',
+          response_format: 'base64',
+        }
+      : {
+          model: modelId,
+          prompt,
+          size: '1024x1024',
+          n: 1,
+          response_format: 'b64_json',
+        };
     let resp: Response;
     try {
       resp = await fetch(`${endpoint.url}/images/generations`, {
@@ -1439,12 +1451,21 @@ const callImageGen = async (
       throw new GatewayError(resp.status, errBody, `Cover-art HTTP ${resp.status}: ${errBody.slice(0, 200)}`);
     }
     // Common shapes seen in the wild:
+    //   { data: { image_base64: ["..."] } }         (MiniMax — verified)
+    //   { data: { image: "<base64>" } }              (some MiniMax aliases)
     //   { data: [ { b64_json: "..." } ] }            (OpenAI canonical)
     //   { data: [ { url: "https://..." } ] }         (URL-only path)
-    //   { data: { image: "<base64>" } }              (some MiniMax aliases)
     //   { image: "<base64>" }                         (bare)
     //   { images: [ { b64_json: ... } ] }             (multi-image)
+    // Plus the MiniMax error envelope {data: null, base_resp: {status_code, status_msg}}
+    // where status_code !== 0 means failure even on HTTP 200.
     const json = await resp.json() as Record<string, unknown>;
+    // MiniMax error envelope first — turns "200 with empty data" into a
+    // retryable 502 so the multi-model loop walks past it.
+    const baseResp = json.base_resp as { status_code?: number; status_msg?: string } | undefined;
+    if (baseResp && typeof baseResp.status_code === 'number' && baseResp.status_code !== 0) {
+      throw new GatewayError(502, baseResp.status_msg ?? '', `Cover-art ${modelId} rejected: ${baseResp.status_msg ?? 'status_code=' + baseResp.status_code}`);
+    }
     const tryB64 = (v: unknown): string | null => {
       if (typeof v !== 'string' || !v.length) return null;
       return v.startsWith('data:') ? v : `data:image/png;base64,${v}`;
@@ -1453,16 +1474,31 @@ const callImageGen = async (
       typeof v === 'string' && /^https?:\/\//i.test(v) ? v : null;
 
     const dataField = json.data;
-    if (Array.isArray(dataField) && dataField[0]) {
-      const first = dataField[0] as Record<string, unknown>;
-      const out = tryB64(first.b64_json) ?? tryUrl(first.url);
-      if (out) return out;
-      throw new GatewayError(502, '', 'Cover-art response missing b64_json/url in data[0]');
-    }
-    if (dataField && typeof dataField === 'object') {
+    // MiniMax canonical: { data: { image_base64: ["..."] } } — array of
+    // base64 strings under data.image_base64. Hit this first because
+    // it's what both local minimax:image-01 and remote ail-image return.
+    if (dataField && typeof dataField === 'object' && !Array.isArray(dataField)) {
       const inner = dataField as Record<string, unknown>;
+      const arr = inner.image_base64;
+      if (Array.isArray(arr) && arr[0]) {
+        const out = tryB64(arr[0]);
+        if (out) return out;
+      }
       const direct = tryB64(inner.image) ?? tryB64(inner.b64_json) ?? tryUrl(inner.url);
       if (direct) return direct;
+      // Some MiniMax variants put url(s) in image_url / image_urls.
+      const urlArr = inner.image_url ?? inner.image_urls;
+      if (Array.isArray(urlArr) && urlArr[0]) {
+        const out = tryUrl(urlArr[0]);
+        if (out) return out;
+      }
+    }
+    // OpenAI canonical: { data: [ { b64_json | url } ] }.
+    if (Array.isArray(dataField) && dataField[0]) {
+      const first = dataField[0] as Record<string, unknown>;
+      const out = tryB64(first.b64_json) ?? tryB64(first.image_base64) ?? tryUrl(first.url);
+      if (out) return out;
+      throw new GatewayError(502, '', 'Cover-art response missing b64_json/url in data[0]');
     }
     const bare = tryB64(json.image) ?? tryB64(json.b64_json);
     if (bare) return bare;
