@@ -1017,7 +1017,7 @@ const FileBrowser: FC<{ agents: Agent[]; client: DaemonClient }> = ({
                         <button
                           onClick={() => downloadEntry(entry)}
                           disabled={mutationBusy || uploading || entry.kind !== "file"}
-                          className="p-1 rounded-md disabled:opacity-40 hover:bg-[var(--bg-hover)]"
+                          className="p-1 rounded-md text-[var(--text-secondary)] hover:text-[var(--text-primary)] disabled:opacity-40 disabled:hover:text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]"
                           title="Download"
                         >
                           <Download size={12} />
@@ -1025,7 +1025,7 @@ const FileBrowser: FC<{ agents: Agent[]; client: DaemonClient }> = ({
                         <button
                           onClick={() => void copyOrMoveEntry(entry, "copy")}
                           disabled={mutationBusy || uploading || entry.kind !== "file"}
-                          className="p-1 rounded-md disabled:opacity-40 hover:bg-[var(--bg-hover)]"
+                          className="p-1 rounded-md text-[var(--text-secondary)] hover:text-[var(--text-primary)] disabled:opacity-40 disabled:hover:text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]"
                           title="Copy"
                         >
                           <CopyIcon size={12} />
@@ -1033,7 +1033,7 @@ const FileBrowser: FC<{ agents: Agent[]; client: DaemonClient }> = ({
                         <button
                           onClick={() => void copyOrMoveEntry(entry, "move")}
                           disabled={mutationBusy || uploading || entry.kind !== "file"}
-                          className="p-1 rounded-md disabled:opacity-40 hover:bg-[var(--bg-hover)]"
+                          className="p-1 rounded-md text-[var(--text-secondary)] hover:text-[var(--text-primary)] disabled:opacity-40 disabled:hover:text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]"
                           title="Move"
                         >
                           <MoveRight size={12} />
@@ -1041,7 +1041,7 @@ const FileBrowser: FC<{ agents: Agent[]; client: DaemonClient }> = ({
                         <button
                           onClick={() => void renameEntry(entry)}
                           disabled={mutationBusy || uploading}
-                          className="p-1 rounded-md disabled:opacity-40 hover:bg-[var(--bg-hover)]"
+                          className="p-1 rounded-md text-[var(--text-secondary)] hover:text-[var(--text-primary)] disabled:opacity-40 disabled:hover:text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]"
                           title="Rename"
                         >
                           <Pencil size={12} />
@@ -1049,7 +1049,7 @@ const FileBrowser: FC<{ agents: Agent[]; client: DaemonClient }> = ({
                         <button
                           onClick={() => void deleteEntry(entry)}
                           disabled={mutationBusy || uploading}
-                          className="p-1 rounded-md disabled:opacity-40 hover:bg-[var(--bg-hover)]"
+                          className="p-1 rounded-md text-[var(--text-secondary)] hover:text-[var(--text-primary)] disabled:opacity-40 disabled:hover:text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]"
                           title="Delete"
                         >
                           <Trash2 size={12} />
@@ -1251,11 +1251,13 @@ const InboxTab: FC<{ agent: Agent; client: DaemonClient }> = ({
             >
               <Inbox size={22} className="text-[var(--accent-primary)]" />
             </div>
-            <div className="text-sm">Inbox is empty.</div>
-            <div className="text-[11px] mt-1 max-w-[360px] leading-relaxed">
-              Files dropped to{" "}
-              <code className="font-mono">/app/workspace/inbox/</code> on pod{" "}
-              {agent.pod_id} appear here.
+            <div className="text-sm">
+              {missingInbox ? "Inbox is not created yet." : "Inbox is empty."}
+            </div>
+            <div className="text-[11px] mt-1 max-w-[380px] leading-relaxed">
+              {missingInbox
+                ? "This pod has not received any inbox files yet. Tytus will create the folder automatically on the first drop/upload, and new pods create it during bootstrap."
+                : "Files dropped to /app/workspace/inbox/ on this pod appear here."}
             </div>
           </div>
         )}
@@ -1322,7 +1324,7 @@ const InboxTab: FC<{ agent: Agent; client: DaemonClient }> = ({
           </div>
         )}
 
-        {stream.status === "failed" && job && (
+        {stream.status === "failed" && job && !missingInbox && (
           <div
             className="mt-3 p-3 rounded-md text-xs flex items-start gap-2"
             style={{

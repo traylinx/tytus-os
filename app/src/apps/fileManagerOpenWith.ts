@@ -46,4 +46,4 @@ export const inboxLineToFilename = (line: string): string => {
 };
 
 export const isMissingInboxDiagnostic = (line: string): boolean =>
-  /no such file|cannot access .*inbox|not found|missing.*inbox/i.test(line);
+  /no such file|no such path:.*inbox|cannot access .*inbox|not found|missing.*inbox/i.test(line);

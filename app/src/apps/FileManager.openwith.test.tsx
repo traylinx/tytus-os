@@ -74,6 +74,11 @@ describe("isMissingInboxDiagnostic", () => {
     expect(isMissingInboxDiagnostic("/app/workspace/inbox: not found")).toBe(
       true,
     );
+    expect(
+      isMissingInboxDiagnostic(
+        "tytus ls: no such path: /app/workspace/inbox/",
+      ),
+    ).toBe(true);
   });
 
   it("does not classify real file rows as diagnostics", () => {
