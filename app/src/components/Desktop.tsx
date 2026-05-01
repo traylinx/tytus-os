@@ -18,6 +18,11 @@ import { useI18n } from '@/i18n';
 // Desktop has no other reason to depend on MusicCreator's source file
 // and importing it would force the app's whole module graph into the
 // always-mounted Desktop component.
+//
+// Payload is intentionally slim — `hasAudio` is a flag, not the audio
+// itself. Audio bytes live in SQLite and are referenced via `id` so the
+// dataTransfer stays under a few KB. Older payloads carried the full
+// base64 audio data URL (MBs), which made cross-app paste unreliable.
 const MIME_TRACK = 'application/x-juli3ta-track';
 interface DraggedTrackPayload {
   id: string;
@@ -25,7 +30,7 @@ interface DraggedTrackPayload {
   styleTags?: string;
   lyricsPreview?: string;
   durationMs?: number;
-  audioDataUrl?: string;
+  hasAudio?: boolean;
 }
 
 const DynamicIcon = ({ name, ...props }: { name: string } & LucideProps) => {
@@ -275,7 +280,7 @@ const Desktop = memo(function Desktop() {
         const baseName = sanitize(payload.title.replace(/\s*\((lyrics|cover)\)\s*$/, ''));
         const desktopId = findDesktopFolderId();
         if (!desktopId) return;
-        const isAudio = Boolean(payload.audioDataUrl);
+        const isAudio = Boolean(payload.hasAudio);
         const fileName = isAudio ? `${baseName}.mp3` : `${baseName}.lyrics.txt`;
         const existing = fsApi.findChildByName(desktopId, fileName);
         const nodeId = existing

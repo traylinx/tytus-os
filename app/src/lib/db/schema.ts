@@ -10,7 +10,7 @@
 //
 // Phase 2 ships the API Tester migration: history + collections.
 
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 4;
 
 export const SCHEMA_V1 = `
 CREATE TABLE IF NOT EXISTS api_history (
@@ -93,4 +93,24 @@ CREATE TABLE IF NOT EXISTS music_creator_settings (
   key   TEXT PRIMARY KEY,
   value TEXT NOT NULL                                -- JSON-serialized
 );
+`;
+
+// Schema V4: Voice Recorder — saved recordings.
+//
+// Replaces the localStorage-backed VoiceRecording[] which was hitting
+// the 5-10 MB browser quota with a few clips (each clip is a base64
+// data URL, ~10 MB per minute of WAV/webm). Same flat row shape as the
+// music_creator_tracks table; audio bytes go into a TEXT column too —
+// SQLite handles MB-scale TEXT fine on OPFS-backed storage.
+export const SCHEMA_V4 = `
+CREATE TABLE IF NOT EXISTS voice_recordings (
+  id              TEXT PRIMARY KEY,
+  name            TEXT NOT NULL,
+  duration_ms     INTEGER NOT NULL DEFAULT 0,
+  created_at      INTEGER NOT NULL,                 -- unix ms
+  mime_type       TEXT NOT NULL DEFAULT 'audio/webm',
+  audio_data_url  TEXT NOT NULL DEFAULT ''           -- base64 data URL
+);
+CREATE INDEX IF NOT EXISTS idx_voice_recordings_created
+  ON voice_recordings(created_at DESC);
 `;

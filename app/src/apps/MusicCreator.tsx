@@ -41,6 +41,7 @@ import { useOS, useNotifications } from '@/hooks/useOSStore';
 import { useI18n } from '@/i18n';
 import {
   listTracks,
+  getTrackById,
   insertTrack as insertTrackRow,
   deleteTrack as deleteTrackRow,
   loadSettings as loadCreatorSettings,
@@ -49,29 +50,20 @@ import {
   type ModelOverrides,
   DEFAULT_SETTINGS as DEFAULT_CREATOR_SETTINGS,
 } from '@/lib/repo/musicCreator';
+import {
+  listRecordings,
+  insertRecording,
+  migrateLegacyRecordingsToSqlite,
+  type VoiceRecordingRow,
+} from '@/lib/repo/voiceRecordings';
 import { revealSecret } from '@/lib/secrets';
 import { buildCoverSample, buildIconicMix } from '@/lib/coverSample';
 import type { Agent, IncludedPod } from '@/types/daemon';
 
-// Voice Recorder schema — kept loose here to avoid circular deps.
-const VOICE_RECORDER_KEY = 'tytus.voice-recorder.recordings';
-interface VoiceRecording {
-  id: string;
-  name: string;
-  durationMs: number;
-  audioDataUrl: string;
-  createdAt: number;
-}
-const loadVoiceRecordings = (): VoiceRecording[] => {
-  try {
-    const raw = localStorage.getItem(VOICE_RECORDER_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? (parsed as VoiceRecording[]) : [];
-  } catch {
-    return [];
-  }
-};
+// Voice Recorder rows come from the SQLite repo. Aliased here to keep
+// existing call sites simple — `VoiceRecording` was the in-file type
+// before the localStorage→SQLite migration.
+type VoiceRecording = VoiceRecordingRow;
 
 // ──────────────────────────────────────────────────────────
 // Cross-app drag MIME types
@@ -85,13 +77,18 @@ const loadVoiceRecordings = (): VoiceRecording[] => {
 // shared store.
 const MIME_TRACK = 'application/x-juli3ta-track';
 
+// Slim drag payload — title + lyrics + a `hasAudio` flag. The actual
+// audio data URL is NOT carried in the payload because base64 MP3s are
+// MB-scale and chunking that into `dataTransfer` blocks the main thread
+// and silently fails cross-app paste on most browsers. Drop targets that
+// need the audio bytes resolve them by id from SQLite via getTrackById().
 interface DraggedTrackPayload {
   id: string;
   title: string;
   styleTags: string;
   lyricsPreview: string;
   durationMs: number;
-  audioDataUrl: string;
+  hasAudio: boolean;
 }
 
 const sanitizeFileName = (s: string): string => {
@@ -550,10 +547,14 @@ const probeAndDiscover = async (
   if (corsBlocked.has(cand.url)) {
     return { ok: false, models: NO_MODELS };
   }
+  // PROBE_TIMEOUT_MS guards against a hung pod that accepts the TCP
+  // connection but never responds — without it the resolving spinner
+  // would sit forever and the user couldn't switch endpoints.
+  const probeTimeout = withTimeout(signal, PROBE_TIMEOUT_MS);
   try {
     const r = await fetch(`${cand.url}/models`, {
       method: 'GET',
-      signal,
+      signal: probeTimeout.signal,
       headers: { Authorization: `Bearer ${cand.apiKey}` },
     });
     if (r.status >= 500) return { ok: false, models: NO_MODELS };
@@ -568,9 +569,13 @@ const probeAndDiscover = async (
     // preflight rejection — the pod gateway didn't return the
     // Access-Control-Allow-Origin header for our origin. AbortError
     // means the user navigated away; don't pollute the cache.
+    // TimeoutError = pod hung; treat like unreachable (no cache, so a
+    // retry will probe again — flap is recoverable).
     const name = (e as Error)?.name ?? '';
     if (name === 'TypeError') corsBlocked.add(cand.url);
     return { ok: false, models: NO_MODELS };
+  } finally {
+    probeTimeout.dispose();
   }
 };
 
@@ -596,6 +601,42 @@ const resolveAllLiveEndpoints = async (
 // API calls
 // ──────────────────────────────────────────────────────────
 
+// Per-request timeouts. A hung gateway used to leave the UI busy
+// forever — only Cancel got the user out. These compose with the user
+// signal so Cancel still wins, but a stalled fetch self-aborts at the
+// timeout boundary and surfaces a real error.
+const LYRICS_TIMEOUT_MS = 60_000;   // /music/lyrics is text — fast.
+const MUSIC_TIMEOUT_MS = 180_000;   // /music/generations — up to ~2 min on cold.
+const PROBE_TIMEOUT_MS = 8_000;     // /v1/models reachability probe — must be quick.
+
+// Combine an optional user-driven AbortSignal with a wall-clock timeout.
+// Falls back to a manual controller when the runtime doesn't expose
+// AbortSignal.any (Safari < 17.4). Returns the combined signal plus a
+// dispose() that clears the timer so the test runner doesn't leak.
+const withTimeout = (
+  user: AbortSignal | undefined,
+  ms: number,
+): { signal: AbortSignal; dispose: () => void } => {
+  // Modern path — AbortSignal.timeout + AbortSignal.any when available.
+  const anyImpl = (AbortSignal as unknown as { any?: (sigs: AbortSignal[]) => AbortSignal }).any;
+  const timeoutImpl = (AbortSignal as unknown as { timeout?: (ms: number) => AbortSignal }).timeout;
+  if (anyImpl && timeoutImpl) {
+    const t = timeoutImpl(ms);
+    const combined = user ? anyImpl([user, t]) : t;
+    return { signal: combined, dispose: () => undefined };
+  }
+  // Fallback — manual controller bridges either trigger.
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => {
+    if (!ctrl.signal.aborted) ctrl.abort(new DOMException('Timeout', 'TimeoutError'));
+  }, ms);
+  if (user) {
+    if (user.aborted) ctrl.abort(user.reason);
+    else user.addEventListener('abort', () => ctrl.abort(user.reason), { once: true });
+  }
+  return { signal: ctrl.signal, dispose: () => clearTimeout(timer) };
+};
+
 interface LyricsResponse {
   song_title: string;
   style_tags: string;
@@ -616,17 +657,27 @@ interface MusicResponse {
   trace_id: string;
 }
 
-// Try the dedicated /music/lyrics endpoint first. If it errors (quota
-// exceeded, upstream 502, anything 4xx/5xx), transparently fall back to
-// asking a general chat-completions model to write the lyrics with a
-// JSON-output prompt. Returns `{ usedFallback: true }` so the caller
-// can surface a notice to the user.
+// Try the dedicated /music/lyrics endpoint first. If it errors with a
+// retryable status (429 / 5xx / network), transparently fall back to a
+// general chat-completions model with a JSON-output prompt. Hard 4xx
+// errors (400/401/403/404) surface directly — they almost always
+// indicate a config bug (wrong key, missing model, malformed body) that
+// the chat fallback can't fix and would only burn a second API call on.
+//
+// Returns `{ usedFallback: true }` so the caller can surface a notice.
+const RETRYABLE_LYRICS_STATUSES = new Set([408, 425, 429, 500, 502, 503, 504]);
+
 const callLyrics = async (
   endpoint: PodEndpoint,
   prompt: string,
   signal?: AbortSignal,
 ): Promise<LyricsResponse & { usedFallback: boolean }> => {
   // ── Primary: /music/lyrics ─────────────────────────────
+  // Track outcome out-of-band so we can branch cleanly after the try.
+  // 0 = network failure (fall through), >0 = HTTP status from upstream.
+  let primaryStatus = 0;
+  let primaryBody = '';
+  const primaryTimeout = withTimeout(signal, LYRICS_TIMEOUT_MS);
   try {
     const body: Record<string, unknown> = { prompt, mode: 'write_full_song' };
     if (endpoint.models.lyrics) body.model = endpoint.models.lyrics;
@@ -637,19 +688,45 @@ const callLyrics = async (
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(body),
-      signal,
+      signal: primaryTimeout.signal,
     });
     if (r.ok) {
       const data = (await r.json()) as LyricsResponse;
+      // Trust-but-verify the response shape. A gateway returning
+      // 200 + {error: ...} would otherwise propagate undefined lyrics
+      // and crash the music step with a confusing "lyrics is required".
+      if (!data || typeof data.lyrics !== 'string' || data.lyrics.trim().length === 0) {
+        throw new Error('Lyrics endpoint returned 200 but no lyrics text.');
+      }
       return { ...data, usedFallback: false };
     }
-    // Non-OK → record + fall through to the chat backup. We deliberately
-    // don't throw here so the fallback gets a chance to recover.
-    const errText = await r.text().catch(() => '');
-    console.warn(`Lyrics primary HTTP ${r.status}, falling back to chat:`, errText);
+    primaryStatus = r.status;
+    primaryBody = await r.text().catch(() => '');
   } catch (e) {
-    if ((e as Error).name === 'AbortError') throw e;
-    console.warn('Lyrics primary threw, falling back to chat:', e);
+    const name = (e as Error).name;
+    // Re-raise user cancellations so the caller can distinguish them
+    // from upstream failures. TimeoutError surfaces as a real error.
+    if (name === 'AbortError' && signal?.aborted) throw e;
+    if (name === 'TimeoutError') {
+      throw new Error(`Lyrics request timed out after ${LYRICS_TIMEOUT_MS / 1000}s. Check your pod / pick another endpoint in Settings.`);
+    }
+    // TypeError / DOMException etc — primaryStatus stays 0, fall
+    // through to the chat backup below.
+    console.warn('Lyrics primary threw (network), falling back to chat:', e);
+  } finally {
+    primaryTimeout.dispose();
+  }
+
+  // Hard 4xx → don't burn a second call on the chat backup. These are
+  // config bugs (wrong key, model not exposed, malformed body) that the
+  // chat path can't fix; surfacing them directly lets the user fix the
+  // config in Settings instead of paying for a wrong second answer.
+  if (primaryStatus !== 0 && !RETRYABLE_LYRICS_STATUSES.has(primaryStatus)) {
+    const truncated = primaryBody.length > 300 ? `${primaryBody.slice(0, 300)}…` : primaryBody;
+    throw new Error(`Lyrics HTTP ${primaryStatus}: ${truncated || 'no body'}`);
+  }
+  if (primaryStatus !== 0) {
+    console.warn(`Lyrics primary HTTP ${primaryStatus} (retryable), falling back to chat:`, primaryBody);
   }
 
   // ── Backup: chat-completions with JSON-output prompt ───
@@ -675,17 +752,31 @@ Respond with VALID JSON ONLY in exactly this shape, nothing else:
     temperature: 0.85,
     response_format: { type: 'json_object' },
   };
-  const r = await fetch(`${endpoint.url}/chat/completions`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${endpoint.apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(chatBody),
-    signal,
-  });
-  if (!r.ok) throw new Error(`Lyrics fallback HTTP ${r.status}: ${await r.text()}`);
-  const data = (await r.json()) as { choices?: Array<{ message?: { content?: string } }> };
+  const fallbackTimeout = withTimeout(signal, LYRICS_TIMEOUT_MS);
+  let fallbackResp: Response;
+  try {
+    fallbackResp = await fetch(`${endpoint.url}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${endpoint.apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(chatBody),
+      signal: fallbackTimeout.signal,
+    });
+  } catch (e) {
+    if ((e as Error).name === 'TimeoutError') {
+      throw new Error(`Lyrics backup model timed out after ${LYRICS_TIMEOUT_MS / 1000}s.`);
+    }
+    throw e;
+  } finally {
+    fallbackTimeout.dispose();
+  }
+  if (!fallbackResp.ok) {
+    const errBody = await fallbackResp.text().catch(() => '');
+    throw new Error(`Lyrics fallback HTTP ${fallbackResp.status}: ${errBody.slice(0, 300)}`);
+  }
+  const data = (await fallbackResp.json()) as { choices?: Array<{ message?: { content?: string } }> };
   const content = data.choices?.[0]?.message?.content?.trim() ?? '';
   if (!content) throw new Error('Lyrics fallback returned empty content');
   // Some chat models wrap JSON in ```json ... ``` fences — strip if present.
@@ -735,16 +826,30 @@ const callMusic = async (
   if (args.instrumental) body.instrumental = true;
   if (isCover) body.audio_base64 = args.refAudioBase64;
 
-  const r = await fetch(`${endpoint.url}/music/generations`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${endpoint.apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(body),
-    signal,
-  });
-  if (!r.ok) throw new Error(`Music HTTP ${r.status}: ${await r.text()}`);
+  const musicTimeout = withTimeout(signal, MUSIC_TIMEOUT_MS);
+  let r: Response;
+  try {
+    r = await fetch(`${endpoint.url}/music/generations`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${endpoint.apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+      signal: musicTimeout.signal,
+    });
+  } catch (e) {
+    if ((e as Error).name === 'TimeoutError') {
+      throw new Error(`Music generation timed out after ${MUSIC_TIMEOUT_MS / 1000}s. Try a shorter lyric or a different endpoint.`);
+    }
+    throw e;
+  } finally {
+    musicTimeout.dispose();
+  }
+  if (!r.ok) {
+    const errBody = await r.text().catch(() => '');
+    throw new Error(`Music HTTP ${r.status}: ${errBody.slice(0, 300)}`);
+  }
   return r.json();
 };
 
@@ -1367,10 +1472,10 @@ function TrackCard({
     link.click();
   };
 
-  // Cross-app drag — payload carries the full track so receivers
-  // (Desktop, Cover field, MusicPlayer, TextEditor) don't need a
-  // shared store. The serialized JSON is bounded in size by the
-  // base64 audio data URL — heavy but well-supported by browsers.
+  // Cross-app drag — payload carries the slim metadata; receivers that
+  // need the audio bytes (cover-mode field, Desktop) resolve them from
+  // SQLite by id. Avoids stuffing MBs of base64 into `dataTransfer`,
+  // which made cross-app paste silently fail in Chrome/Firefox.
   const handleDragStart = (e: React.DragEvent) => {
     const payload: DraggedTrackPayload = {
       id: track.id,
@@ -1378,7 +1483,7 @@ function TrackCard({
       styleTags: track.styleTags,
       lyricsPreview: track.lyricsPreview,
       durationMs: track.durationMs,
-      audioDataUrl: track.audioDataUrl,
+      hasAudio: Boolean(track.audioDataUrl),
     };
     e.dataTransfer.setData(MIME_TRACK, JSON.stringify(payload));
     if (track.lyricsPreview) {
@@ -1565,7 +1670,10 @@ export default function MusicCreator() {
   const [refSampleInfo, setRefSampleInfo] = useState<string | null>(null);
   const [extracting, setExtracting] = useState(false);
   const [showRecordingsPicker, setShowRecordingsPicker] = useState(false);
-  const [voiceRecordings, setVoiceRecordings] = useState<VoiceRecording[]>(() => loadVoiceRecordings());
+  // Hydrated async from SQLite (after the legacy localStorage drain in
+  // the boot effect below). Starts empty so the first paint isn't blocked
+  // by the migration roundtrip.
+  const [voiceRecordings, setVoiceRecordings] = useState<VoiceRecording[]>([]);
   const refFileInputRef = useRef<HTMLInputElement | null>(null);
   // Cover-sample strategy: single best window OR best-of mix.
   const [sampleStrategy, setSampleStrategy] = useState<'best' | 'mix'>('best');
@@ -1602,11 +1710,19 @@ export default function MusicCreator() {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      await migrateLegacyTracksToSqlite();
-      const [loaded, prefs] = await Promise.all([listTracks(), loadCreatorSettings()]);
+      await Promise.all([
+        migrateLegacyTracksToSqlite(),
+        migrateLegacyRecordingsToSqlite(),
+      ]);
+      const [loaded, prefs, recs] = await Promise.all([
+        listTracks(),
+        loadCreatorSettings(),
+        listRecordings(),
+      ]);
       if (cancelled) return;
       setGallery(loaded);
       setCreatorSettings(prefs);
+      setVoiceRecordings(recs);
     })();
     return () => { cancelled = true; };
   }, []);
@@ -1671,6 +1787,11 @@ export default function MusicCreator() {
   }, []);
 
   const abortRef = useRef<AbortController | null>(null);
+  // In-flight guard. Tracks a generation across the brief window between
+  // a click and React rendering the Cancel button. Without this a fast
+  // double-click fires two parallel `callLyrics` requests — the second
+  // abort cancels the JS promise but the server already accepted both.
+  const generatingRef = useRef(false);
 
   useEffect(() => () => abortRef.current?.abort(), []);
 
@@ -1740,6 +1861,12 @@ export default function MusicCreator() {
       setError(t('musiccreator.error.noPod'));
       return;
     }
+    // In-flight guard: drop duplicate clicks before phase flips.
+    // The button swaps to Cancel via `busy = phase !== 'idle'`, but
+    // there's a render-frame gap between this handler firing and the
+    // new state landing. Ignore re-entrant calls during that gap.
+    if (generatingRef.current) return;
+    generatingRef.current = true;
     setError(null);
 
     abortRef.current?.abort();
@@ -1907,6 +2034,8 @@ export default function MusicCreator() {
       setError((e as Error).message || 'Generation failed — check the console for details.');
       setPhase('idle');
       setProgress(0);
+    } finally {
+      generatingRef.current = false;
     }
   }, [
     endpoint, theme, lyrics, songName, style, instrumental, mode, refAudioBase64, t,
@@ -1915,12 +2044,21 @@ export default function MusicCreator() {
 
   const handleRefAudioPick = () => refFileInputRef.current?.click();
 
+  // Stale-result guard for ingestSourceAudio. User can fire-pick file A
+  // (long analysis), then file B (short analysis). Without this, B
+  // finishes first and writes refAudioBase64; then A finishes and stomps
+  // B's result with the wrong file's bytes. We capture a sequence number
+  // at call time and only commit state if we're still the latest call.
+  const ingestSeqRef = useRef(0);
+
   // Decode → analyze → extract best window OR mix, then base64-encode.
   // Used for direct file upload, voice recording pick, and inline recorder.
   const ingestSourceAudio = useCallback(async (
     source: Blob | string,
     displayName: string,
   ) => {
+    const seq = ++ingestSeqRef.current;
+    const isCurrent = () => ingestSeqRef.current === seq;
     setError(null);
     setExtracting(true);
     setRefAudioBase64(null);
@@ -1929,6 +2067,7 @@ export default function MusicCreator() {
     try {
       if (sampleStrategy === 'mix') {
         const result = await buildIconicMix(source);
+        if (!isCurrent()) return;
         setRefAudioBase64(result.base64);
         const sourceMin = result.sourceDurationSec / 60;
         if (result.segments.length > 1) {
@@ -1943,6 +2082,7 @@ export default function MusicCreator() {
         }
       } else {
         const result = await buildCoverSample(source);
+        if (!isCurrent()) return;
         setRefAudioBase64(result.base64);
         const sourceMin = result.sourceDurationSec / 60;
         const startMin = result.startSec / 60;
@@ -1956,10 +2096,11 @@ export default function MusicCreator() {
         );
       }
     } catch (err) {
+      if (!isCurrent()) return;
       setError((err as Error).message || 'Could not analyze that audio.');
       setRefAudioName(null);
     } finally {
-      setExtracting(false);
+      if (isCurrent()) setExtracting(false);
     }
   }, [sampleStrategy]);
 
@@ -2016,26 +2157,31 @@ export default function MusicCreator() {
             setRecError('Recording was empty.');
             return;
           }
-          // Persist to the shared Voice Recordings store so it appears
-          // in the Voice Recorder app too.
+          // Persist to the shared Voice Recordings SQLite store so it
+          // appears in the Voice Recorder app too. FileReader errors are
+          // wrapped so a quota/decoder failure surfaces a real message
+          // instead of a silently-empty entry in the picker.
           const reader = new FileReader();
+          reader.onerror = () => setRecError('Could not read the recording.');
           reader.onload = () => {
             const dataUrl = typeof reader.result === 'string' ? reader.result : '';
             const newRec: VoiceRecording = {
               id: `r_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
               name: `${recSource === 'tab' ? 'Tab audio' : 'Recording'} ${new Date().toLocaleTimeString()}`,
               durationMs: Date.now() - recStartRef.current,
+              mimeType: blob.type || mime || 'audio/webm',
               audioDataUrl: dataUrl,
               createdAt: Date.now(),
             };
-            try {
-              const cur = loadVoiceRecordings();
-              const next = [newRec, ...cur];
-              localStorage.setItem(VOICE_RECORDER_KEY, JSON.stringify(next));
-              setVoiceRecordings(next);
-            } catch (e) {
-              console.warn('Recording save failed', e);
-            }
+            void (async () => {
+              try {
+                await insertRecording(newRec);
+                setVoiceRecordings((prev) => [newRec, ...prev]);
+              } catch (e) {
+                console.warn('Recording save failed', e);
+                setRecError('Could not save the recording. Try again.');
+              }
+            })();
             // Auto-feed into cover-sample analyzer.
             setRecOpen(false);
             void ingestSourceAudio(blob, newRec.name);
@@ -2093,10 +2239,11 @@ export default function MusicCreator() {
   };
 
   // Refresh the voice-recordings list every time the user opens the picker
-  // so newly-recorded clips show up without an app reload.
+  // so newly-recorded clips (including those from the standalone Voice
+  // Recorder app) show up without an app reload.
   const openRecordingsPicker = () => {
-    setVoiceRecordings(loadVoiceRecordings());
     setShowRecordingsPicker(true);
+    void listRecordings().then((recs) => setVoiceRecordings(recs)).catch(() => undefined);
   };
 
   const clearRefAudio = () => {
@@ -2351,6 +2498,19 @@ export default function MusicCreator() {
   }), [currentWindow]);
   useShellMenuRegistration(currentWindow?.id ?? null, shellMenuModel);
 
+  // Single source of truth for the gallery filter. Previously the
+  // header counter and the list predicate diverged (counter excluded
+  // lyrics body, list included it) — searching "duende" would say
+  // "1 / 5" but render all 5 flamenco tracks. Filter on title + style
+  // only because lyric-body matches were too noisy in practice.
+  const visibleGallery = useMemo(() => {
+    const q = gallerySearch.trim().toLowerCase();
+    if (!q) return gallery;
+    return gallery.filter((g) =>
+      g.title.toLowerCase().includes(q)
+      || g.styleTags.toLowerCase().includes(q));
+  }, [gallery, gallerySearch]);
+
   // ─── Render ────────────────────────────────────────────
 
   if (!endpoint) return <EmptyState retrying={resolving} onRetry={resolveNow} />;
@@ -2381,25 +2541,14 @@ export default function MusicCreator() {
             {t('musiccreator.gallery.title')}
           </div>
           <div className="ml-auto" style={{ fontSize: 10, color: 'var(--text-disabled)' }}>
-            {(() => {
-              const q = gallerySearch.trim().toLowerCase();
-              // Title + style only. Lyric-body matches were too noisy
-              // (a single Spanish flamenco word like "duende" is in
-               // every track's lyrics) and drowned out title hits.
-              const visible = q
-                ? gallery.filter((g) =>
-                    g.title.toLowerCase().includes(q)
-                    || g.styleTags.toLowerCase().includes(q))
-                : gallery;
-              return q
-                ? `${visible.length} / ${gallery.length}`
-                : t(
-                  gallery.length === 1
-                    ? 'musiccreator.gallery.count.one'
-                    : 'musiccreator.gallery.count.other',
-                  { n: gallery.length },
-                );
-            })()}
+            {gallerySearch.trim()
+              ? `${visibleGallery.length} / ${gallery.length}`
+              : t(
+                gallery.length === 1
+                  ? 'musiccreator.gallery.count.one'
+                  : 'musiccreator.gallery.count.other',
+                { n: gallery.length },
+              )}
           </div>
         </div>
 
@@ -2457,42 +2606,28 @@ export default function MusicCreator() {
               {t('musiccreator.gallery.empty.footer')}
             </div>
           </div>
+        ) : visibleGallery.length === 0 ? (
+          <div className="flex-1 flex flex-col items-center justify-center px-4 text-center">
+            <Search size={18} style={{ color: 'var(--text-disabled)', opacity: 0.5 }} />
+            <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 8 }}>
+              {t('musiccreator.gallery.searchEmpty', { q: gallerySearch })}
+            </div>
+          </div>
         ) : (
-          (() => {
-            const q = gallerySearch.trim().toLowerCase();
-            const visible = q
-              ? gallery.filter((g) =>
-                  g.title.toLowerCase().includes(q)
-                  || g.styleTags.toLowerCase().includes(q)
-                  || g.lyricsPreview.toLowerCase().includes(q))
-              : gallery;
-            if (visible.length === 0) {
-              return (
-                <div className="flex-1 flex flex-col items-center justify-center px-4 text-center">
-                  <Search size={18} style={{ color: 'var(--text-disabled)', opacity: 0.5 }} />
-                  <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 8 }}>
-                    {t('musiccreator.gallery.searchEmpty', { q: gallerySearch })}
-                  </div>
-                </div>
-              );
-            }
-            return (
-              <div className="flex-1 overflow-y-auto invisible-scrollbar p-1.5 flex flex-col gap-0.5">
-                {visible.map((track) => (
-                  <TrackCard
-                    key={track.id}
-                    track={track}
-                    onDelete={deleteTrack}
-                    onLoad={loadTrack}
-                    onOpenLyrics={openLyricsInEditor}
-                    onSaveSongToDesktop={saveSongToDesktop}
-                    onSaveLyricsToDesktop={saveLyricsToDesktop}
-                    onPlayInPlayer={playTrackInPlayer}
-                  />
-                ))}
-              </div>
-            );
-          })()
+          <div className="flex-1 overflow-y-auto invisible-scrollbar p-1.5 flex flex-col gap-0.5">
+            {visibleGallery.map((track) => (
+              <TrackCard
+                key={track.id}
+                track={track}
+                onDelete={deleteTrack}
+                onLoad={loadTrack}
+                onOpenLyrics={openLyricsInEditor}
+                onSaveSongToDesktop={saveSongToDesktop}
+                onSaveLyricsToDesktop={saveLyricsToDesktop}
+                onPlayInPlayer={playTrackInPlayer}
+              />
+            ))}
+          </div>
         )}
       </aside>
 
@@ -2678,9 +2813,17 @@ export default function MusicCreator() {
             }}
             onDrop={(e) => {
               const payload = readTrackPayload(e);
-              if (payload && payload.audioDataUrl) {
+              if (payload && payload.hasAudio) {
                 e.preventDefault();
-                void ingestSourceAudio(payload.audioDataUrl, `${payload.title}.mp3`);
+                // Resolve audio bytes by id — payload doesn't carry them.
+                void (async () => {
+                  const row = await getTrackById(payload.id);
+                  if (!row?.audioDataUrl) {
+                    setError('Could not load that track’s audio. Try dragging again.');
+                    return;
+                  }
+                  void ingestSourceAudio(row.audioDataUrl, `${payload.title}.mp3`);
+                })();
               }
             }}
           >

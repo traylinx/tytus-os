@@ -61,6 +61,22 @@ export const listTracks = async (): Promise<SavedTrackRow[]> => {
   return rows.map(fromDb);
 };
 
+// Single-row lookup. Used by drop targets that hold a slim drag payload
+// (id only) and need to resolve full track data without paying the cost
+// of loading the whole gallery.
+export const getTrackById = async (id: string): Promise<SavedTrackRow | null> => {
+  const db = getDb();
+  if (!db) return null;
+  const rows = await db.query<DBRow>(
+    `SELECT id, title, style_tags, lyrics_preview, duration_ms, bitrate,
+            sample_rate, size_bytes, created_at, audio_data_url
+       FROM music_creator_tracks
+      WHERE id = ? LIMIT 1`,
+    [id],
+  );
+  return rows.length === 0 ? null : fromDb(rows[0]);
+};
+
 export const insertTrack = async (track: SavedTrackRow): Promise<void> => {
   const db = getDb();
   if (!db) throw new Error('Database not ready');

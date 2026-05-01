@@ -3,51 +3,34 @@
 // ============================================================
 //
 // Uses the browser's MediaRecorder + getUserMedia to capture real audio
-// and stores it as base64-encoded webm in localStorage so:
+// and persists it through the shared SQLite-backed `voice_recordings`
+// repo so:
 //   1. Recordings survive reloads.
 //   2. Music Creator's Cover mode can pick from these recordings to
 //      build "cover samples" (auto-trimmed to MiniMax's 6 s–6 min
 //      window with the most musical section selected).
 //
-// Storage key: `tytus.voice-recorder.recordings`
-// Schema is intentionally compatible with what Music Creator expects.
+// Storage migrated 2026-05-01 from `tytus.voice-recorder.recordings` in
+// localStorage to SQLite — clips are 10MB+ each in webm/opus, blowing
+// past the 5-10 MB localStorage quota after a few sessions.
 
 import { useState, useRef, useEffect, memo } from 'react';
 import {
   Mic, Play, Pause, Square, Trash2, Download, AlertCircle,
 } from 'lucide-react';
+import {
+  listRecordings,
+  insertRecording,
+  updateRecordingName,
+  deleteRecording as deleteRecordingRow,
+  migrateLegacyRecordingsToSqlite,
+  type VoiceRecordingRow,
+} from '@/lib/repo/voiceRecordings';
 
 // ---- Types ----
-export interface VoiceRecording {
-  id: string;
-  name: string;
-  durationMs: number;
-  createdAt: number;
-  // Base64-encoded webm/opus blob from MediaRecorder.
-  audioDataUrl: string;
-  mimeType: string;
-}
-
-const STORAGE_KEY = 'tytus.voice-recorder.recordings';
-
-const loadRecordings = (): VoiceRecording[] => {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? (parsed as VoiceRecording[]) : [];
-  } catch {
-    return [];
-  }
-};
-
-const saveRecordings = (list: VoiceRecording[]): void => {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
-  } catch (e) {
-    console.warn('Voice recordings storage failed:', e);
-  }
-};
+// Re-exported alias — keeps the public type name stable for any external
+// consumer that imported `VoiceRecording` from this file historically.
+export type VoiceRecording = VoiceRecordingRow;
 
 // ---- Live waveform driven by AnalyserNode RMS ----
 const WaveformVisualizer = memo(function WaveformVisualizer({
@@ -118,7 +101,9 @@ const blobToDataUrl = (blob: Blob): Promise<string> =>
 
 // ---- Main ----
 export default function VoiceRecorder() {
-  const [recordings, setRecordings] = useState<VoiceRecording[]>(() => loadRecordings());
+  // Hydrated async from SQLite. Starts empty; first paint isn't blocked
+  // by the migration roundtrip from the legacy localStorage key.
+  const [recordings, setRecordings] = useState<VoiceRecording[]>([]);
   const [recording, setRecording] = useState(false);
   const [paused, setPaused] = useState(false);
   const [elapsedMs, setElapsedMs] = useState(0);
@@ -135,10 +120,18 @@ export default function VoiceRecorder() {
   const tickerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const playbackAudioRef = useRef<HTMLAudioElement | null>(null);
 
-  // Persist whenever the list changes.
+  // One-shot legacy drain + initial hydrate. The migration is idempotent
+  // — once the localStorage key is consumed it's removed, so any future
+  // mount just hits SQLite directly.
   useEffect(() => {
-    saveRecordings(recordings);
-  }, [recordings]);
+    let cancelled = false;
+    (async () => {
+      await migrateLegacyRecordingsToSqlite();
+      const recs = await listRecordings();
+      if (!cancelled) setRecordings(recs);
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   // Cleanup on unmount.
   useEffect(() => {
@@ -198,7 +191,12 @@ export default function VoiceRecorder() {
             audioDataUrl: dataUrl,
             mimeType: blob.type,
           };
-          setRecordings((prev) => [rec, ...prev]);
+          try {
+            await insertRecording(rec);
+            setRecordings((prev) => [rec, ...prev]);
+          } catch (err) {
+            setError(`Could not save recording: ${(err as Error).message}`);
+          }
         } catch (err) {
           setError(`Could not save recording: ${(err as Error).message}`);
         } finally {
@@ -284,6 +282,7 @@ export default function VoiceRecorder() {
       playbackAudioRef.current?.pause();
       setPlayingId(null);
     }
+    void deleteRecordingRow(id).catch((e: unknown) => console.warn('Recording delete failed:', e));
   };
 
   const downloadRecording = (rec: VoiceRecording) => {
@@ -298,7 +297,10 @@ export default function VoiceRecorder() {
   };
 
   const renameRecording = (id: string, name: string) => {
-    setRecordings((prev) => prev.map((r) => r.id === id ? { ...r, name: name.trim() || r.name } : r));
+    const cleaned = name.trim();
+    if (!cleaned) return;
+    setRecordings((prev) => prev.map((r) => r.id === id ? { ...r, name: cleaned } : r));
+    void updateRecordingName(id, cleaned).catch((e: unknown) => console.warn('Recording rename failed:', e));
   };
 
   const statusLabel = recording
