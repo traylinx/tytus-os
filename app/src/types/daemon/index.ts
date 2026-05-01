@@ -25,7 +25,12 @@ export type {
   PodReadinessStage,
   PodReadinessStageStatus,
 } from "./PodReadiness";
-export type { Binding, SharedFoldersList } from "./Binding";
+export type {
+  Binding,
+  SharedFoldersList,
+  GaragetytusHelperStatus,
+  GaragetytusStatus,
+} from "./Binding";
 export type { PodEnv, PodEnvVar, EnvVarSource } from "./PodEnv";
 export type {
   StoreApp,

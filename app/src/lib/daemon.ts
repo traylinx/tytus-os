@@ -17,6 +17,7 @@ import type {
   FileListEntry,
   FileMutationSource,
   FileUploadBody,
+  GaragetytusStatus,
   IncludedPod,
   JobCancelResult,
   JobResponse,
@@ -377,6 +378,35 @@ const isFileList = (v: unknown): v is FileList =>
 const isSharedFolders = (v: unknown): v is SharedFoldersList =>
   isObject(v) && Array.isArray(v.bindings);
 
+const isGaragetytusStatus = (v: unknown): v is GaragetytusStatus =>
+  isObject(v) &&
+  typeof v.available === "boolean" &&
+  (v.running === null || typeof v.running === "boolean") &&
+  typeof v.state === "string" &&
+  typeof v.status_text === "string" &&
+  (v.version === null || typeof v.version === "string") &&
+  typeof v.port === "number" &&
+  (v.binary_path === null || typeof v.binary_path === "string") &&
+  (v.cache_path === null || typeof v.cache_path === "string") &&
+  typeof v.cache_exists === "boolean" &&
+  typeof v.bindings_count === "number" &&
+  Array.isArray(v.provisioned_pods) &&
+  v.provisioned_pods.every((p) => typeof p === "string") &&
+  Array.isArray(v.helpers) &&
+  v.helpers.every(
+    (h) =>
+      isObject(h) &&
+      typeof h.name === "string" &&
+      typeof h.found === "boolean" &&
+      (h.path === null || typeof h.path === "string"),
+  ) &&
+  Array.isArray(v.missing_helpers) &&
+  v.missing_helpers.every((h) => typeof h === "string") &&
+  typeof v.lifecycle_control_available === "boolean" &&
+  typeof v.lifecycle_control_reason === "string" &&
+  Array.isArray(v.warnings) &&
+  v.warnings.every((w) => typeof w === "string");
+
 const isPodEnvVar = (v: unknown): v is PodEnvVar =>
   isObject(v) &&
   typeof v.key === "string" &&
@@ -489,6 +519,9 @@ export interface DaemonClient {
   getSharedFolders(
     signal?: AbortSignal,
   ): Promise<DaemonResult<SharedFoldersList>>;
+  getGaragetytusStatus(
+    signal?: AbortSignal,
+  ): Promise<DaemonResult<GaragetytusStatus>>;
 
   // POST
   //
@@ -935,6 +968,11 @@ export const createDaemonClient = (
     getSharedFolders: (signal) =>
       runRequest(deps, "/api/shared-folders/list", { signal }, (b) =>
         expectShape(b, isSharedFolders, "malformed /api/shared-folders/list"),
+      ),
+
+    getGaragetytusStatus: (signal) =>
+      runRequest(deps, "/api/garagetytus/status", { signal }, (b) =>
+        expectShape(b, isGaragetytusStatus, "malformed /api/garagetytus/status"),
       ),
 
     postLogout: (signal, idempotencyKey) =>

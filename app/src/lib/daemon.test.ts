@@ -5,6 +5,7 @@ import {
   catalogFixture,
   channelsPod02Fixture,
   daemonStatusFixture,
+  garagetytusStatusFixture,
   launchersFixture,
   podReadyFixture,
   podReadinessFixture,
@@ -482,6 +483,23 @@ describe("daemon client — other GETs", () => {
     ]);
     const r = await createDaemonClient({ fetch }).getSharedFolders();
     expect(r.ok).toBe(true);
+  });
+
+  it("getGaragetytusStatus parses helper health and lifecycle capability", async () => {
+    const { fetch } = makeFakeFetch([
+      {
+        method: "GET",
+        path: "/api/garagetytus/status",
+        body: garagetytusStatusFixture,
+      },
+    ]);
+    const r = await createDaemonClient({ fetch }).getGaragetytusStatus();
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.value.running).toBe(true);
+    expect(r.value.port).toBe(3900);
+    expect(r.value.lifecycle_control_available).toBe(false);
+    expect(r.value.helpers[0].name).toBe("garagetytus-folder-bind");
   });
 
   it("getPodEnv defaults to redacted (no reveal query param)", async () => {

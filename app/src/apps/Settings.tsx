@@ -58,6 +58,7 @@ import type {
   Tier,
   UpdateStatus,
   Binding,
+  GaragetytusStatus,
 } from "@/types/daemon";
 
 interface SettingCategory {
@@ -3845,6 +3846,9 @@ const SharingSettingsPanel: React.FC = () => {
   const client = useDaemonClient();
   const { addNotification } = useNotifications();
   const [bindings, setBindings] = useState<Binding[] | null>(null);
+  const [garageStatus, setGarageStatus] = useState<GaragetytusStatus | null>(
+    null,
+  );
   const [listErr, setListErr] = useState<string | null>(null);
   const [listing, setListing] = useState(false);
   const [cacheErr, setCacheErr] = useState<string | null>(null);
@@ -3863,28 +3867,46 @@ const SharingSettingsPanel: React.FC = () => {
     stream.status === "failed" ||
     stream.status === "lost";
 
-  const loadBindings = useCallback(async () => {
+  const loadSharingState = useCallback(async () => {
     setListing(true);
     setListErr(null);
-    const r = await client.getSharedFolders();
+    const [folders, status] = await Promise.all([
+      client.getSharedFolders(),
+      client.getGaragetytusStatus(),
+    ]);
     setListing(false);
-    if (!r.ok) {
-      setListErr(r.error.message);
+    if (!folders.ok) {
+      setListErr(folders.error.message);
       return;
     }
-    setBindings(r.value.bindings);
+    setBindings(folders.value.bindings);
+    if (status.ok) {
+      setGarageStatus(status.value);
+    } else {
+      setGarageStatus(null);
+      setListErr(status.error.message);
+    }
   }, [client]);
 
   useEffect(() => {
     let cancelled = false;
     const run = async () => {
-      const r = await client.getSharedFolders();
+      const [folders, status] = await Promise.all([
+        client.getSharedFolders(),
+        client.getGaragetytusStatus(),
+      ]);
       if (cancelled) return;
-      if (r.ok) {
-        setBindings(r.value.bindings);
+      if (folders.ok) {
+        setBindings(folders.value.bindings);
         setListErr(null);
       } else {
-        setListErr(r.error.message);
+        setListErr(folders.error.message);
+      }
+      if (status.ok) {
+        setGarageStatus(status.value);
+      } else {
+        setGarageStatus(null);
+        setListErr((prev) => prev ?? status.error.message);
       }
     };
     void run();
@@ -3935,6 +3957,23 @@ const SharingSettingsPanel: React.FC = () => {
     }
     return Array.from(pods).sort();
   }, [bindings]);
+  const helperCount = garageStatus
+    ? `${garageStatus.helpers.filter((h) => h.found).length}/${garageStatus.helpers.length}`
+    : "—";
+  const serviceValue = garageStatus
+    ? garageStatus.running === true
+      ? `Running :${garageStatus.port}`
+      : garageStatus.running === false
+        ? "Stopped"
+        : garageStatus.state === "missing"
+          ? "Not installed"
+          : "Unknown"
+    : "—";
+  const serviceDetail =
+    garageStatus?.version ??
+    garageStatus?.status_text ??
+    "Local Garage service health";
+  const statusWarnings = garageStatus?.warnings ?? [];
 
   return (
     <div className="space-y-6">
@@ -3948,7 +3987,13 @@ const SharingSettingsPanel: React.FC = () => {
         </p>
       </div>
 
-      <div className="grid gap-3 md:grid-cols-3">
+      <div className="grid gap-3 md:grid-cols-4">
+        <MetricCard
+          icon={<Server size={18} />}
+          label="Service"
+          value={serviceValue}
+          detail={serviceDetail}
+        />
         <MetricCard
           icon={<FolderSync size={18} />}
           label="Bindings"
@@ -3965,11 +4010,35 @@ const SharingSettingsPanel: React.FC = () => {
         />
         <MetricCard
           icon={<ShieldCheck size={18} />}
-          label="Credential status"
-          value={bindingCount > 0 ? "Configured" : "Not configured"}
-          detail="Secrets stay daemon-side and redacted"
+          label="Helpers"
+          value={helperCount}
+          detail={
+            garageStatus?.missing_helpers.length
+              ? `${garageStatus.missing_helpers.length} missing`
+              : "Bind, diagnostics, pod refresh"
+          }
         />
       </div>
+
+      {statusWarnings.length > 0 && (
+        <div
+          className="p-3 rounded-lg text-xs flex items-start gap-2"
+          style={{
+            background: "rgba(255,193,7,0.10)",
+            border: "1px solid rgba(255,193,7,0.30)",
+            color: "var(--text-primary)",
+          }}
+        >
+          <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+          <div>
+            <div className="font-semibold">Sharing needs attention</div>
+            <div className="mt-1 text-[var(--text-secondary)]">
+              {statusWarnings.slice(0, 3).join(" · ")}
+              {statusWarnings.length > 3 ? " · …" : ""}
+            </div>
+          </div>
+        </div>
+      )}
 
       {(listErr || actionErr || cacheErr) && (
         <div
@@ -4005,7 +4074,7 @@ const SharingSettingsPanel: React.FC = () => {
             </div>
           </div>
           <button
-            onClick={loadBindings}
+            onClick={loadSharingState}
             disabled={listing}
             className="px-3 py-1.5 rounded-md text-xs font-medium flex items-center gap-1.5 disabled:opacity-60"
             style={{

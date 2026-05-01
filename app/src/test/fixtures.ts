@@ -144,6 +144,37 @@ export const sharedFoldersFixture = {
   ],
 };
 
+export const garagetytusStatusFixture = {
+  available: true,
+  running: true,
+  state: "running",
+  status_text: "garagetytus status: running (pid=586, state=running)",
+  version: "garagetytus 0.1.0",
+  port: 3900,
+  binary_path: "/Users/USER/.cargo/bin/garagetytus",
+  cache_path: "/Users/USER/.cache/garagetytus",
+  cache_exists: true,
+  bindings_count: 1,
+  provisioned_pods: ["wannolot-02", "wannolot-04"],
+  helpers: [
+    {
+      name: "garagetytus-folder-bind",
+      found: true,
+      path: "/Users/USER/garagetytus/bin/garagetytus-folder-bind",
+    },
+    {
+      name: "garagetytus-pod-refresh",
+      found: true,
+      path: "/Users/USER/garagetytus/bin/garagetytus-pod-refresh",
+    },
+  ],
+  missing_helpers: [],
+  lifecycle_control_available: false,
+  lifecycle_control_reason:
+    "Deferred: current sharing lifecycle is helper/per-binding based.",
+  warnings: [],
+};
+
 export const sseDoctorSuccess = `event: log
 data: Tytus Doctor
 
