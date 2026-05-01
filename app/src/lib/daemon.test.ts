@@ -773,6 +773,30 @@ describe("daemon client — POSTs", () => {
     });
   });
 
+  it("postSharedFoldersProvisionPod sends pod+buckets and returns job_id", async () => {
+    let observed: unknown = undefined;
+    const { fetch } = makeFakeFetch([
+      {
+        method: "POST",
+        path: "/api/shared-folders/provision-pod",
+        body: { job_id: "provision-1", pod: "02", buckets: ["shared"] },
+        expect: (init) => {
+          observed = init?.body ? JSON.parse(init.body as string) : null;
+        },
+      },
+    ]);
+    const r = await createDaemonClient({ fetch }).postSharedFoldersProvisionPod(
+      {
+        pod: "02",
+        buckets: ["shared"],
+      },
+    );
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.value.job_id).toBe("provision-1");
+    expect(observed).toEqual({ pod: "02", buckets: ["shared"] });
+  });
+
   it("postSharingDefaults persists changed defaults", async () => {
     let observed: unknown = undefined;
     const body = {

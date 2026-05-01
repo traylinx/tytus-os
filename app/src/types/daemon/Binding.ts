@@ -22,6 +22,12 @@ export interface SharingDefaults {
   default_local_root: string;
 }
 
+export interface SharedFolderProvisionPodRequest {
+  pod: string;
+  buckets?: string[];
+  no_restart?: boolean;
+}
+
 export interface GaragetytusHelperStatus {
   name: string;
   found: boolean;

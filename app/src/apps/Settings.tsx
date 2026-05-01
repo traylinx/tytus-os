@@ -3843,8 +3843,12 @@ const SHARING_DIAGNOSTICS = [
 
 type SharingAction = (typeof SHARING_DIAGNOSTICS)[number]["action"];
 
+const normalizeSharingPodId = (pod: string): string =>
+  pod.trim().replace(/^(wannolot|tytus)-/, "");
+
 const SharingSettingsPanel: React.FC = () => {
   const client = useDaemonClient();
+  const daemon = useDaemonStateContext();
   const { addNotification } = useNotifications();
   const [bindings, setBindings] = useState<Binding[] | null>(null);
   const [garageStatus, setGarageStatus] = useState<GaragetytusStatus | null>(
@@ -3865,6 +3869,9 @@ const SharingSettingsPanel: React.FC = () => {
   const [actionSubmitting, setActionSubmitting] =
     useState<SharingAction | null>(null);
   const [refreshingPod, setRefreshingPod] = useState<string | null>(null);
+  const [provisioningPodKey, setProvisioningPodKey] = useState<string | null>(
+    null,
+  );
   const stream = useJobStream({
     url: activeJob ? client.jobStreamUrl(activeJob.id) : null,
   });
@@ -3982,6 +3989,34 @@ const SharingSettingsPanel: React.FC = () => {
     [activeJob, client, sharingDefaults?.sharing_globally_enabled, streamDone],
   );
 
+  const runPodSharedProvision = useCallback(
+    async (pod: string, bucket: string) => {
+      if (activeJob && !streamDone) return;
+      if (sharingDefaults?.sharing_globally_enabled === false) {
+        setActionErr("Sharing is paused. Enable it before provisioning pods.");
+        return;
+      }
+      const key = `${pod}:${bucket}`;
+      setProvisioningPodKey(key);
+      setActionErr(null);
+      setActiveJob(null);
+      const r = await client.postSharedFoldersProvisionPod({
+        pod,
+        buckets: [bucket],
+      });
+      setProvisioningPodKey(null);
+      if (!r.ok) {
+        setActionErr(r.error.message);
+        return;
+      }
+      setActiveJob({
+        id: r.value.job_id,
+        action: `provision shared storage ${pod} → ${bucket}`,
+      });
+    },
+    [activeJob, client, sharingDefaults?.sharing_globally_enabled, streamDone],
+  );
+
   const saveSharingDefaults = useCallback(
     async (patch: Partial<SharingDefaults>) => {
       setSavingDefaults(true);
@@ -4022,6 +4057,7 @@ const SharingSettingsPanel: React.FC = () => {
     }
     return Array.from(pods).sort();
   }, [bindings]);
+  const allocatedPods = daemon.state?.agents ?? [];
   const helperCount = garageStatus
     ? `${garageStatus.helpers.filter((h) => h.found).length}/${garageStatus.helpers.length}`
     : "—";
@@ -4310,72 +4346,115 @@ const SharingSettingsPanel: React.FC = () => {
               folder.
             </div>
           ) : (
-            bindings.map((binding) => (
-              <div
-                key={`${binding.local_path}:${binding.bucket}`}
-                className="px-4 py-3"
-              >
-                <div className="flex items-center justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="font-mono text-xs text-[var(--text-primary)] truncate">
-                      {binding.local_path}
-                    </div>
-                    <div className="text-[11px] text-[var(--text-secondary)] mt-1">
-                      bucket {binding.bucket} · pods{" "}
-                      {binding.pods_provisioned.length > 0
-                        ? binding.pods_provisioned.join(", ")
-                        : "none"}{" "}
-                      · {binding.auto_sync ? "auto-sync on" : "manual sync"}
-                    </div>
-                    {binding.pods_provisioned.length > 0 && (
-                      <div className="flex flex-wrap gap-1.5 mt-2">
-                        {binding.pods_provisioned.map((pod) => {
-                          const busy =
-                            refreshingPod === pod ||
-                            (!!activeJob && !streamDone);
-                          return (
-                            <button
-                              key={pod}
-                              onClick={() =>
-                                void runPodCredentialRefresh(pod)
-                              }
-                              disabled={busy || sharingPaused}
-                              className="px-2 py-1 rounded-md text-[10px] flex items-center gap-1 disabled:opacity-60"
-                              style={{
-                                background:
-                                  "var(--bg-hover, rgba(255,255,255,0.04))",
-                                border: "1px solid var(--border-default)",
-                                color: "var(--text-secondary)",
-                              }}
-                            >
-                              {refreshingPod === pod ? (
-                                <Loader2 size={10} className="animate-spin" />
-                              ) : (
-                                <RefreshCw size={10} />
-                              )}
-                              Refresh {pod}
-                            </button>
-                          );
-                        })}
+            bindings.map((binding) => {
+              const provisionedIds = new Set(
+                binding.pods_provisioned.map(normalizeSharingPodId),
+              );
+              const unprovisionedAllocatedPods = allocatedPods.filter(
+                (pod) => !provisionedIds.has(normalizeSharingPodId(pod.pod_id)),
+              );
+              return (
+                <div
+                  key={`${binding.local_path}:${binding.bucket}`}
+                  className="px-4 py-3"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="font-mono text-xs text-[var(--text-primary)] truncate">
+                        {binding.local_path}
                       </div>
-                    )}
+                      <div className="text-[11px] text-[var(--text-secondary)] mt-1">
+                        bucket {binding.bucket} · pods{" "}
+                        {binding.pods_provisioned.length > 0
+                          ? binding.pods_provisioned.join(", ")
+                          : "none"}{" "}
+                        · {binding.auto_sync ? "auto-sync on" : "manual sync"}
+                      </div>
+                      {(binding.pods_provisioned.length > 0 ||
+                        unprovisionedAllocatedPods.length > 0) && (
+                        <div className="flex flex-wrap gap-1.5 mt-2">
+                          {binding.pods_provisioned.map((pod) => {
+                            const busy =
+                              refreshingPod === pod ||
+                              (!!activeJob && !streamDone);
+                            return (
+                              <button
+                                key={`refresh:${pod}`}
+                                onClick={() =>
+                                  void runPodCredentialRefresh(pod)
+                                }
+                                disabled={busy || sharingPaused}
+                                className="px-2 py-1 rounded-md text-[10px] flex items-center gap-1 disabled:opacity-60"
+                                style={{
+                                  background:
+                                    "var(--bg-hover, rgba(255,255,255,0.04))",
+                                  border: "1px solid var(--border-default)",
+                                  color: "var(--text-secondary)",
+                                }}
+                                title="Refresh this pod's shared-folder credentials"
+                              >
+                                {refreshingPod === pod ? (
+                                  <Loader2 size={10} className="animate-spin" />
+                                ) : (
+                                  <RefreshCw size={10} />
+                                )}
+                                Refresh {pod}
+                              </button>
+                            );
+                          })}
+                          {unprovisionedAllocatedPods.map((pod) => {
+                            const podId = pod.pod_id;
+                            const key = `${podId}:${binding.bucket}`;
+                            const busy =
+                              provisioningPodKey === key ||
+                              (!!activeJob && !streamDone);
+                            return (
+                              <button
+                                key={`provision:${podId}`}
+                                onClick={() =>
+                                  void runPodSharedProvision(
+                                    podId,
+                                    binding.bucket,
+                                  )
+                                }
+                                disabled={busy || sharingPaused}
+                                className="px-2 py-1 rounded-md text-[10px] flex items-center gap-1 disabled:opacity-60"
+                                style={{
+                                  background: "rgba(124, 77, 255, 0.12)",
+                                  border: "1px solid rgba(124, 77, 255, 0.34)",
+                                  color: "var(--accent-primary)",
+                                }}
+                                title="Install this shared folder into the pod workspace"
+                              >
+                                {provisioningPodKey === key ? (
+                                  <Loader2 size={10} className="animate-spin" />
+                                ) : (
+                                  <FolderSync size={10} />
+                                )}
+                                Provision {podId}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                    <button
+                      onClick={() =>
+                        void client.postSharedFoldersOpen(binding.local_path)
+                      }
+                      className="px-2.5 py-1 rounded-md text-[11px] flex items-center gap-1.5 shrink-0"
+                      style={{
+                        background: "var(--bg-hover, rgba(255,255,255,0.04))",
+                        border: "1px solid var(--border-default)",
+                        color: "var(--text-secondary)",
+                      }}
+                    >
+                      <ExternalLink size={11} /> Open
+                    </button>
                   </div>
-                  <button
-                    onClick={() =>
-                      void client.postSharedFoldersOpen(binding.local_path)
-                    }
-                    className="px-2.5 py-1 rounded-md text-[11px] flex items-center gap-1.5 shrink-0"
-                    style={{
-                      background: "var(--bg-hover, rgba(255,255,255,0.04))",
-                      border: "1px solid var(--border-default)",
-                      color: "var(--text-secondary)",
-                    }}
-                  >
-                    <ExternalLink size={11} /> Open
-                  </button>
                 </div>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
       </div>
