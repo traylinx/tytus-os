@@ -240,6 +240,35 @@ export const updateTrackCover = async (id: string, coverDataUrl: string): Promis
   }
 };
 
+// Update style_tags for a saved track. Used by the form's auto-save
+// effect when the user edits Style on a track they've loaded.
+export const updateTrackStyle = async (id: string, styleTags: string): Promise<void> => {
+  const db = getDb();
+  if (!db) throw new Error('Database not ready');
+  await db.run('UPDATE music_creator_tracks SET style_tags = ? WHERE id = ?', [styleTags, id]);
+};
+
+// Update lyrics_preview for a saved track. Same pattern as above.
+export const updateTrackLyrics = async (id: string, lyricsPreview: string): Promise<void> => {
+  const db = getDb();
+  if (!db) throw new Error('Database not ready');
+  await db.run('UPDATE music_creator_tracks SET lyrics_preview = ? WHERE id = ?', [lyricsPreview, id]);
+};
+
+// Update specs_json for a saved track. Empty string clears it.
+// Pre-V5 schemas without the column silently no-op so an HMR-driven
+// schema-drift race doesn't corrupt the user's edit flow.
+export const updateTrackSpecs = async (id: string, specsJson: string): Promise<void> => {
+  const db = getDb();
+  if (!db) throw new Error('Database not ready');
+  try {
+    await db.run('UPDATE music_creator_tracks SET specs_json = ? WHERE id = ?', [specsJson, id]);
+  } catch (e) {
+    if (!new RegExp('no such column:\\s*specs_json', 'i').test(String(e))) throw e;
+    console.warn('[musicCreator] updateTrackSpecs skipped — pre-V5 schema');
+  }
+};
+
 // ── Settings kv store ────────────────────────────────────────
 
 export const getSetting = async <T>(key: string, fallback: T): Promise<T> => {

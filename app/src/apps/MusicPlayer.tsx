@@ -28,6 +28,12 @@ interface Track {
   duration: number; // seconds; 0 = unknown until <audio> loads
   src: string;      // data URL or object URL or file path
   source: 'juli3ta' | 'local';
+  // Optional album-cover-art (base64 data URL). When present the
+  // player renders it in place of the gradient + Sparkles placeholder.
+  // Carried across from MusicCreator's SavedTrack.coverDataUrl so an
+  // OPEN_OR_FOCUS_WINDOW handoff doesn't lose the art the user
+  // generated/uploaded in Juli3ta.
+  coverDataUrl?: string;
 }
 
 // ---- Juli3ta gallery import ---------------------------------------------
@@ -45,6 +51,7 @@ const rowToTrack = (r: SavedTrackRow): Track => ({
   duration: Math.round((r.durationMs || 0) / 1000),
   src: r.audioDataUrl,
   source: 'juli3ta' as const,
+  coverDataUrl: r.coverDataUrl || undefined,
 });
 
 const loadJuli3taGalleryAsync = async (): Promise<Track[]> => {
@@ -157,8 +164,10 @@ export default function MusicPlayer() {
     const idx = tracks.findIndex((t) => t.id === intentTrackId);
     if (idx >= 0) {
       intentSeededRef.current = true;
-      setCurrentIndex(idx);
-      setIsPlaying(true);
+      queueMicrotask(() => {
+        setCurrentIndex(idx);
+        setIsPlaying(true);
+      });
     }
   }, [intentTrackId, tracks]);
 
@@ -403,17 +412,21 @@ export default function MusicPlayer() {
       {/* Album Art Area */}
       <div className="flex flex-col items-center pt-6 pb-4">
         <div
-          className="flex items-center justify-center rounded-xl mb-4 transition-transform"
+          className="flex items-center justify-center rounded-xl mb-4 transition-transform overflow-hidden"
           style={{
             width: 200, height: 200,
-            background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))',
+            background: currentTrack.coverDataUrl
+              ? `url(${currentTrack.coverDataUrl}) center/cover no-repeat`
+              : 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))',
             boxShadow: 'var(--shadow-lg)',
             animation: isPlaying ? 'pulse 2s infinite' : 'none',
           }}
         >
-          {currentTrack.source === 'juli3ta'
-            ? <Sparkles size={80} style={{ color: 'rgba(255,255,255,0.5)' }} />
-            : <Music size={80} style={{ color: 'rgba(255,255,255,0.3)' }} />}
+          {!currentTrack.coverDataUrl && (
+            currentTrack.source === 'juli3ta'
+              ? <Sparkles size={80} style={{ color: 'rgba(255,255,255,0.5)' }} />
+              : <Music size={80} style={{ color: 'rgba(255,255,255,0.3)' }} />
+          )}
         </div>
 
         <h2 style={{ fontSize: '16px', fontWeight: 600, color: 'var(--text-primary)', marginTop: '4px' }}>
@@ -572,13 +585,25 @@ export default function MusicPlayer() {
                 borderLeft: i === currentIndex ? '3px solid var(--accent-primary)' : '3px solid transparent',
               }}
             >
-              <span style={{ fontSize: '11px', color: 'var(--text-disabled)', width: 20, textAlign: 'center' }}>
-                {i === currentIndex && isPlaying
-                  ? <Music size={12} style={{ color: 'var(--accent-primary)' }} />
-                  : track.source === 'juli3ta'
-                    ? <Sparkles size={12} style={{ color: 'var(--accent-secondary)' }} />
-                    : i + 1}
-              </span>
+              {track.coverDataUrl ? (
+                <div
+                  className="rounded-md flex-shrink-0"
+                  style={{
+                    width: 28,
+                    height: 28,
+                    background: `url(${track.coverDataUrl}) center/cover no-repeat`,
+                    border: '1px solid var(--border-subtle)',
+                  }}
+                />
+              ) : (
+                <span style={{ fontSize: '11px', color: 'var(--text-disabled)', width: 20, textAlign: 'center' }}>
+                  {i === currentIndex && isPlaying
+                    ? <Music size={12} style={{ color: 'var(--accent-primary)' }} />
+                    : track.source === 'juli3ta'
+                      ? <Sparkles size={12} style={{ color: 'var(--accent-secondary)' }} />
+                      : i + 1}
+                </span>
+              )}
               <div className="flex-1 min-w-0">
                 <div className="truncate" style={{ fontSize: '13px', fontWeight: i === currentIndex ? 600 : 400, color: 'var(--text-primary)' }}>
                   {track.title}

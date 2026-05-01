@@ -46,6 +46,9 @@ import {
   deleteTrack as deleteTrackRow,
   renameTrack as renameTrackRow,
   updateTrackCover as updateTrackCoverRow,
+  updateTrackStyle as updateTrackStyleRow,
+  updateTrackLyrics as updateTrackLyricsRow,
+  updateTrackSpecs as updateTrackSpecsRow,
   loadSettings as loadCreatorSettings,
   saveSettings as saveCreatorSettings,
   type MusicCreatorSettings,
@@ -898,16 +901,24 @@ const pickModels = (ids: readonly string[]): DiscoveredModels => {
 //
 // Session cache for URLs that throw a TypeError on fetch — almost
 // always a CORS preflight failure (no `Access-Control-Allow-Origin`).
-// Once we know a URL is browser-unreachable we stop probing it, which
-// keeps the console clean on every daemon-state re-render.
-const corsBlocked = new Set<string>();
+// Once we know a URL is browser-unreachable we stop probing it for a
+// while so the console stays clean on every daemon-state re-render.
+// TTL'd (60s) so a pod that comes online later or has its CORS
+// header fixed mid-session can recover without a full app reload.
+const CORS_BLOCK_TTL_MS = 60_000;
+const corsBlocked = new Map<string, number>(); // url → expires-at (ms)
 
 const probeAndDiscover = async (
   cand: PodEndpoint,
   signal: AbortSignal,
 ): Promise<{ ok: boolean; models: DiscoveredModels }> => {
-  if (corsBlocked.has(cand.url)) {
-    return { ok: false, models: NO_MODELS };
+  const blockedUntil = corsBlocked.get(cand.url);
+  if (blockedUntil !== undefined) {
+    if (Date.now() < blockedUntil) {
+      return { ok: false, models: NO_MODELS };
+    }
+    // TTL expired — clear and re-probe.
+    corsBlocked.delete(cand.url);
   }
   // PROBE_TIMEOUT_MS guards against a hung pod that accepts the TCP
   // connection but never responds — without it the resolving spinner
@@ -934,7 +945,7 @@ const probeAndDiscover = async (
     // TimeoutError = pod hung; treat like unreachable (no cache, so a
     // retry will probe again — flap is recoverable).
     const name = (e as Error)?.name ?? '';
-    if (name === 'TypeError') corsBlocked.add(cand.url);
+    if (name === 'TypeError') corsBlocked.set(cand.url, Date.now() + CORS_BLOCK_TTL_MS);
     return { ok: false, models: NO_MODELS };
   } finally {
     probeTimeout.dispose();
@@ -1807,9 +1818,15 @@ function TrackAvatar({
   );
 }
 
-function MiniPlayer({ player }: { player: PlayerControls }) {
+function MiniPlayer({ player, allTracks }: { player: PlayerControls; allTracks: SavedTrack[] }) {
   const { state, toggle, next, prev, seek, setVolume, queue } = player;
-  const track = queue.find((t) => t.id === state.trackId) ?? null;
+  // Try the queue first (typically === visibleGallery so prev/next
+  // line up with what the user sees), then fall back to the full
+  // gallery so the player doesn't disappear when the user types in
+  // the search box and the active track is filtered out.
+  const track = queue.find((t) => t.id === state.trackId)
+    ?? allTracks.find((t) => t.id === state.trackId)
+    ?? null;
   if (!track) return null;
 
   const dur = state.durationMs > 0 ? state.durationMs : track.durationMs;
@@ -2930,6 +2947,13 @@ function ChipMultiSelect({
 // a meaningful badge. Walks one level deep — sub-objects with no truthy
 // fields don't count.
 function countSetSpecs(s: TrackSpecs): number {
+  // `intent` lives on TrackSpecs for round-trip convenience but it's
+  // surfaced in the Lyrics Direction textarea, NOT as a chip in the
+  // Track Specs panel. Counting it here would make the panel's
+  // "N set" badge increment when the user types lyrics direction,
+  // which is misleading. Strip it from the count.
+  const { intent: _intent, ...rest } = s;
+  void _intent;
   let n = 0;
   const walk = (obj: unknown) => {
     if (!obj || typeof obj !== 'object') return;
@@ -2941,7 +2965,7 @@ function countSetSpecs(s: TrackSpecs): number {
       n += 1;
     }
   };
-  walk(s);
+  walk(rest);
   return n;
 }
 
@@ -3276,6 +3300,13 @@ function TrackTableRow({
             <div
               className="truncate"
               style={{ fontWeight: isActive ? 600 : 500 }}
+              // Stop CLICK from bubbling to the row so a double-click
+              // doesn't toggle play+pause before the rename input
+              // opens. The row's outer onClick = play/pause; without
+              // this, the first click of a double-click fires the
+              // play handler and pauses/resumes the active track
+              // every time the user wants to rename.
+              onClick={(e) => e.stopPropagation()}
               onDoubleClick={(e) => {
                 e.stopPropagation();
                 setEditing(track.title);
@@ -3624,8 +3655,29 @@ function CoverArtModal({
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
+  // AbortController for in-flight image gen. A modal close mid-gen
+  // aborts so the resolved promise doesn't setDraftCover on an
+  // unmounted component, and the user's quota isn't burned for an
+  // image they'll never see.
+  const abortRef = useRef<AbortController | null>(null);
   const cleanTitle = track.title.replace(/\s*\((lyrics|cover|restyle)\)\s*$/, '');
   const placeholder = deriveCoverPrompt(cleanTitle, '', track.styleTags || '');
+
+  // Esc-to-close while not busy. Mounted as a document listener while
+  // the modal is open. Skipped when busy because aborting mid-gen is
+  // the user's responsibility (close still aborts via the ref below).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { e.stopPropagation(); onClose(); }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  // Abort any in-flight gen on unmount. Without this, a user closes
+  // the modal during regenerate → the promise still resolves and
+  // tries to setDraftCover on a dead component.
+  useEffect(() => () => abortRef.current?.abort(), []);
 
   const onRegenerate = async () => {
     if (!endpoint) {
@@ -3636,13 +3688,19 @@ function CoverArtModal({
       setErr(`This endpoint (${endpoint.label}) has no image model. Pick one in Music Creator Settings → Cover art.`);
       return;
     }
+    if (busy) return;
+    abortRef.current?.abort();
+    abortRef.current = new AbortController();
+    const signal = abortRef.current.signal;
     setBusy(true);
     setErr(null);
     try {
       const finalPrompt = (prompt.trim() || placeholder).slice(0, 1500);
-      const out = await callImageGen(endpoint, finalPrompt);
+      const out = await callImageGen(endpoint, finalPrompt, signal);
+      if (signal.aborted) return;
       setDraftCover(out);
     } catch (e) {
+      if ((e as Error).name === 'AbortError') return;
       setErr((e as Error).message || 'Cover-art generation failed.');
     } finally {
       setBusy(false);
@@ -3650,6 +3708,7 @@ function CoverArtModal({
   };
 
   const onUpload = (file: File) => {
+    setErr(null);
     if (!file.type.startsWith('image/')) {
       setErr('That file is not an image.');
       return;
@@ -3857,6 +3916,271 @@ function CoverArtModal({
 }
 
 // ──────────────────────────────────────────────────────────
+// SongCardModal — read-mostly preview card opened by clicking
+// the cover thumbnail in the form. Shows the big cover plus
+// every metadata field (title, mode, theme, style, lyrics
+// direction, specs summary, lyrics) so the user can sanity-
+// check what's about to be saved without scrolling the form.
+// ──────────────────────────────────────────────────────────
+//
+// Actions live inline so the user can act on what they see:
+//   • Regenerate / Generate cover via the same callImageGen path
+//   • Upload a custom file
+//   • Clear the cover
+//   • Close (Esc / overlay click / button)
+//
+// Pure presentation otherwise — text fields are read-only here;
+// the user edits them in the form behind the modal.
+interface SongCardModalProps {
+  songName: string;
+  mode: 'compose' | 'restyle' | 'lyricsOnly';
+  theme: string;
+  style: string;
+  intent: string;
+  lyrics: string;
+  specs: TrackSpecs;
+  coverDataUrl: string;
+  coverPrompt: string;
+  endpoint: PodEndpoint | null;
+  busy: boolean;
+  onRegenerate: () => void;
+  onUpload: (file: File) => void;
+  onClear: () => void;
+  onClose: () => void;
+}
+
+function SongCardModal({
+  songName, mode, theme, style, intent, lyrics, specs,
+  coverDataUrl, coverPrompt: _coverPrompt,
+  endpoint, busy,
+  onRegenerate, onUpload, onClear, onClose,
+}: SongCardModalProps) {
+  const fileRef = useRef<HTMLInputElement | null>(null);
+  const specsSummary = useMemo(() => compileSpecsToText(specs), [specs]);
+  const setCount = useMemo(() => countSetSpecs(specs), [specs]);
+
+  // Esc-to-close. Mounted as a document listener for the modal lifetime.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { e.stopPropagation(); onClose(); }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  const modeLabel = mode === 'restyle' ? 'Restyle' : mode === 'lyricsOnly' ? 'Lyrics only' : 'Song';
+  const cleanTitle = (songName.trim().replace(/\s*\((lyrics|cover|restyle)\)\s*$/, '')) || 'Untitled';
+
+  const Section = ({ label, children }: { label: string; children: React.ReactNode }) => (
+    <div>
+      <div
+        style={{
+          fontSize: 10, fontWeight: 600, color: 'var(--text-disabled)',
+          textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4,
+        }}
+      >
+        {label}
+      </div>
+      <div style={{ fontSize: 12, color: 'var(--text-primary)', whiteSpace: 'pre-wrap' }}>
+        {children}
+      </div>
+    </div>
+  );
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[4000] flex items-center justify-center"
+      style={{ background: 'rgba(0,0,0,0.6)' }}
+      onClick={onClose}
+    >
+      <div
+        className="rounded-xl shadow-2xl flex flex-col"
+        style={{
+          width: 720,
+          maxWidth: 'calc(100vw - 48px)',
+          maxHeight: 'calc(100vh - 48px)',
+          background: 'var(--bg-window)',
+          border: '1px solid var(--border-default)',
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div
+          className="flex items-center gap-2 px-4 py-3 flex-shrink-0"
+          style={{ borderBottom: '1px solid var(--border-subtle)' }}
+        >
+          <Disc3 size={14} style={{ color: 'var(--accent-primary)' }} />
+          <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>
+            Song Card
+          </span>
+          <span
+            className="px-2 py-0.5 rounded-full"
+            style={{
+              fontSize: 10,
+              color: 'var(--accent-secondary)',
+              background: 'rgba(168, 85, 247, 0.12)',
+              border: '1px solid var(--border-subtle)',
+            }}
+          >
+            {modeLabel}
+          </span>
+          <button
+            onClick={onClose}
+            className="ml-auto rounded-md hover:bg-[var(--bg-hover)] flex items-center justify-center"
+            style={{ width: 24, height: 24, color: 'var(--text-secondary)' }}
+            title="Close (Esc)"
+          >
+            <X size={14} />
+          </button>
+        </div>
+
+        {/* Body — scrolls when the lyrics push past the viewport. */}
+        <div className="flex-1 overflow-y-auto invisible-scrollbar p-5 flex gap-5">
+          {/* Big cover. 320×320 — the focal element. Uses the same
+              data URL pattern as everywhere else; falls back to the
+              gradient + ImageIcon placeholder when no cover. */}
+          <div
+            className="rounded-lg overflow-hidden flex-shrink-0 relative"
+            style={{
+              width: 320,
+              height: 320,
+              background: coverDataUrl
+                ? `url(${coverDataUrl}) center/cover no-repeat`
+                : 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))',
+              border: '1px solid var(--border-subtle)',
+              boxShadow: 'var(--shadow-md)',
+            }}
+          >
+            {!coverDataUrl && (
+              <div className="absolute inset-0 flex items-center justify-center">
+                <ImageIcon size={64} style={{ color: 'white', opacity: 0.7 }} />
+              </div>
+            )}
+            {busy && (
+              <div className="absolute inset-0 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.5)' }}>
+                <Loader2 size={28} className="animate-spin" style={{ color: 'white' }} />
+              </div>
+            )}
+          </div>
+
+          {/* Metadata column */}
+          <div className="flex-1 min-w-0 flex flex-col gap-3">
+            <div>
+              <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1.2 }}>
+                {cleanTitle}
+              </div>
+              {style.trim() && (
+                <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>
+                  {style.trim()}
+                </div>
+              )}
+            </div>
+
+            {/* Cover-art actions — top of the metadata column so they're
+                visible without scrolling when lyrics are long. */}
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={onRegenerate}
+                disabled={busy || !endpoint?.models.image}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg disabled:opacity-40"
+                style={{
+                  fontSize: 11, fontWeight: 600, color: 'white',
+                  background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))',
+                  border: '1px solid transparent',
+                  cursor: (busy || !endpoint?.models.image) ? 'not-allowed' : 'pointer',
+                }}
+                title={endpoint?.models.image ? 'Generate cover art' : 'No image model available'}
+              >
+                {busy ? <Loader2 size={11} className="animate-spin" /> : <Sparkles size={11} />}
+                {coverDataUrl ? 'Regenerate' : 'Generate'}
+              </button>
+              <button
+                type="button"
+                onClick={() => fileRef.current?.click()}
+                disabled={busy}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg disabled:opacity-40 hover:bg-[var(--bg-hover)]"
+                style={{
+                  fontSize: 11, color: 'var(--text-secondary)',
+                  background: 'var(--bg-titlebar)',
+                  border: '1px solid var(--border-subtle)',
+                }}
+              >
+                <Upload size={11} />
+                Upload
+              </button>
+              {coverDataUrl && (
+                <button
+                  type="button"
+                  onClick={onClear}
+                  disabled={busy}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg disabled:opacity-40 hover:bg-[var(--bg-hover)]"
+                  style={{
+                    fontSize: 11, color: 'var(--text-disabled)',
+                    background: 'var(--bg-titlebar)',
+                    border: '1px solid var(--border-subtle)',
+                  }}
+                >
+                  <X size={11} />
+                  Clear
+                </button>
+              )}
+            </div>
+
+            {theme.trim() && (
+              <Section label="Theme">{theme.trim()}</Section>
+            )}
+            {intent.trim() && (
+              <Section label="Lyrics Direction">{intent.trim()}</Section>
+            )}
+            {setCount > 0 && specsSummary && (
+              <Section label={`Track Specs (${setCount} set)`}>{specsSummary}</Section>
+            )}
+            {lyrics.trim() && (
+              <Section label="Lyrics">
+                <div
+                  className="rounded-md px-3 py-2 invisible-scrollbar"
+                  style={{
+                    maxHeight: 220,
+                    overflowY: 'auto',
+                    background: 'var(--bg-titlebar)',
+                    border: '1px solid var(--border-subtle)',
+                    fontSize: 12, lineHeight: 1.5,
+                    whiteSpace: 'pre-wrap', fontFamily: 'inherit',
+                  }}
+                >
+                  {lyrics}
+                </div>
+              </Section>
+            )}
+            {!theme.trim() && !intent.trim() && setCount === 0 && !lyrics.trim() && (
+              <div style={{ fontSize: 11, color: 'var(--text-disabled)', fontStyle: 'italic' }}>
+                No metadata yet — fill in the form behind this card and click Create Song.
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Hidden file input so the modal's Upload button works without
+            mounting yet another visible <input>. Mirrors the form's. */}
+        <input
+          ref={fileRef}
+          type="file"
+          accept="image/png,image/jpeg,image/webp,image/gif"
+          style={{ display: 'none' }}
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) onUpload(file);
+            e.target.value = '';
+          }}
+        />
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
+// ──────────────────────────────────────────────────────────
 // Main component
 // ──────────────────────────────────────────────────────────
 
@@ -3901,6 +4225,12 @@ export default function MusicCreator() {
   const [coverPrompt, setCoverPrompt] = useState('');
   const [coverAuto, setCoverAuto] = useState(true);
   const [coverBusy, setCoverBusy] = useState(false);
+  // Which saved row the form currently represents. Set by loadTrack,
+  // cleared by "New Song". Lets cover regenerate / upload / clear
+  // write back to the same row in SQLite + gallery so the sidebar
+  // thumbnail updates live instead of staying stale until reload.
+  // Null means "not editing a saved row" — no write-back happens.
+  const [loadedTrackId, setLoadedTrackId] = useState<string | null>(null);
   // Structured spec controls — empty-by-default; `compileSpecsToText`
   // returns "" when no fields are set, so the request flow doesn't need
   // to special-case "no specs".
@@ -4064,6 +4394,11 @@ export default function MusicCreator() {
   // happens to be running, and vice versa. Each AI assist call grabs
   // its signal off this ref; the unmount cleanup aborts both refs.
   const aiAbortRef = useRef<AbortController | null>(null);
+  // Forward-ref handles for callbacks declared later in the component
+  // body. Lets earlier callbacks (regenerateCover, etc.) call
+  // setTrackCover without TDZ-on-render from a deps array. The ref
+  // is patched in a useEffect once the real callback is in scope.
+  const setTrackCoverRef = useRef<((id: string, cover: string) => void) | null>(null);
   // In-flight guard. Tracks a generation across the brief window between
   // a click and React rendering the Cancel button. Without this a fast
   // double-click fires two parallel `callLyrics` requests — the second
@@ -4354,27 +4689,21 @@ export default function MusicCreator() {
       // music rejects — otherwise the cover request keeps burning the
       // image quota and its eventual catch fires a phantom banner long
       // after the user has dismissed the music error and moved on.
-      let song: MusicResponse;
-      let finalCoverDataUrl: string;
-      try {
-        const settled = await Promise.allSettled([musicPromise, coverPromise]);
-        const musicResult = settled[0];
-        const coverResult = settled[1];
-        if (musicResult.status === 'rejected') {
-          // Cover may still be in flight (or just rejected). The shared
-          // controller.signal has already been used by both calls, so a
-          // user cancel kills both; for a music-side failure we abort
-          // the controller now to short-circuit the cover.
-          controller.abort();
-          throw musicResult.reason;
-        }
-        song = musicResult.value;
-        finalCoverDataUrl = coverResult.status === 'fulfilled'
-          ? coverResult.value
-          : existingCover;
-      } catch (e) {
-        throw e;
+      const settled = await Promise.allSettled([musicPromise, coverPromise]);
+      const musicResult = settled[0];
+      const coverResult = settled[1];
+      if (musicResult.status === 'rejected') {
+        // Cover may still be in flight (or just rejected). The shared
+        // controller.signal has already been used by both calls, so a
+        // user cancel kills both; for a music-side failure we abort
+        // the controller now to short-circuit the cover.
+        controller.abort();
+        throw musicResult.reason;
       }
+      const song = musicResult.value;
+      const finalCoverDataUrl = coverResult.status === 'fulfilled'
+        ? coverResult.value
+        : existingCover;
 
       // Validate the response shape before assuming success. Some
       // gateways return 200 with an empty/error body when an upstream
@@ -4884,13 +5213,21 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
       const out = await callImageGen(endpoint, finalPrompt, signal);
       if (signal.aborted) return;
       setCoverDataUrl(out);
+      // Sync to the saved row + gallery if this form represents a
+      // loaded track. Without this, regenerate updates the form
+      // preview but the sidebar thumbnail stays stale until reload.
+      // Routed through the ref because setTrackCover is declared
+      // later in the component body — direct deps would TDZ.
+      if (loadedTrackId) {
+        setTrackCoverRef.current?.(loadedTrackId, out);
+      }
     } catch (e) {
       if ((e as Error).name === 'AbortError') return;
       setError((e as Error).message || 'Cover-art generation failed.');
     } finally {
       setCoverBusy(false);
     }
-  }, [endpoint, coverPrompt, songName, theme, style, coverBusy]);
+  }, [endpoint, coverPrompt, songName, theme, style, coverBusy, loadedTrackId]);
 
   // Upload-from-disk handler. Reads the file as a base64 data URL and
   // shoves it straight into coverDataUrl so the user can ship a custom
@@ -4911,10 +5248,16 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
       const result = reader.result;
       if (typeof result === 'string' && result.startsWith('data:image/')) {
         setCoverDataUrl(result);
+        // Sync to the saved row if this form represents a loaded track
+        // (same logic as regenerateCover) so an upload also updates
+        // the sidebar thumbnail without a reload.
+        if (loadedTrackId) {
+          setTrackCoverRef.current?.(loadedTrackId, result);
+        }
       }
     };
     reader.readAsDataURL(file);
-  }, []);
+  }, [loadedTrackId]);
 
   const inspireTheme = useCallback(async () => {
     if (aiBusy) return;
@@ -5043,11 +5386,88 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
       setGalleryError(`Couldn't save cover art — ${msg}.`);
     }
   }, []);
+  // Patch the forward ref so earlier callbacks can call setTrackCover
+  // without dep-array TDZ. Layout effect so the ref is current before
+  // the next paint that could trigger a click.
+  useEffect(() => {
+    setTrackCoverRef.current = setTrackCover;
+  }, [setTrackCover]);
+
+  // Update style_tags / lyrics_preview / specs_json on a saved row.
+  // Same optimistic pattern: in-memory gallery first, then DB. Used by
+  // the form's auto-save effect when editing a loaded track.
+  const setTrackStyle = useCallback(async (id: string, nextStyle: string) => {
+    setGallery((g) => g.map((tr) => (tr.id === id ? { ...tr, styleTags: nextStyle || '—' } : tr)));
+    try {
+      await updateTrackStyleRow(id, nextStyle);
+      setGalleryError(null);
+    } catch (e) {
+      const msg = (e as Error).message || 'Database write failed';
+      setGalleryError(`Couldn't save style — ${msg}.`);
+    }
+  }, []);
+
+  const setTrackLyrics = useCallback(async (id: string, nextLyrics: string) => {
+    setGallery((g) => g.map((tr) => (tr.id === id ? { ...tr, lyricsPreview: nextLyrics } : tr)));
+    try {
+      await updateTrackLyricsRow(id, nextLyrics);
+      setGalleryError(null);
+    } catch (e) {
+      const msg = (e as Error).message || 'Database write failed';
+      setGalleryError(`Couldn't save lyrics — ${msg}.`);
+    }
+  }, []);
+
+  const setTrackSpecs = useCallback(async (id: string, nextSpecsJson: string) => {
+    setGallery((g) => g.map((tr) => (tr.id === id ? { ...tr, specsJson: nextSpecsJson } : tr)));
+    try {
+      await updateTrackSpecsRow(id, nextSpecsJson);
+      setGalleryError(null);
+    } catch (e) {
+      const msg = (e as Error).message || 'Database write failed';
+      setGalleryError(`Couldn't save specs — ${msg}.`);
+    }
+  }, []);
+
+  // Auto-persist form edits when a saved track is loaded. Without this,
+  // the user types a new title (or edits style/lyrics/specs) and only
+  // the in-memory form state changes — reopening the track in the player
+  // (or any other app reading from SQLite) shows the OLD values.
+  // Compares against the live gallery row, debounces 600ms so we don't
+  // hammer the DB on every keystroke, and skips writes that are no-ops.
+  useEffect(() => {
+    if (!loadedTrackId) return;
+    const id = loadedTrackId;
+    const handle = setTimeout(() => {
+      // Read the current gallery row at fire-time, not at effect-setup,
+      // so a save that already landed isn't re-triggered by stale state.
+      const row = gallery.find((t) => t.id === id);
+      if (!row) return;
+      const titleNext = songName.trim() || row.title;
+      const styleNext = style.trim();
+      const specsNext = countSetSpecs(specs) > 0 ? JSON.stringify(specs) : '';
+      // Normalise the placeholder dash that loadTrack maps to '' so the
+      // round-trip ('—' → '' → '—') doesn't trigger a phantom write.
+      const rowStyleNorm = row.styleTags === '—' ? '' : (row.styleTags || '');
+      if (row.title !== titleNext) void renameTrack(id, titleNext);
+      if (rowStyleNorm !== styleNext) void setTrackStyle(id, styleNext);
+      if ((row.lyricsPreview || '') !== lyrics) void setTrackLyrics(id, lyrics);
+      if ((row.specsJson || '') !== specsNext) void setTrackSpecs(id, specsNext);
+    }, 600);
+    return () => clearTimeout(handle);
+  }, [loadedTrackId, songName, style, lyrics, specs, gallery, renameTrack, setTrackStyle, setTrackLyrics, setTrackSpecs]);
 
   // Modal state: which saved track's cover the user is editing. Null
   // means closed. Keeping state at the parent so a re-render of the
   // sidebar (e.g. after rename) doesn't wipe the modal.
   const [coverEditTrack, setCoverEditTrack] = useState<SavedTrack | null>(null);
+
+  // Form-side song-card preview. Opens when the user clicks the cover
+  // thumbnail in the form. Read-mostly view of the WIP track (title,
+  // theme, style, lyrics direction, specs, lyrics) plus the same cover
+  // actions the panel offers. Lives at parent scope so re-renders from
+  // form edits don't dismount it.
+  const [songCardOpen, setSongCardOpen] = useState(false);
 
   // Load a saved track back into the form so the user can edit/remix
   // without retyping. Strips the "(lyrics)" / "(cover)" suffix we add
@@ -5075,6 +5495,18 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
     // auto-prompt as its placeholder.
     setCoverDataUrl(track.coverDataUrl ?? '');
     setCoverPrompt('');
+    setLoadedTrackId(track.id);
+    // Stale form state from a previous mode shouldn't bleed into this
+    // load. Clear errors and the restyle-only ref-audio triplet so the
+    // user doesn't see a "Restyle needs a reference audio" banner on a
+    // freshly loaded compose track. Active template + instrumental are
+    // reset because the loaded track's lyrics already encode the form.
+    setError(null);
+    setActiveTemplate(null);
+    setInstrumental(false);
+    setRefAudioBase64(null);
+    setRefAudioName(null);
+    setRefSampleInfo(null);
     if (!track.audioDataUrl) setMode('lyricsOnly');
     else setMode('compose');
   }, []);
@@ -5242,7 +5674,36 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
         id: 'song',
         label: 'Song',
         items: [
-          { id: 'new', label: 'New Song', onSelect: () => { setMode('compose'); setTheme(''); setLyrics(''); setStyle(''); setSongName(''); setSpecs({}); setActiveTemplate(null); setInstrumental(false); setCoverDataUrl(''); setCoverPrompt(''); setCoverPromptOpen(false); } },
+          { id: 'new', label: 'New Song', onSelect: () => {
+            // Cancel any in-flight generation so we don't end up saving
+            // a track for an abandoned form. Both refs cover music+chat
+            // and AI-assist paths.
+            abortRef.current?.abort();
+            aiAbortRef.current?.abort();
+            generatingRef.current = false;
+            setMode('compose');
+            setTheme('');
+            setLyrics('');
+            setStyle('');
+            setSongName('');
+            setSpecs({});
+            setActiveTemplate(null);
+            setInstrumental(false);
+            setCoverDataUrl('');
+            setCoverPrompt('');
+            setCoverPromptOpen(false);
+            setRefAudioBase64(null);
+            setRefAudioName(null);
+            setRefSampleInfo(null);
+            setError(null);
+            setGalleryError(null);
+            setPhase('idle');
+            setProgress(0);
+            setAiBusy(null);
+            setCoverBusy(false);
+            setOptimizingSpecs(false);
+            setLoadedTrackId(null);
+          } },
           { id: 'surprise', label: 'Surprise me…', onSelect: () => surpriseMe() },
           { id: 'mode-restyle', label: 'Restyle Mode', onSelect: () => setMode('restyle') },
           { id: 'mode-lyrics', label: 'Lyrics Only Mode', onSelect: () => setMode('lyricsOnly') },
@@ -6326,7 +6787,7 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
                 gradient placeholder when no art yet. */}
             <button
               type="button"
-              onClick={() => coverFileInputRef.current?.click()}
+              onClick={() => setSongCardOpen(true)}
               disabled={busy}
               className="relative flex-shrink-0 rounded-lg overflow-hidden transition-all hover:opacity-90 disabled:opacity-50"
               style={{
@@ -6338,7 +6799,7 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
                 border: '1px solid var(--border-subtle)',
                 cursor: busy ? 'not-allowed' : 'pointer',
               }}
-              title={coverDataUrl ? 'Click to upload a different image' : 'Click to upload an image, or use Generate below'}
+              title="Open song card — big cover preview + metadata"
             >
               {!coverDataUrl && (
                 <div className="absolute inset-0 flex items-center justify-center">
@@ -6397,7 +6858,15 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
                 {coverDataUrl && (
                   <button
                     type="button"
-                    onClick={() => setCoverDataUrl('')}
+                    onClick={() => {
+                      setCoverDataUrl('');
+                      // Mirror to the saved row when editing an
+                      // existing track — a Clear inside the form
+                      // should reach the sidebar immediately.
+                      if (loadedTrackId) {
+                        setTrackCoverRef.current?.(loadedTrackId, '');
+                      }
+                    }}
                     disabled={busy}
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all disabled:opacity-40 hover:bg-[var(--bg-hover)]"
                     style={{
@@ -6617,7 +7086,7 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
             visible so the user can scrub / replay without re-opening
             the gallery card. The single shared <audio> element below
             is what every play button in the workspace drives. */}
-        <MiniPlayer player={player} />
+        <MiniPlayer player={player} allTracks={gallery} />
         <audio ref={audioRef} preload="none" style={{ display: 'none' }} />
       </div>{/* /MAIN workspace */}
 
@@ -6652,6 +7121,34 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
           endpoint={endpoint}
           onSave={setTrackCover}
           onClose={() => setCoverEditTrack(null)}
+        />
+      )}
+
+      {/* Form-side song card. Big cover + metadata snapshot of the
+          WIP track. Triggered by the cover thumbnail click. Reuses the
+          same regenerate/upload/clear handlers as the inline panel so
+          a change inside the modal stays consistent with what the form
+          will save. */}
+      {songCardOpen && (
+        <SongCardModal
+          songName={songName}
+          mode={mode}
+          theme={theme}
+          style={style}
+          intent={specs.intent ?? ''}
+          lyrics={lyrics}
+          specs={specs}
+          coverDataUrl={coverDataUrl}
+          coverPrompt={coverPrompt}
+          endpoint={endpoint}
+          busy={coverBusy}
+          onRegenerate={regenerateCover}
+          onUpload={handleCoverUpload}
+          onClear={() => {
+            setCoverDataUrl('');
+            if (loadedTrackId) setTrackCoverRef.current?.(loadedTrackId, '');
+          }}
+          onClose={() => setSongCardOpen(false)}
         />
       )}
     </div>
