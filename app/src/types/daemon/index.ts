@@ -28,6 +28,7 @@ export type {
 export type {
   Binding,
   SharedFoldersList,
+  SharingDefaults,
   GaragetytusHelperStatus,
   GaragetytusStatus,
 } from "./Binding";

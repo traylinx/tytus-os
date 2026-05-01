@@ -14,6 +14,14 @@ export interface SharedFoldersList {
   bindings: Binding[];
 }
 
+export interface SharingDefaults {
+  schema_version: number;
+  sharing_globally_enabled: boolean;
+  default_auto_sync: boolean;
+  default_bucket: string;
+  default_local_root: string;
+}
+
 export interface GaragetytusHelperStatus {
   name: string;
   found: boolean;

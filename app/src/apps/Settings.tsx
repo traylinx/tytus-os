@@ -58,6 +58,7 @@ import type {
   Tier,
   UpdateStatus,
   Binding,
+  SharingDefaults,
   GaragetytusStatus,
 } from "@/types/daemon";
 
@@ -3849,6 +3850,10 @@ const SharingSettingsPanel: React.FC = () => {
   const [garageStatus, setGarageStatus] = useState<GaragetytusStatus | null>(
     null,
   );
+  const [sharingDefaults, setSharingDefaults] =
+    useState<SharingDefaults | null>(null);
+  const [savingDefaults, setSavingDefaults] = useState(false);
+  const [defaultsErr, setDefaultsErr] = useState<string | null>(null);
   const [listErr, setListErr] = useState<string | null>(null);
   const [listing, setListing] = useState(false);
   const [cacheErr, setCacheErr] = useState<string | null>(null);
@@ -3871,9 +3876,11 @@ const SharingSettingsPanel: React.FC = () => {
   const loadSharingState = useCallback(async () => {
     setListing(true);
     setListErr(null);
-    const [folders, status] = await Promise.all([
+    setDefaultsErr(null);
+    const [folders, status, defaults] = await Promise.all([
       client.getSharedFolders(),
       client.getGaragetytusStatus(),
+      client.getSharingDefaults(),
     ]);
     setListing(false);
     if (!folders.ok) {
@@ -3887,14 +3894,21 @@ const SharingSettingsPanel: React.FC = () => {
       setGarageStatus(null);
       setListErr(status.error.message);
     }
+    if (defaults.ok) {
+      setSharingDefaults(defaults.value);
+    } else {
+      setSharingDefaults(null);
+      setDefaultsErr(defaults.error.message);
+    }
   }, [client]);
 
   useEffect(() => {
     let cancelled = false;
     const run = async () => {
-      const [folders, status] = await Promise.all([
+      const [folders, status, defaults] = await Promise.all([
         client.getSharedFolders(),
         client.getGaragetytusStatus(),
+        client.getSharingDefaults(),
       ]);
       if (cancelled) return;
       if (folders.ok) {
@@ -3909,6 +3923,13 @@ const SharingSettingsPanel: React.FC = () => {
         setGarageStatus(null);
         setListErr((prev) => prev ?? status.error.message);
       }
+      if (defaults.ok) {
+        setSharingDefaults(defaults.value);
+        setDefaultsErr(null);
+      } else {
+        setSharingDefaults(null);
+        setDefaultsErr(defaults.error.message);
+      }
     };
     void run();
     return () => {
@@ -3919,6 +3940,13 @@ const SharingSettingsPanel: React.FC = () => {
   const runDiagnostic = useCallback(
     async (action: SharingAction) => {
       if (activeJob && !streamDone) return;
+      if (
+        action === "refresh-all" &&
+        sharingDefaults?.sharing_globally_enabled === false
+      ) {
+        setActionErr("Sharing is paused. Enable it before rotating credentials.");
+        return;
+      }
       setActionSubmitting(action);
       setActionErr(null);
       setActiveJob(null);
@@ -3930,12 +3958,16 @@ const SharingSettingsPanel: React.FC = () => {
       }
       setActiveJob({ id: r.value.job_id, action });
     },
-    [activeJob, client, streamDone],
+    [activeJob, client, sharingDefaults?.sharing_globally_enabled, streamDone],
   );
 
   const runPodCredentialRefresh = useCallback(
     async (pod: string) => {
       if (activeJob && !streamDone) return;
+      if (sharingDefaults?.sharing_globally_enabled === false) {
+        setActionErr("Sharing is paused. Enable it before refreshing pod credentials.");
+        return;
+      }
       setRefreshingPod(pod);
       setActionErr(null);
       setActiveJob(null);
@@ -3947,7 +3979,22 @@ const SharingSettingsPanel: React.FC = () => {
       }
       setActiveJob({ id: r.value.job_id, action: `refresh credentials ${pod}` });
     },
-    [activeJob, client, streamDone],
+    [activeJob, client, sharingDefaults?.sharing_globally_enabled, streamDone],
+  );
+
+  const saveSharingDefaults = useCallback(
+    async (patch: Partial<SharingDefaults>) => {
+      setSavingDefaults(true);
+      setDefaultsErr(null);
+      const r = await client.postSharingDefaults(patch);
+      setSavingDefaults(false);
+      if (!r.ok) {
+        setDefaultsErr(r.error.message);
+        return;
+      }
+      setSharingDefaults(r.value);
+    },
+    [client],
   );
 
   const openCache = useCallback(async () => {
@@ -3992,6 +4039,7 @@ const SharingSettingsPanel: React.FC = () => {
     garageStatus?.status_text ??
     "Local Garage service health";
   const statusWarnings = garageStatus?.warnings ?? [];
+  const sharingPaused = sharingDefaults?.sharing_globally_enabled === false;
 
   return (
     <div className="space-y-6">
@@ -4058,7 +4106,7 @@ const SharingSettingsPanel: React.FC = () => {
         </div>
       )}
 
-      {(listErr || actionErr || cacheErr) && (
+      {(listErr || actionErr || cacheErr || defaultsErr) && (
         <div
           className="p-3 rounded-lg text-xs flex items-start gap-2"
           style={{
@@ -4068,9 +4116,148 @@ const SharingSettingsPanel: React.FC = () => {
           }}
         >
           <AlertTriangle size={14} className="mt-0.5 shrink-0" />
-          <span>{listErr ?? actionErr ?? cacheErr}</span>
+          <span>{listErr ?? actionErr ?? cacheErr ?? defaultsErr}</span>
         </div>
       )}
+
+      <div
+        className="rounded-xl overflow-hidden"
+        style={{
+          background: "var(--bg-card)",
+          border: "1px solid var(--border-subtle)",
+        }}
+      >
+        <div
+          className="px-4 py-3 border-b"
+          style={{ borderColor: "var(--border-subtle)" }}
+        >
+          <div className="text-sm font-semibold text-[var(--text-primary)]">
+            Defaults & safety
+          </div>
+          <div className="text-xs text-[var(--text-secondary)] mt-0.5">
+            Stored in Tytus config. Existing bindings stay visible if sharing is
+            paused; mutating bind/sync/credential operations are blocked.
+          </div>
+        </div>
+        <div className="p-4 grid gap-3 md:grid-cols-2">
+          <label
+            className="p-3 rounded-lg flex items-center justify-between gap-3"
+            style={{
+              background: "var(--bg-hover, rgba(255,255,255,0.04))",
+              border: "1px solid var(--border-default)",
+              color: "var(--text-primary)",
+            }}
+          >
+            <div>
+              <div className="text-sm font-semibold">Sharing enabled</div>
+              <div className="text-xs text-[var(--text-secondary)] mt-0.5">
+                Global kill switch for bind, sync, and credential refresh.
+              </div>
+            </div>
+            <input
+              type="checkbox"
+              checked={sharingDefaults?.sharing_globally_enabled ?? true}
+              disabled={!sharingDefaults || savingDefaults}
+              onChange={(e) =>
+                void saveSharingDefaults({
+                  sharing_globally_enabled: e.target.checked,
+                })
+              }
+            />
+          </label>
+          <label
+            className="p-3 rounded-lg flex items-center justify-between gap-3"
+            style={{
+              background: "var(--bg-hover, rgba(255,255,255,0.04))",
+              border: "1px solid var(--border-default)",
+              color: "var(--text-primary)",
+            }}
+          >
+            <div>
+              <div className="text-sm font-semibold">Auto-sync by default</div>
+              <div className="text-xs text-[var(--text-secondary)] mt-0.5">
+                Applies to newly bound folders only.
+              </div>
+            </div>
+            <input
+              type="checkbox"
+              checked={sharingDefaults?.default_auto_sync ?? true}
+              disabled={!sharingDefaults || savingDefaults}
+              onChange={(e) =>
+                void saveSharingDefaults({
+                  default_auto_sync: e.target.checked,
+                })
+              }
+            />
+          </label>
+          <div>
+            <label className="text-[11px] font-medium text-[var(--text-secondary)]">
+              Default bucket
+            </label>
+            <input
+              className="mt-1 w-full px-3 py-2 rounded-md text-xs font-mono outline-none"
+              style={{
+                background: "var(--bg-input, rgba(255,255,255,0.04))",
+                color: "var(--text-primary)",
+                border: "1px solid var(--border-default)",
+              }}
+              value={sharingDefaults?.default_bucket ?? ""}
+              disabled={!sharingDefaults || savingDefaults}
+              onChange={(e) =>
+                setSharingDefaults((prev) =>
+                  prev ? { ...prev, default_bucket: e.target.value } : prev,
+                )
+              }
+              onBlur={(e) =>
+                void saveSharingDefaults({ default_bucket: e.target.value })
+              }
+            />
+          </div>
+          <div>
+            <label className="text-[11px] font-medium text-[var(--text-secondary)]">
+              Default local root
+            </label>
+            <input
+              className="mt-1 w-full px-3 py-2 rounded-md text-xs font-mono outline-none"
+              style={{
+                background: "var(--bg-input, rgba(255,255,255,0.04))",
+                color: "var(--text-primary)",
+                border: "1px solid var(--border-default)",
+              }}
+              value={sharingDefaults?.default_local_root ?? ""}
+              disabled={!sharingDefaults || savingDefaults}
+              onChange={(e) =>
+                setSharingDefaults((prev) =>
+                  prev
+                    ? { ...prev, default_local_root: e.target.value }
+                    : prev,
+                )
+              }
+              onBlur={(e) =>
+                void saveSharingDefaults({
+                  default_local_root: e.target.value,
+                })
+              }
+            />
+          </div>
+        </div>
+        {sharingPaused && (
+          <div
+            className="mx-4 mb-4 p-3 rounded-lg text-xs flex items-start gap-2"
+            style={{
+              background: "rgba(255,193,7,0.10)",
+              border: "1px solid rgba(255,193,7,0.30)",
+              color: "#FFE082",
+            }}
+          >
+            <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+            <span>
+              Sharing is paused. Existing bindings are read-only; bind, refresh,
+              and credential rotation actions are disabled.
+            </span>
+          </div>
+        )}
+      </div>
 
       <div
         className="rounded-xl overflow-hidden"
@@ -4152,7 +4339,7 @@ const SharingSettingsPanel: React.FC = () => {
                               onClick={() =>
                                 void runPodCredentialRefresh(pod)
                               }
-                              disabled={busy}
+                              disabled={busy || sharingPaused}
                               className="px-2 py-1 rounded-md text-[10px] flex items-center gap-1 disabled:opacity-60"
                               style={{
                                 background:
@@ -4217,11 +4404,13 @@ const SharingSettingsPanel: React.FC = () => {
             const busy =
               actionSubmitting === item.action ||
               (activeJob?.action === item.action && !streamDone);
+            const blockedByPause =
+              sharingPaused && item.action === "refresh-all";
             return (
               <button
                 key={item.action}
                 onClick={() => runDiagnostic(item.action)}
-                disabled={busy || (!!activeJob && !streamDone)}
+                disabled={busy || blockedByPause || (!!activeJob && !streamDone)}
                 className="text-left p-3 rounded-lg transition-colors disabled:opacity-60"
                 style={{
                   background: "var(--bg-hover, rgba(255,255,255,0.04))",

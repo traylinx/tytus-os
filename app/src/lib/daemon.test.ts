@@ -502,6 +502,27 @@ describe("daemon client — other GETs", () => {
     expect(r.value.helpers[0].name).toBe("garagetytus-folder-bind");
   });
 
+  it("getSharingDefaults parses global kill switch state", async () => {
+    const { fetch } = makeFakeFetch([
+      {
+        method: "GET",
+        path: "/api/sharing/defaults",
+        body: {
+          schema_version: 1,
+          sharing_globally_enabled: false,
+          default_auto_sync: true,
+          default_bucket: "shared",
+          default_local_root: "/Users/foo/Tytus/Shared",
+        },
+      },
+    ]);
+    const r = await createDaemonClient({ fetch }).getSharingDefaults();
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.value.sharing_globally_enabled).toBe(false);
+    expect(r.value.default_bucket).toBe("shared");
+  });
+
   it("getPodEnv defaults to redacted (no reveal query param)", async () => {
     const body = {
       pod_num: 2,
@@ -749,6 +770,36 @@ describe("daemon client — POSTs", () => {
       bucket: "shared",
       pods: ["02", "04"],
       auto_sync: true,
+    });
+  });
+
+  it("postSharingDefaults persists changed defaults", async () => {
+    let observed: unknown = undefined;
+    const body = {
+      schema_version: 1,
+      sharing_globally_enabled: true,
+      default_auto_sync: false,
+      default_bucket: "sebastian-shared",
+      default_local_root: "/Users/foo/Tytus/Shared",
+    };
+    const { fetch } = makeFakeFetch([
+      {
+        method: "POST",
+        path: "/api/sharing/defaults",
+        body,
+        expect: (init) => {
+          observed = init?.body ? JSON.parse(init.body as string) : null;
+        },
+      },
+    ]);
+    const r = await createDaemonClient({ fetch }).postSharingDefaults({
+      default_auto_sync: false,
+      default_bucket: "sebastian-shared",
+    });
+    expect(r.ok).toBe(true);
+    expect(observed).toEqual({
+      default_auto_sync: false,
+      default_bucket: "sebastian-shared",
     });
   });
 

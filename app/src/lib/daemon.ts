@@ -28,6 +28,7 @@ import type {
   PodReady,
   PodReadiness,
   PodReadinessStage,
+  SharingDefaults,
   SharedFoldersList,
   StateSnapshot,
   StoreApp,
@@ -378,6 +379,14 @@ const isFileList = (v: unknown): v is FileList =>
 const isSharedFolders = (v: unknown): v is SharedFoldersList =>
   isObject(v) && Array.isArray(v.bindings);
 
+const isSharingDefaults = (v: unknown): v is SharingDefaults =>
+  isObject(v) &&
+  typeof v.schema_version === "number" &&
+  typeof v.sharing_globally_enabled === "boolean" &&
+  typeof v.default_auto_sync === "boolean" &&
+  typeof v.default_bucket === "string" &&
+  typeof v.default_local_root === "string";
+
 const isGaragetytusStatus = (v: unknown): v is GaragetytusStatus =>
   isObject(v) &&
   typeof v.available === "boolean" &&
@@ -519,6 +528,9 @@ export interface DaemonClient {
   getSharedFolders(
     signal?: AbortSignal,
   ): Promise<DaemonResult<SharedFoldersList>>;
+  getSharingDefaults(
+    signal?: AbortSignal,
+  ): Promise<DaemonResult<SharingDefaults>>;
   getGaragetytusStatus(
     signal?: AbortSignal,
   ): Promise<DaemonResult<GaragetytusStatus>>;
@@ -688,6 +700,19 @@ export interface DaemonClient {
     signal?: AbortSignal,
     idempotencyKey?: string,
   ): Promise<DaemonResult<JobResponse>>;
+  postSharingDefaults(
+    payload: Partial<
+      Pick<
+        SharingDefaults,
+        | "sharing_globally_enabled"
+        | "default_auto_sync"
+        | "default_bucket"
+        | "default_local_root"
+      >
+    >,
+    signal?: AbortSignal,
+    idempotencyKey?: string,
+  ): Promise<DaemonResult<SharingDefaults>>;
   postSharedFoldersOpen(
     localPath: string,
     signal?: AbortSignal,
@@ -968,6 +993,11 @@ export const createDaemonClient = (
     getSharedFolders: (signal) =>
       runRequest(deps, "/api/shared-folders/list", { signal }, (b) =>
         expectShape(b, isSharedFolders, "malformed /api/shared-folders/list"),
+      ),
+
+    getSharingDefaults: (signal) =>
+      runRequest(deps, "/api/sharing/defaults", { signal }, (b) =>
+        expectShape(b, isSharingDefaults, "malformed /api/sharing/defaults"),
       ),
 
     getGaragetytusStatus: (signal) =>
@@ -1284,6 +1314,15 @@ export const createDaemonClient = (
         { method: "POST", body: payload, signal, idempotencyKey },
         (b) =>
           expectShape(b, isJobResponse, "malformed /api/shared-folders/bind"),
+      ),
+
+    postSharingDefaults: (payload, signal, idempotencyKey) =>
+      runRequest(
+        deps,
+        "/api/sharing/defaults",
+        { method: "POST", body: payload, signal, idempotencyKey },
+        (b) =>
+          expectShape(b, isSharingDefaults, "malformed /api/sharing/defaults"),
       ),
 
     postSharedFoldersOpen: (localPath, signal, idempotencyKey) =>

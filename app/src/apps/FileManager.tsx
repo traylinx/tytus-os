@@ -77,7 +77,12 @@ import {
   inboxLineToFilename,
   isMissingInboxDiagnostic,
 } from "@/apps/fileManagerOpenWith";
-import type { Agent, Binding, FileListEntry } from "@/types/daemon";
+import type {
+  Agent,
+  Binding,
+  FileListEntry,
+  SharingDefaults,
+} from "@/types/daemon";
 import type { DaemonClient } from "@/lib/daemon";
 
 type TabId = "browse" | "inbox" | "downloads" | "shared";
@@ -1488,6 +1493,8 @@ const SharedTab: FC<{ agents: Agent[]; client: DaemonClient }> = ({
   client,
 }) => {
   const [bindings, setBindings] = useState<Binding[] | null>(null);
+  const [sharingDefaults, setSharingDefaults] =
+    useState<SharingDefaults | null>(null);
   const [listErr, setListErr] = useState<string | null>(null);
   const [listing, setListing] = useState(false);
 
@@ -1505,6 +1512,8 @@ const SharedTab: FC<{ agents: Agent[]; client: DaemonClient }> = ({
     syncStream.status === "failed" ||
     syncStream.status === "lost";
   const syncInFlight = syncSubmitting || (syncJob !== null && !syncDone);
+  const sharingPaused = sharingDefaults?.sharing_globally_enabled === false;
+  const sharingBlocked = syncInFlight || sharingPaused;
 
   // Per-binding "open" inline error (e.g. orphaned local path).
   const [openErrByPath, setOpenErrByPath] = useState<Record<string, string>>(
@@ -1515,13 +1524,21 @@ const SharedTab: FC<{ agents: Agent[]; client: DaemonClient }> = ({
   const refresh = useCallback(async () => {
     setListing(true);
     setListErr(null);
-    const r = await client.getSharedFolders();
+    const [r, defaults] = await Promise.all([
+      client.getSharedFolders(),
+      client.getSharingDefaults(),
+    ]);
     setListing(false);
     if (!r.ok) {
       setListErr(r.error.message);
       return;
     }
     setBindings(r.value.bindings);
+    if (defaults.ok) {
+      setSharingDefaults(defaults.value);
+    } else {
+      setListErr(defaults.error.message);
+    }
   }, [client]);
 
   // Auto-fire on tab mount.
@@ -1530,7 +1547,10 @@ const SharedTab: FC<{ agents: Agent[]; client: DaemonClient }> = ({
     const run = async () => {
       setListing(true);
       setListErr(null);
-      const r = await client.getSharedFolders();
+      const [r, defaults] = await Promise.all([
+        client.getSharedFolders(),
+        client.getSharingDefaults(),
+      ]);
       if (cancelled) return;
       setListing(false);
       if (!r.ok) {
@@ -1538,6 +1558,11 @@ const SharedTab: FC<{ agents: Agent[]; client: DaemonClient }> = ({
         return;
       }
       setBindings(r.value.bindings);
+      if (defaults.ok) {
+        setSharingDefaults(defaults.value);
+      } else {
+        setListErr(defaults.error.message);
+      }
     };
     void run();
     return () => {
@@ -1563,7 +1588,7 @@ const SharedTab: FC<{ agents: Agent[]; client: DaemonClient }> = ({
   }, [syncJob, syncStream.status, syncDone, refresh]);
 
   const onSyncNow = useCallback(async () => {
-    if (syncInFlight) return;
+    if (sharingBlocked) return;
     setSyncSubmitting(true);
     setSyncErr(null);
     setSyncJob(null);
@@ -1575,7 +1600,7 @@ const SharedTab: FC<{ agents: Agent[]; client: DaemonClient }> = ({
       return;
     }
     setSyncJob({ id: r.value.job_id });
-  }, [client, syncInFlight]);
+  }, [client, sharingBlocked]);
 
   const onOpenCache = useCallback(async () => {
     setOpenCacheErr(null);
@@ -1645,7 +1670,7 @@ const SharedTab: FC<{ agents: Agent[]; client: DaemonClient }> = ({
         </div>
         <button
           onClick={() => setBindModalOpen(true)}
-          disabled={syncInFlight}
+          disabled={sharingBlocked}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold text-white transition-colors disabled:opacity-60"
           style={{ background: "var(--accent-primary)" }}
         >
@@ -1654,7 +1679,7 @@ const SharedTab: FC<{ agents: Agent[]; client: DaemonClient }> = ({
         </button>
         <button
           onClick={onSyncNow}
-          disabled={syncInFlight}
+          disabled={sharingBlocked}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[11px] transition-colors disabled:opacity-60"
           style={{
             background: "var(--bg-hover, rgba(255,255,255,0.04))",
@@ -1729,6 +1754,23 @@ const SharedTab: FC<{ agents: Agent[]; client: DaemonClient }> = ({
         </div>
       )}
 
+      {sharingPaused && (
+        <div
+          className="mx-4 mt-4 p-3 rounded-md text-xs flex items-start gap-2"
+          style={{
+            background: "rgba(255,193,7,0.10)",
+            border: "1px solid rgba(255,193,7,0.30)",
+            color: "#FFE082",
+          }}
+        >
+          <AlertTriangle size={14} className="flex-shrink-0 mt-0.5" />
+          <span>
+            Sharing is paused in Settings → Sharing. Existing bindings are
+            read-only; bind and refresh actions are disabled.
+          </span>
+        </div>
+      )}
+
       {/* Sync-now inline progress */}
       {syncErr && (
         <div
@@ -1779,7 +1821,8 @@ const SharedTab: FC<{ agents: Agent[]; client: DaemonClient }> = ({
             </div>
             <button
               onClick={() => setBindModalOpen(true)}
-              className="mt-4 flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold text-white transition-colors"
+              disabled={sharingBlocked}
+              className="mt-4 flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold text-white transition-colors disabled:opacity-60"
               style={{ background: "var(--accent-primary)" }}
             >
               <Plus size={12} />
@@ -1809,7 +1852,13 @@ const SharedTab: FC<{ agents: Agent[]; client: DaemonClient }> = ({
           client={client}
           onCancel={() => setBindModalOpen(false)}
           onSuccess={onBindSuccess}
-          syncBlocked={syncInFlight}
+          defaults={sharingDefaults}
+          syncBlocked={sharingBlocked}
+          pauseReason={
+            sharingPaused
+              ? "Sharing is paused in Settings → Sharing."
+              : undefined
+          }
         />
       )}
     </div>
@@ -1969,7 +2018,9 @@ interface BindFolderModalProps {
   client: DaemonClient;
   onCancel: () => void;
   onSuccess: () => void;
+  defaults: SharingDefaults | null;
   syncBlocked: boolean;
+  pauseReason?: string;
 }
 
 const BindFolderModal: FC<BindFolderModalProps> = ({
@@ -1977,19 +2028,25 @@ const BindFolderModal: FC<BindFolderModalProps> = ({
   client,
   onCancel,
   onSuccess,
+  defaults,
   syncBlocked,
+  pauseReason,
 }) => {
-  const [localPath, setLocalPath] = useState<string | null>(null);
+  const [localPath, setLocalPath] = useState<string | null>(
+    defaults?.default_local_root ?? null,
+  );
   const [picking, setPicking] = useState(false);
   const [pickErr, setPickErr] = useState<string | null>(null);
 
-  const [bucket, setBucket] = useState("shared");
+  const [bucket, setBucket] = useState(defaults?.default_bucket ?? "shared");
   const [bucketTouched, setBucketTouched] = useState(false);
 
   // Selected pod ids from agents (pod_id strings, e.g. "02").
   // Empty Set => all (server treats absent as all).
   const [selectedPods, setSelectedPods] = useState<Set<string>>(new Set());
-  const [autoSync, setAutoSync] = useState(true);
+  const [autoSync, setAutoSync] = useState(
+    defaults?.default_auto_sync ?? true,
+  );
 
   const [submitting, setSubmitting] = useState(false);
   const [submitErr, setSubmitErr] = useState<string | null>(null);
@@ -2295,8 +2352,8 @@ const BindFolderModal: FC<BindFolderModalProps> = ({
             >
               <AlertTriangle size={12} className="flex-shrink-0 mt-0.5" />
               <span>
-                Another shared-folders job is in flight. Wait for it to finish
-                before binding.
+                {pauseReason ??
+                  "Another shared-folders job is in flight. Wait for it to finish before binding."}
               </span>
             </div>
           )}
