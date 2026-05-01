@@ -3854,11 +3854,12 @@ const SharingSettingsPanel: React.FC = () => {
   const [cacheErr, setCacheErr] = useState<string | null>(null);
   const [activeJob, setActiveJob] = useState<{
     id: string;
-    action: SharingAction;
+    action: string;
   } | null>(null);
   const [actionErr, setActionErr] = useState<string | null>(null);
   const [actionSubmitting, setActionSubmitting] =
     useState<SharingAction | null>(null);
+  const [refreshingPod, setRefreshingPod] = useState<string | null>(null);
   const stream = useJobStream({
     url: activeJob ? client.jobStreamUrl(activeJob.id) : null,
   });
@@ -3928,6 +3929,23 @@ const SharingSettingsPanel: React.FC = () => {
         return;
       }
       setActiveJob({ id: r.value.job_id, action });
+    },
+    [activeJob, client, streamDone],
+  );
+
+  const runPodCredentialRefresh = useCallback(
+    async (pod: string) => {
+      if (activeJob && !streamDone) return;
+      setRefreshingPod(pod);
+      setActionErr(null);
+      setActiveJob(null);
+      const r = await client.postPodRefreshCreds(pod);
+      setRefreshingPod(null);
+      if (!r.ok) {
+        setActionErr(r.error.message);
+        return;
+      }
+      setActiveJob({ id: r.value.job_id, action: `refresh credentials ${pod}` });
     },
     [activeJob, client, streamDone],
   );
@@ -4122,6 +4140,38 @@ const SharingSettingsPanel: React.FC = () => {
                         : "none"}{" "}
                       · {binding.auto_sync ? "auto-sync on" : "manual sync"}
                     </div>
+                    {binding.pods_provisioned.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 mt-2">
+                        {binding.pods_provisioned.map((pod) => {
+                          const busy =
+                            refreshingPod === pod ||
+                            (!!activeJob && !streamDone);
+                          return (
+                            <button
+                              key={pod}
+                              onClick={() =>
+                                void runPodCredentialRefresh(pod)
+                              }
+                              disabled={busy}
+                              className="px-2 py-1 rounded-md text-[10px] flex items-center gap-1 disabled:opacity-60"
+                              style={{
+                                background:
+                                  "var(--bg-hover, rgba(255,255,255,0.04))",
+                                border: "1px solid var(--border-default)",
+                                color: "var(--text-secondary)",
+                              }}
+                            >
+                              {refreshingPod === pod ? (
+                                <Loader2 size={10} className="animate-spin" />
+                              ) : (
+                                <RefreshCw size={10} />
+                              )}
+                              Refresh {pod}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                   <button
                     onClick={() =>
@@ -4252,7 +4302,7 @@ const MetricCard: React.FC<{
 );
 
 const DiagnosticStreamPane: React.FC<{
-  action: SharingAction;
+  action: string;
   status: JobStatus;
   lines: string[];
   exitCode: number | null;
