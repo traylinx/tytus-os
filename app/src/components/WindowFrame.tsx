@@ -3,7 +3,7 @@
 // ============================================================
 
 import { useCallback, useRef, useState, memo, useEffect } from 'react';
-import { createPortal } from 'react-dom';
+import { createPortal, flushSync } from 'react-dom';
 import type { SnapKind, Window } from '@/types';
 import { useOS } from '@/hooks/useOSStore';
 import * as Icons from 'lucide-react';
@@ -38,8 +38,13 @@ interface WindowFrameProps {
 
 const WindowFrame = memo(function WindowFrame({ window: win, children }: WindowFrameProps) {
   const { dispatch } = useOS();
-  const dragRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
+  const frameRef = useRef<HTMLDivElement | null>(null);
+  const dragRef = useRef<{ startX: number; startY: number; origX: number; origY: number; lastX: number; lastY: number; dx: number; dy: number } | null>(null);
   const resizeRef = useRef<{ edge: Edge; startX: number; startY: number; origW: number; origH: number; origX: number; origY: number } | null>(null);
+  const rafRef = useRef<number | null>(null);
+  const pendingTransformRef = useRef<{ dx: number; dy: number } | null>(null);
+  const snapCandidateRef = useRef<SnapKind | null>(null);
+  const dragNativeCleanupRef = useRef<(() => void) | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
   // Sprint B Phase 6.1 — current snap candidate (cursor near edge during
@@ -63,25 +68,139 @@ const WindowFrame = memo(function WindowFrame({ window: win, children }: WindowF
     focusThis();
   }, [focusThis]);
 
+  const applyDragTransform = useCallback((dx: number, dy: number) => {
+    // Direct write, no RAF: for window dragging, newest pointer position should
+    // be visible immediately. Browser compositor coalesces paints itself.
+    const el = frameRef.current;
+    if (!el) return;
+    el.style.transform = `translate3d(${dx}px, ${dy}px, 0)`;
+  }, []);
+
+  const setSnapCandidateFast = useCallback((next: SnapKind | null) => {
+    if (snapCandidateRef.current === next) return;
+    snapCandidateRef.current = next;
+    setSnapCandidate(next);
+  }, []);
+
+  const updateDragFromPointer = useCallback((clientX: number, clientY: number) => {
+    const drag = dragRef.current;
+    if (!drag) return;
+    const rawDx = clientX - drag.startX;
+    const rawDy = clientY - drag.startY;
+    let nx = drag.origX + rawDx;
+    let ny = drag.origY + rawDy;
+    const vw = window.innerWidth;
+    ny = Math.max(TOP_PANEL_HEIGHT, ny);
+    nx = Math.min(Math.max(nx, -(win.size.width - 100)), vw - 100);
+    const dx = nx - drag.origX;
+    const dy = ny - drag.origY;
+    drag.lastX = nx;
+    drag.lastY = ny;
+    drag.dx = dx;
+    drag.dy = dy;
+    applyDragTransform(dx, dy);
+
+    let nextCand: SnapKind | null = null;
+    if (clientX <= SNAP_EDGE_PX) nextCand = 'left';
+    else if (clientX >= vw - SNAP_EDGE_PX) nextCand = 'right';
+    else if (clientY <= TOP_PANEL_HEIGHT + SNAP_EDGE_PX) nextCand = 'top';
+    setSnapCandidateFast(nextCand);
+  }, [applyDragTransform, setSnapCandidateFast, win.size.width]);
+
+  const finishDrag = useCallback(() => {
+    const drag = dragRef.current;
+    const el = frameRef.current;
+    if (!drag) return;
+    if (rafRef.current != null) {
+      window.cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
+    pendingTransformRef.current = null;
+
+    const snap = snapCandidateRef.current;
+    flushSync(() => {
+      if (!win.isFocused) dispatch({ type: 'FOCUS_WINDOW', windowId: win.id });
+      if (snap) {
+        dispatch({ type: 'SNAP_WINDOW', windowId: win.id, kind: snap });
+      } else {
+        dispatch({ type: 'MOVE_WINDOW', windowId: win.id, position: { x: drag.lastX, y: drag.lastY } });
+      }
+    });
+
+    if (el) {
+      el.style.transform = '';
+      el.style.willChange = '';
+      el.style.transition = '';
+      el.style.zIndex = '';
+      el.dataset.windowDragging = '';
+      delete el.dataset.windowDragging;
+    }
+    dragNativeCleanupRef.current?.();
+    dragNativeCleanupRef.current = null;
+    dragRef.current = null;
+    setIsDragging(false);
+    snapCandidateRef.current = null;
+    setSnapCandidate(null);
+  }, [dispatch, win.id, win.isFocused]);
+
   // ---- Drag from title bar ----
   const handleTitleMouseDown = useCallback(
     (e: React.MouseEvent) => {
       if (isMaximized) return;
-      // Only drag with primary button
       if (e.button !== 0) return;
-      // Don't start drag if a button inside the title bar was the target
       const target = e.target as HTMLElement;
       if (target.closest('button')) return;
       e.preventDefault();
+      // Do not bubble into the frame's focus handler here. A focus reducer
+      // render at drag-start is exactly what makes the window feel like it
+      // waits behind the cursor. We optimistically raise via DOM style and
+      // commit real focus on mouseup.
+      e.stopPropagation();
+
+      dragNativeCleanupRef.current?.();
+      setIsDragging(true);
       dragRef.current = {
         startX: e.clientX,
         startY: e.clientY,
         origX: win.position.x,
         origY: win.position.y,
+        lastX: win.position.x,
+        lastY: win.position.y,
+        dx: 0,
+        dy: 0,
       };
-      setIsDragging(true);
+      snapCandidateRef.current = null;
+      setSnapCandidate(null);
+
+      const el = frameRef.current;
+      if (el) {
+        el.style.willChange = 'transform';
+        el.style.transition = 'none';
+        if (!win.isFocused) el.style.zIndex = String(win.zIndex + 10_000);
+        el.dataset.windowDragging = 'true';
+      }
+
+      const move = (ev: MouseEvent) => {
+        if (!dragRef.current) return;
+        ev.preventDefault();
+        updateDragFromPointer(ev.clientX, ev.clientY);
+      };
+      const up = (ev: MouseEvent) => {
+        if (!dragRef.current) return;
+        ev.preventDefault();
+        finishDrag();
+      };
+      // Capture phase wins over app content and avoids React synthetic-event
+      // scheduling entirely. This is the simple native desktop drag loop:
+      // mousedown -> direct DOM transform on mousemove -> reducer commit once.
+      window.addEventListener('mousemove', move, { passive: false, capture: true });
+      window.addEventListener('mouseup', up, { passive: false, capture: true });
+      dragNativeCleanupRef.current = () => {
+        window.removeEventListener('mousemove', move, true);
+        window.removeEventListener('mouseup', up, true);
+      };
     },
-    [isMaximized, win.position.x, win.position.y]
+    [finishDrag, isMaximized, updateDragFromPointer, win.isFocused, win.position.x, win.position.y, win.zIndex]
   );
 
   // ---- Resize from edge handles ----
@@ -108,22 +227,6 @@ const WindowFrame = memo(function WindowFrame({ window: win, children }: WindowF
   // ---- Global mouse events for drag/resize ----
   useEffect(() => {
     const onMove = (e: MouseEvent) => {
-      if (dragRef.current) {
-        const dx = e.clientX - dragRef.current.startX;
-        const dy = e.clientY - dragRef.current.startY;
-        let nx = dragRef.current.origX + dx;
-        let ny = dragRef.current.origY + dy;
-        const vw = window.innerWidth;
-        ny = Math.max(TOP_PANEL_HEIGHT, ny);
-        nx = Math.min(Math.max(nx, -(win.size.width - 100)), vw - 100);
-        dispatch({ type: 'MOVE_WINDOW', windowId: win.id, position: { x: nx, y: ny } });
-        // Update snap candidate as the cursor approaches viewport edges.
-        let nextCand: SnapKind | null = null;
-        if (e.clientX <= SNAP_EDGE_PX) nextCand = 'left';
-        else if (e.clientX >= vw - SNAP_EDGE_PX) nextCand = 'right';
-        else if (e.clientY <= TOP_PANEL_HEIGHT + SNAP_EDGE_PX) nextCand = 'top';
-        setSnapCandidate(nextCand);
-      }
       if (resizeRef.current) {
         const { edge, startX, startY, origW, origH, origX, origY } = resizeRef.current;
         const dx = e.clientX - startX;
@@ -145,16 +248,9 @@ const WindowFrame = memo(function WindowFrame({ window: win, children }: WindowF
       }
     };
     const onUp = () => {
-      // Commit pending snap before clearing state — otherwise a fast
-      // drag-and-release at the edge would lose its candidate.
-      if (dragRef.current && snapCandidate) {
-        dispatch({ type: 'SNAP_WINDOW', windowId: win.id, kind: snapCandidate });
-      }
-      dragRef.current = null;
+      if (dragRef.current) finishDrag();
       resizeRef.current = null;
-      setIsDragging(false);
       setIsResizing(false);
-      setSnapCandidate(null);
     };
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onUp);
@@ -162,7 +258,7 @@ const WindowFrame = memo(function WindowFrame({ window: win, children }: WindowF
       window.removeEventListener('mousemove', onMove);
       window.removeEventListener('mouseup', onUp);
     };
-  }, [dispatch, win.id, win.size.width, win.size.height, snapCandidate]);
+  }, [dispatch, finishDrag, win.id, win.size.width, win.size.height]);
 
   const handleMinimize = useCallback(
     (e: React.MouseEvent) => {
@@ -237,6 +333,7 @@ const WindowFrame = memo(function WindowFrame({ window: win, children }: WindowF
 
   return (
     <div
+      ref={frameRef}
       className="absolute flex flex-col select-none"
       data-window-id={win.id}
       data-app-id={win.appId}
@@ -253,6 +350,9 @@ const WindowFrame = memo(function WindowFrame({ window: win, children }: WindowF
         // CSS in window-animations.css takes over for non-drag frames.
         transition: isDragging || isResizing ? 'none' : 'box-shadow 150ms ease, border-color 150ms ease',
         overflow: 'hidden',
+        contain: 'layout paint style',
+        backfaceVisibility: 'hidden',
+        transform: 'translateZ(0)',
       }}
       onMouseDown={handleFrameMouseDown}
     >
@@ -266,6 +366,7 @@ const WindowFrame = memo(function WindowFrame({ window: win, children }: WindowF
           transition: 'background 150ms ease',
           cursor: isMaximized ? 'default' : isDragging ? 'grabbing' : 'grab',
           userSelect: 'none',
+          touchAction: 'none',
         }}
         onMouseDown={handleTitleMouseDown}
         onDoubleClick={handleDoubleClickTitle}
@@ -376,7 +477,7 @@ const WindowFrame = memo(function WindowFrame({ window: win, children }: WindowF
       {/* Snap overlay (Phase 6.1). Rendered via portal so it covers the
           full viewport above all windows. Visible only while dragging
           near a viewport edge. */}
-      {isDragging && snapCandidate && typeof document !== 'undefined' &&
+      {snapCandidate && typeof document !== 'undefined' &&
         createPortal(<SnapOverlay kind={snapCandidate} />, document.body)}
     </div>
   );

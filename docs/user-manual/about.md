@@ -35,6 +35,8 @@ Full plan: [roadmap.md](../development/roadmap.md). Original architecture decisi
 - **Parent platform:** [Traylinx](https://traylinx.com)
 - **Documentation:** this folder
 
+This entire user manual is also bundled into the `tytus` CLI itself — run `tytus os-docs` to print it as a single markdown blob, or `tytus link` to drop it as `.tytus/os-manual.md` in any project so AI CLIs (Claude Code, OpenCode, Gemini, Codex, Cursor, Vibe, Aider) can answer Tytus-OS questions natively. The MCP tool `tytus_os_docs` exposes the same content over MCP.
+
 ## Naming
 
 - **Tytus OS** (one word) — this product

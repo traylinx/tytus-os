@@ -6062,7 +6062,10 @@ export default function MusicCreator() {
       const hostTracks = hostFilesRes.status === 'fulfilled'
         ? hostFilesRes.value.tracks.map((track) => ({ ...track, source: 'juli3ta' as const }))
         : [];
-      if (hostFilesRes.status === 'fulfilled') setHostLibraryRoot(hostFilesRes.value.rootPath);
+      if (hostFilesRes.status === 'fulfilled') {
+        setHostLibraryRoot(hostFilesRes.value.rootPath);
+        setGalleryError((current) => current?.startsWith('Real file library unavailable') ? null : current);
+      }
       if (loadedRes.status === 'fulfilled') {
         setGallery(mergeTrackLists(hostTracks, loadedTracks));
       } else {
@@ -6107,7 +6110,33 @@ export default function MusicCreator() {
     return () => { cancelled = true; };
   }, []);
 
-  // Persist a new track to SQLite, then prepend to in-memory state. If
+  // If the tray restarts while JULI3TA is already open, the first real-file
+  // library request can fail and leave a banner behind. Treat that as a
+  // recoverable transport state: retry briefly, merge any real-folder tracks,
+  // and clear the banner once the endpoint answers again.
+  useEffect(() => {
+    if (!galleryError?.startsWith('Real file library unavailable')) return;
+    let cancelled = false;
+    const recover = async () => {
+      try {
+        const res = await listGeneratedTracksFromFiles();
+        if (cancelled) return;
+        setHostLibraryRoot(res.rootPath);
+        setGallery((current) => mergeTrackLists(res.tracks.map((track) => ({ ...track, source: 'juli3ta' as const })), current));
+        setGalleryError((current) => current?.startsWith('Real file library unavailable') ? null : current);
+      } catch {
+        // Keep banner; next tick retries.
+      }
+    };
+    const timer = window.setInterval(recover, 4000);
+    void recover();
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [galleryError]);
+
+  // Persist a new track to the real JULI3TA folder, then cache in SQLite. If
   // the write fails (DB not ready, OPFS denied), DON'T pollute the
   // gallery with a row that won't survive a reload — surface the error
   // and return false so the caller can skip side effects (VFS mirroring,
@@ -7670,10 +7699,12 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
     if (!musicSearchOpen) return;
     const q = musicQuery.trim();
     if (q.length < 2) {
-      setMusicResults([]);
-      setMusicSearchError(null);
-      setMusicSearchBusy(false);
-      return;
+      const resetHandle = window.setTimeout(() => {
+        setMusicResults([]);
+        setMusicSearchError(null);
+        setMusicSearchBusy(false);
+      }, 0);
+      return () => window.clearTimeout(resetHandle);
     }
     const cacheKey = `${musicResultType}:${q.toLowerCase()}`;
     const cached = musicSearchCacheRef.current.get(cacheKey);

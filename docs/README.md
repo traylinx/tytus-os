@@ -44,3 +44,16 @@ For people working on Tytus OS itself.
 ## Reference
 - [INTEGRATION-DEEPDIVE.md](../INTEGRATION-DEEPDIVE.md) — original architecture decision (Tytus Tower → Tytus OS migration)
 - [GitHub repo](https://github.com/traylinx/tytus-os) (private)
+
+## Bundled into tytus-cli
+
+This entire `user-manual/` folder is concatenated into `tytus-cli/os-docs.md` and embedded into the `tytus` binary at build time. The same content is exposed three ways for AI agents (Claude Code, OpenCode, Gemini, Codex, Cursor, Vibe, Aider, Archon):
+
+- `tytus os-docs` — prints the bundled manual to stdout
+- `tytus link [DIR]` — drops the manual as `.tytus/os-manual.md` in the target project
+- `tytus_os_docs` MCP tool — same content over MCP (auto-allowed in injected `.mcp.json`)
+
+When markdown files in `user-manual/` change, regenerate the bundle:
+```bash
+cd ../../tytus-cli && ./scripts/regen-os-docs.sh
+```

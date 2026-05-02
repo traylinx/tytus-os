@@ -30,6 +30,11 @@ const WindowManager = memo(function WindowManager() {
     const currIds = new Set(state.windows.map((w) => w.id));
     const justRemoved = prevWindowsRef.current.filter((p) => !currIds.has(p.id));
     if (justRemoved.length > 0) {
+      // IMPORTANT: advance prevWindowsRef before scheduling ghosts. Without
+      // this, any later window state update (drag/move/focus) would see the
+      // same removed window again and add duplicate ghost frames behind the
+      // active window.
+      prevWindowsRef.current = state.windows;
       // Skip ghosts for minimize → close races (already minimized when
       // disappearing; user wouldn't see the scale-out anyway).
       const visibleClosed = justRemoved.filter((w) => w.state !== 'minimized');
@@ -45,6 +50,7 @@ const WindowManager = memo(function WindowManager() {
         // unmounting so the ghosts go with it.
         return () => timers.forEach((t) => window.clearTimeout(t));
       }
+      return;
     }
     prevWindowsRef.current = state.windows;
   }, [state.windows]);

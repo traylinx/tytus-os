@@ -1,13 +1,16 @@
 # Apps Catalog
 
-Every app installed in Tytus OS today. The Tytus surfaces (Pod Inspector, Settings, Help, Chat, Files, Channels, Browser) are now wired to the daemon — no more placeholders.
+Every app installed in Tytus OS today — **50 apps in 8 categories**. The Tytus product surfaces (Pod Inspector, Settings, Help, Chat, Files, Channels, Browser) are wired to the daemon — no placeholders. The OS-feel utilities are real and self-contained (Notes / Todo / Calendar all persist to localStorage; API Tester sends real HTTP).
 
-## System (8)
+`isDemo: true` apps in `app/src/apps/registry.ts` are gated by **Settings → Appearance → Show demo apps** (off by default in production builds). They're listed below with a *(demo)* tag.
+
+## System (9)
 
 | App | What it does |
 |---|---|
+| **App Store** | Browse and discover recommended Tytus + community apps; check install status on your machine via the daemon. |
 | **Pod Inspector** | Fleet Overview + per-pod tabs. Sort by *Needs attention* or *Pod ID*; search by `pod_id` or `agent_type`. Each row shows a status pill, an **Open agent UI** button, and click-through to the per-pod tab. The per-pod tab shows a status header, URLs grid, **Pin / Unpin**, an action row (**Open / Restart / Doctor / Stop forwarder / Refresh creds**), and a destructive section (**Uninstall… / Revoke…**). Streaming actions render an inline log pane. Pinned pods sort to top. **Restart all** appears when 2+ pods are allocated. |
-| **System Settings** | Tytus product config (Account, Plan & Units, Pods, Agents, Daemon) plus OS-feel preferences. See [Settings](settings.md). |
+| **System Settings** | Tytus product config (Account, Plan & Units, Pods, Agents, Daemon, Sharing) plus OS-feel preferences (Background, Appearance, Dock, Languages, Notifications, Privacy, About). See [Settings](settings.md). |
 | **Help** | Sidebar tabs: **Doctor**, **Health test**, **Logs**, **About**. Doctor + Test each have a **Run** button, an SSE log pane, and a *"Last run: Xm ago · exit 0"* status line. Logs polls `/api/logs` every 2s with **Pause / Resume** and auto-scroll-when-pinned. About shows daemon PID, formatted uptime, and GitHub links. |
 | **Files** | Pods sidebar plus three tabs: **Inbox** (run-streamed `ls-inbox`), **Downloads** (opens `~/Downloads/tytus/pod-NN/` via `postFilesOpenDownloads`), and **Shared** (bind a Mac folder to one or more pods via Garage — folder picker, bucket validation, auto-sync toggle). |
 | **Terminal** | Simulated bash today. Real `tytus exec` into pod containers in a later phase. |
@@ -39,16 +42,17 @@ Every app installed in Tytus OS today. The Tytus surfaces (Pod Inspector, Settin
 | **Document Viewer** | PDF and document viewer. |
 | **Markdown Preview** | Live markdown rendering with GitHub styling. |
 
-## Media (8)
+## Media (9)
 
 | App | What it does |
 |---|---|
 | **Image Viewer** | Single-image view with zoom and slideshow. |
 | **Image Gallery** | Browse and organize collections. |
 | **Photo Editor** | Crop, filter, adjust. |
-| **Music Player** | Audio playback with playlists. |
+| **Music Player** | Audio playback with playlists. Accepts JULI3TA track drops to start playback (Sprint B). |
+| **JULI3TA** | "Where songs find their soul." AI lyrics + music creation, powered by your private pod. (Internal id: `musiccreator`.) |
 | **Video Player** | Video playback with controls. |
-| **Voice Recorder** | Microphone capture, playback, export. |
+| **Voice Recorder** | Microphone capture, playback, export (wav/mp3). |
 | **Screen Recorder** | Browser screen capture (uses native API). |
 | **Media Converter** | Format conversion utility. |
 
@@ -73,7 +77,7 @@ Every app installed in Tytus OS today. The Tytus surfaces (Pod Inspector, Settin
 
 ## Demo apps (hidden by default)
 
-The 11 Games plus **ASCII Art** and **Matrix Rain** are gated by the **Show demo apps** toggle in **Settings → Display** (default OFF — manifest AN8 demo-apps gate). Flip it on to expose:
+The 11 Games plus **ASCII Art** and **Matrix Rain** are gated by the **Show demo apps** toggle in **Settings → Appearance** (default OFF — manifest AN8 demo-apps gate). Flip it on to expose:
 
 - **Minesweeper**, **Snake**, **Tetris**, **Tic-Tac-Toe**, **2048**, **Sudoku**, **Chess**, **Memory**, **Pong**, **Solitaire**, **Flappy Bird**
 - **ASCII Art** — generate ASCII text art and diagrams
