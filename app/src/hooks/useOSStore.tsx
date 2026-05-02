@@ -938,13 +938,15 @@ export const OSProvider: React.FC<{ children: React.ReactNode }> = ({ children }
   // windows array changes. We're syncing to an external store, so a useEffect
   // is the right shape (vs. wrapping dispatch).
   useEffect(() => {
-    persistWindows(state.windows);
+    const timer = window.setTimeout(() => persistWindows(state.windows), 180);
+    return () => window.clearTimeout(timer);
   }, [state.windows]);
 
   // Per-app remembered geometry — survives close so reopening pulls
   // back the user's last frame.
   useEffect(() => {
-    persistWindowGeometry(state.windowGeometry);
+    const timer = window.setTimeout(() => persistWindowGeometry(state.windowGeometry), 180);
+    return () => window.clearTimeout(timer);
   }, [state.windowGeometry]);
 
   // Per-window snap state — persists across reload so a snapped FileManager
