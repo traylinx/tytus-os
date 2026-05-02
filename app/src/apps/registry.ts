@@ -137,8 +137,8 @@ export const APP_REGISTRY: AppDefinition[] = [
     description: 'Audio player with playlist.',
     defaultSize: { width: 520, height: 440 }, minSize: { width: 360, height: 320 } },
 
-  { id: 'musiccreator', name: 'Juli3ta', icon: 'Disc3', category: 'Media',
-    description: 'Generate full songs with AI lyrics + music. Powered by your pod.',
+  { id: 'musiccreator', name: 'JULI3TA', icon: 'juli3ta:mark', category: 'Media',
+    description: 'Where songs find their soul. AI lyrics + music, powered by your pod.',
     defaultSize: { width: 880, height: 640 }, minSize: { width: 720, height: 520 } },
 
   { id: 'videoplayer', name: 'Video Player', icon: 'PlayCircle', category: 'Media',

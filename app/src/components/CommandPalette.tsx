@@ -27,6 +27,7 @@ import { useDaemonStateContext } from '@/hooks/useDaemonStateContext';
 import { navigate } from '@/lib/router';
 import type { LucideProps } from 'lucide-react';
 import { useI18n } from '@/i18n';
+import { resolveAgentDisplay } from '@/lib/agentCatalog';
 
 type IconComponent = React.ComponentType<LucideProps>;
 
@@ -111,7 +112,7 @@ const CommandPalette = memo(function CommandPalette() {
     for (const a of agents) {
       list.push({
         id: `pod:${a.pod_id}`,
-        label: t('command.openPod', { podId: a.pod_id, agentType: a.agent_type }),
+        label: t('command.openPod', { podId: a.pod_id, agentType: resolveAgentDisplay(a.agent_type, null, t).name }),
         section: t('command.section.pods'),
         icon: Box,
         run: () => {

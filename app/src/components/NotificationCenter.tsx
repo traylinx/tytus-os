@@ -8,8 +8,12 @@ import { Bell, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useOS } from '@/hooks/useOSStore';
 import * as Icons from 'lucide-react';
 import type { LucideProps } from 'lucide-react';
+import { BrandIcon, isBrandIconName } from './BrandIcon';
 
 const DynamicIcon = ({ name, ...props }: { name: string } & LucideProps) => {
+  if (isBrandIconName(name)) {
+    return <BrandIcon name={name} size={(props.size as number) ?? 16} className={props.className} />;
+  }
   const IconComp = (Icons as unknown as Record<string, React.ComponentType<LucideProps>>)[name];
   return IconComp ? <IconComp {...props} /> : null;
 };

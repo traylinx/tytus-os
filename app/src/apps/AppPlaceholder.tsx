@@ -2,8 +2,12 @@ import { memo } from 'react';
 import * as Icons from 'lucide-react';
 import type { LucideProps } from 'lucide-react';
 import { getAppById } from './registry';
+import { BrandIcon, isBrandIconName } from '../components/BrandIcon';
 
 const DynamicIcon = ({ name, ...props }: { name: string } & LucideProps) => {
+  if (isBrandIconName(name)) {
+    return <BrandIcon name={name} size={(props.size as number) ?? 28} className={props.className} />;
+  }
   const C = (Icons as unknown as Record<string, React.ComponentType<LucideProps>>)[name];
   return C ? <C {...props} /> : <Icons.Box {...props} />;
 };

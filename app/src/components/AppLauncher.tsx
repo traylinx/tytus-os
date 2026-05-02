@@ -13,8 +13,12 @@ import * as Icons from 'lucide-react';
 import type { LucideProps } from 'lucide-react';
 import type { AppDefinition } from '@/types';
 import { useI18n } from '@/i18n';
+import { BrandIcon, isBrandIconName } from './BrandIcon';
 
 const DynamicIcon = ({ name, ...props }: { name: string } & LucideProps) => {
+  if (isBrandIconName(name)) {
+    return <BrandIcon name={name} size={(props.size as number) ?? 24} className={props.className} />;
+  }
   const IconComp = (Icons as unknown as Record<string, React.ComponentType<LucideProps>>)[name];
   return IconComp ? <IconComp {...props} /> : null;
 };

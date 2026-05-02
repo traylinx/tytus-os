@@ -36,6 +36,15 @@ export interface SavedTrackRow {
   // restores the original Theme box. Empty for tracks generated
   // before V7 (the schema column defaults to '').
   theme: string;
+  // V8: external/streamed source metadata. Legacy generated rows default
+  // to source=juli3ta/audioKind=data_url.
+  source?: 'juli3ta' | 'youtube';
+  audioKind?: 'data_url' | 'remote_stream' | 'lyrics_only';
+  externalId?: string;
+  externalUrl?: string;
+  thumbnailUrl?: string;
+  artist?: string;
+  album?: string;
 }
 
 interface DBRow {
@@ -52,6 +61,13 @@ interface DBRow {
   specs_json: string;
   cover_data_url: string;
   theme: string;
+  source: string;
+  audio_kind: string;
+  external_id: string;
+  external_url: string;
+  thumbnail_url: string;
+  artist: string;
+  album: string;
 }
 
 const fromDb = (r: DBRow): SavedTrackRow => ({
@@ -68,19 +84,33 @@ const fromDb = (r: DBRow): SavedTrackRow => ({
   specsJson: r.specs_json ?? '',
   coverDataUrl: r.cover_data_url ?? '',
   theme: r.theme ?? '',
+  source: (r.source || 'juli3ta') as SavedTrackRow['source'],
+  audioKind: (r.audio_kind || (r.audio_data_url ? 'data_url' : 'lyrics_only')) as SavedTrackRow['audioKind'],
+  externalId: r.external_id ?? '',
+  externalUrl: r.external_url ?? '',
+  thumbnailUrl: r.thumbnail_url ?? '',
+  artist: r.artist ?? '',
+  album: r.album ?? '',
 });
 
 // True iff the thrown SQLite error indicates a column that we ALTER
 // in for V5/V6/V7 is missing. Lets repos fall back to the older
 // column lists rather than blanking the gallery when an HMR-driven
 // worker restart races the migration.
-const isMissingColumn = (e: unknown, col: 'specs_json' | 'cover_data_url' | 'theme'): boolean =>
+const isMissingColumn = (e: unknown, col: string): boolean =>
   new RegExp(`no such column:\\s*${col}`, 'i').test(String(e));
 
 const isMissingAddedColumn = (e: unknown): boolean =>
   isMissingColumn(e, 'specs_json')
   || isMissingColumn(e, 'cover_data_url')
-  || isMissingColumn(e, 'theme');
+  || isMissingColumn(e, 'theme')
+  || isMissingColumn(e, 'source')
+  || isMissingColumn(e, 'audio_kind')
+  || isMissingColumn(e, 'external_id')
+  || isMissingColumn(e, 'external_url')
+  || isMissingColumn(e, 'thumbnail_url')
+  || isMissingColumn(e, 'artist')
+  || isMissingColumn(e, 'album');
 
 // Pre-V7 SELECT — drops `theme`. specs + cover still present.
 const SELECT_BASE_NO_THEME = `id, title, style_tags, lyrics_preview, duration_ms, bitrate,
@@ -91,6 +121,16 @@ const SELECT_BASE_NO_COVER = `id, title, style_tags, lyrics_preview, duration_ms
 // Pre-V5 SELECT — drops specs_json + cover_data_url + theme.
 const SELECT_BASE_NO_SPECS = `id, title, style_tags, lyrics_preview, duration_ms, bitrate,
               sample_rate, size_bytes, created_at, audio_data_url`;
+const withV8Defaults = (r: Omit<DBRow, 'source' | 'audio_kind' | 'external_id' | 'external_url' | 'thumbnail_url' | 'artist' | 'album'>): DBRow => ({
+  ...r,
+  source: 'juli3ta',
+  audio_kind: r.audio_data_url ? 'data_url' : 'lyrics_only',
+  external_id: '',
+  external_url: '',
+  thumbnail_url: '',
+  artist: '',
+  album: '',
+});
 
 const fallbackSelect = async (
   db: NonNullable<ReturnType<typeof getDb>>,
@@ -98,6 +138,28 @@ const fallbackSelect = async (
   params: SqlValue[],
   e: unknown,
 ): Promise<DBRow[]> => {
+  // V8 source metadata missing → read the V7 shape, then synthesize
+  // source defaults. If V7 is also missing columns, fall through into
+  // the older fallback ladder below.
+  if (
+    isMissingColumn(e, 'source')
+    || isMissingColumn(e, 'audio_kind')
+    || isMissingColumn(e, 'external_id')
+    || isMissingColumn(e, 'external_url')
+    || isMissingColumn(e, 'thumbnail_url')
+    || isMissingColumn(e, 'artist')
+    || isMissingColumn(e, 'album')
+  ) {
+    try {
+      const rows = await db.query<Omit<DBRow, 'source' | 'audio_kind' | 'external_id' | 'external_url' | 'thumbnail_url' | 'artist' | 'album'>>(
+        `SELECT ${SELECT_BASE_NO_THEME}, theme FROM music_creator_tracks ${whereClause}`,
+        params,
+      );
+      return rows.map(withV8Defaults);
+    } catch (e2) {
+      e = e2;
+    }
+  }
   // Theme column missing → drop it; cover + specs may still be present.
   if (isMissingColumn(e, 'theme')) {
     try {
@@ -105,7 +167,7 @@ const fallbackSelect = async (
         `SELECT ${SELECT_BASE_NO_THEME} FROM music_creator_tracks ${whereClause}`,
         params,
       );
-      return rows.map((r) => ({ ...r, theme: '' }));
+      return rows.map((r) => withV8Defaults({ ...r, theme: '' }));
     } catch (e2) {
       if (!isMissingColumn(e2, 'cover_data_url')) throw e2;
       // Cover ALSO missing — fall further.
@@ -114,14 +176,14 @@ const fallbackSelect = async (
           `SELECT ${SELECT_BASE_NO_COVER} FROM music_creator_tracks ${whereClause}`,
           params,
         );
-        return rows.map((r) => ({ ...r, cover_data_url: '', theme: '' }));
+        return rows.map((r) => withV8Defaults({ ...r, cover_data_url: '', theme: '' }));
       } catch (e3) {
         if (!isMissingColumn(e3, 'specs_json')) throw e3;
         const rows = await db.query<Omit<DBRow, 'specs_json' | 'cover_data_url' | 'theme'>>(
           `SELECT ${SELECT_BASE_NO_SPECS} FROM music_creator_tracks ${whereClause}`,
           params,
         );
-        return rows.map((r) => ({ ...r, specs_json: '', cover_data_url: '', theme: '' }));
+        return rows.map((r) => withV8Defaults({ ...r, specs_json: '', cover_data_url: '', theme: '' }));
       }
     }
   }
@@ -132,14 +194,14 @@ const fallbackSelect = async (
         `SELECT ${SELECT_BASE_NO_COVER} FROM music_creator_tracks ${whereClause}`,
         params,
       );
-      return rows.map((r) => ({ ...r, cover_data_url: '', theme: '' }));
+      return rows.map((r) => withV8Defaults({ ...r, cover_data_url: '', theme: '' }));
     } catch (e2) {
       if (!isMissingColumn(e2, 'specs_json')) throw e2;
       const rows = await db.query<Omit<DBRow, 'specs_json' | 'cover_data_url' | 'theme'>>(
         `SELECT ${SELECT_BASE_NO_SPECS} FROM music_creator_tracks ${whereClause}`,
         params,
       );
-      return rows.map((r) => ({ ...r, specs_json: '', cover_data_url: '', theme: '' }));
+      return rows.map((r) => withV8Defaults({ ...r, specs_json: '', cover_data_url: '', theme: '' }));
     }
   }
   // Specs column missing → drop everything added after.
@@ -148,13 +210,14 @@ const fallbackSelect = async (
       `SELECT ${SELECT_BASE_NO_SPECS} FROM music_creator_tracks ${whereClause}`,
       params,
     );
-    return rows.map((r) => ({ ...r, specs_json: '', cover_data_url: '', theme: '' }));
+    return rows.map((r) => withV8Defaults({ ...r, specs_json: '', cover_data_url: '', theme: '' }));
   }
   throw e;
 };
 
 const SELECT_FULL = `id, title, style_tags, lyrics_preview, duration_ms, bitrate,
-              sample_rate, size_bytes, created_at, audio_data_url, specs_json, cover_data_url, theme`;
+              sample_rate, size_bytes, created_at, audio_data_url, specs_json, cover_data_url, theme,
+              source, audio_kind, external_id, external_url, thumbnail_url, artist, album`;
 
 export const listTracks = async (): Promise<SavedTrackRow[]> => {
   const db = getDb();
@@ -209,12 +272,49 @@ export const insertTrack = async (track: SavedTrackRow): Promise<void> => {
     await db.run(
       `INSERT OR REPLACE INTO music_creator_tracks
          (id, title, style_tags, lyrics_preview, duration_ms, bitrate,
-          sample_rate, size_bytes, created_at, audio_data_url, specs_json, cover_data_url, theme)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [...baseParams, track.specsJson, track.coverDataUrl, track.theme],
+          sample_rate, size_bytes, created_at, audio_data_url, specs_json, cover_data_url, theme,
+          source, audio_kind, external_id, external_url, thumbnail_url, artist, album)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        ...baseParams,
+        track.specsJson,
+        track.coverDataUrl,
+        track.theme,
+        track.source ?? 'juli3ta',
+        track.audioKind ?? (track.audioDataUrl ? 'data_url' : 'lyrics_only'),
+        track.externalId ?? '',
+        track.externalUrl ?? '',
+        track.thumbnailUrl ?? '',
+        track.artist ?? '',
+        track.album ?? '',
+      ],
     );
   } catch (e) {
     if (!isMissingAddedColumn(e)) throw e;
+    // V8 source metadata missing → write the V7 shape. The next worker
+    // init heals the schema and future saves will persist source fields.
+    if (
+      isMissingColumn(e, 'source')
+      || isMissingColumn(e, 'audio_kind')
+      || isMissingColumn(e, 'external_id')
+      || isMissingColumn(e, 'external_url')
+      || isMissingColumn(e, 'thumbnail_url')
+      || isMissingColumn(e, 'artist')
+      || isMissingColumn(e, 'album')
+    ) {
+      try {
+        await db.run(
+          `INSERT OR REPLACE INTO music_creator_tracks
+             (id, title, style_tags, lyrics_preview, duration_ms, bitrate,
+              sample_rate, size_bytes, created_at, audio_data_url, specs_json, cover_data_url, theme)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [...baseParams, track.specsJson, track.coverDataUrl, track.theme],
+        );
+        return;
+      } catch (e2) {
+        e = e2;
+      }
+    }
     // Theme column missing → write everything except theme.
     if (isMissingColumn(e, 'theme')) {
       try {
