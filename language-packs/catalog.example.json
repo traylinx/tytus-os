@@ -5,9 +5,9 @@
       "locale": "es",
       "name": "Spanish",
       "nativeName": "Español",
-      "version": "1.1.0",
+      "version": "1.1.1",
       "url": "https://raw.githubusercontent.com/traylinx/tytus-os-lang-es/main/tytus-os.es.json",
-      "sha256": "228f2d0981559b84d959af4feaba2b367eef39be0921acada8f9e57def7b32ba"
+      "sha256": "b0445d766e5d35e4396149ca8e49bbff00c1fd948f1c43bfb42ca95fc9ea7384"
     }
   ]
 }

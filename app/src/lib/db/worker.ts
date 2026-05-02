@@ -24,7 +24,7 @@ import sqlite3InitModule, {
   type Database,
   type Sqlite3Static,
 } from '@sqlite.org/sqlite-wasm';
-import { SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_VERSION } from './schema';
+import { SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V9, SCHEMA_VERSION } from './schema';
 
 declare const self: DedicatedWorkerGlobalScope;
 
@@ -92,6 +92,7 @@ const openDb = async (): Promise<{ persistent: boolean; libVersion: string }> =>
   db.exec(SCHEMA_V2);
   db.exec(SCHEMA_V3);
   db.exec(SCHEMA_V4);
+  db.exec(SCHEMA_V9);  // CREATE TABLE IF NOT EXISTS — idempotent, safe to run alongside V1-V4.
 
   // Reusable column-presence ALTER. Each ALTER is gated on the actual
   // schema rather than user_version, so a stuck migration in a previous
@@ -121,6 +122,13 @@ const openDb = async (): Promise<{ persistent: boolean; libVersion: string }> =>
   ensureColumn('specs_json', SCHEMA_V5, 'SCHEMA_V5');
   ensureColumn('cover_data_url', SCHEMA_V6, 'SCHEMA_V6');
   ensureColumn('theme', SCHEMA_V7, 'SCHEMA_V7');
+  ensureColumn('source', "ALTER TABLE music_creator_tracks ADD COLUMN source TEXT NOT NULL DEFAULT 'juli3ta';", 'SCHEMA_V8_source');
+  ensureColumn('audio_kind', "ALTER TABLE music_creator_tracks ADD COLUMN audio_kind TEXT NOT NULL DEFAULT 'data_url';", 'SCHEMA_V8_audio_kind');
+  ensureColumn('external_id', "ALTER TABLE music_creator_tracks ADD COLUMN external_id TEXT NOT NULL DEFAULT '';", 'SCHEMA_V8_external_id');
+  ensureColumn('external_url', "ALTER TABLE music_creator_tracks ADD COLUMN external_url TEXT NOT NULL DEFAULT '';", 'SCHEMA_V8_external_url');
+  ensureColumn('thumbnail_url', "ALTER TABLE music_creator_tracks ADD COLUMN thumbnail_url TEXT NOT NULL DEFAULT '';", 'SCHEMA_V8_thumbnail_url');
+  ensureColumn('artist', "ALTER TABLE music_creator_tracks ADD COLUMN artist TEXT NOT NULL DEFAULT '';", 'SCHEMA_V8_artist');
+  ensureColumn('album', "ALTER TABLE music_creator_tracks ADD COLUMN album TEXT NOT NULL DEFAULT '';", 'SCHEMA_V8_album');
 
   db.exec(`PRAGMA user_version = ${SCHEMA_VERSION}`);
 

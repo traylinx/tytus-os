@@ -14,6 +14,7 @@ import {
   Search,
   Check,
   Server,
+  LogIn,
   LogOut,
   Power,
   Loader2,
@@ -30,6 +31,7 @@ import {
   HardDriveDownload,
   ListChecks,
   ShieldCheck,
+  Upload,
 } from "lucide-react";
 import LogPane from "@/components/LogPane";
 import { useOS } from "@/hooks/useOSStore";
@@ -41,7 +43,14 @@ import { useDemoApps } from "@/hooks/useDemoApps";
 import { useNotifications } from "@/hooks/useOSStore";
 import { computePill } from "@/lib/statusPill";
 import { READY_COLORS, visualForAgentStatus } from "@/lib/agentStatus";
-import { TYTUS_WALLPAPERS } from "@/lib/brand";
+import { TYTUS_WALLPAPERS, CUSTOM_WALLPAPER_SENTINEL, parseBackground } from "@/lib/brand";
+import {
+  saveCustomWallpaper,
+  loadCustomWallpaper,
+  clearCustomWallpaper,
+  ACCEPTED_WALLPAPER_MIME,
+  MAX_CUSTOM_WALLPAPER_BYTES,
+} from "@/lib/repo/wallpaper";
 import { languagePackExample, useI18n } from "@/i18n";
 import {
   maskSecret,
@@ -285,6 +294,10 @@ const Settings: React.FC = () => {
   const [configuring, setConfiguring] = useState(false);
   const [configureErr, setConfigureErr] = useState<string | null>(null);
   const [configureStarted, setConfigureStarted] = useState(false);
+  const [reauthStarting, setReauthStarting] = useState(false);
+  const [reauthErr, setReauthErr] = useState<string | null>(null);
+  const [reauthUrl, setReauthUrl] = useState<string | null>(null);
+  const [reauthCode, setReauthCode] = useState<string | null>(null);
   const [signingOut, setSigningOut] = useState(false);
   const [signOutErr, setSignOutErr] = useState<string | null>(null);
   const [signOutConfirmOpen, setSignOutConfirmOpen] = useState(false);
@@ -308,6 +321,56 @@ const Settings: React.FC = () => {
     null,
   );
   const languagePackInputRef = useRef<HTMLInputElement | null>(null);
+
+  // ---- Background panel: custom upload + solid color state ----
+  const wallpaperFileInputRef = useRef<HTMLInputElement | null>(null);
+  const [wallpaperUploadErr, setWallpaperUploadErr] = useState<string | null>(null);
+  const [customWallpaperPreview, setCustomWallpaperPreview] = useState<string | null>(null);
+  const currentBg = parseBackground(state.theme.wallpaper);
+  // Color-picker draft. Falls back to the accent color so the picker opens
+  // somewhere sensible even before the user types anything.
+  const [colorDraft, setColorDraft] = useState<string>(
+    currentBg.kind === "color" ? currentBg.value : (state.theme.accent ?? "#7C4DFF"),
+  );
+
+  // Hydrate the custom-wallpaper preview thumbnail when the user is on the
+  // "custom" sentinel — otherwise we'd paint the empty card next to the
+  // preset grid even though the user had picked their own image.
+  useEffect(() => {
+    if (currentBg.kind !== "custom") {
+      setCustomWallpaperPreview(null);
+      return;
+    }
+    let cancelled = false;
+    loadCustomWallpaper().then((row) => {
+      if (!cancelled) setCustomWallpaperPreview(row?.dataUrl ?? null);
+    }).catch(() => undefined);
+    return () => { cancelled = true; };
+  }, [currentBg.kind, state.theme.wallpaper]);
+
+  const handleCustomWallpaperUpload = useCallback(async (file: File) => {
+    setWallpaperUploadErr(null);
+    try {
+      const row = await saveCustomWallpaper(file);
+      setCustomWallpaperPreview(row.dataUrl);
+      dispatch({ type: "SET_THEME", theme: { wallpaper: CUSTOM_WALLPAPER_SENTINEL } });
+    } catch (err) {
+      setWallpaperUploadErr(err instanceof Error ? err.message : String(err));
+    }
+  }, [dispatch]);
+
+  const handleSolidColorPicked = useCallback((color: string) => {
+    setColorDraft(color);
+    dispatch({ type: "SET_THEME", theme: { wallpaper: color } });
+  }, [dispatch]);
+
+  const handleClearCustomWallpaper = useCallback(async () => {
+    await clearCustomWallpaper().catch(() => undefined);
+    setCustomWallpaperPreview(null);
+    if (state.theme.wallpaper === CUSTOM_WALLPAPER_SENTINEL) {
+      dispatch({ type: "SET_THEME", theme: { wallpaper: TYTUS_WALLPAPERS[2].id } });
+    }
+  }, [dispatch, state.theme.wallpaper]);
 
   const loadOfficialLanguageCatalog = useCallback(async () => {
     setOfficialLanguageLoading(true);
@@ -716,6 +779,29 @@ const Settings: React.FC = () => {
     daemon.refresh();
   }, [client, dispatch, daemon]);
 
+  const signInAgain = useCallback(async () => {
+    setReauthStarting(true);
+    setReauthErr(null);
+    setReauthUrl(null);
+    setReauthCode(null);
+    const r = await client.postLogin();
+    setReauthStarting(false);
+    if (!r.ok) {
+      setReauthErr(
+        r.error.status === 404
+          ? "Your running Tytus tray daemon does not expose browser sign-in yet. Restart Tytus, then try again."
+          : r.error.message,
+      );
+      return;
+    }
+    setReauthUrl(r.value.verification_uri);
+    setReauthCode(r.value.user_code);
+    if (!r.value.opened_browser) {
+      window.open(r.value.verification_uri, "_blank", "noopener,noreferrer");
+    }
+    window.setTimeout(() => daemon.refresh(), 1200);
+  }, [client, daemon]);
+
   // While searching: flatten both groups and filter; sidebar renders a
   // single list. Otherwise: render the two groups with a divider.
   const ALL_CATEGORIES = useMemo(
@@ -802,9 +888,9 @@ const Settings: React.FC = () => {
                 </div>
               )}
               <div className="text-[11px] text-[var(--text-secondary)]">
-                Sign-in is initiated from the Tytus tray menu (
-                <strong>Sign in</strong>). Tytus OS will pick up the new session
-                automatically.
+                If your session expires, use Daemon →{" "}
+                <strong>Sign in again</strong> or the Tytus tray Sign In menu.
+                Tytus OS will pick up the refreshed session automatically.
               </div>
             </div>
           </div>
@@ -864,6 +950,87 @@ const Settings: React.FC = () => {
                     <span className="font-mono">
                       {daemon.state.keychain_healthy ? "healthy" : "unhealthy"}
                     </span>
+                  </div>
+                )}
+                {pill.kind === "session-expired" && (
+                  <div
+                    className="mt-4 p-3 rounded-lg"
+                    style={{
+                      background: "rgba(255,152,0,0.10)",
+                      border: "1px solid rgba(255,152,0,0.28)",
+                    }}
+                  >
+                    <div className="text-sm font-semibold text-[var(--text-primary)]">
+                      Re-authentication required
+                    </div>
+                    <div className="text-xs text-[var(--text-secondary)] mt-1 leading-relaxed">
+                      Your browser will open a one-time Tytus sign-in page.
+                      Approve it there; this screen refreshes automatically.
+                      Your pods and local files are not deleted or restarted.
+                    </div>
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                      <button
+                        onClick={signInAgain}
+                        disabled={reauthStarting}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-colors disabled:opacity-60"
+                        style={{
+                          background: "var(--accent-primary)",
+                          color: "var(--text-on-accent)",
+                        }}
+                      >
+                        {reauthStarting ? (
+                          <Loader2 size={12} className="animate-spin" />
+                        ) : (
+                          <LogIn size={12} />
+                        )}
+                        {reauthStarting ? "Opening sign in…" : "Sign in again"}
+                      </button>
+                      <button
+                        onClick={() => daemon.refresh()}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs transition-colors"
+                        style={{
+                          background: "var(--bg-hover, rgba(255,255,255,0.04))",
+                          border: "1px solid var(--border-default)",
+                          color: "var(--text-primary)",
+                        }}
+                      >
+                        <RefreshCw size={12} />
+                        Check session
+                      </button>
+                    </div>
+                    {reauthUrl && (
+                      <div
+                        className="mt-3 p-2 rounded-md text-xs"
+                        style={{
+                          background: "rgba(255,255,255,0.05)",
+                          border: "1px solid var(--border-subtle)",
+                          color: "var(--text-secondary)",
+                        }}
+                      >
+                        Browser opened. Code{" "}
+                        <span className="font-mono text-[var(--text-primary)]">
+                          {reauthCode}
+                        </span>
+                        {" · "}
+                        <a
+                          href={reauthUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="underline"
+                          style={{ color: "var(--accent-primary)" }}
+                        >
+                          open again
+                        </a>
+                      </div>
+                    )}
+                    {reauthErr && (
+                      <div
+                        className="mt-3 text-xs"
+                        style={{ color: "var(--accent-error)" }}
+                      >
+                        {reauthErr}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -1417,40 +1584,184 @@ const Settings: React.FC = () => {
 
       case "background":
         return (
-          <div className="space-y-6">
+          <div className="space-y-8">
             <h2 className="text-2xl font-semibold text-[var(--text-primary)]">
-              Background
+              {t("settings.background.title")}
             </h2>
-            <div className="grid grid-cols-2 gap-4">
-              {WALLPAPERS.map((w) => (
+
+            {/* Bundled presets */}
+            <section className="space-y-3">
+              <h3 className="text-sm font-medium text-[var(--text-secondary)] uppercase tracking-wide">
+                {t("settings.background.section.presets")}
+              </h3>
+              <div className="grid grid-cols-2 gap-4">
+                {WALLPAPERS.map((w) => (
+                  <button
+                    key={w.id}
+                    onClick={() =>
+                      dispatch({ type: "SET_THEME", theme: { wallpaper: w.id } })
+                    }
+                    className="relative rounded-lg overflow-hidden border-2 transition-all hover:scale-[1.02]"
+                    style={{
+                      borderColor:
+                        state.theme.wallpaper === w.id
+                          ? "var(--accent-primary)"
+                          : "transparent",
+                      aspectRatio: "16/9",
+                    }}
+                  >
+                    <img
+                      src={w.id}
+                      alt={w.name}
+                      className="w-full h-full object-cover"
+                    />
+                    <div
+                      className="absolute bottom-0 left-0 right-0 px-2 py-1 text-xs text-white"
+                      style={{ background: "rgba(0,0,0,0.6)" }}
+                    >
+                      {w.name}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </section>
+
+            {/* Custom personalization: own image + solid color */}
+            <section className="space-y-3">
+              <h3 className="text-sm font-medium text-[var(--text-secondary)] uppercase tracking-wide">
+                {t("settings.background.section.custom")}
+              </h3>
+              <div className="grid grid-cols-2 gap-4">
+                {/* Custom image upload card */}
                 <button
-                  key={w.id}
-                  onClick={() =>
-                    dispatch({ type: "SET_THEME", theme: { wallpaper: w.id } })
-                  }
+                  onClick={() => wallpaperFileInputRef.current?.click()}
                   className="relative rounded-lg overflow-hidden border-2 transition-all hover:scale-[1.02]"
                   style={{
                     borderColor:
-                      state.theme.wallpaper === w.id
+                      currentBg.kind === "custom"
                         ? "var(--accent-primary)"
                         : "transparent",
                     aspectRatio: "16/9",
+                    background: "var(--bg-card, rgba(255,255,255,0.03))",
                   }}
                 >
-                  <img
-                    src={w.id}
-                    alt={w.name}
-                    className="w-full h-full object-cover"
-                  />
+                  {customWallpaperPreview ? (
+                    <img
+                      src={customWallpaperPreview}
+                      alt={t("settings.background.custom.previewAlt")}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex flex-col items-center justify-center gap-2 text-[var(--text-secondary)]">
+                      <Upload size={28} />
+                      <div className="text-sm font-medium">
+                        {t("settings.background.custom.uploadCta")}
+                      </div>
+                      <div className="text-xs opacity-70 px-3 text-center">
+                        {t("settings.background.custom.uploadHint")}
+                      </div>
+                    </div>
+                  )}
                   <div
-                    className="absolute bottom-0 left-0 right-0 px-2 py-1 text-xs text-white"
+                    className="absolute bottom-0 left-0 right-0 px-2 py-1 text-xs text-white flex items-center justify-between gap-2"
                     style={{ background: "rgba(0,0,0,0.6)" }}
                   >
-                    {w.name}
+                    <span>{t("settings.background.custom.label")}</span>
+                    {customWallpaperPreview && (
+                      <span
+                        role="button"
+                        tabIndex={0}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void handleClearCustomWallpaper();
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.stopPropagation();
+                            void handleClearCustomWallpaper();
+                          }
+                        }}
+                        className="text-[10px] uppercase tracking-wide opacity-80 hover:opacity-100"
+                      >
+                        {t("settings.background.custom.remove")}
+                      </span>
+                    )}
                   </div>
+                  <input
+                    ref={wallpaperFileInputRef}
+                    type="file"
+                    accept={ACCEPTED_WALLPAPER_MIME.join(",")}
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) void handleCustomWallpaperUpload(file);
+                      // Reset so picking the same file twice still fires onChange.
+                      e.target.value = "";
+                    }}
+                  />
                 </button>
-              ))}
-            </div>
+
+                {/* Solid color card */}
+                <label
+                  className="relative rounded-lg overflow-hidden border-2 transition-all hover:scale-[1.02] cursor-pointer block"
+                  style={{
+                    borderColor:
+                      currentBg.kind === "color"
+                        ? "var(--accent-primary)"
+                        : "transparent",
+                    aspectRatio: "16/9",
+                    background: currentBg.kind === "color" ? currentBg.value : colorDraft,
+                  }}
+                >
+                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 text-white pointer-events-none">
+                    <Palette size={24} className="drop-shadow" />
+                    <div
+                      className="text-sm font-medium drop-shadow"
+                      style={{ textShadow: "0 1px 3px rgba(0,0,0,0.6)" }}
+                    >
+                      {t("settings.background.color.cta")}
+                    </div>
+                  </div>
+                  <div
+                    className="absolute bottom-0 left-0 right-0 px-2 py-1 text-xs text-white flex items-center justify-between gap-2"
+                    style={{ background: "rgba(0,0,0,0.6)" }}
+                  >
+                    <span>{t("settings.background.color.label")}</span>
+                    {currentBg.kind === "color" && (
+                      <span className="text-[10px] uppercase tracking-wide opacity-80">
+                        {currentBg.value}
+                      </span>
+                    )}
+                  </div>
+                  <input
+                    type="color"
+                    value={colorDraft}
+                    onChange={(e) => handleSolidColorPicked(e.target.value)}
+                    className="absolute inset-0 opacity-0 cursor-pointer"
+                    aria-label={t("settings.background.color.label")}
+                  />
+                </label>
+              </div>
+
+              {wallpaperUploadErr && (
+                <div
+                  className="text-xs px-3 py-2 rounded-md"
+                  style={{
+                    background: "rgba(244,67,54,0.10)",
+                    border: "1px solid rgba(244,67,54,0.30)",
+                    color: "rgb(255,138,128)",
+                  }}
+                >
+                  {wallpaperUploadErr}
+                </div>
+              )}
+
+              <div className="text-xs text-[var(--text-secondary)] opacity-80">
+                {t("settings.background.custom.footer", {
+                  maxMb: String(Math.round(MAX_CUSTOM_WALLPAPER_BYTES / (1024 * 1024))),
+                })}
+              </div>
+            </section>
           </div>
         );
 

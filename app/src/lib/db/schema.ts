@@ -10,7 +10,7 @@
 //
 // Phase 2 ships the API Tester migration: history + collections.
 
-export const SCHEMA_VERSION = 7;
+export const SCHEMA_VERSION = 9;
 
 export const SCHEMA_V1 = `
 CREATE TABLE IF NOT EXISTS api_history (
@@ -147,4 +147,42 @@ ALTER TABLE music_creator_tracks ADD COLUMN cover_data_url TEXT NOT NULL DEFAULT
 // row. Default empty string for backfill compatibility.
 export const SCHEMA_V7 = `
 ALTER TABLE music_creator_tracks ADD COLUMN theme TEXT NOT NULL DEFAULT '';
+`;
+
+// Schema V8: Music Creator — external/streamed source metadata.
+//
+// Lets JULI3TA save Nuclear/yt-dlp sourced tracks in the existing My Work
+// rail without pretending expiring CDN URLs are durable audio_data_url bytes.
+// Legacy rows default to the generated JULI3TA/data-url path.
+export const SCHEMA_V8 = `
+ALTER TABLE music_creator_tracks ADD COLUMN source TEXT NOT NULL DEFAULT 'juli3ta';
+ALTER TABLE music_creator_tracks ADD COLUMN audio_kind TEXT NOT NULL DEFAULT 'data_url';
+ALTER TABLE music_creator_tracks ADD COLUMN external_id TEXT NOT NULL DEFAULT '';
+ALTER TABLE music_creator_tracks ADD COLUMN external_url TEXT NOT NULL DEFAULT '';
+ALTER TABLE music_creator_tracks ADD COLUMN thumbnail_url TEXT NOT NULL DEFAULT '';
+ALTER TABLE music_creator_tracks ADD COLUMN artist TEXT NOT NULL DEFAULT '';
+ALTER TABLE music_creator_tracks ADD COLUMN album TEXT NOT NULL DEFAULT '';
+`;
+
+// Schema V9: Custom desktop wallpaper — user-uploaded image bytes.
+//
+// One-row table keyed on `id = 'current'` so the custom-wallpaper slot is a
+// straight upsert (no slot management UI in v1; user picks one image at a
+// time). Bytes live as a base64 data URL in TEXT — same pattern as
+// music_creator_tracks.audio_data_url. SQLite/OPFS handles MB-scale files
+// without touching the localStorage 5 MB ceiling.
+//
+// State.theme.wallpaper holds either a preset path (`/wallpapers/...`),
+// a CSS color string (`#hex` / `rgb(...)`), or the sentinel `'custom'`.
+// When the sentinel is set, the renderer reads this row to find the
+// actual data URL.
+export const SCHEMA_V9 = `
+CREATE TABLE IF NOT EXISTS wallpaper_custom (
+  id            TEXT PRIMARY KEY,                   -- always 'current' in v1
+  data_url      TEXT NOT NULL,                      -- base64 image data URL
+  mime          TEXT NOT NULL DEFAULT 'image/jpeg',
+  filename      TEXT NOT NULL DEFAULT '',
+  size_bytes    INTEGER NOT NULL DEFAULT 0,
+  uploaded_at   INTEGER NOT NULL                    -- unix ms
+);
 `;

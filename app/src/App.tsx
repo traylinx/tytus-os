@@ -24,7 +24,13 @@ import NotificationCenter from '@/components/NotificationCenter';
 import CommandPalette from '@/components/CommandPalette';
 import ShellRouteDispatcher from '@/components/ShellRouteDispatcher';
 import { ShellMenuProvider } from '@/hooks/useShellMenu';
-import { DEFAULT_TYTUS_WALLPAPER, isTytusWallpaper } from '@/lib/brand';
+import {
+  DEFAULT_TYTUS_WALLPAPER,
+  CUSTOM_WALLPAPER_SENTINEL,
+  isValidBackgroundValue,
+  parseBackground,
+} from '@/lib/brand';
+import { loadCustomWallpaper } from '@/lib/repo/wallpaper';
 
 function AppShell() {
   const { state, dispatch } = useOS();
@@ -36,13 +42,69 @@ function AppShell() {
   // TopPanel, DaemonOfflineBanner, and LoginScreen all read the same poll.
   const daemon = useDaemonStateContext();
 
-  // Runtime migration: older sessions may still hold `/wallpaper-default.jpg`
-  // in reducer state after HMR. Snap them onto the official bg3 default.
+  // Runtime migration: older sessions may still hold legacy paths
+  // (e.g. `/wallpaper-default.jpg`) in reducer state after HMR. Snap
+  // anything we can't parse (preset / 'custom' / color string) onto
+  // the bg3 default so the renderer never sees an unknown value.
   useEffect(() => {
-    if (!isTytusWallpaper(state.theme.wallpaper)) {
+    if (!isValidBackgroundValue(state.theme.wallpaper)) {
       dispatch({ type: 'SET_THEME', theme: { wallpaper: DEFAULT_TYTUS_WALLPAPER } });
     }
   }, [dispatch, state.theme.wallpaper]);
+
+  // When the user picks a custom-uploaded image, the sentinel string
+  // `'custom'` lives in reducer state but the actual base64 bytes live
+  // in SQLite. Load them once on mount + whenever the sentinel is
+  // (re-)selected; render `null` while pending so the page bg shows
+  // through cleanly instead of flashing the default preset.
+  const [customDataUrl, setCustomDataUrl] = useState<string | null>(null);
+  useEffect(() => {
+    if (state.theme.wallpaper !== CUSTOM_WALLPAPER_SENTINEL) {
+      setCustomDataUrl(null);
+      return;
+    }
+    let cancelled = false;
+    loadCustomWallpaper().then((row) => {
+      if (cancelled) return;
+      if (row) {
+        setCustomDataUrl(row.dataUrl);
+      } else {
+        // Sentinel set but no row — likely OPFS reset / cleared. Fall
+        // back to the default and clear the sentinel.
+        dispatch({ type: 'SET_THEME', theme: { wallpaper: DEFAULT_TYTUS_WALLPAPER } });
+      }
+    }).catch(() => {
+      if (!cancelled) {
+        dispatch({ type: 'SET_THEME', theme: { wallpaper: DEFAULT_TYTUS_WALLPAPER } });
+      }
+    });
+    return () => { cancelled = true; };
+  }, [dispatch, state.theme.wallpaper]);
+
+  const backgroundDescriptor = parseBackground(state.theme.wallpaper);
+  const backgroundLayerStyle: React.CSSProperties = (() => {
+    if (backgroundDescriptor.kind === 'preset') {
+      return {
+        backgroundImage: `url(${backgroundDescriptor.url})`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+      };
+    }
+    if (backgroundDescriptor.kind === 'color') {
+      return { background: backgroundDescriptor.value };
+    }
+    if (backgroundDescriptor.kind === 'custom' && customDataUrl) {
+      return {
+        backgroundImage: `url(${customDataUrl})`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+      };
+    }
+    // 'custom' still loading, or 'unknown' (will be reset by the migration
+    // effect above on next tick) — leave the layer transparent so the
+    // shell's `--bg-desktop` shows through for one frame.
+    return {};
+  })();
 
   // Log every app launch for "Frequently Used" scoring.
   // Watches window count — when a new window appears, log its appId.
@@ -202,15 +264,10 @@ function AppShell() {
       {showDesktop && (
         <ShellMenuProvider>
         <div className="relative w-full h-full" style={{ background: 'var(--bg-desktop)' }}>
-          {/* Wallpaper layer */}
+          {/* Wallpaper layer — preset image, custom-uploaded image, or solid color */}
           <div
             className="absolute inset-0"
-            style={{
-              backgroundImage: `url(${state.theme.wallpaper})`,
-              backgroundSize: 'cover',
-              backgroundPosition: 'center',
-              zIndex: 0,
-            }}
+            style={{ ...backgroundLayerStyle, zIndex: 0 }}
           />
 
           {/* Desktop Icons layer */}
