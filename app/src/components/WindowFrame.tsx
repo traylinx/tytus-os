@@ -3,20 +3,30 @@
 // ============================================================
 
 import { useCallback, useRef, useState, memo, useEffect } from 'react';
-import type { Window } from '@/types';
+import { createPortal } from 'react-dom';
+import type { SnapKind, Window } from '@/types';
 import { useOS } from '@/hooks/useOSStore';
 import * as Icons from 'lucide-react';
 import type { LucideProps } from 'lucide-react';
+import { BrandIcon, isBrandIconName } from './BrandIcon';
+import { getAppById } from '@/apps/registry';
 
 const TOP_PANEL_HEIGHT = 28;
 const HANDLE = 6;
 const CORNER = 14;
 const MIN_W = 320;
 const MIN_H = 200;
+// Sprint B Phase 6.1 — snap thresholds. While dragging a window's title
+// bar, hovering the cursor within SNAP_EDGE_PX of a viewport edge shows
+// the snap-target overlay. Drop snaps the window into that region.
+const SNAP_EDGE_PX = 30;
 
 type Edge = 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw';
 
 const DynamicIcon = ({ name, ...props }: { name: string } & LucideProps) => {
+  if (isBrandIconName(name)) {
+    return <BrandIcon name={name} size={(props.size as number) ?? 16} className={props.className} />;
+  }
   const IconComp = (Icons as unknown as Record<string, React.ComponentType<LucideProps>>)[name];
   return IconComp ? <IconComp {...props} /> : <Icons.HelpCircle {...props} />;
 };
@@ -32,6 +42,10 @@ const WindowFrame = memo(function WindowFrame({ window: win, children }: WindowF
   const resizeRef = useRef<{ edge: Edge; startX: number; startY: number; origW: number; origH: number; origX: number; origY: number } | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
+  // Sprint B Phase 6.1 — current snap candidate (cursor near edge during
+  // an active drag). Drop while non-null commits the snap; otherwise the
+  // drag falls through to a normal MOVE_WINDOW.
+  const [snapCandidate, setSnapCandidate] = useState<SnapKind | null>(null);
 
   const isMaximized = win.state === 'maximized';
   const isMinimized = win.state === 'minimized';
@@ -103,6 +117,12 @@ const WindowFrame = memo(function WindowFrame({ window: win, children }: WindowF
         ny = Math.max(TOP_PANEL_HEIGHT, ny);
         nx = Math.min(Math.max(nx, -(win.size.width - 100)), vw - 100);
         dispatch({ type: 'MOVE_WINDOW', windowId: win.id, position: { x: nx, y: ny } });
+        // Update snap candidate as the cursor approaches viewport edges.
+        let nextCand: SnapKind | null = null;
+        if (e.clientX <= SNAP_EDGE_PX) nextCand = 'left';
+        else if (e.clientX >= vw - SNAP_EDGE_PX) nextCand = 'right';
+        else if (e.clientY <= TOP_PANEL_HEIGHT + SNAP_EDGE_PX) nextCand = 'top';
+        setSnapCandidate(nextCand);
       }
       if (resizeRef.current) {
         const { edge, startX, startY, origW, origH, origX, origY } = resizeRef.current;
@@ -125,10 +145,16 @@ const WindowFrame = memo(function WindowFrame({ window: win, children }: WindowF
       }
     };
     const onUp = () => {
+      // Commit pending snap before clearing state — otherwise a fast
+      // drag-and-release at the edge would lose its candidate.
+      if (dragRef.current && snapCandidate) {
+        dispatch({ type: 'SNAP_WINDOW', windowId: win.id, kind: snapCandidate });
+      }
       dragRef.current = null;
       resizeRef.current = null;
       setIsDragging(false);
       setIsResizing(false);
+      setSnapCandidate(null);
     };
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onUp);
@@ -136,7 +162,7 @@ const WindowFrame = memo(function WindowFrame({ window: win, children }: WindowF
       window.removeEventListener('mousemove', onMove);
       window.removeEventListener('mouseup', onUp);
     };
-  }, [dispatch, win.id, win.size.width, win.size.height]);
+  }, [dispatch, win.id, win.size.width, win.size.height, snapCandidate]);
 
   const handleMinimize = useCallback(
     (e: React.MouseEvent) => {
@@ -215,12 +241,16 @@ const WindowFrame = memo(function WindowFrame({ window: win, children }: WindowF
       data-window-id={win.id}
       data-app-id={win.appId}
       data-window-title={win.title}
+      data-window-dragging={isDragging ? 'true' : undefined}
+      data-window-resizing={isResizing ? 'true' : undefined}
       style={{
         ...frameStyle,
         border: `1px solid ${isFocused ? 'var(--border-default)' : 'var(--border-subtle)'}`,
         boxShadow: isFocused
           ? 'var(--chrome-shadow-focused)'
           : 'var(--chrome-shadow-unfocused)',
+        // Inline transition kept for legacy fallback; the snap-tween
+        // CSS in window-animations.css takes over for non-drag frames.
         transition: isDragging || isResizing ? 'none' : 'box-shadow 150ms ease, border-color 150ms ease',
         overflow: 'hidden',
       }}
@@ -240,19 +270,31 @@ const WindowFrame = memo(function WindowFrame({ window: win, children }: WindowF
         onMouseDown={handleTitleMouseDown}
         onDoubleClick={handleDoubleClickTitle}
       >
-        {/* Left: icon + title */}
-        <div className="flex items-center gap-2 px-3 overflow-hidden pointer-events-none">
-          <DynamicIcon name={win.icon} size={16} className="text-[var(--text-secondary)] shrink-0" />
-          <span
-            className="text-xs font-semibold truncate"
-            style={{
-              color: isFocused ? 'var(--text-primary)' : 'var(--text-secondary)',
-              transition: 'color 150ms ease',
-            }}
-          >
-            {win.title}
-          </span>
-        </div>
+        {/* Left: icon + title. Resolved live from the app registry so a
+            rename / re-icon (e.g. JULI3TA mark + uppercase wordmark)
+            propagates without forcing the user to close and re-open
+            every window — `win.icon` / `win.title` are snapshotted at
+            window-open time and otherwise stay stale. Falls back to the
+            persisted values for windows that don't map to a known app. */}
+        {(() => {
+          const appDef = getAppById(win.appId);
+          const liveIcon = appDef?.icon ?? win.icon;
+          const liveTitle = appDef?.name ?? win.title;
+          return (
+            <div className="flex items-center gap-2 px-3 overflow-hidden pointer-events-none">
+              <DynamicIcon name={liveIcon} size={16} className="text-[var(--text-secondary)] shrink-0" />
+              <span
+                className="text-xs font-semibold truncate"
+                style={{
+                  color: isFocused ? 'var(--text-primary)' : 'var(--text-secondary)',
+                  transition: 'color 150ms ease',
+                }}
+              >
+                {liveTitle}
+              </span>
+            </div>
+          );
+        })()}
 
         {/* Right: window controls */}
         <div className="flex items-center shrink-0">
@@ -330,8 +372,43 @@ const WindowFrame = memo(function WindowFrame({ window: win, children }: WindowF
             style={{ position: 'absolute', bottom: 0, right: 0, width: CORNER, height: CORNER, cursor: 'se-resize', zIndex: 51 }} />
         </>
       )}
+
+      {/* Snap overlay (Phase 6.1). Rendered via portal so it covers the
+          full viewport above all windows. Visible only while dragging
+          near a viewport edge. */}
+      {isDragging && snapCandidate && typeof document !== 'undefined' &&
+        createPortal(<SnapOverlay kind={snapCandidate} />, document.body)}
     </div>
   );
 });
+
+function SnapOverlay({ kind }: { kind: SnapKind }) {
+  const vw = typeof window !== 'undefined' ? window.innerWidth : 0;
+  const vh = typeof window !== 'undefined' ? window.innerHeight : 0;
+  const usableH = vh - TOP_PANEL_HEIGHT;
+  let style: React.CSSProperties;
+  if (kind === 'left') {
+    style = { left: 0, top: TOP_PANEL_HEIGHT, width: Math.floor(vw / 2), height: usableH };
+  } else if (kind === 'right') {
+    style = { left: Math.floor(vw / 2), top: TOP_PANEL_HEIGHT, width: vw - Math.floor(vw / 2), height: usableH };
+  } else {
+    style = { left: 0, top: TOP_PANEL_HEIGHT, width: vw, height: usableH };
+  }
+  return (
+    <div
+      data-snap-overlay={kind}
+      style={{
+        position: 'fixed',
+        ...style,
+        background: 'rgba(124, 77, 255, 0.18)',
+        border: '2px solid var(--accent-primary)',
+        borderRadius: 8,
+        pointerEvents: 'none',
+        zIndex: 9000,
+        transition: 'all 80ms ease-out',
+      }}
+    />
+  );
+}
 
 export default WindowFrame;

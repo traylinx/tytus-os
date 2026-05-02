@@ -11,10 +11,15 @@ import { LogIn, Loader2, AlertCircle, RefreshCw } from "lucide-react";
 import { useOS } from "@/hooks/useOSStore";
 import { useDaemonClient } from "@/hooks/useDaemonClient";
 import { useDaemonStateContext } from "@/hooks/useDaemonStateContext";
-import { DEFAULT_TYTUS_WALLPAPER } from "@/lib/brand";
+import {
+  DEFAULT_TYTUS_WALLPAPER,
+  CUSTOM_WALLPAPER_SENTINEL,
+  parseBackground,
+} from "@/lib/brand";
+import { loadCustomWallpaper } from "@/lib/repo/wallpaper";
 
 const LoginScreen = memo(function LoginScreen() {
-  const { dispatch } = useOS();
+  const { state: osState, dispatch } = useOS();
   const { status, state, refresh } = useDaemonStateContext();
   const client = useDaemonClient();
   const [starting, setStarting] = useState(false);
@@ -52,14 +57,61 @@ const LoginScreen = memo(function LoginScreen() {
     }
   }, [client]);
 
-  return (
-    <div
-      className="fixed inset-0 z-[9998] flex items-center justify-center"
-      style={{
+  // Phase 1.5 — match login wallpaper to user desktop wallpaper. We
+  // mirror the LockScreen logic but without the matchDesktop opt-out
+  // since the login screen runs before settings can be edited.
+  const matchDesktop = osState.theme.lockWallpaperMatchesDesktop;
+  const [customDataUrl, setCustomDataUrl] = useState<string | null>(null);
+  useEffect(() => {
+    if (
+      !matchDesktop ||
+      osState.theme.wallpaper !== CUSTOM_WALLPAPER_SENTINEL
+    ) {
+      setCustomDataUrl(null);
+      return;
+    }
+    let cancelled = false;
+    loadCustomWallpaper().then((row) => {
+      if (!cancelled) setCustomDataUrl(row?.dataUrl ?? null);
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [matchDesktop, osState.theme.wallpaper]);
+
+  const loginBg: React.CSSProperties = (() => {
+    if (!matchDesktop) {
+      return {
         backgroundImage: `url(${DEFAULT_TYTUS_WALLPAPER})`,
         backgroundSize: "cover",
         backgroundPosition: "center",
-      }}
+      };
+    }
+    const desc = parseBackground(osState.theme.wallpaper);
+    if (desc.kind === "preset") {
+      return {
+        backgroundImage: `url(${desc.url})`,
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+      };
+    }
+    if (desc.kind === "color") return { background: desc.value };
+    if (desc.kind === "custom" && customDataUrl) {
+      return {
+        backgroundImage: `url(${customDataUrl})`,
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+      };
+    }
+    return {
+      backgroundImage: `url(${DEFAULT_TYTUS_WALLPAPER})`,
+      backgroundSize: "cover",
+      backgroundPosition: "center",
+    };
+  })();
+
+  return (
+    <div
+      className="fixed inset-0 z-[9998] flex items-center justify-center"
+      style={loginBg}
     >
       <div
         className="absolute inset-0"

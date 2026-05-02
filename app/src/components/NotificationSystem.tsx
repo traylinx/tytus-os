@@ -7,8 +7,13 @@ import { X } from 'lucide-react';
 import * as Icons from 'lucide-react';
 import type { LucideProps } from 'lucide-react';
 import { useOS } from '@/hooks/useOSStore';
+import { playSound } from '@/lib/sounds';
+import { BrandIcon, isBrandIconName } from './BrandIcon';
 
 const DynamicIcon = ({ name, ...props }: { name: string } & LucideProps) => {
+  if (isBrandIconName(name)) {
+    return <BrandIcon name={name} size={(props.size as number) ?? 18} className={props.className} />;
+  }
   const IconComp = (Icons as unknown as Record<string, React.ComponentType<LucideProps>>)[name];
   return IconComp ? <IconComp {...props} /> : null;
 };
@@ -30,6 +35,12 @@ const Toast = memo(function Toast({ notification, onClose, index }: ToastProps) 
   const [progress, setProgress] = useState(100);
   const [isHovered, setIsHovered] = useState(false);
   const [isExiting, setIsExiting] = useState(false);
+
+  // Phase 7 — chime once when the toast first mounts. Honors the
+  // theme.soundEnabled mute via lib/sounds.
+  useEffect(() => {
+    playSound('notification');
+  }, []);
 
   useEffect(() => {
     if (isHovered) return;

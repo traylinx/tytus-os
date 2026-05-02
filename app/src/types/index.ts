@@ -155,6 +155,17 @@ export interface DesktopIcon {
   icon: string;
   appId?: string;
   fileSystemNodeId?: string;
+  /** Phase 3.1 — daemon-backed shortcut. Mirrors the daemon-side shape
+   *  of `FileRef` minus the discriminator (which is implicit here:
+   *  daemonShortcut == daemon backend). When set, double-click should
+   *  open the file via the daemon API rather than reading vfs bytes. */
+  daemonShortcut?: {
+    source: string;
+    path: string;
+    binding?: number;
+    pod?: string;
+    readonly?: boolean;
+  };
   position: Position;
   isSelected: boolean;
 }
@@ -165,10 +176,40 @@ export interface DesktopIcon {
 
 export type ThemeMode = 'dark' | 'light';
 
+/** Light/dark switching policy. Default is "manual" (whatever `mode` says). */
+export type ModeSchedule = 'manual' | 'always-light' | 'always-dark' | 'auto';
+
+export type DockPosition = 'bottom' | 'left' | 'right';
+export type DockSize = 'small' | 'medium' | 'large';
+
+export interface DockTheme {
+  position: DockPosition;
+  size: DockSize;
+  autoHide: boolean;
+  /**
+   * Persisted Dock app order. App ids that are missing from the
+   * registry default order are appended at the end. The Trash icon
+   * is fixed-last and never appears in this array.
+   */
+  order: string[];
+}
+
 export interface Theme {
   mode: ThemeMode;
   accent: string;
   wallpaper: string;
+  /** Phase 1.2 Dock customization (position / size / auto-hide / order). */
+  dock: DockTheme;
+  /** Phase 1.3 Font scale (50%–150%, default 1.0 = 100%). */
+  fontScale: number;
+  /** Phase 1.4 Light/dark schedule. */
+  modeSchedule: ModeSchedule;
+  /** Phase 1.5 Lock screen wallpaper matches desktop wallpaper. */
+  lockWallpaperMatchesDesktop: boolean;
+  /** Sprint B Phase 6.4 Reduce window/dock animations. */
+  reduceMotion?: boolean;
+  /** Sprint B Phase 7 OS sound theme on/off. */
+  soundEnabled?: boolean;
 }
 
 // --------------------------------------------------------
@@ -274,6 +315,22 @@ export interface OSState {
   // last position+size instead of a cascade default. Keyed by appId so
   // it survives even after every window of that app has been closed.
   windowGeometry: Record<string, { x: number; y: number; width: number; height: number }>;
+  // Sprint B Phase 6.1 — per-window snap state. Keyed by windowId so
+  // two windows of the same app can be snapped independently
+  // (left half + right half). Holds the pre-snap frame for restore
+  // when the user drags away from the snap or hits Restore.
+  windowSnap: Record<string, WindowSnapEntry>;
+  // Sprint B Phase 5.4f — host browser clipboard permission cache.
+  // Persisted across reload so we don't re-prompt on every paste.
+  // 'prompt' = haven't asked / can't tell.
+  clipboardPermission: 'granted' | 'denied' | 'prompt';
+}
+
+export type SnapKind = 'left' | 'right' | 'top';
+
+export interface WindowSnapEntry {
+  kind: SnapKind;
+  prev: { x: number; y: number; width: number; height: number };
 }
 
 // --------------------------------------------------------
@@ -295,6 +352,9 @@ export type OSAction =
   | { type: 'FOCUS_WINDOW'; windowId: string }
   | { type: 'MOVE_WINDOW'; windowId: string; position: Position }
   | { type: 'RESIZE_WINDOW'; windowId: string; size: Size }
+  | { type: 'SNAP_WINDOW'; windowId: string; kind: SnapKind }
+  | { type: 'UNSNAP_WINDOW'; windowId: string }
+  | { type: 'SET_CLIPBOARD_PERMISSION'; state: 'granted' | 'denied' | 'prompt' }
   | { type: 'UPDATE_WINDOW_TITLE'; windowId: string; title: string }
   | { type: 'SET_ACTIVE_WINDOW'; windowId: string | null }
   | { type: 'TOGGLE_APP_LAUNCHER' }

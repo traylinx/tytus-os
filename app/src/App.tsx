@@ -31,12 +31,183 @@ import {
   parseBackground,
 } from '@/lib/brand';
 import { loadCustomWallpaper } from '@/lib/repo/wallpaper';
+import { mountShortcutManager, registerShortcut } from '@/lib/shortcuts';
+import { undoLast } from '@/lib/undo';
+import { applyThemeToDom, modeFromSchedule, SCHEDULE_POLL_MS } from '@/lib/theme/effects';
+import { ClipboardProvider } from '@/lib/clipboard';
+import { setSoundEnabled } from '@/lib/sounds';
+import { readClipboard } from '@/lib/hostClipboard';
 
 function AppShell() {
   const { state, dispatch } = useOS();
   const { bootPhase, auth } = state;
   const [bootComplete, setBootComplete] = useState(false);
   const altTabRef = useRef<{ holding: boolean }>({ holding: false });
+
+  // Capture-phase shortcut router. Default-blocks Cmd+W/Q/R/T/N so
+  // those host-browser bindings can't kill the WebView from inside
+  // Tytus OS. Apps + the shell + modals register handlers via
+  // `registerShortcut(scope, combo, handler)` per `lib/shortcuts.ts`.
+  useEffect(() => mountShortcutManager(), []);
+
+  // Phase 4.7 — global Cmd+Z (Mod+Z) undo. Active-app scope so a
+  // focused text input still gets its own browser-native Cmd+Z. The
+  // undo ring is empty until file ops start pushing entries.
+  useEffect(
+    () =>
+      registerShortcut('active-app', 'Mod+Z', () => {
+        void undoLast();
+      }),
+    [],
+  );
+
+  // Sprint B Phase 6.2 — window keyboard shortcuts via the Sprint A
+  // router. Cmd+W closes the focused window; Cmd+Q closes every window
+  // of the focused window's app. Both are at active-app scope so
+  // text-input scope (e.g. an editor that wants Cmd+W as a custom
+  // shortcut) can override per-app. The router default-blocks Cmd+W /
+  // Cmd+Q so the host browser tab can't be closed if no window owns
+  // them — registering here wins over that block.
+  useEffect(() => {
+    const offW = registerShortcut('active-app', 'Mod+W', () => {
+      const id = state.activeWindowId;
+      if (!id) return false;
+      dispatch({ type: 'CLOSE_WINDOW', windowId: id });
+    });
+    const offQ = registerShortcut('active-app', 'Mod+Q', () => {
+      const id = state.activeWindowId;
+      if (!id) return false;
+      const focused = state.windows.find((w) => w.id === id);
+      if (!focused) return false;
+      const all = state.windows.filter((w) => w.appId === focused.appId);
+      for (const w of all) {
+        dispatch({ type: 'CLOSE_WINDOW', windowId: w.id });
+      }
+    });
+    return () => {
+      offW();
+      offQ();
+    };
+  }, [dispatch, state.activeWindowId, state.windows]);
+
+  // Cmd+Space → AppLauncher. Shell scope (lowest priority) so any focused
+  // text input keeps its native Spacebar behaviour.
+  useEffect(
+    () =>
+      registerShortcut('shell', 'Mod+Space', () => {
+        dispatch({ type: 'SET_APP_LAUNCHER', open: !state.appLauncherOpen });
+      }),
+    [dispatch, state.appLauncherOpen],
+  );
+
+  // Sprint B Phase 5.4 — host clipboard paste. Cmd+V at active-app scope
+  // routes to the host clipboard reader. Text-input scope owns Cmd+V
+  // first (per Sprint A's TEXT_INPUT_NATIVE_COMBOS) so this ONLY fires
+  // when nothing's focused — pasting onto the Desktop or a non-input
+  // pane. Bound directly to the keypress so the permission prompt
+  // sees a real user gesture.
+  useEffect(
+    () =>
+      registerShortcut('active-app', 'Mod+V', () => {
+        // Skip if a known transient overlay owns the keypress (those
+        // route to text-input via the router) — defensive.
+        void (async () => {
+          const r = await readClipboard();
+          // Update the permission cache regardless of outcome (Phase 5.4f
+          // recovery: a successful read always upgrades to 'granted').
+          dispatch({ type: 'SET_CLIPBOARD_PERMISSION', state: r.permission });
+          if (!r.ok) {
+            if (r.reason === 'permission-denied') {
+              dispatch({
+                type: 'ADD_NOTIFICATION',
+                notification: {
+                  appId: 'clipboard',
+                  appName: 'Clipboard',
+                  appIcon: 'Clipboard',
+                  title: 'Clipboard access denied',
+                  message: `Enable it in ${r.browserName ?? 'browser'} settings, then try again.`,
+                  isRead: false,
+                },
+              });
+            } else if (r.reason === 'empty') {
+              // Empty paste — silently ignore (matches macOS behavior).
+            } else if (r.reason === 'unavailable') {
+              dispatch({
+                type: 'ADD_NOTIFICATION',
+                notification: {
+                  appId: 'clipboard',
+                  appName: 'Clipboard',
+                  appIcon: 'Clipboard',
+                  title: 'Clipboard unavailable',
+                  message: 'This browser does not expose the clipboard API.',
+                  isRead: false,
+                },
+              });
+            }
+            return;
+          }
+          // Success — surface a toast confirming the paste. The actual
+          // file/text persistence is wired via FileManager's pane-local
+          // handler (it knows what context the user is in); for the
+          // shell-level case (paste on the Desktop) we drop a text/image
+          // entry into the user's inbox.
+          if (r.payload.kind === 'image') {
+            dispatch({
+              type: 'ADD_NOTIFICATION',
+              notification: {
+                appId: 'clipboard',
+                appName: 'Clipboard',
+                appIcon: 'Clipboard',
+                title: 'Image on clipboard',
+                message: `Open Files and paste to save ${r.payload.suggestedName}.`,
+                isRead: false,
+              },
+            });
+          } else if (r.payload.kind === 'text') {
+            dispatch({
+              type: 'ADD_NOTIFICATION',
+              notification: {
+                appId: 'clipboard',
+                appName: 'Clipboard',
+                appIcon: 'Clipboard',
+                title: 'Text on clipboard',
+                message: r.payload.text.slice(0, 80),
+                isRead: false,
+              },
+            });
+          }
+        })();
+      }),
+    [dispatch],
+  );
+
+  // Theme → DOM. Pushes accent / font-scale / mode class onto the
+  // document root every time `state.theme` changes so any control
+  // living in Settings reflects everywhere instantly.
+  useEffect(() => {
+    applyThemeToDom(state.theme);
+  }, [state.theme]);
+
+  // Phase 7 — sync sounds module mute toggle with the theme.
+  useEffect(() => {
+    setSoundEnabled(state.theme.soundEnabled ?? true);
+  }, [state.theme.soundEnabled]);
+
+  // Light/dark schedule. Polls every 5min; manual schedule is a no-op.
+  // The first effect run also reconciles "the schedule says light but
+  // mode is dark" on app boot.
+  useEffect(() => {
+    const reconcile = () => {
+      const want = modeFromSchedule(state.theme.modeSchedule);
+      if (want && want !== state.theme.mode) {
+        dispatch({ type: 'SET_THEME', theme: { mode: want } });
+      }
+    };
+    reconcile();
+    if (state.theme.modeSchedule === 'manual') return;
+    const id = window.setInterval(reconcile, SCHEDULE_POLL_MS);
+    return () => window.clearInterval(id);
+  }, [dispatch, state.theme.modeSchedule, state.theme.mode]);
 
   // Shell-level daemon state shared via DaemonStateProvider context so
   // TopPanel, DaemonOfflineBanner, and LoginScreen all read the same poll.
@@ -186,11 +357,8 @@ function AppShell() {
         }
       }
 
-      // Ctrl+W closes active window
-      if (e.ctrlKey && e.key === 'w' && state.activeWindowId) {
-        e.preventDefault();
-        dispatch({ type: 'CLOSE_WINDOW', windowId: state.activeWindowId });
-      }
+      // (Ctrl+W close-active-window migrated to the Sprint A shortcut
+      // router as a Mod+W binding — see registerShortcut above.)
     };
 
     const handleKeyUp = (e: KeyboardEvent) => {
@@ -368,7 +536,9 @@ export default function App() {
     <DaemonClientProvider>
       <DaemonStateProvider>
         <OSProvider>
-          <AppShell />
+          <ClipboardProvider>
+            <AppShell />
+          </ClipboardProvider>
         </OSProvider>
       </DaemonStateProvider>
     </DaemonClientProvider>

@@ -18,6 +18,10 @@ export interface AgentDisplay {
   icon: string;
   homepage?: string;
   github?: string;
+  /** i18n key for the public-facing display name (e.g. "OpenClaw" for
+   *  the internal `nemoclaw` agentType — wire identifier stays internal,
+   *  branding stays public). */
+  nameKey: string;
   /** i18n key for the marketing tagline. */
   taglineKey: string;
   /** i18n key for the long description paragraph. */
@@ -31,6 +35,7 @@ export const AGENT_DISPLAY: Record<AgentType, AgentDisplay> = {
     icon: "/agents/openclaw.svg",
     homepage: "https://openclaw.ai/",
     github: "https://github.com/openclaw/openclaw",
+    nameKey: "agents.openclaw.name",
     taglineKey: "agents.openclaw.tagline",
     descriptionKey: "agents.openclaw.description",
     highlightKeys: [
@@ -44,6 +49,7 @@ export const AGENT_DISPLAY: Record<AgentType, AgentDisplay> = {
     icon: "/agents/hermes.svg",
     homepage: "https://hermes-agent.nousresearch.com/",
     github: "https://github.com/NousResearch/hermes-agent",
+    nameKey: "agents.hermes.name",
     taglineKey: "agents.hermes.tagline",
     descriptionKey: "agents.hermes.description",
     highlightKeys: [
@@ -97,7 +103,7 @@ export const resolveAgentDisplay = (
     return v && v !== key ? v : fallback;
   };
   return {
-    name: tr(`agents.${agentType}.name`, catalogFallback?.name ?? agentType),
+    name: tr(override.nameKey, catalogFallback?.name ?? agentType),
     tagline: tr(override.taglineKey, catalogFallback?.tagline ?? ""),
     description: tr(
       override.descriptionKey,

@@ -3,7 +3,7 @@ import { resolveAgentDisplay } from "./agentCatalog";
 
 const enT = (key: string): string => {
   const map: Record<string, string> = {
-    "agents.nemoclaw.name": "OpenClaw",
+    "agents.openclaw.name": "OpenClaw",
     "agents.openclaw.tagline": "Tagline EN",
     "agents.openclaw.description": "Description EN",
     "agents.openclaw.highlight.0": "Bullet A",

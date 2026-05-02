@@ -84,6 +84,10 @@ import type {
   SharingDefaults,
 } from "@/types/daemon";
 import type { DaemonClient } from "@/lib/daemon";
+import { useSelection } from "@/lib/selection";
+import { registerShortcut } from "@/lib/shortcuts";
+import { serializePayload, parsePayload } from "@/lib/dnd";
+import { refFromDaemonPath, type FileRef } from "@/lib/files/fileRef";
 
 type TabId = "browse" | "inbox" | "downloads" | "shared";
 
@@ -423,6 +427,26 @@ type BrowserSource = {
   readonly?: boolean;
 };
 
+// Sprint B Phase 5.2 — minimal extension → mime guess for the
+// DownloadURL host drag-out. Browsers don't strictly need a correct
+// MIME (the OS file dialog falls back to the bundled extension) but
+// surfacing one improves the dropped file's icon in Finder.
+const guessMime = (name: string): string => {
+  const ext = name.split('.').pop()?.toLowerCase() ?? '';
+  const map: Record<string, string> = {
+    png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp',
+    svg: 'image/svg+xml', heic: 'image/heic',
+    pdf: 'application/pdf',
+    txt: 'text/plain', md: 'text/markdown', csv: 'text/csv', json: 'application/json',
+    js: 'application/javascript', ts: 'application/typescript',
+    html: 'text/html', css: 'text/css',
+    mp3: 'audio/mpeg', wav: 'audio/wav', ogg: 'audio/ogg', flac: 'audio/flac',
+    mp4: 'video/mp4', webm: 'video/webm', mov: 'video/quicktime',
+    zip: 'application/zip', tar: 'application/x-tar', gz: 'application/gzip',
+  };
+  return map[ext] ?? 'application/octet-stream';
+};
+
 const formatBytes = (size: number): string => {
   if (size < 1024) return `${size} B`;
   if (size < 1024 * 1024) return `${Math.round(size / 1024)} KB`;
@@ -478,6 +502,29 @@ const FileBrowser: FC<{ agents: Agent[]; client: DaemonClient }> = ({
   const [uploading, setUploading] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const uploadInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Phase 3.0 multi-select on rows. Key by `${kind}:${path}` so files
+  // and folders with the same path don't collide.
+  const rowSelection = useSelection<FileListEntry>({
+    keyOf: (e) => `${e.kind}:${e.path}`,
+  });
+  // Cmd+A select all + Esc clear, scoped to active-app so a focused
+  // text input still gets its own browser-native Cmd+A.
+  useEffect(() => {
+    const offA = registerShortcut('active-app', 'Mod+A', () => {
+      rowSelection.replace(entries);
+    });
+    const offEsc = registerShortcut('active-app', 'Esc', () => {
+      if (rowSelection.size > 0) rowSelection.clear();
+      else return false;
+    });
+    return () => {
+      offA();
+      offEsc();
+    };
+    // entries is captured by reference inside the handler; re-register
+    // when it changes so Cmd+A picks up the latest list.
+  }, [entries, rowSelection]);
 
   useEffect(() => {
     let cancelled = false;
@@ -977,14 +1024,81 @@ const FileBrowser: FC<{ agents: Agent[]; client: DaemonClient }> = ({
                 <span>Modified</span>
                 <span>Actions</span>
               </div>
-              {filtered.map((entry) => (
+              {filtered.map((entry) => {
+                const isSelected = rowSelection.isSelected(entry);
+                const entryFullPath = joinPath(activeSource?.path ?? "", joinPath(path, entry.name));
+                const entryRef: FileRef = refFromDaemonPath(entryFullPath, {
+                  daemonSource: activeSource?.source ?? "tytus-home",
+                  binding: activeSource?.binding,
+                  pod: activeSource?.pod,
+                  readonly: entry.readonly,
+                });
+                return (
                 <div
                   key={`${entry.kind}:${entry.path}`}
+                  draggable
+                  onDragStart={(e) => {
+                    // If the row being dragged is part of an existing
+                    // multi-selection, drag the whole selection. Else
+                    // drag just this row (and select it visually).
+                    const refs: FileRef[] = isSelected
+                      ? rowSelection.selectedItems(filtered).map((s) => {
+                          const fp = joinPath(activeSource?.path ?? "", joinPath(path, s.name));
+                          return refFromDaemonPath(fp, {
+                            daemonSource: activeSource?.source ?? "tytus-home",
+                            binding: activeSource?.binding,
+                            pod: activeSource?.pod,
+                            readonly: s.readonly,
+                          });
+                        })
+                      : [entryRef];
+                    serializePayload(e.dataTransfer, { kind: 'file', refs });
+                    // Sprint B Phase 5.2 — host drag-out via DownloadURL.
+                    // Single-file drags only (Chromium's DownloadURL takes
+                    // one mime:filename:url triple). Daemon-backed files
+                    // expose a stable HTTP URL; we don't synthesise blob
+                    // URLs here, which keeps the dragstart synchronous.
+                    // The browser kicks off the download when the user
+                    // releases over the host filesystem (Finder, etc.).
+                    if (refs.length === 1 && entry.kind === 'file') {
+                      try {
+                        const downloadUrl = client.filesDownloadUrl(
+                          mutationPayload(entryFullPath),
+                        );
+                        const mime = guessMime(entry.name);
+                        e.dataTransfer.setData(
+                          'DownloadURL',
+                          `${mime}:${entry.name}:${downloadUrl}`,
+                        );
+                      } catch {
+                        /* daemon download URL unavailable — drag-out skipped */
+                      }
+                    }
+                    try {
+                      e.dataTransfer.effectAllowed = 'copyMove';
+                    } catch {}
+                    if (!isSelected) rowSelection.selectOne(entry);
+                  }}
+                  onClick={(e) => {
+                    if (e.metaKey || e.ctrlKey) {
+                      rowSelection.toggle(entry);
+                    } else if (e.shiftKey) {
+                      rowSelection.rangeFrom(entry, filtered);
+                    } else {
+                      rowSelection.selectOne(entry);
+                    }
+                  }}
                   onDoubleClick={() => {
                     if (entry.kind === "dir")
                       setPath(joinPath(path, entry.name));
                   }}
                   className="w-full grid grid-cols-[1fr_96px_130px_188px] gap-3 px-3 py-2 text-left text-xs border-t border-[var(--border-subtle)] hover:bg-[var(--bg-hover)]"
+                  style={{
+                    background: isSelected
+                      ? 'rgba(124,77,255,0.18)'
+                      : undefined,
+                    cursor: 'grab',
+                  }}
                 >
                   <span className="flex items-center gap-2 min-w-0 text-[var(--text-primary)]">
                     {entry.kind === "dir" ? (
@@ -1058,7 +1172,8 @@ const FileBrowser: FC<{ agents: Agent[]; client: DaemonClient }> = ({
                     )}
                   </span>
                 </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>

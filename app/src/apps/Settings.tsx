@@ -32,6 +32,13 @@ import {
   ListChecks,
   ShieldCheck,
   Upload,
+  Type,
+  Clock,
+  Layout,
+  Sun,
+  Moon,
+  Volume2,
+  VolumeX,
 } from "lucide-react";
 import LogPane from "@/components/LogPane";
 import { useOS } from "@/hooks/useOSStore";
@@ -92,6 +99,7 @@ const TYTUS_CATEGORIES: SettingCategory[] = [
 const SYSTEM_CATEGORIES: SettingCategory[] = [
   { id: "background", label: "Background", icon: <Image size={18} /> },
   { id: "appearance", label: "Appearance", icon: <Palette size={18} /> },
+  { id: "dock", label: "Dock", icon: <Layout size={18} /> },
   { id: "language", label: "Languages", icon: <Globe2 size={18} /> },
   { id: "notifications", label: "Notifications", icon: <Bell size={18} /> },
   { id: "privacy", label: "Privacy", icon: <Eye size={18} /> },
@@ -1283,7 +1291,160 @@ const Settings: React.FC = () => {
                     title={c.name}
                   />
                 ))}
+                {/* Phase 1.1 — Custom accent swatch (HTML5 color picker). */}
+                <label
+                  className="w-10 h-10 rounded-full transition-transform hover:scale-110 cursor-pointer flex items-center justify-center"
+                  style={{
+                    background: `conic-gradient(from 0deg, #ff0000, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff, #ff0000)`,
+                    boxShadow: !ACCENT_COLORS.some(
+                      (c) => c.value.toLowerCase() === state.theme.accent.toLowerCase(),
+                    )
+                      ? `0 0 0 3px var(--bg-window), 0 0 0 5px ${state.theme.accent}`
+                      : "none",
+                  }}
+                  title={t("settings.appearance.accent.custom")}
+                >
+                  <input
+                    type="color"
+                    value={state.theme.accent}
+                    onChange={(e) =>
+                      dispatch({
+                        type: "SET_THEME",
+                        theme: { accent: e.target.value },
+                      })
+                    }
+                    className="opacity-0 w-0 h-0 absolute"
+                    aria-label={t("settings.appearance.accent.custom")}
+                  />
+                </label>
               </div>
+              <div className="text-[11px] text-[var(--text-secondary)] mt-1">
+                {t("settings.appearance.accent.customHint")}
+              </div>
+            </div>
+            {/* Phase 1.3 — Font scale slider (50%–150%). */}
+            <div
+              className="space-y-3 py-3 border-t"
+              style={{ borderColor: "var(--border-subtle)" }}
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-sm text-[var(--text-primary)] flex items-center gap-2">
+                    <Type size={14} />
+                    {t("settings.appearance.fontScale.title")}
+                  </div>
+                  <div className="text-[11px] text-[var(--text-secondary)] mt-0.5">
+                    {t("settings.appearance.fontScale.description")}
+                  </div>
+                </div>
+                <div className="text-sm tabular-nums text-[var(--text-secondary)]">
+                  {Math.round(state.theme.fontScale * 100)}%
+                </div>
+              </div>
+              <input
+                type="range"
+                min="0.5"
+                max="1.5"
+                step="0.05"
+                value={state.theme.fontScale}
+                onChange={(e) =>
+                  dispatch({
+                    type: "SET_THEME",
+                    theme: { fontScale: Number(e.target.value) },
+                  })
+                }
+                className="w-full"
+                aria-label={t("settings.appearance.fontScale.title")}
+              />
+              <button
+                type="button"
+                onClick={() =>
+                  dispatch({ type: "SET_THEME", theme: { fontScale: 1.0 } })
+                }
+                className="text-xs underline text-[var(--accent-primary)]"
+              >
+                {t("settings.appearance.fontScale.reset")}
+              </button>
+            </div>
+            {/* Phase 1.4 — Light/dark schedule. */}
+            <div
+              className="space-y-3 py-3 border-t"
+              style={{ borderColor: "var(--border-subtle)" }}
+            >
+              <div>
+                <div className="text-sm text-[var(--text-primary)] flex items-center gap-2">
+                  <Clock size={14} />
+                  {t("settings.appearance.schedule.title")}
+                </div>
+                <div className="text-[11px] text-[var(--text-secondary)] mt-0.5">
+                  {t("settings.appearance.schedule.description")}
+                </div>
+              </div>
+              <div className="flex flex-col gap-2">
+                {(
+                  [
+                    {
+                      v: "manual",
+                      label: t("settings.appearance.schedule.manual"),
+                    },
+                    {
+                      v: "always-light",
+                      label: t("settings.appearance.schedule.alwaysLight"),
+                    },
+                    {
+                      v: "always-dark",
+                      label: t("settings.appearance.schedule.alwaysDark"),
+                    },
+                    {
+                      v: "auto",
+                      label: t("settings.appearance.schedule.auto"),
+                    },
+                  ] as const
+                ).map((opt) => (
+                  <label
+                    key={opt.v}
+                    className="flex items-center gap-2 cursor-pointer"
+                  >
+                    <input
+                      type="radio"
+                      name="modeSchedule"
+                      checked={state.theme.modeSchedule === opt.v}
+                      onChange={() =>
+                        dispatch({
+                          type: "SET_THEME",
+                          theme: { modeSchedule: opt.v },
+                        })
+                      }
+                    />
+                    <span className="text-sm text-[var(--text-primary)]">
+                      {opt.label}
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </div>
+            {/* ── Sprint B Phase 6.4 — Reduce motion ── */}
+            <div
+              className="py-3 border-t flex items-center justify-between gap-4"
+              style={{ borderColor: "var(--border-subtle)" }}
+            >
+              <div>
+                <div className="text-sm text-[var(--text-primary)] font-medium">
+                  {t("settings.appearance.reduceMotion.title")}
+                </div>
+                <div className="text-[11px] text-[var(--text-secondary)] mt-0.5">
+                  {t("settings.appearance.reduceMotion.description")}
+                </div>
+              </div>
+              <Toggle
+                value={state.theme.reduceMotion ?? false}
+                onChange={(v) =>
+                  dispatch({
+                    type: "SET_THEME",
+                    theme: { reduceMotion: v },
+                  })
+                }
+              />
             </div>
             <div
               className="flex items-center justify-between py-3 border-t"
@@ -1299,6 +1460,145 @@ const Settings: React.FC = () => {
                 </div>
               </div>
               <Toggle value={showDemoApps} onChange={setShowDemoApps} />
+            </div>
+          </div>
+        );
+
+      // ── Phase 1.2 — Dock customization ──
+      case "dock":
+        return (
+          <div className="space-y-6">
+            <h2 className="text-2xl font-semibold text-[var(--text-primary)]">
+              {t("settings.dock.title")}
+            </h2>
+            <div className="space-y-3">
+              <div className="text-xs text-[var(--text-secondary)] uppercase tracking-wider">
+                {t("settings.dock.position.title")}
+              </div>
+              <div className="flex gap-2">
+                {(
+                  [
+                    {
+                      v: "bottom",
+                      label: t("settings.dock.position.bottom"),
+                    },
+                    { v: "left", label: t("settings.dock.position.left") },
+                    { v: "right", label: t("settings.dock.position.right") },
+                  ] as const
+                ).map((opt) => (
+                  <button
+                    key={opt.v}
+                    onClick={() =>
+                      dispatch({
+                        type: "SET_THEME",
+                        theme: {
+                          dock: { ...state.theme.dock, position: opt.v },
+                        },
+                      })
+                    }
+                    className="px-3 py-1.5 rounded text-xs font-medium"
+                    style={{
+                      background:
+                        state.theme.dock.position === opt.v
+                          ? "var(--accent-primary)"
+                          : "var(--bg-card)",
+                      color:
+                        state.theme.dock.position === opt.v
+                          ? "var(--text-on-accent)"
+                          : "var(--text-primary)",
+                      border: "1px solid var(--border-default)",
+                    }}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="space-y-3">
+              <div className="text-xs text-[var(--text-secondary)] uppercase tracking-wider">
+                {t("settings.dock.size.title")}
+              </div>
+              <div className="flex gap-2">
+                {(
+                  [
+                    { v: "small", label: t("settings.dock.size.small") },
+                    { v: "medium", label: t("settings.dock.size.medium") },
+                    { v: "large", label: t("settings.dock.size.large") },
+                  ] as const
+                ).map((opt) => (
+                  <button
+                    key={opt.v}
+                    onClick={() =>
+                      dispatch({
+                        type: "SET_THEME",
+                        theme: {
+                          dock: { ...state.theme.dock, size: opt.v },
+                        },
+                      })
+                    }
+                    className="px-3 py-1.5 rounded text-xs font-medium"
+                    style={{
+                      background:
+                        state.theme.dock.size === opt.v
+                          ? "var(--accent-primary)"
+                          : "var(--bg-card)",
+                      color:
+                        state.theme.dock.size === opt.v
+                          ? "var(--text-on-accent)"
+                          : "var(--text-primary)",
+                      border: "1px solid var(--border-default)",
+                    }}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div
+              className="flex items-center justify-between py-3 border-t"
+              style={{ borderColor: "var(--border-subtle)" }}
+            >
+              <div>
+                <div className="text-sm text-[var(--text-primary)]">
+                  {t("settings.dock.autoHide.title")}
+                </div>
+                <div className="text-[11px] text-[var(--text-secondary)] mt-0.5">
+                  {t("settings.dock.autoHide.description")}
+                </div>
+              </div>
+              <Toggle
+                value={state.theme.dock.autoHide}
+                onChange={(v) =>
+                  dispatch({
+                    type: "SET_THEME",
+                    theme: { dock: { ...state.theme.dock, autoHide: v } },
+                  })
+                }
+              />
+            </div>
+            <div
+              className="space-y-2 py-3 border-t"
+              style={{ borderColor: "var(--border-subtle)" }}
+            >
+              <button
+                type="button"
+                onClick={() =>
+                  dispatch({
+                    type: "SET_THEME",
+                    theme: { dock: { ...state.theme.dock, order: [] } },
+                  })
+                }
+                className="px-3 py-1.5 rounded text-xs font-medium border"
+                style={{
+                  borderColor: "var(--border-default)",
+                  color: "var(--text-primary)",
+                }}
+              >
+                {t("settings.dock.order.reset")}
+              </button>
+              <div className="text-[11px] text-[var(--text-secondary)]">
+                {t("settings.dock.order.resetHint")}
+              </div>
             </div>
           </div>
         );
@@ -1762,6 +2062,31 @@ const Settings: React.FC = () => {
                 })}
               </div>
             </section>
+            {/* Phase 1.5 — Lock-screen wallpaper override toggle. */}
+            <section
+              className="space-y-3 py-4 border-t"
+              style={{ borderColor: "var(--border-subtle)" }}
+            >
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <div className="text-sm text-[var(--text-primary)]">
+                    {t("settings.background.lockMatch.title")}
+                  </div>
+                  <div className="text-[11px] text-[var(--text-secondary)] mt-0.5">
+                    {t("settings.background.lockMatch.description")}
+                  </div>
+                </div>
+                <Toggle
+                  value={state.theme.lockWallpaperMatchesDesktop}
+                  onChange={(v) =>
+                    dispatch({
+                      type: "SET_THEME",
+                      theme: { lockWallpaperMatchesDesktop: v },
+                    })
+                  }
+                />
+              </div>
+            </section>
           </div>
         );
 
@@ -1816,6 +2141,56 @@ const Settings: React.FC = () => {
                 </button>
               </div>
             </div>
+            {/* Phase 7 — system sounds toggle */}
+            <div
+              className="p-4 rounded-lg flex items-center justify-between gap-4"
+              style={{
+                background: "var(--bg-card, rgba(255,255,255,0.03))",
+                border: "1px solid var(--border-subtle)",
+              }}
+            >
+              <div className="flex items-center gap-3">
+                {(state.theme.soundEnabled ?? true) ? (
+                  <Volume2 size={18} className="text-[var(--text-secondary)]" />
+                ) : (
+                  <VolumeX size={18} className="text-[var(--text-secondary)]" />
+                )}
+                <div>
+                  <div className="text-sm text-[var(--text-primary)] font-semibold">
+                    {t("settings.sounds.title")}
+                  </div>
+                  <div className="text-xs text-[var(--text-secondary)] mt-0.5">
+                    {t("settings.sounds.description")}
+                  </div>
+                </div>
+              </div>
+              <button
+                role="switch"
+                aria-checked={state.theme.soundEnabled ?? true}
+                onClick={() =>
+                  dispatch({
+                    type: "SET_THEME",
+                    theme: {
+                      soundEnabled: !(state.theme.soundEnabled ?? true),
+                    },
+                  })
+                }
+                className="relative w-10 h-6 rounded-full transition-colors"
+                style={{
+                  background: (state.theme.soundEnabled ?? true)
+                    ? "var(--accent-primary)"
+                    : "var(--bg-hover)",
+                }}
+              >
+                <span
+                  className="absolute top-0.5 w-5 h-5 rounded-full transition-all"
+                  style={{
+                    left: (state.theme.soundEnabled ?? true) ? 18 : 2,
+                    background: "white",
+                  }}
+                />
+              </button>
+            </div>
             <div className="space-y-2">
               <div className="text-xs text-[var(--text-secondary)] uppercase tracking-wider">
                 Recent
@@ -1854,6 +2229,45 @@ const Settings: React.FC = () => {
             <h2 className="text-2xl font-semibold text-[var(--text-primary)]">
               Privacy
             </h2>
+            {/* Sprint B Phase 5.4f — clipboard permission reset escape hatch */}
+            <div
+              className="p-4 rounded-lg flex items-center justify-between gap-4"
+              style={{
+                background: "var(--bg-card, rgba(255,255,255,0.03))",
+                border: "1px solid var(--border-subtle)",
+              }}
+            >
+              <div>
+                <div className="text-sm text-[var(--text-primary)] font-semibold">
+                  {t("settings.privacy.clipboard.title")}
+                </div>
+                <div className="text-xs text-[var(--text-secondary)] mt-1">
+                  {t("settings.privacy.clipboard.description")}
+                </div>
+                <div className="text-[11px] text-[var(--text-disabled)] mt-1">
+                  {state.clipboardPermission === "granted"
+                    ? t("settings.privacy.clipboard.statusGranted")
+                    : state.clipboardPermission === "denied"
+                    ? t("settings.privacy.clipboard.statusDenied")
+                    : t("settings.privacy.clipboard.statusPrompt")}
+                </div>
+              </div>
+              <button
+                className="px-3 py-1.5 rounded-md text-xs transition-colors"
+                style={{
+                  background: "var(--bg-hover)",
+                  color: "var(--text-primary)",
+                }}
+                onClick={() =>
+                  dispatch({
+                    type: "SET_CLIPBOARD_PERMISSION",
+                    state: "prompt",
+                  })
+                }
+              >
+                {t("settings.privacy.clipboard.reset")}
+              </button>
+            </div>
             <div
               className="p-4 rounded-lg space-y-3"
               style={{
@@ -2286,6 +2700,7 @@ const PlanPanel: React.FC<PlanPanelProps> = ({
   onUpgrade,
   onRefresh,
 }) => {
+  const { t } = useI18n();
   if (!state) {
     return (
       <div className="space-y-4">
@@ -2386,7 +2801,7 @@ const PlanPanel: React.FC<PlanPanelProps> = ({
                 }}
               >
                 <span className="text-[var(--text-primary)]">
-                  Pod {a.pod_id} · {a.agent_type}
+                  Pod {a.pod_id} · {resolveAgentDisplay(a.agent_type, null, t).name}
                 </span>
                 <span className="font-mono text-[var(--text-secondary)]">
                   {a.units} unit{a.units === 1 ? "" : "s"}
@@ -2407,8 +2822,7 @@ const PlanPanel: React.FC<PlanPanelProps> = ({
       )}
 
       <div className="text-[11px] text-[var(--text-secondary)]">
-        Units are consumed by allocated agents (nemoclaw = 1 unit, hermes = 2
-        units). Included AIL pods don't count against your unit budget.
+        {t('plan.unitsFootnote')}
       </div>
     </div>
   );

@@ -11,7 +11,12 @@ import { navigate } from '@/lib/router';
 import * as Icons from 'lucide-react';
 import { Box, Star } from 'lucide-react';
 import type { LucideProps } from 'lucide-react';
+import { BrandIcon, isBrandIconName } from './BrandIcon';
 import { useI18n } from '@/i18n';
+import { parsePayload, type DnDPayload } from '@/lib/dnd';
+import { useSelection, lassoRect, rectsIntersect } from '@/lib/selection';
+import { registerShortcut } from '@/lib/shortcuts';
+import SelectionLasso from './SelectionLasso';
 
 // Cross-app DnD MIME — must match the one declared in MusicCreator.
 // Kept duplicated here (instead of pulled from a shared lib) because the
@@ -34,6 +39,9 @@ interface DraggedTrackPayload {
 }
 
 const DynamicIcon = ({ name, ...props }: { name: string } & LucideProps) => {
+  if (isBrandIconName(name)) {
+    return <BrandIcon name={name} size={(props.size as number) ?? 24} className={props.className} />;
+  }
   const IconComp = (Icons as unknown as unknown as Record<string, React.ComponentType<LucideProps>>)[name];
   return IconComp ? <IconComp {...props} /> : <Icons.HelpCircle {...props} />;
 };
@@ -193,13 +201,98 @@ const Desktop = memo(function Desktop() {
     // cycle. We clear it on the next mousedown.
   }, [handleWindowMouseMove]);
 
+  // Phase 3.0 — multi-select via useSelection. Reducer's
+  // SELECT_DESKTOP_ICON keeps tracking the "anchor" icon for back-compat
+  // with components that still read `icon.isSelected`; the new Set-
+  // backed selection drives the multi-item drag/clipboard/trash code.
+  const selection = useSelection({ keyOf: (i: typeof desktopIcons[0]) => i.id });
+
+  // Esc clears selection. Registered via the central shortcut router
+  // so modal stack precedence works out.
+  useEffect(() => {
+    return registerShortcut('active-app', 'Esc', () => {
+      if (selection.size > 0) selection.clear();
+      else return false; // let other handlers see Esc
+    });
+  }, [selection]);
+
+  // Phase 3.0a — lasso. Tracks mousedown coords on empty area;
+  // moves > LASSO_THRESHOLD pixels promote to lasso mode and we
+  // continuously hit-test icon rects against the rectangle.
+  const LASSO_THRESHOLD = 4;
+  const [lasso, setLasso] = useState<{
+    active: boolean;
+    start: { x: number; y: number };
+    cursor: { x: number; y: number };
+  } | null>(null);
+  const lassoStartRef = useRef<{ x: number; y: number } | null>(null);
+  const handleDesktopMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      if (e.button !== 0) return;
+      // Bail if the mousedown originated on an icon — handled separately.
+      const target = e.target as Element;
+      if (target.closest('[data-desktop-icon]')) return;
+      const containerRect = desktopRef.current?.getBoundingClientRect();
+      const ox = containerRect ? e.clientX - containerRect.x : e.clientX;
+      const oy = containerRect ? e.clientY - containerRect.y : e.clientY;
+      lassoStartRef.current = { x: ox, y: oy };
+
+      const onMove = (mv: MouseEvent) => {
+        const start = lassoStartRef.current;
+        if (!start) return;
+        const cx = containerRect ? mv.clientX - containerRect.x : mv.clientX;
+        const cy = containerRect ? mv.clientY - containerRect.y : mv.clientY;
+        if (
+          Math.abs(cx - start.x) > LASSO_THRESHOLD ||
+          Math.abs(cy - start.y) > LASSO_THRESHOLD
+        ) {
+          const r = lassoRect(start, { x: cx, y: cy });
+          // Hit-test all icons in real time.
+          const hits = desktopIcons
+            .filter((icon) =>
+              rectsIntersect(
+                {
+                  x: icon.position.x,
+                  y: icon.position.y,
+                  w: 64,
+                  h: 80,
+                },
+                r,
+              ),
+            );
+          selection.replace(hits);
+          setLasso({ active: true, start, cursor: { x: cx, y: cy } });
+        }
+      };
+      const onUp = () => {
+        window.removeEventListener('mousemove', onMove);
+        window.removeEventListener('mouseup', onUp);
+        lassoStartRef.current = null;
+        setLasso(null);
+      };
+      window.addEventListener('mousemove', onMove);
+      window.addEventListener('mouseup', onUp);
+    },
+    [desktopIcons, selection],
+  );
+
   const handleIconMouseDown = useCallback(
     (e: React.MouseEvent, icon: typeof desktopIcons[0]) => {
       // Only start drag on primary button — right-click belongs to the
       // context menu, middle-click is a no-op.
       if (e.button !== 0) return;
       e.stopPropagation();
+
+      // Multi-select modifier handling (Phase 3.0).
+      if (e.metaKey || e.ctrlKey) {
+        selection.toggle(icon);
+      } else if (e.shiftKey) {
+        selection.rangeFrom(icon, desktopIcons);
+      } else if (!selection.isSelected(icon)) {
+        selection.selectOne(icon);
+      }
       dispatch({ type: 'SELECT_DESKTOP_ICON', id: icon.id });
+
       // Reset suppress flag from prior drag now that we're starting fresh.
       dragRef.current = {
         id: icon.id,
@@ -212,7 +305,7 @@ const Desktop = memo(function Desktop() {
       window.addEventListener('mousemove', handleWindowMouseMove);
       window.addEventListener('mouseup', handleWindowMouseUp, { once: true });
     },
-    [dispatch, handleWindowMouseMove, handleWindowMouseUp]
+    [desktopIcons, dispatch, handleWindowMouseMove, handleWindowMouseUp, selection]
   );
 
   // Unmount cleanup — if the desktop unmounts mid-drag (HMR, route
@@ -230,7 +323,7 @@ const Desktop = memo(function Desktop() {
   // it, so the user can re-open / drag onwards just like macOS.
   const findDesktopFolderId = useCallback((): string => fsApi.ensureUserFolder('Desktop'), [fsApi]);
 
-  const placeIcon = useCallback((nodeId: string, name: string, iconName: string) => {
+  const findFreeSlot = useCallback(() => {
     // Snap to the next free grid slot below the reserved pods zone (4×2)
     // — start at column 0 row 2 and walk left-to-right, top-to-bottom.
     const used = new Set(state.desktopIcons.map((i) => `${i.position.x},${i.position.y}`));
@@ -243,21 +336,60 @@ const Desktop = memo(function Desktop() {
         if (!used.has(`${px},${py}`)) { x = px; y = py; placed = true; }
       }
     }
+    return { x, y };
+  }, [state.desktopIcons]);
+
+  const placeIcon = useCallback((nodeId: string, name: string, iconName: string) => {
+    const pos = findFreeSlot();
     dispatch({
       type: 'ADD_DESKTOP_ICON',
       icon: {
         name,
         icon: iconName,
         fileSystemNodeId: nodeId,
-        position: { x, y },
+        position: pos,
         isSelected: false,
       },
     });
-  }, [dispatch, state.desktopIcons]);
+  }, [dispatch, findFreeSlot]);
 
+  /** Phase 3.1 — drop a daemon-backed file on the Desktop. Creates a
+   * shortcut icon whose `daemonShortcut` field points at the daemon
+   * file. No bytes are copied into the vfs. */
+  const placeDaemonShortcut = useCallback(
+    (ref: {
+      source: string;
+      path: string;
+      binding?: number;
+      pod?: string;
+      readonly?: boolean;
+    }, name: string, iconName: string) => {
+      const pos = findFreeSlot();
+      dispatch({
+        type: 'ADD_DESKTOP_ICON',
+        icon: {
+          name,
+          icon: iconName,
+          daemonShortcut: ref,
+          position: pos,
+          isSelected: false,
+        },
+      });
+    },
+    [dispatch, findFreeSlot],
+  );
+
+  // Phase 2 — DnD migrated to typed payloads via lib/dnd. Drop matrix
+  // for the desktop accepts file/track/text/external-files/desktop-icon;
+  // dragover only previews when the kind is acceptable.
   const handleDesktopDragOver = useCallback((e: React.DragEvent) => {
     const types = Array.from(e.dataTransfer.types);
-    if (types.includes(MIME_TRACK) || types.includes('text/plain') || types.includes('Files')) {
+    const acceptable =
+      types.includes(MIME_TRACK) ||
+      types.includes('text/plain') ||
+      types.includes('Files') ||
+      types.includes('application/x-tytus-file-ref');
+    if (acceptable) {
       e.preventDefault();
       e.dataTransfer.dropEffect = 'copy';
       if (!dropHover) setDropHover(true);
@@ -271,47 +403,56 @@ const Desktop = memo(function Desktop() {
   const handleDesktopDrop = useCallback(async (e: React.DragEvent) => {
     setDropHover(false);
 
-    // Track payload (Music Creator) — make a Music shortcut on Desktop.
-    const trackRaw = e.dataTransfer.getData(MIME_TRACK);
-    if (trackRaw) {
+    // Native files take precedence over MIME data — exactly one
+    // payload kind is meaningful per drop.
+    if (e.dataTransfer.files.length > 0) {
       e.preventDefault();
-      try {
-        const payload = JSON.parse(trackRaw) as DraggedTrackPayload;
-        const baseName = sanitize(payload.title.replace(/\s*\((lyrics|cover)\)\s*$/, ''));
-        const desktopId = findDesktopFolderId();
-        if (!desktopId) return;
-        const isAudio = Boolean(payload.hasAudio);
-        const fileName = isAudio ? `${baseName}.mp3` : `${baseName}.lyrics.txt`;
-        const existing = fsApi.findChildByName(desktopId, fileName);
-        const nodeId = existing
-          ? existing.id
-          : (isAudio
-              ? fsApi.createFile(desktopId, fileName, '', { mimeType: 'audio/mpeg', refTrackId: payload.id })
-              : fsApi.createFile(desktopId, fileName, payload.lyricsPreview ?? '', { mimeType: 'text/plain' }));
-        if (!existing) placeIcon(nodeId, fileName, getIconForFileName(fileName));
-        addNotification({
-          appId: 'desktop',
-          appName: 'Desktop',
-          appIcon: isAudio ? 'Music' : 'FileText',
-          title: t('desktop.notify.dropTitle'),
-          message: t('desktop.notify.dropBody', { name: fileName }),
-          isRead: false,
-        });
-      } catch {
-        // ignore malformed payload
+      const desktopId = findDesktopFolderId();
+      if (!desktopId) return;
+      for (const file of Array.from(e.dataTransfer.files)) {
+        const isText = file.type.startsWith('text/') || file.name.endsWith('.txt') || file.name.endsWith('.md');
+        if (!isText) continue;
+        const content = await file.text();
+        const nodeId = fsApi.createFile(desktopId, file.name, content, { mimeType: file.type || 'text/plain' });
+        placeIcon(nodeId, file.name, getIconForFileName(file.name));
       }
       return;
     }
 
-    // Plain text — drop into Desktop as a .txt file.
-    const text = e.dataTransfer.getData('text/plain');
-    if (text && text.trim()) {
-      e.preventDefault();
+    const payload: DnDPayload | null = parsePayload(e.dataTransfer);
+    if (!payload) return;
+    e.preventDefault();
+
+    if (payload.kind === 'track') {
+      const baseName = sanitize(payload.title.replace(/\s*\((lyrics|cover)\)\s*$/, ''));
+      const desktopId = findDesktopFolderId();
+      if (!desktopId) return;
+      const isAudio = Boolean(payload.hasAudio);
+      const fileName = isAudio ? `${baseName}.mp3` : `${baseName}.lyrics.txt`;
+      const existing = fsApi.findChildByName(desktopId, fileName);
+      const nodeId = existing
+        ? existing.id
+        : (isAudio
+            ? fsApi.createFile(desktopId, fileName, '', { mimeType: 'audio/mpeg', refTrackId: payload.trackId })
+            : fsApi.createFile(desktopId, fileName, payload.lyricsPreview ?? '', { mimeType: 'text/plain' }));
+      if (!existing) placeIcon(nodeId, fileName, getIconForFileName(fileName));
+      addNotification({
+        appId: 'desktop',
+        appName: 'Desktop',
+        appIcon: isAudio ? 'Music' : 'FileText',
+        title: t('desktop.notify.dropTitle'),
+        message: t('desktop.notify.dropBody', { name: fileName }),
+        isRead: false,
+      });
+      return;
+    }
+
+    if (payload.kind === 'text' && payload.text.trim()) {
       const desktopId = findDesktopFolderId();
       if (!desktopId) return;
       const stamp = new Date().toISOString().slice(0, 10).replace(/-/g, '');
       const fileName = `note-${stamp}-${Math.random().toString(36).slice(2, 5)}.txt`;
-      const nodeId = fsApi.createFile(desktopId, fileName, text, { mimeType: 'text/plain' });
+      const nodeId = fsApi.createFile(desktopId, fileName, payload.text, { mimeType: 'text/plain' });
       placeIcon(nodeId, fileName, getIconForFileName(fileName));
       addNotification({
         appId: 'desktop',
@@ -324,20 +465,48 @@ const Desktop = memo(function Desktop() {
       return;
     }
 
-    // OS file drop (real File objects) — read text-shaped ones into VFS.
-    if (e.dataTransfer.files.length > 0) {
-      e.preventDefault();
-      const desktopId = findDesktopFolderId();
-      if (!desktopId) return;
-      for (const file of Array.from(e.dataTransfer.files)) {
-        const isText = file.type.startsWith('text/') || file.name.endsWith('.txt') || file.name.endsWith('.md');
-        if (!isText) continue;
-        const content = await file.text();
-        const nodeId = fsApi.createFile(desktopId, file.name, content, { mimeType: file.type || 'text/plain' });
-        placeIcon(nodeId, file.name, getIconForFileName(file.name));
+    // Phase 3.1 — Files → Desktop creates daemon shortcut icon(s).
+    // No bytes copied. Multiple refs in a single drop fan out to N
+    // icons placed in the next free grid slots.
+    if (payload.kind === 'file' && payload.refs.length > 0) {
+      let placed = 0;
+      for (const ref of payload.refs) {
+        if (ref.source === 'daemon') {
+          const fileName = ref.path.split('/').filter(Boolean).pop() || ref.path;
+          placeDaemonShortcut(
+            {
+              source: ref.daemonSource,
+              path: ref.path,
+              binding: ref.binding,
+              pod: ref.pod,
+              readonly: ref.readonly,
+            },
+            fileName,
+            getIconForFileName(fileName),
+          );
+          placed++;
+        }
+        // vfs source on Desktop drop: nothing to do — already on the
+        // Desktop, or being moved between desktops we don't support.
       }
+      if (placed > 0) {
+        addNotification({
+          appId: 'desktop',
+          appName: 'Desktop',
+          appIcon: 'FileText',
+          title: t('desktop.notify.dropTitle'),
+          message: t('desktop.notify.dropBody', {
+            name: placed === 1 ? payload.refs[0].source === 'daemon' ? (payload.refs[0].path.split('/').pop() || '') : '' : `${placed} items`,
+          }),
+          isRead: false,
+        });
+      }
+      return;
     }
-  }, [findDesktopFolderId, fsApi, placeIcon, addNotification, t]);
+
+    // desktop-icon kind on Desktop is a no-op (icons can't drop on
+    // themselves). It surfaces in Phase 4 as the Trash drop.
+  }, [findDesktopFolderId, fsApi, placeIcon, placeDaemonShortcut, addNotification, t]);
 
   const handleDesktopContextMenu = useCallback(
     (e: React.MouseEvent) => {
@@ -378,6 +547,7 @@ const Desktop = memo(function Desktop() {
       onDragOver={handleDesktopDragOver}
       onDragLeave={handleDesktopDragLeave}
       onDrop={handleDesktopDrop}
+      onMouseDown={handleDesktopMouseDown}
       onClick={() => {
         // After a drag ends, ignore the click so the user's selection
         // isn't cleared the moment they release the mouse.
@@ -385,13 +555,25 @@ const Desktop = memo(function Desktop() {
           dragRef.current = null;
           return;
         }
+        // Empty-area click clears multi-selection.
+        selection.clear();
         dispatch({ type: 'SELECT_DESKTOP_ICON', id: null });
       }}
     >
+      {/* Lasso overlay (Phase 3.0a) */}
+      {lasso && (
+        <SelectionLasso
+          active={lasso.active}
+          start={lasso.start}
+          cursor={lasso.cursor}
+        />
+      )}
+
       {/* Desktop Icons */}
       {desktopIcons.map((icon) => (
         <div
           key={icon.id}
+          data-desktop-icon
           className="absolute flex flex-col items-center gap-1 cursor-pointer group"
           style={{
             left: icon.position.x,
@@ -425,8 +607,8 @@ const Desktop = memo(function Desktop() {
           <div
             className="w-12 h-12 rounded-lg flex items-center justify-center transition-all"
             style={{
-              background: icon.isSelected ? 'rgba(124,77,255,0.20)' : 'transparent',
-              border: icon.isSelected ? '1px dashed rgba(124,77,255,0.50)' : '1px solid transparent',
+              background: (icon.isSelected || selection.isSelected(icon)) ? 'rgba(124,77,255,0.20)' : 'transparent',
+              border: (icon.isSelected || selection.isSelected(icon)) ? '1px dashed rgba(124,77,255,0.50)' : '1px solid transparent',
             }}
           >
             <DynamicIcon
@@ -441,7 +623,7 @@ const Desktop = memo(function Desktop() {
             style={{
               color: '#E0E0E0',
               textShadow: '0 1px 3px rgba(0,0,0,0.8)',
-              background: icon.isSelected ? 'rgba(124,77,255,0.30)' : 'transparent',
+              background: (icon.isSelected || selection.isSelected(icon)) ? 'rgba(124,77,255,0.30)' : 'transparent',
             }}
           >
             {icon.appId ? t(`app.${icon.appId}.name`) : icon.name}

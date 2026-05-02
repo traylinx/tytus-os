@@ -3,6 +3,8 @@ import type { FC } from 'react';
 import type { DaemonClient } from '@/lib/daemon';
 import type { PodEnv, PodEnvVar, Tier } from '@/types/daemon';
 import { Eye, EyeOff, RefreshCw, X } from 'lucide-react';
+import { resolveAgentDisplay } from '@/lib/agentCatalog';
+import { useI18n } from '@/i18n';
 
 interface Props {
   client: DaemonClient;
@@ -25,6 +27,7 @@ const sourceColor = (s: string | undefined) =>
 const sourceLabel = (s: string | undefined) => s || 'unknown';
 
 const PodEnvPane: FC<Props> = ({ client, podId, tier, onClose, onError }) => {
+  const { t } = useI18n();
   const [env, setEnv] = useState<PodEnv | null>(null);
   const [loading, setLoading] = useState(false);
   const [reveal, setReveal] = useState(false);
@@ -94,7 +97,7 @@ const PodEnvPane: FC<Props> = ({ client, podId, tier, onClose, onError }) => {
         }}
       >
         <div className="text-[var(--text-secondary)]">
-          Env (pod {podId}){env?.agent_type ? ` · ${env.agent_type}` : ''} ·{' '}
+          Env (pod {podId}){env?.agent_type ? ` · ${resolveAgentDisplay(env.agent_type, null, t).name}` : ''} ·{' '}
           <span style={{ color: '#BDBDBD' }}>
             {env ? `${env.vars.length} variable${env.vars.length === 1 ? '' : 's'}` : '…'}
           </span>

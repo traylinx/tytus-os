@@ -2,10 +2,11 @@
 // ContextMenu — Dynamic right-click menu with edge detection
 // ============================================================
 
-import { useEffect, useRef, memo } from 'react';
+import { useEffect, useMemo, useRef, useState, memo } from 'react';
 import { useOS } from '@/hooks/useOSStore';
 import * as Icons from 'lucide-react';
 import type { LucideProps } from 'lucide-react';
+import { registerShortcut } from '@/lib/shortcuts';
 
 const DynamicIcon = ({ name, ...props }: { name: string } & LucideProps) => {
   const IconComp = (Icons as unknown as Record<string, React.ComponentType<LucideProps>>)[name];
@@ -16,6 +17,32 @@ const ContextMenu = memo(function ContextMenu() {
   const { state, dispatch } = useOS();
   const menuRef = useRef<HTMLDivElement>(null);
   const { contextMenu } = state;
+
+  // Phase 4.5e — keyboard navigation. activeIndex walks the
+  // selectable items (skipping dividers + disabled). Esc closes
+  // and restores focus to whichever element opened the menu.
+  const focusableIndices = useMemo(
+    () =>
+      contextMenu.items
+        .map((it, i) => (it.divider || it.disabled ? -1 : i))
+        .filter((i) => i >= 0),
+    [contextMenu.items],
+  );
+  const [activeIndex, setActiveIndex] = useState<number>(-1);
+  const invokerRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    if (!contextMenu.visible) {
+      if (invokerRef.current) {
+        invokerRef.current.focus?.();
+        invokerRef.current = null;
+      }
+      setActiveIndex(-1);
+      return;
+    }
+    invokerRef.current = (document.activeElement as HTMLElement | null) ?? null;
+    setActiveIndex(focusableIndices[0] ?? -1);
+  }, [contextMenu.visible, focusableIndices]);
 
   useEffect(() => {
     if (!contextMenu.visible) return;
@@ -28,6 +55,48 @@ const ContextMenu = memo(function ContextMenu() {
       window.removeEventListener('click', handleClick);
     };
   }, [contextMenu.visible, dispatch]);
+
+  useEffect(() => {
+    if (!contextMenu.visible) return;
+    const offEsc = registerShortcut('modal', 'Esc', () => {
+      dispatch({ type: 'HIDE_CONTEXT_MENU' });
+    });
+    const offDown = registerShortcut('modal', 'Down', () => {
+      setActiveIndex((cur) => {
+        const i = focusableIndices.indexOf(cur);
+        return focusableIndices[(i + 1) % focusableIndices.length] ?? cur;
+      });
+    });
+    const offUp = registerShortcut('modal', 'Up', () => {
+      setActiveIndex((cur) => {
+        const i = focusableIndices.indexOf(cur);
+        return (
+          focusableIndices[
+            (i - 1 + focusableIndices.length) % focusableIndices.length
+          ] ?? cur
+        );
+      });
+    });
+    const offEnter = registerShortcut('modal', 'Enter', () => {
+      const item = contextMenu.items[activeIndex];
+      if (!item || item.divider || item.disabled) return;
+      dispatch({ type: 'HIDE_CONTEXT_MENU' });
+      handleMenuAction(item.action, state, dispatch);
+    });
+    return () => {
+      offEsc();
+      offDown();
+      offUp();
+      offEnter();
+    };
+  }, [
+    activeIndex,
+    contextMenu.items,
+    contextMenu.visible,
+    dispatch,
+    focusableIndices,
+    state,
+  ]);
 
   // Edge detection
   let x = contextMenu.x;
@@ -61,7 +130,7 @@ const ContextMenu = memo(function ContextMenu() {
       }}
       onClick={(e) => e.stopPropagation()}
     >
-      {contextMenu.items.map((item) => {
+      {contextMenu.items.map((item, idx) => {
         if (item.divider) {
           return (
             <div
@@ -71,9 +140,12 @@ const ContextMenu = memo(function ContextMenu() {
             />
           );
         }
+        const isActive = idx === activeIndex;
         return (
           <button
             key={item.id}
+            role="menuitem"
+            aria-current={isActive ? 'true' : undefined}
             className="w-full flex items-center gap-2.5 px-3 h-8 text-sm transition-colors"
             style={{
               color: item.disabled ? 'var(--text-disabled)' : 'var(--text-primary)',
@@ -81,17 +153,20 @@ const ContextMenu = memo(function ContextMenu() {
               margin: '0 4px',
               width: 'calc(100% - 8px)',
               cursor: item.disabled ? 'not-allowed' : 'pointer',
+              background: isActive ? 'var(--bg-hover)' : 'transparent',
             }}
             onMouseEnter={(e) => {
+              setActiveIndex(idx);
               if (!item.disabled) e.currentTarget.style.background = 'var(--bg-hover)';
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.background = 'transparent';
+              e.currentTarget.style.background = isActive
+                ? 'var(--bg-hover)'
+                : 'transparent';
             }}
             onClick={() => {
               if (item.disabled) return;
               dispatch({ type: 'HIDE_CONTEXT_MENU' });
-              // Action dispatch handled by parent based on action string
               handleMenuAction(item.action, state, dispatch);
             }}
           >

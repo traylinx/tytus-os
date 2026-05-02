@@ -46,7 +46,7 @@ interface Track {
 const rowToTrack = (r: SavedTrackRow): Track => ({
   id: r.id,
   title: r.title || 'Untitled',
-  artist: 'Juli3ta',
+  artist: 'JULI3TA',
   album: r.styleTags || '—',
   duration: Math.round((r.durationMs || 0) / 1000),
   src: r.audioDataUrl,
@@ -355,6 +355,36 @@ export default function MusicPlayer() {
     return () => window.removeEventListener('keydown', handler);
   }, [handlePlayPause]);
 
+  // ── Sprint B Phase 5.3 — accept track drops from MusicCreator ────
+  const [isDragOver, setIsDragOver] = useState(false);
+  const handleTrackDragOver = useCallback((e: React.DragEvent) => {
+    const types = Array.from(e.dataTransfer.types || []);
+    if (!types.includes('application/x-juli3ta-track')) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+    setIsDragOver(true);
+  }, []);
+  const handleTrackDragLeave = useCallback(() => setIsDragOver(false), []);
+  const handleTrackDrop = useCallback(
+    (e: React.DragEvent) => {
+      const raw = e.dataTransfer.getData('application/x-juli3ta-track');
+      if (!raw) return;
+      e.preventDefault();
+      setIsDragOver(false);
+      try {
+        const t = JSON.parse(raw) as { id?: string };
+        if (typeof t?.id !== 'string') return;
+        const idx = tracks.findIndex((tk) => tk.id === t.id);
+        if (idx < 0) return; // not in this player's gallery (yet) — silently
+        setCurrentIndex(idx);
+        setIsPlaying(true);
+      } catch {
+        /* ignore */
+      }
+    },
+    [tracks],
+  );
+
   // ── Render ────────────────────────────────────────────────────────
 
   // Empty state — no tracks at all.
@@ -362,21 +392,26 @@ export default function MusicPlayer() {
     return (
       <div className="flex flex-col h-full" style={{ background: 'var(--bg-window)' }}>
         <div className="flex-1 flex flex-col items-center justify-center px-8 text-center">
-          <div
-            className="flex items-center justify-center rounded-2xl mb-4"
+          <img
+            src="/brand/juli3ta/icon-gradient-256.png"
+            alt="JULI3TA"
+            width={96}
+            height={96}
+            draggable={false}
             style={{
               width: 96, height: 96,
-              background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))',
-              opacity: 0.5,
+              borderRadius: 22,
+              marginBottom: 16,
+              opacity: 0.85,
+              userSelect: 'none',
+              pointerEvents: 'none',
             }}
-          >
-            <Music size={44} style={{ color: 'white' }} />
-          </div>
+          />
           <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>
             Your library is empty
           </div>
           <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 6, maxWidth: 320 }}>
-            Generate a song with <strong>Juli3ta</strong> or import local audio
+            Generate a song with <strong>JULI3TA</strong> or import local audio
             files to start listening.
           </div>
           <div className="flex items-center gap-2 mt-5">
@@ -408,7 +443,17 @@ export default function MusicPlayer() {
   }
 
   return (
-    <div className="flex flex-col h-full relative overflow-hidden" style={{ background: 'var(--bg-window)' }}>
+    <div
+      className="flex flex-col h-full relative overflow-hidden"
+      style={{
+        background: 'var(--bg-window)',
+        outline: isDragOver ? '2px solid var(--accent-primary)' : 'none',
+        outlineOffset: -2,
+      }}
+      onDragOver={handleTrackDragOver}
+      onDragLeave={handleTrackDragLeave}
+      onDrop={handleTrackDrop}
+    >
       {/* Album Art Area */}
       <div className="flex flex-col items-center pt-6 pb-4">
         <div
@@ -417,14 +462,21 @@ export default function MusicPlayer() {
             width: 200, height: 200,
             background: currentTrack.coverDataUrl
               ? `url(${currentTrack.coverDataUrl}) center/cover no-repeat`
-              : 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))',
+              : 'linear-gradient(135deg, #7B43C9 0%, #C8377E 55%, #F08A4B 100%)',
             boxShadow: 'var(--shadow-lg)',
             animation: isPlaying ? 'pulse 2s infinite' : 'none',
           }}
         >
           {!currentTrack.coverDataUrl && (
             currentTrack.source === 'juli3ta'
-              ? <Sparkles size={80} style={{ color: 'rgba(255,255,255,0.5)' }} />
+              ? <img
+                  src="/brand/juli3ta/mark-cream-256.png"
+                  alt=""
+                  width={120}
+                  height={120}
+                  draggable={false}
+                  style={{ width: 120, height: 120, opacity: 0.9, userSelect: 'none', pointerEvents: 'none' }}
+                />
               : <Music size={80} style={{ color: 'rgba(255,255,255,0.3)' }} />
           )}
         </div>
@@ -596,11 +648,18 @@ export default function MusicPlayer() {
                   }}
                 />
               ) : (
-                <span style={{ fontSize: '11px', color: 'var(--text-disabled)', width: 20, textAlign: 'center' }}>
+                <span style={{ fontSize: '11px', color: 'var(--text-disabled)', width: 20, textAlign: 'center', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
                   {i === currentIndex && isPlaying
                     ? <Music size={12} style={{ color: 'var(--accent-primary)' }} />
                     : track.source === 'juli3ta'
-                      ? <Sparkles size={12} style={{ color: 'var(--accent-secondary)' }} />
+                      ? <img
+                          src="/brand/juli3ta/mark-ink-32.png"
+                          alt=""
+                          width={14}
+                          height={14}
+                          draggable={false}
+                          style={{ width: 14, height: 14, opacity: 0.85, userSelect: 'none', pointerEvents: 'none' }}
+                        />
                       : i + 1}
                 </span>
               )}

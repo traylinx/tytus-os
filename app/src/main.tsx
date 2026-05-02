@@ -1,5 +1,6 @@
 import { createRoot } from 'react-dom/client'
 import './index.css'
+import './styles/window-animations.css'
 import App from './App.tsx'
 import { initDb, getDbMeta } from '@/lib/db'
 import { I18nProvider } from '@/i18n'
@@ -24,15 +25,16 @@ initDb()
     //   await window.tytusDb.run('DELETE FROM api_history')   // careful!
     // Stripped from production builds by import.meta.env.DEV.
     if (import.meta.env.DEV) {
-      const [history, collections, downloadMod] = await Promise.all([
+      const [history, collections, musicLibrary, downloadMod] = await Promise.all([
         import('@/lib/repo/apiHistory'),
         import('@/lib/repo/apiCollections'),
+        import('@/lib/repo/musicLibrary'),
         import('@/lib/db/download'),
       ])
       ;(window as unknown as Record<string, unknown>).tytusDb = Object.assign(db, {
         download: downloadMod.downloadDb,
       })
-      ;(window as unknown as Record<string, unknown>).tytusRepos = { history, collections }
+      ;(window as unknown as Record<string, unknown>).tytusRepos = { history, collections, musicLibrary }
       console.info(
         '[tytusos] dev handles: window.tytusDb (raw + .download()), window.tytusRepos (repos)',
       )

@@ -1,8 +1,13 @@
+import type { ReactElement } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import PodEnvPane from "@/components/PodEnvPane";
 import { createDaemonClient } from "@/lib/daemon";
 import { makeFakeFetch } from "@/test/fakeFetch";
+import { I18nProvider } from "@/i18n";
+
+const renderWithI18n = (node: ReactElement) =>
+  render(<I18nProvider>{node}</I18nProvider>);
 
 // Phase 1 cont — Pod Inspector Env pane.
 //
@@ -38,7 +43,7 @@ describe("PodEnvPane", () => {
       { method: "GET", path: "/api/pod/env?pod=02", body: redactedBody },
     ]);
     const client = createDaemonClient({ fetch });
-    render(
+    renderWithI18n(
       <PodEnvPane
         client={client}
         podId="02"
@@ -65,7 +70,7 @@ describe("PodEnvPane", () => {
       { method: "GET", path: "/api/pod/env?pod=02", body: redactedBody },
     ]);
     const client = createDaemonClient({ fetch });
-    render(
+    renderWithI18n(
       <PodEnvPane
         client={client}
         podId="02"
@@ -93,7 +98,7 @@ describe("PodEnvPane", () => {
       },
     ]);
     const client = createDaemonClient({ fetch });
-    render(
+    renderWithI18n(
       <PodEnvPane
         client={client}
         podId="02"
@@ -124,7 +129,7 @@ describe("PodEnvPane", () => {
       { method: "GET", path: "/api/pod/env?pod=02", body: redactedBody },
     ]);
     const client = createDaemonClient({ fetch });
-    render(
+    renderWithI18n(
       <PodEnvPane
         client={client}
         podId="02"
@@ -157,7 +162,7 @@ describe("PodEnvPane", () => {
       { method: "GET", path: "/api/pod/env?pod=02", body: redactedBody },
     ]);
     const client = createDaemonClient({ fetch });
-    render(
+    renderWithI18n(
       <PodEnvPane
         client={client}
         podId="02"

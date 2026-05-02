@@ -2,17 +2,75 @@
 // LockScreen — local screen lock, separate from daemon auth
 // ============================================================
 
-import { memo, useCallback } from "react";
+import { memo, useCallback, useEffect, useState } from "react";
 import { Lock, RefreshCw, ShieldCheck } from "lucide-react";
 import { useOS } from "@/hooks/useOSStore";
 import { useDaemonStateContext } from "@/hooks/useDaemonStateContext";
-import { DEFAULT_TYTUS_WALLPAPER } from "@/lib/brand";
+import {
+  DEFAULT_TYTUS_WALLPAPER,
+  CUSTOM_WALLPAPER_SENTINEL,
+  parseBackground,
+} from "@/lib/brand";
+import { loadCustomWallpaper } from "@/lib/repo/wallpaper";
 
 const LockScreen = memo(function LockScreen() {
   const { state, dispatch } = useOS();
   const daemon = useDaemonStateContext();
   const email = daemon.state?.email || state.auth.userName;
   const sessionHealthy = daemon.status !== "offline" && Boolean(daemon.state?.logged_in);
+
+  // Phase 1.5 — match the lock-screen wallpaper to the desktop when
+  // the user opted in (default). When the desktop background is a
+  // user-uploaded image we have to fetch the bytes from SQLite.
+  const matchDesktop = state.theme.lockWallpaperMatchesDesktop;
+  const [customDataUrl, setCustomDataUrl] = useState<string | null>(null);
+  useEffect(() => {
+    if (
+      !matchDesktop ||
+      state.theme.wallpaper !== CUSTOM_WALLPAPER_SENTINEL
+    ) {
+      setCustomDataUrl(null);
+      return;
+    }
+    let cancelled = false;
+    loadCustomWallpaper().then((row) => {
+      if (!cancelled) setCustomDataUrl(row?.dataUrl ?? null);
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [matchDesktop, state.theme.wallpaper]);
+
+  const lockBg: React.CSSProperties = (() => {
+    if (!matchDesktop) {
+      return {
+        backgroundImage: `url(${DEFAULT_TYTUS_WALLPAPER})`,
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+      };
+    }
+    const desc = parseBackground(state.theme.wallpaper);
+    if (desc.kind === "preset") {
+      return {
+        backgroundImage: `url(${desc.url})`,
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+      };
+    }
+    if (desc.kind === "color") {
+      return { background: desc.value };
+    }
+    if (desc.kind === "custom" && customDataUrl) {
+      return {
+        backgroundImage: `url(${customDataUrl})`,
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+      };
+    }
+    return {
+      backgroundImage: `url(${DEFAULT_TYTUS_WALLPAPER})`,
+      backgroundSize: "cover",
+      backgroundPosition: "center",
+    };
+  })();
 
   const unlock = useCallback(() => {
     if (sessionHealthy) {
@@ -26,11 +84,7 @@ const LockScreen = memo(function LockScreen() {
   return (
     <div
       className="fixed inset-0 z-[9998] flex items-center justify-center"
-      style={{
-        backgroundImage: `url(${DEFAULT_TYTUS_WALLPAPER})`,
-        backgroundSize: "cover",
-        backgroundPosition: "center",
-      }}
+      style={lockBg}
     >
       <div
         className="absolute inset-0"

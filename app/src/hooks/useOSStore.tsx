@@ -3,9 +3,10 @@
 // ============================================================
 
 import React, { createContext, useContext, useReducer, useCallback, useEffect } from 'react';
-import type { OSState, OSAction, Window, DesktopIcon, Notification, DockItem, WindowArgs, WindowState } from '@/types';
+import type { OSState, OSAction, Window, DesktopIcon, Notification, DockItem, WindowArgs, WindowState, WindowSnapEntry, SnapKind } from '@/types';
 import { APP_REGISTRY, getAppById, getDefaultDockApps } from '@/apps/registry';
 import { DEFAULT_TYTUS_WALLPAPER } from '@/lib/brand';
+import { normalizeTheme } from '@/lib/theme/normalize';
 
 // ---- Window persistence ----
 const WINDOWS_STORAGE_KEY = 'tytus_windows';
@@ -108,6 +109,65 @@ const persistWindowGeometry = (geom: Record<string, WindowGeometry>): void => {
   }
 };
 
+// ---- Per-window snap-state persistence (Sprint B Phase 6.1) ----
+// Distinct from windowGeometry — keyed by windowId so two windows of the
+// same app can be snapped independently. Holds the pre-snap frame so a
+// drag-away or Restore brings the user's prior unsnapped geometry back.
+const SNAP_STORAGE_KEY = 'tytus_window_snap';
+
+const isSnapEntry = (v: unknown): v is import('@/types').WindowSnapEntry => {
+  if (!v || typeof v !== 'object') return false;
+  const r = v as Record<string, unknown>;
+  if (r.kind !== 'left' && r.kind !== 'right' && r.kind !== 'top') return false;
+  return isWindowGeometry(r.prev);
+};
+
+const loadWindowSnap = (): Record<string, import('@/types').WindowSnapEntry> => {
+  try {
+    const raw = localStorage.getItem(SNAP_STORAGE_KEY);
+    if (!raw) return {};
+    const parsed: unknown = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') return {};
+    const out: Record<string, import('@/types').WindowSnapEntry> = {};
+    for (const [k, v] of Object.entries(parsed as Record<string, unknown>)) {
+      if (typeof k === 'string' && isSnapEntry(v)) out[k] = v;
+    }
+    return out;
+  } catch {
+    return {};
+  }
+};
+
+const persistWindowSnap = (snap: Record<string, import('@/types').WindowSnapEntry>): void => {
+  try {
+    localStorage.setItem(SNAP_STORAGE_KEY, JSON.stringify(snap));
+  } catch {
+    /* ignore */
+  }
+};
+
+// ---- Host clipboard permission cache (Sprint B Phase 5.4f) ----
+const CLIPBOARD_PERMISSION_KEY = 'tytus_clipboard_permission';
+type ClipboardPerm = 'granted' | 'denied' | 'prompt';
+
+const loadClipboardPermission = (): ClipboardPerm => {
+  try {
+    const raw = localStorage.getItem(CLIPBOARD_PERMISSION_KEY);
+    if (raw === 'granted' || raw === 'denied' || raw === 'prompt') return raw;
+    return 'prompt';
+  } catch {
+    return 'prompt';
+  }
+};
+
+const persistClipboardPermission = (state: ClipboardPerm): void => {
+  try {
+    localStorage.setItem(CLIPBOARD_PERMISSION_KEY, state);
+  } catch {
+    /* ignore */
+  }
+};
+
 // ---- Helpers ----
 const generateId = () => Math.random().toString(36).slice(2) + Date.now().toString(36);
 
@@ -165,6 +225,12 @@ const createWindow = (
 
 const MIN_VIEWPORT_W = 320;
 const MIN_VIEWPORT_H = 240;
+
+// Sprint B Phase 6.1 — drag this many pixels off a snapped position
+// before we treat the move as "leaving" the snap and restore the prior
+// floating frame. ~24px is roughly the title-bar height; small enough
+// to feel responsive, large enough to not unsnap on a sloppy click.
+const UNSNAP_DRAG_PX = 24;
 
 // ---- Initial State ----
 //
@@ -241,11 +307,11 @@ const buildInitialState = (): OSState => {
     windows: restoredWindows,
     apps: APP_REGISTRY,
     desktopIcons: loadDesktopIcons(),
-    theme: {
+    theme: normalizeTheme({
       mode: 'dark',
       accent: '#7C4DFF',
       wallpaper: DEFAULT_TYTUS_WALLPAPER,
-    },
+    }),
     notifications: [],
     dockItems,
     contextMenu: {
@@ -262,6 +328,8 @@ const buildInitialState = (): OSState => {
     isAltTabbing: false,
     altTabIndex: 0,
     windowGeometry: loadWindowGeometry(),
+    windowSnap: loadWindowSnap(),
+    clipboardPermission: loadClipboardPermission(),
   };
 };
 
@@ -383,11 +451,16 @@ function osReducer(state: OSState, action: OSAction): OSState {
       const newActiveId = remaining.length > 0
         ? remaining.reduce((a, b) => (a.zIndex > b.zIndex ? a : b)).id
         : null;
+      // Drop snap state for the closed window (it's gone — its windowId
+      // will never recur). Use rest-spread to omit cleanly.
+      const nextSnap: Record<string, WindowSnapEntry> = { ...state.windowSnap };
+      delete nextSnap[action.windowId];
       return {
         ...state,
         windows: remaining,
         activeWindowId: newActiveId,
         dockItems: updatedDock,
+        windowSnap: nextSnap,
       };
     }
 
@@ -420,6 +493,22 @@ function osReducer(state: OSState, action: OSAction): OSState {
       // macOS-style fullscreen: window extends to viewport bottom; the
       // dock floats over it. WindowFrame.tsx mirrors this with
       // `calc(100vh - TOP_PANEL_HEIGHT)`.
+      // Sprint B 6.1/6.3 — if the window is currently snapped, capture
+      // the snap.prev (i.e. the original floating frame from before the
+      // snap) as prevPosition, not the current snapped half. Otherwise
+      // double-click → maximize → restore would land you back on the
+      // half-window, not the floating one. Drop the snap entry in the
+      // process so a later un-snap doesn't fight the maximized state.
+      const snap = state.windowSnap[action.windowId];
+      const target = state.windows.find((w) => w.id === action.windowId);
+      const prevPos = snap
+        ? { x: snap.prev.x, y: snap.prev.y }
+        : target ? { ...target.position } : { x: 0, y: TOP_PANEL_HEIGHT };
+      const prevSz = snap
+        ? { width: snap.prev.width, height: snap.prev.height }
+        : target ? { ...target.size } : { width: vw, height: vh - TOP_PANEL_HEIGHT };
+      const nextSnap = snap ? { ...state.windowSnap } : state.windowSnap;
+      if (snap) delete nextSnap[action.windowId];
       return {
         ...state,
         windows: state.windows.map((w) =>
@@ -427,13 +516,14 @@ function osReducer(state: OSState, action: OSAction): OSState {
             ? {
                 ...w,
                 state: 'maximized' as WindowState,
-                prevPosition: { ...w.position },
-                prevSize: { ...w.size },
+                prevPosition: prevPos,
+                prevSize: prevSz,
                 position: { x: 0, y: TOP_PANEL_HEIGHT },
                 size: { width: vw, height: vh - TOP_PANEL_HEIGHT },
               }
             : w
         ),
+        windowSnap: nextSnap,
       };
     }
 
@@ -480,6 +570,33 @@ function osReducer(state: OSState, action: OSAction): OSState {
       // Don't bake maximized geometry into the per-app memory — when the user
       // un-maximizes we want their previous floating frame back.
       const shouldRemember = target && target.state === 'normal';
+      // Sprint B Phase 6.1 — drag-from-snap restore: if the window is
+      // currently snapped and the user drags it more than UNSNAP_DRAG_PX
+      // away from the snap target, restore the prior unsnapped frame
+      // and reposition the cursor's frame at the new spot. Without this
+      // a snapped window stays glued to its half forever.
+      const snap = state.windowSnap[action.windowId];
+      if (target && snap) {
+        const movedX = Math.abs(action.position.x - target.position.x);
+        const movedY = Math.abs(action.position.y - target.position.y);
+        if (movedX > UNSNAP_DRAG_PX || movedY > UNSNAP_DRAG_PX) {
+          const nextSnap = { ...state.windowSnap };
+          delete nextSnap[action.windowId];
+          return {
+            ...state,
+            windows: state.windows.map((w) =>
+              w.id === action.windowId
+                ? {
+                    ...w,
+                    position: action.position,
+                    size: { width: snap.prev.width, height: snap.prev.height },
+                  }
+                : w,
+            ),
+            windowSnap: nextSnap,
+          };
+        }
+      }
       const nextGeom = shouldRemember
         ? {
             ...state.windowGeometry,
@@ -498,6 +615,76 @@ function osReducer(state: OSState, action: OSAction): OSState {
         ),
         windowGeometry: nextGeom,
       };
+    }
+
+    case 'SNAP_WINDOW': {
+      const target = state.windows.find((w) => w.id === action.windowId);
+      if (!target) return state;
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      const usableH = vh - TOP_PANEL_HEIGHT;
+      // Capture pre-snap frame ONLY if not already snapped — re-snapping
+      // (left → right while still snapped) must not overwrite the original
+      // floating frame, otherwise restoring drops you on a half-window.
+      const existing = state.windowSnap[action.windowId];
+      const prev = existing
+        ? existing.prev
+        : {
+            x: target.position.x,
+            y: target.position.y,
+            width: target.size.width,
+            height: target.size.height,
+          };
+      let nextPos: { x: number; y: number };
+      let nextSize: { width: number; height: number };
+      if (action.kind === 'left') {
+        nextPos = { x: 0, y: TOP_PANEL_HEIGHT };
+        nextSize = { width: Math.floor(vw / 2), height: usableH };
+      } else if (action.kind === 'right') {
+        nextPos = { x: Math.floor(vw / 2), y: TOP_PANEL_HEIGHT };
+        nextSize = { width: vw - Math.floor(vw / 2), height: usableH };
+      } else {
+        // top → maximize
+        nextPos = { x: 0, y: TOP_PANEL_HEIGHT };
+        nextSize = { width: vw, height: usableH };
+      }
+      return {
+        ...state,
+        windows: state.windows.map((w) =>
+          w.id === action.windowId
+            ? { ...w, state: 'normal' as WindowState, position: nextPos, size: nextSize }
+            : w,
+        ),
+        windowSnap: {
+          ...state.windowSnap,
+          [action.windowId]: { kind: action.kind, prev },
+        },
+      };
+    }
+
+    case 'UNSNAP_WINDOW': {
+      const snap = state.windowSnap[action.windowId];
+      if (!snap) return state;
+      const nextSnap = { ...state.windowSnap };
+      delete nextSnap[action.windowId];
+      return {
+        ...state,
+        windows: state.windows.map((w) =>
+          w.id === action.windowId
+            ? {
+                ...w,
+                position: { x: snap.prev.x, y: snap.prev.y },
+                size: { width: snap.prev.width, height: snap.prev.height },
+              }
+            : w,
+        ),
+        windowSnap: nextSnap,
+      };
+    }
+
+    case 'SET_CLIPBOARD_PERMISSION': {
+      if (state.clipboardPermission === action.state) return state;
+      return { ...state, clipboardPermission: action.state };
     }
 
     case 'RESIZE_WINDOW': {
@@ -760,6 +947,17 @@ export const OSProvider: React.FC<{ children: React.ReactNode }> = ({ children }
     persistWindowGeometry(state.windowGeometry);
   }, [state.windowGeometry]);
 
+  // Per-window snap state — persists across reload so a snapped FileManager
+  // window comes back snapped. Cleared on CLOSE_WINDOW.
+  useEffect(() => {
+    persistWindowSnap(state.windowSnap);
+  }, [state.windowSnap]);
+
+  // Sprint B Phase 5.4f — clipboard permission cache.
+  useEffect(() => {
+    persistClipboardPermission(state.clipboardPermission);
+  }, [state.clipboardPermission]);
+
   return (
     <OSContext.Provider value={{ state, dispatch }}>
       {children}
@@ -786,7 +984,10 @@ export const useWindows = () => {
     focusWindow: useCallback((windowId: string) => dispatch({ type: 'FOCUS_WINDOW', windowId }), [dispatch]),
     moveWindow: useCallback((windowId: string, position: { x: number; y: number }) => dispatch({ type: 'MOVE_WINDOW', windowId, position }), [dispatch]),
     resizeWindow: useCallback((windowId: string, size: { width: number; height: number }) => dispatch({ type: 'RESIZE_WINDOW', windowId, size }), [dispatch]),
+    snapWindow: useCallback((windowId: string, kind: SnapKind) => dispatch({ type: 'SNAP_WINDOW', windowId, kind }), [dispatch]),
+    unsnapWindow: useCallback((windowId: string) => dispatch({ type: 'UNSNAP_WINDOW', windowId }), [dispatch]),
     activeWindowId: state.activeWindowId,
+    windowSnap: state.windowSnap,
   };
 };
 

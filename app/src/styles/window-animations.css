@@ -1,0 +1,60 @@
+/* ============================================================
+   Window Animations — Sprint B Phase 6.4
+   ============================================================
+   Open / close / minimize transitions. Snap-resize tween. All
+   wrapped in `prefers-reduced-motion: no-preference` so users with
+   the OS-level reduced-motion preference get the no-animation path
+   automatically. The `.reduce-motion` class on <html> overrides the
+   media query when the user toggles "Reduce motion" in Settings.
+*/
+
+@keyframes tytus-window-open {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes tytus-window-close {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.94);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html:not(.reduce-motion) [data-window-id] {
+    animation: tytus-window-open 150ms cubic-bezier(0.2, 0.9, 0.3, 1.1)
+      both;
+    transform-origin: top left;
+  }
+
+  /* Closing ghost — rendered separately by WindowManager on close.
+     The actual window is gone from state; this empty frame plays the
+     scale-out before unmounting. */
+  html:not(.reduce-motion) [data-window-closing="true"] {
+    animation: tytus-window-close 120ms ease-in both;
+    transform-origin: top left;
+  }
+
+  /* Snap-resize tween — soften the snap so it doesn't feel jumpy.
+     The drag-active selector excludes mid-drag transitions. */
+  html:not(.reduce-motion)
+    [data-window-id]:not([data-window-dragging="true"]):not([data-window-resizing="true"]) {
+    transition:
+      width 80ms ease-out,
+      height 80ms ease-out,
+      left 80ms ease-out,
+      top 80ms ease-out,
+      box-shadow 150ms ease,
+      border-color 150ms ease;
+  }
+}

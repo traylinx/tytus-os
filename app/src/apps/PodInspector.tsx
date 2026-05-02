@@ -77,6 +77,8 @@ import {
   revealSecret,
   revealTokenUrl,
 } from "@/lib/secrets";
+import { resolveAgentDisplay } from "@/lib/agentCatalog";
+import { useI18n } from "@/i18n";
 import type {
   Agent,
   AgentStatus,
@@ -483,7 +485,9 @@ const TabStrip: FC<TabStripProps> = ({
   agentsByPod,
   readyByPod,
   pinnedPods,
-}) => (
+}) => {
+  const { t } = useI18n();
+  return (
   <div
     className="flex items-stretch flex-shrink-0 overflow-x-auto"
     style={{
@@ -557,7 +561,7 @@ const TabStrip: FC<TabStripProps> = ({
                 className="text-[10px] opacity-70"
                 style={{ color: "var(--text-secondary)" }}
               >
-                · {agent.agent_type}
+                · {resolveAgentDisplay(agent.agent_type, null, t).name}
               </span>
             )}
           </button>
@@ -573,7 +577,8 @@ const TabStrip: FC<TabStripProps> = ({
       );
     })}
   </div>
-);
+  );
+};
 
 // ============================================================
 // Fleet view — table + search + sort + empty state
@@ -606,6 +611,7 @@ const FleetView: FC<FleetViewProps> = ({
   isPinned,
   onTogglePin,
 }) => {
+  const { t } = useI18n();
   const [search, setSearch] = useState("");
   const [sortMode, setSortMode] = useState<SortMode>("attention");
   const [openingPod, setOpeningPod] = useState<string | null>(null);
@@ -660,7 +666,10 @@ const FleetView: FC<FleetViewProps> = ({
       ? rows.filter(
           (r) =>
             r.pod_id.toLowerCase().includes(q) ||
-            r.agent_type.toLowerCase().includes(q),
+            r.agent_type.toLowerCase().includes(q) ||
+            resolveAgentDisplay(r.agent_type, null, t).name
+              .toLowerCase()
+              .includes(q),
         )
       : [...rows];
 
@@ -690,7 +699,7 @@ const FleetView: FC<FleetViewProps> = ({
     }
 
     return out;
-  }, [rows, search, sortMode, readyByPod, isPinned]);
+  }, [rows, search, sortMode, readyByPod, isPinned, t]);
 
   const isEmpty = !state || rows.length === 0;
 
@@ -922,7 +931,9 @@ const FleetView: FC<FleetViewProps> = ({
                             className="text-[var(--accent-primary)]"
                           />
                         )}
-                        {row.agent_type}
+                        {row.kind === "included"
+                          ? row.agent_type
+                          : resolveAgentDisplay(row.agent_type, null, t).name}
                       </span>
                     </td>
                     <td className="px-3 py-2.5 text-right font-mono text-[var(--text-secondary)]">
@@ -1016,6 +1027,7 @@ const PodTab: FC<PodTabProps> = ({
   routeAction,
   routeNonce,
 }) => {
+  const { t } = useI18n();
   const daemon = useDaemonStateContext();
   const [keyRevealed, setKeyRevealed] = useState(false);
   const [uiRevealed, setUiRevealed] = useState(false);
@@ -1284,7 +1296,7 @@ const PodTab: FC<PodTabProps> = ({
                 }}
               />
             )}
-            Pod {agent.pod_id} · {agent.agent_type}
+            Pod {agent.pod_id} · {resolveAgentDisplay(agent.agent_type, null, t).name}
           </div>
           <div className="text-[11px] mt-0.5">
             <span style={{ color: visual.color }}>{visual.label}</span>

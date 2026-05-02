@@ -10,7 +10,7 @@
 //
 // Phase 2 ships the API Tester migration: history + collections.
 
-export const SCHEMA_VERSION = 9;
+export const SCHEMA_VERSION = 11;
 
 export const SCHEMA_V1 = `
 CREATE TABLE IF NOT EXISTS api_history (
@@ -185,4 +185,107 @@ CREATE TABLE IF NOT EXISTS wallpaper_custom (
   size_bytes    INTEGER NOT NULL DEFAULT 0,
   uploaded_at   INTEGER NOT NULL                    -- unix ms
 );
+`;
+
+// Schema V10: JULI3TA Player provider-backed music library.
+//
+// Keeps streamed/imported music out of `music_creator_tracks` so My Work
+// remains generated songs only. Stream URLs are intentionally absent here:
+// they expire and must be resolved fresh through the tray provider API.
+export const SCHEMA_V10 = `
+CREATE TABLE IF NOT EXISTS music_library_tracks (
+  id              TEXT PRIMARY KEY,             -- provider:id, e.g. youtube:iYYRH4apXDo
+  provider        TEXT NOT NULL,
+  external_id     TEXT NOT NULL,
+  title           TEXT NOT NULL,
+  artist          TEXT NOT NULL DEFAULT '',
+  album           TEXT NOT NULL DEFAULT '',
+  duration_ms     INTEGER NOT NULL DEFAULT 0,
+  thumbnail_url   TEXT NOT NULL DEFAULT '',
+  external_url    TEXT NOT NULL DEFAULT '',
+  added_at        INTEGER NOT NULL,
+  last_played_at  INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_music_library_provider_external
+  ON music_library_tracks(provider, external_id);
+CREATE INDEX IF NOT EXISTS idx_music_library_artist
+  ON music_library_tracks(artist);
+CREATE INDEX IF NOT EXISTS idx_music_library_added
+  ON music_library_tracks(added_at DESC);
+
+CREATE TABLE IF NOT EXISTS music_library_artists (
+  id            TEXT PRIMARY KEY,
+  provider      TEXT NOT NULL,
+  name          TEXT NOT NULL,
+  artwork_url   TEXT NOT NULL DEFAULT '',
+  bio           TEXT NOT NULL DEFAULT '',
+  updated_at    INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS music_library_albums (
+  id            TEXT PRIMARY KEY,
+  provider      TEXT NOT NULL,
+  title         TEXT NOT NULL,
+  artist        TEXT NOT NULL DEFAULT '',
+  artwork_url   TEXT NOT NULL DEFAULT '',
+  year          INTEGER,
+  updated_at    INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS music_playlists (
+  id          TEXT PRIMARY KEY,
+  name        TEXT NOT NULL,
+  created_at  INTEGER NOT NULL,
+  updated_at  INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS music_playlist_items (
+  playlist_id TEXT NOT NULL REFERENCES music_playlists(id) ON DELETE CASCADE,
+  track_id    TEXT NOT NULL REFERENCES music_library_tracks(id) ON DELETE CASCADE,
+  pos         INTEGER NOT NULL DEFAULT 0,
+  added_at    INTEGER NOT NULL,
+  PRIMARY KEY (playlist_id, track_id)
+);
+CREATE INDEX IF NOT EXISTS idx_music_playlist_items_playlist
+  ON music_playlist_items(playlist_id, pos);
+
+CREATE TABLE IF NOT EXISTS music_favorites (
+  kind       TEXT NOT NULL,
+  entity_id  TEXT NOT NULL,
+  provider   TEXT NOT NULL DEFAULT '',
+  title      TEXT NOT NULL DEFAULT '',
+  created_at INTEGER NOT NULL,
+  PRIMARY KEY (kind, entity_id)
+);
+CREATE INDEX IF NOT EXISTS idx_music_favorites_created
+  ON music_favorites(created_at DESC);
+`;
+
+// Schema V11: Trash metadata index — Sprint A Phase 4.1.
+//
+// SQLite indexes the trash; *bytes don't live here*. For
+// daemon-backed source rows the file is moved server-side to
+// `~/Tytus/.Trash/` (when the daemon endpoints land — see DONE.md
+// for the deferred work). For vfs-source rows the bytes live in
+// `useFileSystem.ts`'s existing localStorage trash; this row is
+// just the search/restore index. Both cases route through the
+// `lib/repo/trash.ts` façade.
+export const SCHEMA_V11 = `
+CREATE TABLE IF NOT EXISTS trash_items (
+  id                  TEXT PRIMARY KEY,                       -- random uuid
+  source              TEXT NOT NULL,                          -- 'daemon' | 'vfs'
+  daemon_source       TEXT NOT NULL DEFAULT '',               -- e.g. 'tytus-home'
+  original_path       TEXT NOT NULL DEFAULT '',               -- daemon source row
+  restore_path        TEXT NOT NULL DEFAULT '',               -- where Restore puts it back
+  vfs_node_id         TEXT NOT NULL DEFAULT '',               -- vfs source row
+  original_parent_id  TEXT NOT NULL DEFAULT '',               -- vfs source row
+  filename            TEXT NOT NULL,
+  mime                TEXT NOT NULL DEFAULT 'application/octet-stream',
+  size_bytes          INTEGER NOT NULL DEFAULT 0,
+  deleted_at          INTEGER NOT NULL                        -- unix ms
+);
+CREATE INDEX IF NOT EXISTS idx_trash_items_deleted_at
+  ON trash_items(deleted_at DESC);
+CREATE INDEX IF NOT EXISTS idx_trash_items_source
+  ON trash_items(source);
 `;
