@@ -761,26 +761,22 @@ const buildCandidates = (
   included: readonly IncludedPod[],
 ): PodEndpoint[] => {
   const out: PodEndpoint[] = [];
-  for (const a of agents) {
-    if (a.public_url && a.user_key) {
-      out.push({
-        url: `${a.public_url.replace(/\/$/, '')}/v1`,
-        apiKey: revealSecret(a.user_key, 'user_gesture'),
-        podId: a.pod_id,
-        source: 'agent',
-        label: `AIL pod ${a.pod_id}`,
-        models: NO_MODELS,
-      });
-    }
-  }
+  void agents;
+  // Music Creator talks to the account-level AIL gateway, not the
+  // browser-agent gateways. Agent pod public URLs (OpenClaw/Hermes)
+  // are separate browser origins and currently do not answer CORS
+  // preflights for localhost TytusOS; probing them only creates noisy
+  // console errors and offers the wrong capability surface. Included
+  // AIL pods expose a WireGuard-local endpoint with CORS enabled, so
+  // prefer that endpoint over the public mirror.
   for (const p of included) {
-    if (p.public_url && p.user_key) {
+    if (p.endpoint && p.user_key) {
       out.push({
-        url: `${p.public_url.replace(/\/$/, '')}/v1`,
+        url: `${p.endpoint.replace(/\/$/, '')}/v1`,
         apiKey: revealSecret(p.user_key, 'user_gesture'),
         podId: p.pod_id,
         source: 'included',
-        label: `AIL pod ${p.pod_id}`,
+        label: `AIL gateway ${p.pod_id}`,
         models: NO_MODELS,
       });
     }
