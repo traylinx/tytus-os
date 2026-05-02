@@ -7,7 +7,18 @@ export interface PillState {
   color: PillColor;
   label: string;
   detail: string;
+  kind?: "session-expired";
 }
+
+export const isRefreshTokenExpired = (error: string | null | undefined): boolean => {
+  const normalized = (error ?? "").toLowerCase();
+  return (
+    normalized.includes("refresh token expired") ||
+    normalized.includes("run `tytus login`") ||
+    normalized.includes("run 'tytus login'") ||
+    normalized.includes("no refresh token available")
+  );
+};
 
 // Tri-state pill per Lope review fix #2.
 //
@@ -46,6 +57,15 @@ export const computePill = (
   const issues: string[] = [];
   if (!state.tunnel_active) issues.push("tunnel down");
   if (!state.keychain_healthy) issues.push("keychain unhealthy");
+  if (isRefreshTokenExpired(state.last_refresh_error)) {
+    return {
+      color: "yellow",
+      label: "Session expired",
+      detail:
+        "Your Tytus session expired. Sign in again to refresh access; running pods stay online.",
+      kind: "session-expired",
+    };
+  }
   if (state.last_refresh_error)
     issues.push(`refresh error: ${state.last_refresh_error}`);
   if (issues.length > 0) {

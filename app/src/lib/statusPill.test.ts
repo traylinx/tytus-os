@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computePill } from "@/lib/statusPill";
+import { computePill, isRefreshTokenExpired } from "@/lib/statusPill";
 import { stateFixture } from "@/test/fixtures";
 import { asSecret } from "@/lib/secrets";
 import type { StateSnapshot } from "@/types/daemon";
@@ -66,5 +66,27 @@ describe("computePill", () => {
     const r = computePill("online", s, null);
     expect(r.color).toBe("yellow");
     expect(r.detail).toContain("refresh error");
+  });
+
+  it("uses explicit session-expired copy for expired refresh tokens", () => {
+    const s = wrapState({
+      ...stateFixture,
+      last_refresh_error: "refresh token expired — run `tytus login`",
+    });
+    const r = computePill("online", s, null);
+    expect(r.color).toBe("yellow");
+    expect(r.label).toBe("Session expired");
+    expect(r.kind).toBe("session-expired");
+    expect(r.detail).toContain("Sign in again");
+  });
+
+  it("classifies refresh-token login hints", () => {
+    expect(isRefreshTokenExpired("refresh token expired — run `tytus login`")).toBe(
+      true,
+    );
+    expect(isRefreshTokenExpired("No refresh token available — run 'tytus login'")).toBe(
+      true,
+    );
+    expect(isRefreshTokenExpired("transient refresh error: 502")).toBe(false);
   });
 });
