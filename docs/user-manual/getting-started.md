@@ -45,14 +45,38 @@ The app opens in a draggable window in the middle of the screen.
 
 | Shortcut | Action |
 |---|---|
-| **⌘ / Win** | Toggle app launcher (also: click `Apps` in the top panel) |
+| **⌘+Space** | Toggle app launcher |
+| **⌘+W** | Close focused window |
+| **⌘+Q** | Close every window of the focused app |
+| **⌘+Z** | Undo the last file operation |
 | **⌘+D** | Minimize all windows |
 | **Alt+Tab** | Switch between open windows |
 | **Ctrl+Alt+T** | Open Terminal |
-| **Ctrl+W** | Close focused window |
-| **Esc** | Close launcher / notification center |
+| **Esc** | Close launcher / notification center / any modal |
 
 Full reference: [keyboard-shortcuts.md](keyboard-shortcuts.md).
+
+## Personalize Tytus in 90 seconds
+
+Open **Settings** (dock icon or Apps → Settings):
+
+1. **Appearance → Accent color** — click any swatch or pick a custom hex. The change ripples instantly across every app.
+2. **Appearance → Text size** — slider from 50% to 150%. Tytus rescales its rem-based layouts live.
+3. **Appearance → Light/dark schedule** — Manual / Always light / Always dark / Auto (light 06:00–18:00 local).
+4. **Appearance → Reduce motion** — flips off the open / close / snap animations. Tytus also auto-respects your OS preference.
+5. **Background → Wallpaper** — pick a bundled preset, upload your own, or set a solid color. Toggle "Match lock screen" if you want the lock/login surface to mirror your desktop.
+6. **Dock** — change Position (bottom / left / right), Size (small / medium / large), Auto-hide on/off. Drag-and-reorder dock apps directly in the Dock; **Reset Dock order** restores defaults.
+7. **Notifications → System sounds** — turn the chime on or off.
+8. **Privacy → Reset clipboard permission** — if Cmd+V isn't working after you previously denied it.
+
+Personalization survives reload (it's persisted via the same hydration/normalizer path as everything else).
+
+## Snap, paste, and drag
+
+- **Drag a window** near the **left** / **right** / **top** edge → translucent overlay shows where it'll snap. Release to commit. Drag away (~24 px) to restore the prior frame.
+- **Drag a file from the Files window** OUT to Finder (Chromium build) → file downloads on drop.
+- **Cmd+V on the Desktop** with an image on your host clipboard → Tytus saves it as `pasted-YYYYMMDD-HHMMSS.png`. First time prompts for permission; cache after.
+- **Drag a JULI3TA track** onto an open MusicPlayer window → playback starts.
 
 ## What's not real (yet)
 

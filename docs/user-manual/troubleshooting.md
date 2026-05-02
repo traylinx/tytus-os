@@ -45,6 +45,49 @@ To export your layout: copy the JSON from the `tytus_desktop_icons` key in DevTo
 
 **Already fixed** in commit `378ae8d`. If you see this on a deployed build, hard-reload to fetch the latest assets.
 
+## Cmd+V does nothing on the Desktop
+
+**Symptom:** copying an image in macOS Preview, then Cmd+V on the Desktop, doesn't paste anything.
+
+**Cause:** the host browser denied clipboard access, or the API isn't available.
+
+**Fix:**
+1. Look for a "Clipboard access denied" notification toast.
+2. **Settings → Privacy → Reset clipboard permission**, then Cmd+V again — Tytus will re-prompt.
+3. If your browser doesn't expose `navigator.clipboard.read()` (Firefox), only **text** is supported. Use Chrome / Edge / Safari for image paste.
+4. Permission was probably granted but the cache is stale: the **Reset** button forces a fresh prompt on the next paste.
+
+## Drag a file out to Finder doesn't download
+
+**Symptom:** dragging a file from the Files window onto Finder leaves no file behind.
+
+**Cause:** the host browser doesn't honour the `DownloadURL` drag MIME (Firefox, Safari prior to 17).
+
+**Fix:** use Chromium / Chrome / Edge / Tytus's bundled WebView. Or right-click the row → Download.
+
+## Window animations look glitchy / jumpy
+
+**Symptom:** open / close / snap transitions stutter on a slow machine.
+
+**Fix:** **Settings → Appearance → Reduce motion** turns off the CSS animations live. Tytus also auto-respects the OS-level "Reduce motion" preference, so toggling that in macOS System Settings has the same effect.
+
+## Notification chime doesn't play
+
+**Symptom:** a notification appears but no sound.
+
+**Cause:** browser autoplay policy blocks audio until the user has interacted with the page.
+
+**Fix:**
+1. Click anywhere in the OS once after page load — that registers a user-gesture and unblocks audio.
+2. Confirm **Settings → Notifications → System sounds** is on.
+3. Confirm OS volume isn't muted.
+
+## A window snapped and won't unsnap
+
+**Symptom:** a window stuck in left-half / right-half mode.
+
+**Fix:** drag its title bar more than ~24 px away from the snap target — Tytus restores the previous floating frame at the cursor. Or double-click the title bar to maximize then double-click again to fully restore.
+
 ## Settings don't persist
 
 Settings (theme, accent color, etc.) save to `localStorage` under `tytus_settings`. They survive reload but reset if:

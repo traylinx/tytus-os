@@ -55,6 +55,42 @@ Hold **Alt** and tap **Tab** to cycle through open windows. Release Alt to commi
 
 Minimized windows don't appear in Alt+Tab — click their dock icon to restore.
 
+## Snap to edges
+
+While dragging a window's title bar, drag the cursor near a viewport edge to see a translucent overlay showing the snap target:
+
+- **Left edge** → snap to left half
+- **Right edge** → snap to right half
+- **Top edge** → maximize
+
+Release the mouse to commit. The unsnapped frame is remembered, so dragging the snapped window away from its half (more than ~24 px) restores the prior size at the cursor position.
+
+Two windows of the same app can be snapped independently — left half + right half work as expected for, e.g., comparing two Files panes.
+
+Snap state persists across reload.
+
+## Keyboard shortcuts for windows
+
+| Combo | Action |
+|---|---|
+| **Cmd+W** (Ctrl+W) | Close active window. **Does not** close the host browser tab — Tytus intercepts the keypress. |
+| **Cmd+Q** (Ctrl+Q) | Close every window of the active app. |
+| **Cmd+Space** | Toggle the App Launcher. |
+| **Alt+Tab** | Cycle visible windows. |
+| **Esc** | Close any open modal or menu. |
+| **double-click title** | Maximize / restore. Snap-aware: if snapped, restore returns to the original floating frame, not the half. |
+
+See [keyboard-shortcuts.md](./keyboard-shortcuts.md) for the full list.
+
+## Animations and "Reduce motion"
+
+Open / close / snap-resize transitions are CSS-only and short (120–150 ms). Tytus respects:
+
+- The **system** "Reduce motion" preference (macOS System Settings → Accessibility → Display).
+- A **Tytus-level** override at **Settings → Appearance → Reduce motion**.
+
+Either flips animations off live with no reload.
+
 ## Restoring a minimized window
 
 Three ways:
