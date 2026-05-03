@@ -116,3 +116,13 @@ export {
   isPrivateIPv6,
   webFetchTool,
 } from './tools/common/webFetch';
+
+export type {
+  ChatMessage,
+  ChatRequest,
+  PodTransport,
+} from './transport';
+export { makeHostPodTransport, toOpenAiTools } from './transport';
+
+export type { CreateSessionTestOptions } from './engine';
+export { createSession, createSessionWithTransport } from './engine';
