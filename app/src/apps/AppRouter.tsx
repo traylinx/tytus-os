@@ -1,5 +1,6 @@
 import type { FC } from 'react';
 import AppPlaceholder from './AppPlaceholder';
+import WorkspaceAppHost from './WorkspaceAppHost';
 
 // Tytus product surfaces
 import PodInspector from './PodInspector';
@@ -76,7 +77,34 @@ interface AppRouterProps {
   windowId: string;
 }
 
+/**
+ * App ids whose entry lives in a workspace package (loaded via the
+ * dynamic loader → installed_apps row → @tytus/app-<id> import). When
+ * the App Store / launcher opens one of these ids, AppRouter mounts
+ * `WorkspaceAppHost` which handles the async import + bootApp call +
+ * Suspense + error boundary.
+ *
+ * The legacy in-tree apps under different ids (e.g. `musiccreator`,
+ * `musicplayer`, `voicerecorder`, `spreadsheet`, `notes`,
+ * `texteditor`) keep their direct mount through the static switch
+ * below — this is the dual-source transition path until the cleanup
+ * PR removes the in-tree files.
+ */
+const WORKSPACE_APP_IDS = new Set([
+  'memo',
+  'music-creator',
+  'music-player',
+  'sheet',
+  'studio',
+  'voice-recorder',
+]);
+
 const AppRouter: FC<AppRouterProps> = ({ appId }) => {
+  // Dynamic-loader path — workspace packages keyed by their installed_apps id.
+  if (WORKSPACE_APP_IDS.has(appId)) {
+    return <WorkspaceAppHost appId={appId} />;
+  }
+
   switch (appId) {
     case 'app-store': return <AppStore />;
     case 'pod-inspector': return <PodInspector />;

@@ -92,8 +92,23 @@ export default defineConfig({
   // the package's official Vite setup. We use the OPFS SAH-Pool VFS so
   // no COOP/COEP headers are required (keeps the tytus-cli tray HTTP
   // server simple in production).
+  //
+  // The W5 dynamic-loader resolves bundled app entry urls as
+  // `@tytus/app-<id>` package identifiers. Vite resolves those through
+  // the workspace symlinks under node_modules/@tytus/, but its dep-
+  // optimizer needs the explicit `include` listing so the first click
+  // on the App Store → Open path doesn't trigger a visible prebundle
+  // stall the first time each app loads.
   optimizeDeps: {
     exclude: ['@sqlite.org/sqlite-wasm'],
+    include: [
+      '@tytus/app-memo',
+      '@tytus/app-music-creator',
+      '@tytus/app-music-player',
+      '@tytus/app-sheet',
+      '@tytus/app-studio',
+      '@tytus/app-voice-recorder',
+    ],
   },
   worker: {
     format: 'es',
