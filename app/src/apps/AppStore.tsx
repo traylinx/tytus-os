@@ -1,11 +1,88 @@
 import { type FC, useEffect, useState, useMemo } from 'react';
 import { Store, Search, CheckCircle2, Download, ExternalLink, Package, Loader2, AlertCircle } from 'lucide-react';
 import { useDaemonClient } from '@/hooks/useDaemonClient';
+import { useOS } from '@/hooks/useOSStore';
 import type { StoreApp } from '@/types/daemon';
+import { TytusAppsTab } from './TytusAppsTab';
 
 const CATEGORIES = ['All', 'Developer Tools', 'AI & ML', 'Communication'] as const;
 
+type ActiveTab = 'tytus' | 'desktop';
+
 const AppStore: FC = () => {
+  const [activeTab, setActiveTab] = useState<ActiveTab>('tytus');
+  const { openWindow } = useOS();
+
+  return (
+    <div className="h-full flex flex-col" style={{ background: 'var(--bg-window)' }}>
+      {/* Header */}
+      <div
+        className="flex items-center gap-3 px-4 shrink-0"
+        style={{ height: 48, background: 'var(--bg-titlebar)', borderBottom: '1px solid var(--border-subtle)', color: 'var(--text-primary)' }}
+      >
+        <Store size={18} style={{ color: 'var(--accent-primary)' }} />
+        <span style={{ fontSize: 14, fontWeight: 600 }}>App Store</span>
+      </div>
+
+      {/* Top-level tabs (per D28) */}
+      <div
+        className="flex items-center gap-0 px-4 shrink-0"
+        style={{ borderBottom: '1px solid var(--border-subtle)' }}
+      >
+        <TabButton
+          label="Tytus Apps"
+          active={activeTab === 'tytus'}
+          onClick={() => setActiveTab('tytus')}
+          testId="appstore-tab-tytus"
+        />
+        <TabButton
+          label="Desktop"
+          active={activeTab === 'desktop'}
+          onClick={() => setActiveTab('desktop')}
+          testId="appstore-tab-desktop"
+        />
+      </div>
+
+      {/* Active tab content */}
+      <div className="flex-1 overflow-hidden">
+        {activeTab === 'tytus' ? (
+          <TytusAppsTab onOpen={(appId) => openWindow(appId)} />
+        ) : (
+          <DesktopAppsTab />
+        )}
+      </div>
+    </div>
+  );
+};
+
+const TabButton: FC<{
+  label: string;
+  active: boolean;
+  onClick: () => void;
+  testId: string;
+}> = ({ label, active, onClick, testId }) => (
+  <button
+    data-testid={testId}
+    onClick={onClick}
+    className="px-3 py-2 transition-colors"
+    style={{
+      fontSize: 13,
+      fontWeight: 500,
+      color: active ? 'var(--text-primary)' : 'var(--text-secondary)',
+      background: 'transparent',
+      border: 'none',
+      borderBottom: '2px solid ' + (active ? 'var(--accent-primary)' : 'transparent'),
+      cursor: 'pointer',
+    }}
+  >
+    {label}
+  </button>
+);
+
+/** "Desktop" tab — daemon-backed brew/curl-installable catalog. The
+ *  pre-D28 AppStore content lives here intact; the rewrite kept this
+ *  surface unchanged so existing users see no functional regression. */
+const DesktopAppsTab: FC = () => {
   const client = useDaemonClient();
   const [apps, setApps] = useState<StoreApp[]>([]);
   const [checkResults, setCheckResults] = useState<Record<string, boolean>>({});
@@ -24,7 +101,6 @@ const AppStore: FC = () => {
       if (cancelled) return;
       if (r.ok) {
         setApps(r.value);
-        // Check install status
         setChecking(true);
         const ids = r.value.map((a) => a.id);
         const c = await client.postStoreAppsCheck(ids);
@@ -65,7 +141,7 @@ const AppStore: FC = () => {
 
   if (loading) {
     return (
-      <div className="h-full flex items-center justify-center" style={{ background: 'var(--bg-window)' }}>
+      <div className="h-full flex items-center justify-center" data-testid="appstore-desktop-loading">
         <div className="flex flex-col items-center gap-3">
           <Loader2 size={28} className="animate-spin" style={{ color: 'var(--accent-primary)' }} />
           <span style={{ color: 'var(--text-secondary)', fontSize: 13 }}>Loading app catalog…</span>
@@ -76,7 +152,7 @@ const AppStore: FC = () => {
 
   if (error) {
     return (
-      <div className="h-full flex items-center justify-center" style={{ background: 'var(--bg-window)' }}>
+      <div className="h-full flex items-center justify-center">
         <div className="flex flex-col items-center gap-3">
           <AlertCircle size={28} style={{ color: 'var(--accent-error)' }} />
           <span style={{ color: 'var(--text-secondary)', fontSize: 13 }}>Failed to load catalog: {error}</span>
@@ -86,22 +162,7 @@ const AppStore: FC = () => {
   }
 
   return (
-    <div className="h-full flex flex-col" style={{ background: 'var(--bg-window)' }}>
-      {/* Header */}
-      <div
-        className="flex items-center gap-3 px-4 shrink-0"
-        style={{ height: 48, background: 'var(--bg-titlebar)', borderBottom: '1px solid var(--border-subtle)', color: 'var(--text-primary)' }}
-      >
-        <Store size={18} style={{ color: 'var(--accent-primary)' }} />
-        <span style={{ fontSize: 14, fontWeight: 600 }}>App Store</span>
-        <span style={{ fontSize: 12, color: 'var(--text-secondary)', marginLeft: 4 }}>{apps.length} apps</span>
-        {checking && (
-          <span className="flex items-center gap-1" style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
-            <Loader2 size={12} className="animate-spin" /> Checking…
-          </span>
-        )}
-      </div>
-
+    <div className="h-full flex flex-col">
       {/* Search + Categories */}
       <div className="px-4 pt-3 pb-2 shrink-0" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
         <div className="flex items-center gap-2 mb-3 rounded-input" style={{ background: 'var(--bg-input)', padding: '6px 10px', border: '1px solid var(--border-default)' }}>
@@ -114,6 +175,11 @@ const AppStore: FC = () => {
             className="bg-transparent outline-none flex-1 rounded-input"
             style={{ fontSize: 13, color: 'var(--text-primary)' }}
           />
+          {checking && (
+            <span className="flex items-center gap-1" style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
+              <Loader2 size={12} className="animate-spin" /> Checking…
+            </span>
+          )}
         </div>
         <div className="flex gap-1 flex-wrap">
           {CATEGORIES.map((cat) => (
