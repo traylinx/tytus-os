@@ -108,6 +108,33 @@ describe('style-isolator — transformCss', () => {
     expect(containerSelector).toBe('.tytus-app-memo');
   });
 
+  it('does NOT prefix percentage selectors inside @keyframes bodies', () => {
+    // Regression: codex review M1, HIGH — keyframe bodies were getting
+    // selector-rewritten before the fix.
+    const fixture = `@keyframes spin {
+  0% { transform: rotate(0deg) }
+  50% { transform: rotate(180deg) }
+  100% { transform: rotate(360deg) }
+}
+@keyframes fade {
+  from { opacity: 0 }
+  to { opacity: 1 }
+}`;
+    const { css } = transformCss(fixture, { appId: 'sheet' });
+    // Keyframe stops MUST stay unprefixed.
+    expect(css).toMatch(/0%\s*\{\s*transform/);
+    expect(css).toMatch(/100%\s*\{\s*transform/);
+    expect(css).toMatch(/from\s*\{\s*opacity/);
+    expect(css).toMatch(/to\s*\{\s*opacity/);
+    // No accidental container-class prefixing inside the keyframes body.
+    expect(css).not.toContain('.tytus-app-sheet 0%');
+    expect(css).not.toContain('.tytus-app-sheet from');
+    expect(css).not.toContain('.tytus-app-sheet to');
+    // The @keyframes name was renamed.
+    expect(css).toContain('@keyframes tytus-app-sheet-spin');
+    expect(css).toContain('@keyframes tytus-app-sheet-fade');
+  });
+
   it('handles the spec M1 fixture (body+btn+@keyframes+:root+@font-face)', () => {
     const fixture = `
       body { background: red }

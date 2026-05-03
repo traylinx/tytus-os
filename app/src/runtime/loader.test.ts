@@ -127,6 +127,46 @@ describe('loader.loadApp', () => {
     ).toBeNull();
   });
 
+  it('tears down styles when importModule itself rejects (regression)', async () => {
+    // Codex review M1, HIGH — without the try/catch, the injected <style>
+    // leaked when import() rejected.
+    await expect(
+      loadApp({
+        appId: 'demo',
+        manifest: fakeManifest,
+        entryUrls: { ...baseEntryUrls, css: 'fake://demo/index.css' },
+        container: makeContainer(document),
+        fetchText: async () => `.x { color: red }`,
+        importModule: async () => {
+          throw new Error('network failed');
+        },
+      }),
+    ).rejects.toThrow(/network failed/);
+    expect(
+      document.head.querySelector('style[data-tytus-app="demo"]'),
+    ).toBeNull();
+  });
+
+  it('tears down styles when the entry default throws (regression)', async () => {
+    await expect(
+      loadApp({
+        appId: 'demo',
+        manifest: fakeManifest,
+        entryUrls: { ...baseEntryUrls, css: 'fake://demo/index.css' },
+        container: makeContainer(document),
+        fetchText: async () => `.x { color: red }`,
+        importModule: async () => ({
+          default: () => {
+            throw new Error('boom in bootSheet');
+          },
+        }),
+      }),
+    ).rejects.toThrow(/boom in bootSheet/);
+    expect(
+      document.head.querySelector('style[data-tytus-app="demo"]'),
+    ).toBeNull();
+  });
+
   it('exposes the stub HostClient namespaces (M1 surface)', async () => {
     const captured: { env?: unknown } = {};
     await loadApp({

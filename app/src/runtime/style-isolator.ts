@@ -168,18 +168,32 @@ function rewriteSelectorBlocks(
   let i = 0;
   let bufStart = 0;
   let depth = 0;
-  // Tracks whether the current "{ ... }" block is itself an @-rule body
-  // (i.e. nested rules whose selectors still need rewriting). For our
-  // purposes everything except @keyframes is fine; @keyframes contents are
-  // percentage selectors (0%, 100%) which we leave alone.
-  const skipBodyRewriteUntilDepthRestored: Array<number> = [];
+  // When non-empty, the head we encounter at the next `{` is INSIDE a
+  // @keyframes block — its selectors are percentage stops (`0%`, `from`,
+  // `to`, `50%`) and must NOT be rewritten as CSS selectors. The stack
+  // stores the depth level the suppression applies to so nested at-rules
+  // inside keyframes (rare, but `@supports` inside `@keyframes` is legal
+  // since CSS Animations Level 2) restore the right state on `}`.
+  const insideKeyframesAtDepth: Array<number> = [];
   while (i < cssText.length) {
     const ch = cssText[i];
     if (ch === '{') {
       const head = cssText.slice(bufStart, i);
       const trimmedHead = head.trimStart();
-      if (trimmedHead.startsWith('@keyframes') || trimmedHead.startsWith('@-webkit-keyframes')) {
-        skipBodyRewriteUntilDepthRestored.push(depth);
+      // If our parent block is a @keyframes body, EVERY child head is a
+      // keyframe selector — pass through unchanged.
+      const insideKeyframes =
+        insideKeyframesAtDepth.length > 0 &&
+        insideKeyframesAtDepth[insideKeyframesAtDepth.length - 1] ===
+          depth - 1;
+      if (
+        trimmedHead.startsWith('@keyframes') ||
+        trimmedHead.startsWith('@-webkit-keyframes')
+      ) {
+        insideKeyframesAtDepth.push(depth);
+        out += head + '{';
+      } else if (insideKeyframes) {
+        // Keyframe body — pass head verbatim.
         out += head + '{';
       } else if (trimmedHead.startsWith('@')) {
         // Conditional group rule (@media, @supports, @container). Keep the
@@ -198,10 +212,10 @@ function rewriteSelectorBlocks(
       out += cssText.slice(bufStart, i + 1);
       depth -= 1;
       if (
-        skipBodyRewriteUntilDepthRestored.length > 0 &&
-        skipBodyRewriteUntilDepthRestored[skipBodyRewriteUntilDepthRestored.length - 1] === depth
+        insideKeyframesAtDepth.length > 0 &&
+        insideKeyframesAtDepth[insideKeyframesAtDepth.length - 1] === depth
       ) {
-        skipBodyRewriteUntilDepthRestored.pop();
+        insideKeyframesAtDepth.pop();
       }
       i += 1;
       bufStart = i;

@@ -7,7 +7,7 @@
   "description": "Retired. Redirects to Sheet.",
   "kind": "alias",
   "aliasOf": "sheet",
-  "rewriteArgs": "(args) => ({ fileRef: args.fileRef })",
+  "rewriteArgs": { "type": "sheet" },
   "removeInVersion": "0.18.0",
   "hidden": true,
   "window": {
