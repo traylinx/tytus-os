@@ -49,9 +49,14 @@ class MemoryDb implements Db {
 }
 
 describe('BUNDLED_APP_MANIFESTS', () => {
-  it('contains the three music-suite manifests', () => {
+  it('contains the music-suite + sheet manifests', () => {
     const ids = BUNDLED_APP_MANIFESTS.map((b) => b.manifest.id).sort();
-    expect(ids).toEqual(['music-creator', 'music-player', 'voice-recorder']);
+    expect(ids).toEqual([
+      'music-creator',
+      'music-player',
+      'sheet',
+      'voice-recorder',
+    ]);
   });
 
   it('every manifest has the required fields', () => {
@@ -73,6 +78,7 @@ describe('seedBundledAppsAtBoot', () => {
     expect(installed.map((r) => r.id).sort()).toEqual([
       'music-creator',
       'music-player',
+      'sheet',
       'voice-recorder',
     ]);
     // Every row is bundled + builtin-protected (system apps).
@@ -87,6 +93,6 @@ describe('seedBundledAppsAtBoot', () => {
     await seedBundledAppsAtBoot(db);
     await seedBundledAppsAtBoot(db);
     await seedBundledAppsAtBoot(db);
-    expect((await listInstalledApps(db)).length).toBe(3);
+    expect((await listInstalledApps(db)).length).toBe(4);
   });
 });

@@ -20,6 +20,7 @@ import type { Manifest } from '@tytus/host-api';
 import musicCreatorManifest from '../../../packages/app-music-creator/tytus-app.json';
 import musicPlayerManifest from '../../../packages/app-music-player/tytus-app.json';
 import voiceRecorderManifest from '../../../packages/app-voice-recorder/tytus-app.json';
+import sheetManifest from '../../../packages/app-sheet/tytus-app.json';
 import { seedInstalledApps } from './installed-apps-repo';
 import type { Db } from '@/lib/db/types';
 
@@ -52,6 +53,7 @@ export const BUNDLED_APP_MANIFESTS: BundledManifestSpec[] = [
   manifestEntry('music-creator', musicCreatorManifest),
   manifestEntry('music-player', musicPlayerManifest),
   manifestEntry('voice-recorder', voiceRecorderManifest),
+  manifestEntry('sheet', sheetManifest),
 ];
 
 /**
