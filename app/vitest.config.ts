@@ -19,7 +19,14 @@ export default defineConfig({
   test: {
     environment: "happy-dom",
     globals: false,
-    include: ["src/**/*.test.ts", "src/**/*.test.tsx"],
+    include: [
+      "src/**/*.test.ts",
+      "src/**/*.test.tsx",
+      // Pick up tests inside workspace packages so we don't need a
+      // second vitest setup per package.
+      "../packages/*/src/**/*.test.ts",
+      "../packages/*/test/**/*.test.ts",
+    ],
     setupFiles: ["./src/test/setup.ts"],
   },
 });
