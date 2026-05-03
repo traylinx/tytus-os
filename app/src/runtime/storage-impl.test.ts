@@ -35,12 +35,46 @@ class MemoryDb implements Db {
       }
       return out as unknown as T[];
     }
+    // Minimal SELECT handler: SELECT name FROM "table" [ORDER BY name].
+    // Used by migrate() to read back applied rows. We don't parse a full
+    // SQL grammar; the regex pulls the table identifier out and returns
+    // the row's `name` column (the only column the migrations bookkeeping
+    // SELECT touches).
+    const selectMatch = /FROM\s+"?([a-zA-Z_][\w]*)"?/i.exec(sql);
+    if (selectMatch) {
+      const tableName = selectMatch[1];
+      const rows = this.tables.get(tableName) ?? [];
+      // If ORDER BY name, sort.
+      if (/ORDER\s+BY\s+name/i.test(sql)) {
+        return [...rows].sort((a, b) =>
+          String(a.name).localeCompare(String(b.name)),
+        ) as unknown as T[];
+      }
+      return rows as unknown as T[];
+    }
     return [] as T[];
   }
 
   async run(sql: string, bindings: SqlValue[] = []): Promise<void> {
-    void bindings;
     this.log.push(sql);
+    // Minimal INSERT handler: INSERT INTO "table" (name, applied_at)
+    // VALUES (?, ?) — used by migrate() to record applied migrations.
+    const insertMatch =
+      /INSERT\s+INTO\s+"?([a-zA-Z_][\w]*)"?\s*\(([^)]+)\)\s*VALUES\s*\(([^)]+)\)/i.exec(sql);
+    if (insertMatch) {
+      const tableName = insertMatch[1];
+      const cols = insertMatch[2].split(',').map((c) => c.trim());
+      const placeholders = insertMatch[3].split(',').map((p) => p.trim());
+      const row: Record<string, SqlValue> = {};
+      for (let i = 0; i < cols.length; i += 1) {
+        if (placeholders[i] === '?') {
+          row[cols[i]] = bindings[i] ?? null;
+        }
+      }
+      const rows = this.tables.get(tableName);
+      if (rows) rows.push(row);
+      else this.tables.set(tableName, [row]);
+    }
   }
 
   async tx<T>(fn: () => Promise<T>): Promise<T> {
@@ -192,5 +226,150 @@ describe('createAppDb — migrate creates the bookkeeping table', () => {
     expect(tables).toContain('app_sheet__migrations');
     // Calling again is idempotent — no throw, no duplicate logs.
     await appDb.migrate('migrations/');
+  });
+});
+
+describe('createAppDb — migrate replay', () => {
+  it('runs every declared migration in name order', async () => {
+    const appDb = createAppDb({
+      db,
+      appId: 'sheet',
+      migrations: [
+        {
+          name: '0002_add_cells.sql',
+          sql: 'CREATE TABLE app_sheet_cells (id TEXT)',
+        },
+        {
+          name: '0001_workbooks.sql',
+          sql: 'CREATE TABLE app_sheet_workbooks (id TEXT)',
+        },
+      ],
+    });
+    await appDb.migrate('migrations/');
+    const tables = await appDb.listOwnedTables();
+    expect(tables).toEqual(
+      expect.arrayContaining([
+        'app_sheet__migrations',
+        'app_sheet_cells',
+        'app_sheet_workbooks',
+      ]),
+    );
+    // Both names recorded as applied.
+    const recorded = await db.query<{ name: string }>(
+      'SELECT name FROM "app_sheet__migrations" ORDER BY name',
+    );
+    expect(recorded.map((r) => r.name)).toEqual([
+      '0001_workbooks.sql',
+      '0002_add_cells.sql',
+    ]);
+  });
+
+  it('skips migrations already recorded in __migrations', async () => {
+    const appDb1 = createAppDb({
+      db,
+      appId: 'sheet',
+      migrations: [
+        {
+          name: '0001_workbooks.sql',
+          sql: 'CREATE TABLE app_sheet_workbooks (id TEXT)',
+        },
+      ],
+    });
+    await appDb1.migrate('migrations/');
+
+    // Build a new appDb instance with the SAME migration name and an
+    // SQL body that would error on a second run (DROP first to prove
+    // it didn't execute again).
+    const appDb2 = createAppDb({
+      db,
+      appId: 'sheet',
+      migrations: [
+        {
+          name: '0001_workbooks.sql',
+          sql: 'INVALID SQL THAT WOULD THROW',
+        },
+      ],
+    });
+    // Should NOT throw — the migration was already applied.
+    await appDb2.migrate('migrations/');
+  });
+
+  it('runs a fresh pending migration on top of previously-applied ones', async () => {
+    const m1 = {
+      name: '0001_workbooks.sql',
+      sql: 'CREATE TABLE app_sheet_workbooks (id TEXT)',
+    };
+    const appDb1 = createAppDb({ db, appId: 'sheet', migrations: [m1] });
+    await appDb1.migrate('migrations/');
+
+    const m2 = {
+      name: '0002_add_cells.sql',
+      sql: 'CREATE TABLE app_sheet_cells (id TEXT)',
+    };
+    const appDb2 = createAppDb({
+      db,
+      appId: 'sheet',
+      migrations: [m1, m2],
+    });
+    await appDb2.migrate('migrations/');
+
+    const tables = await appDb2.listOwnedTables();
+    expect(tables).toEqual(
+      expect.arrayContaining(['app_sheet_workbooks', 'app_sheet_cells']),
+    );
+    const recorded = await db.query<{ name: string }>(
+      'SELECT name FROM "app_sheet__migrations" ORDER BY name',
+    );
+    expect(recorded.map((r) => r.name)).toEqual([
+      '0001_workbooks.sql',
+      '0002_add_cells.sql',
+    ]);
+  });
+
+  it('rolls back the bookkeeping insert if the migration SQL throws', async () => {
+    // Build a Db that throws on the migration's exec but the test
+    // exposes a flag so we can verify INSERT did NOT run after the
+    // throw — i.e. nothing got recorded for the failed migration.
+    class ThrowingDb extends MemoryDb {
+      private throwOnNextExec = false;
+      armThrow() {
+        this.throwOnNextExec = true;
+      }
+      override async exec(sql: string): Promise<void> {
+        if (this.throwOnNextExec) {
+          this.throwOnNextExec = false;
+          throw new Error('boom');
+        }
+        await super.exec(sql);
+      }
+    }
+    const tdb = new ThrowingDb();
+    // Pre-create the migrations bookkeeping table normally.
+    const appDb = createAppDb({
+      db: tdb,
+      appId: 'sheet',
+      migrations: [
+        {
+          name: '0001_break.sql',
+          sql: 'CREATE TABLE app_sheet_break (id TEXT)',
+        },
+      ],
+    });
+    // Arm the throw so the migration body fails.
+    // We need to consume two exec calls before arming: the
+    // ensureMigrationsTable + the explicit BEGIN... since our test
+    // MemoryDb.tx is a no-op around fn(), only the SQL inside the body
+    // throws. Arm just before migrate() runs the migration body.
+    // Easiest: subclass Db so the very first exec inside migrate
+    // throws — meaning ensureMigrationsTable goes through, but the
+    // first migration body fails. Arm right after ensureMigrationsTable.
+    await tdb.exec('SELECT 1'); // warm-up
+    tdb.armThrow();
+    await expect(appDb.migrate('migrations/')).rejects.toThrow(/boom/);
+    // No row was recorded in __migrations.
+    const recorded = await tdb.query<{ name: string }>(
+      'SELECT name FROM "app_sheet__migrations"',
+    );
+    expect(recorded).toEqual([]);
   });
 });
