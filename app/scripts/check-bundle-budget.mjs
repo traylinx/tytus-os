@@ -5,21 +5,26 @@
  * Walks `dist/**` for the host bundle's JS chunks (excluding source
  * maps), gzips each, and reports per-file sizes plus the total. The
  * goal: keep the host boot bundle ≤ 150 KB gzip by the end of the
- * sprint (currently ~649 KB; the loader + per-app extraction in
- * M3-M7 shrinks it).
+ * sprint (currently ~2.7 MB raw / hundreds of KB gzip; the loader +
+ * per-app extraction in M3-M7 shrinks it).
  *
  * Behavior:
  *   warn  ≥ WARN_BYTES (default 140 KB)
  *   fail  ≥ HARD_BYTES (default 150 KB) when --strict is set;
  *         otherwise prints a warning but exits 0.
  *
- * M5 flips `--strict` on by default + wires this into CI. Until then
- * the script reports without gating so M2-M4 can iterate without
- * tripping the budget every commit.
+ * Strict mode (M5.3 — the CI gate). Pass `--strict` on the CLI OR
+ * set `TYTUS_BUNDLE_STRICT=1` in the environment. Either form makes
+ * the script `process.exit(1)` on overage, with a per-offender block
+ * that names every entry over the hard budget plus the host total
+ * and overage. Without strict, behaviour is unchanged: warn-only,
+ * exit 0. M5 flips strict on by default in CI via the
+ * `audit:bundle-strict` npm script.
  *
  * Usage:
  *   node scripts/check-bundle-budget.mjs              # report only
  *   node scripts/check-bundle-budget.mjs --strict     # fail at HARD_BYTES
+ *   TYTUS_BUNDLE_STRICT=1 node scripts/check-bundle-budget.mjs  # env equivalent
  *   node scripts/check-bundle-budget.mjs --json       # machine output
  *   node scripts/check-bundle-budget.mjs --dist=PATH  # custom dist root
  */
@@ -32,7 +37,8 @@ const WARN_BYTES = 140 * 1024;
 const HARD_BYTES = 150 * 1024;
 
 const argv = process.argv.slice(2);
-const strict = argv.includes('--strict');
+const strict =
+  argv.includes('--strict') || process.env.TYTUS_BUNDLE_STRICT === '1';
 const jsonOutput = argv.includes('--json');
 const distArg = argv.find((a) => a.startsWith('--dist='));
 const distRoot = distArg ? distArg.slice('--dist='.length) : 'dist';
@@ -138,7 +144,9 @@ function main() {
     process.stdout.write(`Bundle budget — host boot bundle\n`);
     process.stdout.write(`  Warn at: ${fmt(WARN_BYTES)}\n`);
     process.stdout.write(`  Hard at: ${fmt(HARD_BYTES)}\n`);
-    process.stdout.write(`  Strict:  ${strict ? 'yes' : 'no (M5 flips on)'}\n\n`);
+    process.stdout.write(
+      `  Strict:  ${strict ? 'yes' : 'no (M5 flips on)'}\n\n`,
+    );
     const sorted = entries.sort((a, b) => b.gzip - a.gzip);
     for (const e of sorted) {
       const tag = e.kind === 'sqlite' ? '(sqlite — excluded)' : `(${e.kind})`;
@@ -151,10 +159,31 @@ function main() {
   }
 
   if (verdict === 'over-hard') {
+    const overage = totalGz - HARD_BYTES;
     process.stderr.write(
-      `\n[bundle-budget] OVER HARD LIMIT (${fmt(totalGz)} > ${fmt(HARD_BYTES)})\n`,
+      `\n[bundle-budget] OVER HARD LIMIT — host total ${fmt(totalGz)} gzip` +
+        ` exceeds budget ${fmt(HARD_BYTES)} by ${fmt(overage)}\n`,
     );
-    if (strict) process.exit(1);
+    // Itemise every host entry so CI logs name the offenders directly.
+    const offenders = hostEntries
+      .filter((e) => e.gzip > 0)
+      .sort((a, b) => b.gzip - a.gzip);
+    for (const e of offenders) {
+      process.stderr.write(
+        `  - ${e.path} (${e.kind}): ${fmt(e.gzip)} gzip / ${fmt(e.raw)} raw\n`,
+      );
+    }
+    process.stderr.write(
+      `  budget=${HARD_BYTES} bytes (${fmt(HARD_BYTES)})` +
+        ` actual=${totalGz} bytes (${fmt(totalGz)})` +
+        ` overage=${overage} bytes (${fmt(overage)})\n`,
+    );
+    if (strict) {
+      process.stderr.write(
+        `[bundle-budget] strict mode active — failing build.\n`,
+      );
+      process.exit(1);
+    }
   } else if (verdict === 'over-warn') {
     process.stderr.write(
       `\n[bundle-budget] over warn threshold (${fmt(totalGz)} > ${fmt(WARN_BYTES)})\n`,
