@@ -65,6 +65,14 @@ export interface AppDbDeps {
    *  name (e.g. `app_voice_recorder_recordings`); those names are
    *  added to the allow-list at install time. M3 PR2+ wires this. */
   sharedTableNames?: string[];
+  /**
+   * Migrations the app declares in its manifest. The shell resolves
+   * the manifest's `storage.tables[].schema` paths to (name, sql) at
+   * install time and passes the list through. `migrate()` replays
+   * each in order, skipping ones already recorded in
+   * `app_<sqlAppId>__migrations`. Tests pass the array directly.
+   */
+  migrations?: Array<{ name: string; sql: string }>;
 }
 
 export function createAppDb(deps: AppDbDeps): AppDb {
@@ -121,13 +129,45 @@ export function createAppDb(deps: AppDbDeps): AppDb {
     },
 
     async migrate(migrationsDir: string): Promise<void> {
-      // The `migrationsDir` argument names a path relative to the app
-      // bundle; the shell resolves this to a list of (name, sql) pairs
-      // in M3 PR2+ (host.assets-backed glob). Today we no-op — apps
-      // don't have migrations files to run yet. listOwnedTables() and
-      // run/query work against any tables the app creates ad-hoc.
+      // The migrationsDir argument is informational — the actual
+      // migration list comes from the shell-injected `migrations` deps,
+      // which the shell resolves from the app manifest's
+      // storage.tables[].schema paths at install time. Tests pass
+      // the array directly.
       void migrationsDir;
       await ensureMigrationsTable();
+      const list = deps.migrations ?? [];
+      if (list.length === 0) return;
+
+      // Sort by name lexicographically so 0001_x.sql runs before
+      // 0002_y.sql regardless of the order the manifest happened to
+      // list them in.
+      const sorted = [...list].sort((a, b) => a.name.localeCompare(b.name));
+
+      // Capture which migrations have already run so we don't replay.
+      const applied = new Set(
+        (
+          await db.query<{ name: string }>(
+            `SELECT name FROM "${migrationsTableName}"`,
+          )
+        ).map((r) => r.name),
+      );
+
+      // Replay each pending migration inside a transaction so failure
+      // rolls back. Migrations that touch other apps' tables would be
+      // rejected by the prefix guard, but migrations bypass the guard
+      // by construction — they're install-time admin operations the
+      // shell trusts. We use db.exec directly (no enforcePrefix).
+      for (const m of sorted) {
+        if (applied.has(m.name)) continue;
+        await db.tx(async () => {
+          await db.exec(m.sql);
+          await db.run(
+            `INSERT INTO "${migrationsTableName}" (name, applied_at) VALUES (?, ?)`,
+            [m.name, Date.now()],
+          );
+        });
+      }
     },
 
     async listOwnedTables(): Promise<string[]> {
