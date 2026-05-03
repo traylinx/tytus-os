@@ -80,7 +80,12 @@ export type {
   MicrophoneStream,
   AssetsApi,
 } from './client';
-export { makeHostForApp, useHost } from './client';
+// makeHostForApp + useHost are forward-declared in client.ts but
+// implemented host-side in app/src/runtime/host-impl.ts. They MUST
+// be imported from the host package, not from @tytus/host-api —
+// re-exporting them here would yield a runtime "module does not
+// provide export" error in dev (Vite can't resolve a `declare`
+// to a real value).
 
 export {
   PermissionDeniedError,
