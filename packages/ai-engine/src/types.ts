@@ -16,7 +16,7 @@ import type {
   TransactionOutcome,
 } from '@tytus/host-api';
 
-export type { AppMode, SendRequest, Session, ToolDef, TransactionOutcome };
+export type { AppMode, HostClient, SendRequest, Session, ToolDef, TransactionOutcome };
 
 /** Cursor position in a text buffer. Offset-based (UTF-16 code units, matching
  *  the DOM Selection API). */
