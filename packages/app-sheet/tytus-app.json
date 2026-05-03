@@ -26,6 +26,14 @@
       {
         "name": "ai_usage",
         "schema": "migrations/0001_ai_usage.sql"
+      },
+      {
+        "name": "cells",
+        "schema": "migrations/0002_cells.sql"
+      },
+      {
+        "name": "sheets",
+        "schema": "migrations/0002_cells.sql"
       }
     ]
   },
