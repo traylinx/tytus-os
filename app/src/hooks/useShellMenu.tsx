@@ -43,6 +43,16 @@ export const useRegisteredShellMenu = (windowId: string | null | undefined): She
 };
 
 /**
+ * Imperative register/unregister handles for non-React callers
+ * (HostBridgeWiring routes the per-app `host.shellMenu.register(spec)`
+ * call through these). Returns null outside the provider.
+ */
+export const useShellMenuActions = () => {
+  const ctx = useContext(ShellMenuContext);
+  return ctx ? { register: ctx.register, unregister: ctx.unregister } : null;
+};
+
+/**
  * Future app seam: call from an app rendered inside WindowFrame to replace
  * the default registry menu with live, app-state-aware menu groups.
  */
