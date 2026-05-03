@@ -93,3 +93,26 @@ export { loadPrompt, parsePromptDocument, promptPath } from './prompts';
 
 export type { ContextTrimResult, ContextTurn, SummaryFn } from './context';
 export { trimContext } from './context';
+
+export type { ToolRegistry } from './tools/registry';
+export { createToolRegistry } from './tools/registry';
+
+export type {
+  ConsentScope,
+  ConsentScopePreset,
+  FileRefReadFactoryOpts,
+} from './tools/common/fileRefRead';
+export {
+  classifyScope,
+  fileRefReadTool,
+  presetAutoApproves,
+} from './tools/common/fileRefRead';
+
+export type { WebFetchFactoryOpts } from './tools/common/webFetch';
+export {
+  classifyUrl,
+  isAllowedContentType,
+  isPrivateIPv4,
+  isPrivateIPv6,
+  webFetchTool,
+} from './tools/common/webFetch';
