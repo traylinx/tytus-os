@@ -64,3 +64,16 @@ export type {
   TxCtx,
 } from './edits/transaction';
 export { TransactionRunner } from './edits/transaction';
+
+export type {
+  EngineEvent,
+  TokenEvent,
+  ToolCallEvent,
+  ToolResultEvent,
+  StagedPatchEvent,
+  DoneEvent,
+  ErrorEvent,
+} from './events';
+
+export type { ConsumeOptions, SsePodResponse } from './stream';
+export { consumeStream, parseSseEvent, streamFromStrings } from './stream';
