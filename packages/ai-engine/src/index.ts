@@ -33,6 +33,7 @@ export type {
 export type {
   Patch,
   PatchValidationIssue,
+  StudioBlockKind,
   TextReplacePatch,
   TextInsertPatch,
   TextDeletePatch,
@@ -44,6 +45,9 @@ export type {
   MemoReplacePatch,
   MemoMetadataPatchPatch,
   MemoLinkPatch,
+  StudioReplaceBlockPatch,
+  StudioInsertBlockPatch,
+  StudioDeleteBlockPatch,
   BrainAppendPatch,
 } from './edits/algebra';
 export {
@@ -116,6 +120,37 @@ export {
   isPrivateIPv6,
   webFetchTool,
 } from './tools/common/webFetch';
+
+// W6 PR-Studio-Engine (M6.x) — studio-specific tools.
+export type {
+  StudioReadDocumentArgs,
+  StudioReadDocumentFactoryOpts,
+  StudioReadDocumentResult,
+  StudioReadBlockArgs,
+  StudioReadBlockFactoryOpts,
+  StudioReadBlockResult,
+  StudioReplaceBlockArgs,
+  StudioReplaceBlockFactoryOpts,
+  StudioInsertBlockArgs,
+  StudioInsertBlockFactoryOpts,
+} from './tools/studio';
+export {
+  STUDIO_READ_DOCUMENT_TOOL_NAME,
+  STUDIO_READ_BLOCK_TOOL_NAME,
+  STUDIO_REPLACE_BLOCK_TOOL_NAME,
+  STUDIO_INSERT_BLOCK_TOOL_NAME,
+  studioReadDocumentTool,
+  studioReadBlockTool,
+  studioReplaceBlockTool,
+  studioInsertBlockTool,
+  parseStudioReadDocumentArgs,
+  parseStudioReadBlockArgs,
+  parseStudioReplaceBlockArgs,
+  parseStudioInsertBlockArgs,
+  readDocument,
+  readBlock,
+  makeStudioTools,
+} from './tools/studio';
 
 export type {
   ChatMessage,

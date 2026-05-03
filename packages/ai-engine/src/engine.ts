@@ -440,6 +440,9 @@ function previewKindForPatch(p: Patch): PreviewBlock['kind'] {
     case 'text.replace':
     case 'text.delete':
     case 'memo.replace':
+    case 'studio.replaceBlock':
+    case 'studio.insertBlock':
+    case 'studio.deleteBlock':
       return 'text-diff';
     case 'sheet.writeRange':
     case 'sheet.addSheet':
@@ -482,6 +485,12 @@ function previewSummaryForPatch(p: Patch): string {
       return `Create file ${p.name}`;
     case 'brain.append':
       return `Append to Brain`;
+    case 'studio.replaceBlock':
+      return `Replace block with ${p.newText.length} chars`;
+    case 'studio.insertBlock':
+      return `Insert ${p.block.kind} block`;
+    case 'studio.deleteBlock':
+      return `Delete block`;
   }
 }
 
