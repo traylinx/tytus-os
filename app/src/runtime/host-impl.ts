@@ -48,6 +48,8 @@ import {
 
 import type { EntryUrls } from './loader';
 import { createLocalStorageFs } from './host-fs-localstorage';
+import { createAppDb } from './storage-impl';
+import { getDb } from '@/lib/db';
 
 const ASSET_SIZE_LIMIT_BYTES = 1024 * 1024; // 1 MB per spec.
 
@@ -281,17 +283,26 @@ function makeStubShellMenuApi(): ShellMenuApi {
   };
 }
 
-/** Build a stub storage namespace. M3 wires per-app SQLite + the
- *  prefix guard against the existing lib/db/ worker. */
-function makeStubStorageApi(appId: string): StorageApi {
-  const stubDb: AppDb = {
-    run: notImpl('storage.current().run', 'M3'),
-    query: notImpl('storage.current().query', 'M3'),
-    migrate: notImpl('storage.current().migrate', 'M3'),
-    listOwnedTables: notImpl('storage.current().listOwnedTables', 'M3'),
+/** Build the storage namespace bound to the given appId.
+ *  M3: real per-app AppDb backed by the live SQLite worker, with the
+ *  prefix guard enforcing physical-name discipline. The host.fs side
+ *  is independent (localStorage-backed for M1; OPFS lift in M7). */
+function makeStorageApi(appId: string): StorageApi {
+  const lazyAppDb = (): AppDb => {
+    const db = getDb();
+    if (!db) {
+      // Engine code paths through createSession ensure the boot
+      // sequence has called initDb() before any tool execute fires.
+      // Tests inject via setDbForTesting. If neither: throw with a
+      // clear hint; never hand back a partial AppDb.
+      throw new Error(
+        `host.storage.current(): SQLite DB not initialized yet. Call initDb() at boot or setDbForTesting() in tests.`,
+      );
+    }
+    return createAppDb({ db, appId });
   };
   return {
-    current: () => stubDb,
+    current: () => lazyAppDb(),
     forApp: () => {
       throw new Error(
         `host.storage.forApp is not callable from app code — privileged path only. App "${appId}" attempted.`,
@@ -329,7 +340,7 @@ export function makeHostForApp(
     notifications: makeNotificationsApi(appId),
     shellMenu: makeStubShellMenuApi(),
     i18n: makeI18nApi(),
-    storage: makeStubStorageApi(appId),
+    storage: makeStorageApi(appId),
     events: getShellEventBus(),
     media: makeStubMediaApi(),
     assets: makeAssetsApi(appId, entryUrls.assets),

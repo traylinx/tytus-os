@@ -152,7 +152,9 @@ describe('fileRefReadTool', () => {
       }),
     ).rejects.toThrow(/declined/);
     expect(requestApproval).toHaveBeenCalled();
-    expect(requestApproval.mock.calls.at(0)?.[0]).toBe('sibling');
+    expect(
+      (requestApproval.mock.calls.at(0) as unknown[] | undefined)?.[0],
+    ).toBe('sibling');
   });
 
   it('auto-approves sibling reads under doc-and-siblings', async () => {
@@ -185,7 +187,9 @@ describe('fileRefReadTool', () => {
       approvalAlreadyGranted: false,
     });
     expect(requestApproval).toHaveBeenCalled();
-    expect(requestApproval.mock.calls.at(0)?.[0]).toBe('other');
+    expect(
+      (requestApproval.mock.calls.at(0) as unknown[] | undefined)?.[0],
+    ).toBe('other');
   });
 
   it('respects approvalAlreadyGranted to skip the chip', async () => {
