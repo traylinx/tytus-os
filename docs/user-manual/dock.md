@@ -1,55 +1,44 @@
 # Dock
 
-The dock is the floating bar at the bottom-center of the screen. It is lifted 6 px from the viewport edge so it visually floats — the rounded corners on all four sides are intentional, not a clip.
+The dock is the floating app bar at the bottom-center of the screen. It launches Tytus apps and shows running-window state.
 
-```
-┌─────────────────────────────────────────────────────┐
-│  ⊞ │ 📦 ⚙️ 💬 📁 ✈️ ⌨ │ 🌐 │ 🗑️                    │
-└─────────────────────────────────────────────────────┘
-   1     2 - 7        8     9
-```
+## Default pins
 
-1. **Show Applications** — opens the app launcher (same as ⌘ key)
-2-7. **Pinned apps** — Pod Inspector, Settings, Chat, Files, Channels, Terminal (default)
-8. **Open unpinned apps** — appear here while running, vanish when closed
-9. **Trash**
+Typical production pins:
+
+1. Show Applications
+2. Pod Inspector
+3. Channels
+4. System Settings
+5. Files
+6. Terminal
+7. Chat
+8. Running/unpinned apps
+9. Trash
+
+The exact order can change by release; the behavior is stable.
 
 ## Active indicator
 
-Open apps show a small dot near the bottom of their icon (inside the dock — never clipped at the viewport edge):
-- **Accent-colored dot** (purple by default) when the window is focused
-- **Grey dot** when open but not focused
-- **No dot** when no window of that app is open
+Open apps show a small dot inside the dock:
+
+- Accent dot: focused app
+- Grey/subtle dot: open but not focused
+- No dot: no window open
 
 ## Click behavior
 
-- **No window open** → opens a new window (icon bounces 400 ms)
-- **Window minimized** → restores and focuses it
-- **Window already open** → focuses it
-- **Multiple windows** → focuses the most-recently-active one
+| State | Click result |
+|---|---|
+| No window open | Opens the app |
+| Window minimized | Restores and focuses it |
+| Window already open | Focuses most recent window |
+| Multiple windows | Focuses most-recently-active window |
 
-## Hover
+## Customization
 
-Hover any icon to see its name in a tooltip above the dock.
+Use **Settings -> Dock** for size, position, auto-hide, order reset, and future pinning controls.
 
 ## Trash
 
-Click to open Files (placeholder — will become the recoverable Trash app in a later phase).
-
-## Customizing pins
-
-Today the pinned set is fixed in code (`getDefaultDockApps()` in `app/src/apps/registry.ts`). User-configurable pinning ships in a later phase.
-
-To change the defaults right now, edit:
-
-```ts
-// app/src/apps/registry.ts
-export const getDefaultDockApps = (): string[] => [
-  'pod-inspector',
-  'settings',
-  'chat',
-  'filemanager',
-  'channels',
-  'terminal',
-];
-```
+Trash is a product affordance, not a fake animation. File deletion/recovery belongs to Files and must respect root-anchored source safety.

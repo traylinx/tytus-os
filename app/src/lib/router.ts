@@ -9,6 +9,9 @@
 //   #/pod/02/uninstall?confirm=1
 //   #/settings                   → settings root
 //   #/settings/daemon            → settings sub-section
+//   #/help                       → Help app (default doc)
+//   #/help/keyboard-shortcuts    → Help app, specific user-manual page
+//   #/help/doctor                → Help app, diagnostic tab
 //   #/                           → home (also empty hash)
 //
 // `?n=<nanos>` is appended by the tray on every click so the browser
@@ -28,6 +31,12 @@ export type Route =
   | {
       kind: "settings";
       section: string | null;
+      params: URLSearchParams;
+    }
+  | {
+      kind: "help";
+      /** Tab id — diagnostic name OR user-manual doc slug. Empty for default. */
+      tab: string | null;
       params: URLSearchParams;
     }
   | { kind: "unknown"; raw: string; params: URLSearchParams };
@@ -66,6 +75,13 @@ export const parseHash = (hash: string): Route => {
       params: query,
     };
   }
+  if (parts[0] === "help") {
+    return {
+      kind: "help",
+      tab: parts[1] ?? null,
+      params: query,
+    };
+  }
   return { kind: "unknown", raw: path, params: query };
 };
 
@@ -79,6 +95,8 @@ const routePath = (route: Route): string => {
       return `/pod/${route.podId}/${route.action}`;
     case "settings":
       return route.section ? `/settings/${route.section}` : "/settings";
+    case "help":
+      return route.tab ? `/help/${route.tab}` : "/help";
     case "unknown":
       return `/${route.raw.replace(/^\//, "")}`;
   }
@@ -91,6 +109,7 @@ const routeParams = (route: Route): URLSearchParams => {
     case "run":
     case "pod":
     case "settings":
+    case "help":
     case "unknown":
       return new URLSearchParams(route.params);
   }

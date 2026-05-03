@@ -109,12 +109,40 @@ export const shellTargetForRoute = (route: Route): ShellWindowTarget | null => {
         },
       };
 
+    case "help": {
+      // Diagnostic tab ids stay literal; anything else is treated as a
+      // user-manual doc slug, prefixed with `docs:` so the Help app
+      // resolves it through the bundled docs registry.
+      const DIAG = new Set([
+        "doctor",
+        "test",
+        "logs",
+        "about",
+        "channels-catalog",
+      ]);
+      const tab = route.tab;
+      const tabId = tab
+        ? DIAG.has(tab)
+          ? (tab as "doctor" | "test" | "logs" | "about" | "channels-catalog")
+          : (`docs:${tab}` as `docs:${string}`)
+        : undefined;
+      return {
+        appId: "help",
+        args: {
+          routeNonce: routeNonce(route),
+          help: tabId ? { tab: tabId } : undefined,
+        },
+      };
+    }
+
     case "unknown": {
       const legacy: Record<string, ShellWindowTarget> = {
         chat: { appId: "chat" },
         files: { appId: "filemanager" },
         channels: { appId: "channels" },
-        help: { appId: "help", args: { help: { tab: "doctor" } } },
+        // Legacy plain `#help` lands on the Help app's default doc;
+        // the app picks the first user-manual entry from the registry.
+        help: { appId: "help" },
       };
       return legacy[route.raw] ?? null;
     }

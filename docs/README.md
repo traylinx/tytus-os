@@ -1,59 +1,54 @@
-# Tytus OS Documentation
+# TytusOS Documentation
 
-Everything you need to use, understand, contribute to, or extend Tytus OS.
-
-The same files power the in-OS **Help** app — keep them parseable, voice-consistent, and self-contained.
+This folder documents the TytusOS desktop that ships with the `tytus` tray daemon. Keep these docs current with the live product, not the old Tower or early demo-OS skeleton.
 
 ## User manual
-For people running Tytus OS.
 
 | Doc | What it covers |
 |---|---|
-| [getting-started.md](user-manual/getting-started.md) | First boot, login, the desktop |
-| [windows.md](user-manual/windows.md) | Drag, resize, close, minimize, maximize, Alt+Tab |
-| [desktop.md](user-manual/desktop.md) | Icons, drag, right-click, wallpaper |
-| [dock.md](user-manual/dock.md) | Pinning, indicators, restore from dock |
-| [launcher.md](user-manual/launcher.md) | App grid, search, categories, frequently used |
-| [keyboard-shortcuts.md](user-manual/keyboard-shortcuts.md) | Every shortcut in one table |
-| [settings.md](user-manual/settings.md) | Appearance, display, sound, power, accent color |
-| [apps-catalog.md](user-manual/apps-catalog.md) | All 52 built-in apps, one line each |
-| [troubleshooting.md](user-manual/troubleshooting.md) | Common issues + how to fix |
-| [about.md](user-manual/about.md) | What Tytus OS is, where it's going |
+| [getting-started.md](user-manual/getting-started.md) | Fresh install, sign-in, desktop, pods, first actions |
+| [settings.md](user-manual/settings.md) | Real Settings panels, session expiry, daemon recovery, updates |
+| [files.md](user-manual/files.md) | Tytus Home, shared folders, pod workspace, Inbox/Outbox/Downloads |
+| [troubleshooting.md](user-manual/troubleshooting.md) | Session, readiness, CORS, files, terminal, theme issues |
+| [about.md](user-manual/about.md) | Product positioning, naming, install surfaces |
+| [windows.md](user-manual/windows.md) | Window controls |
+| [desktop.md](user-manual/desktop.md) | Desktop icons and wallpaper |
+| [dock.md](user-manual/dock.md) | Dock behavior |
+| [launcher.md](user-manual/launcher.md) | Launcher behavior |
+| [keyboard-shortcuts.md](user-manual/keyboard-shortcuts.md) | Keyboard reference |
+| [apps-catalog.md](user-manual/apps-catalog.md) | App list. Keep demo apps clearly marked. |
 
 ## Architecture
-For contributors and curious users.
 
 | Doc | What it covers |
 |---|---|
-| [overview.md](architecture/overview.md) | Stack, directory map, who-talks-to-whom |
-| [state-management.md](architecture/state-management.md) | `useOSStore`, reducer, contexts, persistence |
-| [windowing.md](architecture/windowing.md) | `WindowFrame`, `WindowManager`, drag/resize internals |
-| [app-system.md](architecture/app-system.md) | Registry contract, `AppRouter`, `AppPlaceholder` |
-| [theming.md](architecture/theming.md) | CSS variables, dark/light, accent colors |
+| [overview.md](architecture/overview.md) | Stack, directory map, daemon relationship |
+| [state-management.md](architecture/state-management.md) | Client state, persistence, daemon state |
+| [windowing.md](architecture/windowing.md) | Window manager internals |
+| [app-system.md](architecture/app-system.md) | App registry and routing |
+| [theming.md](architecture/theming.md) | Shared CSS tokens for dark/light/accent |
 
 ## Development
-For people working on Tytus OS itself.
 
 | Doc | What it covers |
 |---|---|
-| [contributing.md](development/contributing.md) | Style, commits, PRs |
-| [adding-an-app.md](development/adding-an-app.md) | Step-by-step: from icon to dispatch |
-| [testing.md](development/testing.md) | `npm run test:smoke` + the 52-app sweep |
-| [roadmap.md](development/roadmap.md) | The 6-phase strangler-port plan into Tytus daemon |
+| [contributing.md](development/contributing.md) | Style and PR conventions |
+| [adding-an-app.md](development/adding-an-app.md) | App registration and menu integration |
+| [testing.md](development/testing.md) | Test/type/lint/build gates |
+| [user-manual.md](development/user-manual.md) | How Help docs, markdown registry, and CLI os-docs bundling work |
+| [roadmap.md](development/roadmap.md) | Migration roadmap. Treat old Tower references as historical unless explicitly marked active. |
 
-## Reference
-- [INTEGRATION-DEEPDIVE.md](../INTEGRATION-DEEPDIVE.md) — original architecture decision (Tytus Tower → Tytus OS migration)
-- [GitHub repo](https://github.com/traylinx/tytus-os) (private)
+## Bundled docs
 
-## Bundled into tytus-cli
+The `tytus-cli` repo owns the AI-facing bundled manual:
 
-This entire `user-manual/` folder is concatenated into `tytus-cli/os-docs.md` and embedded into the `tytus` binary at build time. The same content is exposed three ways for AI agents (Claude Code, OpenCode, Gemini, Codex, Cursor, Vibe, Aider, Archon):
+- `tytus os-docs`
+- `tytus link [DIR]`
+- `tytus_os_docs` MCP tool
 
-- `tytus os-docs` — prints the bundled manual to stdout
-- `tytus link [DIR]` — drops the manual as `.tytus/os-manual.md` in the target project
-- `tytus_os_docs` MCP tool — same content over MCP (auto-allowed in injected `.mcp.json`)
+When user behavior changes here, follow [development/user-manual.md](development/user-manual.md), then update the CLI manual and central handbook too:
 
-When markdown files in `user-manual/` change, regenerate the bundle:
-```bash
-cd ../../tytus-cli && ./scripts/regen-os-docs.sh
-```
+- `services/tytus-cli/os-docs.md`
+- `services/tytus-cli/docs/guides/tytus-ecosystem.md`
+- `~/Documents/TYTUS-OS/USER-GUIDE.md`
+- `~/Documents/TYTUS-OS/MIGRATION-TEST-MANUAL.md`

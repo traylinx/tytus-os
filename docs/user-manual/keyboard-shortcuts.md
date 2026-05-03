@@ -1,6 +1,6 @@
 # Keyboard Shortcuts
 
-Every shortcut Tytus OS responds to today.
+Every shortcut TytusOS responds to today.
 
 > **Note on Cmd vs Ctrl.** Tytus uses a single binding string `Mod+<key>`
 > internally — `Mod` resolves to `Cmd` on macOS and `Ctrl` on Linux/Windows.
@@ -62,7 +62,7 @@ These apps have their own keyboard shortcuts inside their windows — check each
 
 ## OS reservations
 
-A handful of combos are intercepted before Tytus OS sees them:
+A handful of combos are intercepted before TytusOS sees them:
 
 - `Cmd+Tab` — handled by macOS itself (system app switcher). Tytus ships **Alt+Tab** as the in-OS alternative.
 - `Cmd+R` / `F5` — reloads the page (you'll lose unsaved app state).

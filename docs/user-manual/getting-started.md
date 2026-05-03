@@ -1,98 +1,81 @@
 # Getting Started
 
-Tytus OS is a web-based desktop. It runs entirely in your browser and looks like a real operating system: boot screen, login, desktop, dock, draggable windows, app launcher, notifications.
+TytusOS is the desktop for your private AI pods. It runs in a browser tab or installed web app, but the data and control plane come from the local `tytus` tray daemon.
 
-## First launch
+## Install path
+
+Fresh machine flow:
+
+1. Install `tytus` for your OS.
+2. Start the tray daemon.
+3. Sign in once from the tray or TytusOS login screen.
+4. Allocate a pod or use the included All LLM Gateway.
+5. Use Files, Channels, Pod Inspector, Terminal, and apps from TytusOS.
+
+Typical commands during development/support:
 
 ```bash
-cd app
-npm install
-npm run dev
+tytus setup
+tytus tray start
+tytus open
 ```
 
-Open **http://localhost:4242** in your browser.
+## First screen
 
-You'll see four phases:
+If you are not signed in, TytusOS shows **Sign in to Tytus**. The button opens the normal one-time browser sign-in flow. After approval, the screen refreshes automatically.
 
-1. **Boot** (~4s) — black screen with the Tytus OS logo (purple/orange/pink dual orb), then a progress bar, then a circle-iris transition reveals the wallpaper.
-2. **Login** — blurred wallpaper with a centered card. Click **Unlock** (any password works at this stage) or **Log in as Guest**.
-3. **Desktop** — wallpaper, top panel, icons on the left, dock at the bottom.
-4. **Apps** — click any icon or use the launcher.
+If the top bar says **Session expired**, your pods are still running. Open **Settings -> Daemon** and choose **Sign in again**.
 
-## The desktop in 30 seconds
+## Desktop basics
 
-- **Top panel** (28 px tall) — `Apps` button on the left, clock + date in the middle, system tray on the right (Wi-Fi, volume, battery, power menu). Buttons are 24 px tall so the hover background stays inside the panel.
-- **Wallpaper** — replaceable from Settings → Background.
-- **Desktop icons** — 8 by default (Pods, Files, Terminal, Settings, Chat, Channels, Browser, Help). Drag to rearrange (snaps to 80×90 grid). Right-click for the context menu.
-- **Dock** (bottom-center) — floats 6 px from the viewport with rounded corners on all four sides. Apps grid button on the far left, then 6 pinned apps, then any unpinned-but-open apps, then the trash. Open apps show a small dot near the bottom of their icon (inside the dock).
+- Left top bar: Tytus app icon and context-aware app menu.
+- Right top bar: daemon/session status, pod count, included gateway, notifications, date/time.
+- Left desktop icons: product surfaces such as Pod Inspector, Channels, Settings, Files, Terminal, Browser.
+- Bottom dock: pinned apps and running apps.
+- Windows: drag, resize, focus, minimize, maximize, close.
 
-## Opening an app
+## First useful actions
 
-Three ways:
-
-1. **Double-click** any desktop icon
-2. **Click** any dock icon
-3. **Press the Super key** (⌘ on Mac, Win on Windows/Linux) to open the app launcher → search or click
-
-The app opens in a draggable window in the middle of the screen.
-
-## Closing an app
-
-- Click the **×** (close) button in the window's title bar
-- Or press **Ctrl+W** while the window is focused
-
-## Keyboard shortcuts (the essentials)
-
-| Shortcut | Action |
+| Need | Open |
 |---|---|
-| **⌘+Space** | Toggle app launcher |
-| **⌘+W** | Close focused window |
-| **⌘+Q** | Close every window of the focused app |
-| **⌘+Z** | Undo the last file operation |
-| **⌘+D** | Minimize all windows |
-| **Alt+Tab** | Switch between open windows |
-| **Ctrl+Alt+T** | Open Terminal |
-| **Esc** | Close launcher / notification center / any modal |
+| See pods and gateway URLs | Pod Inspector |
+| Copy OpenAI-compatible env vars | Pod Inspector -> Copy env |
+| Browse local workspace | Files -> Tytus Home |
+| Browse a pod workspace | Files -> Pod NN workspace |
+| Configure Telegram/Discord/Slack/etc. | Channels |
+| Fix expired login | Settings -> Daemon |
+| Check shared folders | Settings -> Sharing or Files -> Shared |
+| Run CLI commands | Terminal |
+| Change theme/wallpaper/dock | Settings -> Appearance / Background / Dock |
 
-Full reference: [keyboard-shortcuts.md](keyboard-shortcuts.md).
+## Tytus Home
 
-## Personalize Tytus in 90 seconds
+Tytus creates a user workspace at `~/Tytus` on install or first launch. It is the default terminal and file-browser home.
 
-Open **Settings** (dock icon or Apps → Settings):
+Default structure:
 
-1. **Appearance → Accent color** — click any swatch or pick a custom hex. The change ripples instantly across every app.
-2. **Appearance → Text size** — slider from 50% to 150%. Tytus rescales its rem-based layouts live.
-3. **Appearance → Light/dark schedule** — Manual / Always light / Always dark / Auto (light 06:00–18:00 local).
-4. **Appearance → Reduce motion** — flips off the open / close / snap animations. Tytus also auto-respects your OS preference.
-5. **Background → Wallpaper** — pick a bundled preset, upload your own, or set a solid color. Toggle "Match lock screen" if you want the lock/login surface to mirror your desktop.
-6. **Dock** — change Position (bottom / left / right), Size (small / medium / large), Auto-hide on/off. Drag-and-reorder dock apps directly in the Dock; **Reset Dock order** restores defaults.
-7. **Notifications → System sounds** — turn the chime on or off.
-8. **Privacy → Reset clipboard permission** — if Cmd+V isn't working after you previously denied it.
+```text
+~/Tytus/
+├── Downloads/
+├── Inbox/
+├── Logs/
+├── Outbox/
+├── Pods/
+├── Projects/
+├── Shared/
+└── README.md
+```
 
-Personalization survives reload (it's persisted via the same hydration/normalizer path as everything else).
+## What is real
 
-## Snap, paste, and drag
+Real production surfaces:
 
-- **Drag a window** near the **left** / **right** / **top** edge → translucent overlay shows where it'll snap. Release to commit. Drag away (~24 px) to restore the prior frame.
-- **Drag a file from the Files window** OUT to Finder (Chromium build) → file downloads on drop.
-- **Cmd+V on the Desktop** with an image on your host clipboard → Tytus saves it as `pasted-YYYYMMDD-HHMMSS.png`. First time prompts for permission; cache after.
-- **Drag a JULI3TA track** onto an open MusicPlayer window → playback starts.
+- Pod Inspector and included All LLM Gateway details
+- Pod allocation/install status and readiness checks
+- Files over Tytus Home, shared folders, and pod workspaces
+- Channels setup
+- Terminal backed by the host shell through the tray daemon
+- Settings for account, daemon, sharing, appearance, dock, language, privacy, updates
+- Music Creator and other Tytus apps that use the included gateway
 
-## What's not real (yet)
-
-Tytus OS today is a **shell** — it looks and feels like an OS, but most apps are visual placeholders or use fake (browser-local) data. The real magic lands when Tytus OS connects to your private AI pod via the `tytus-cli` daemon. That's the [phase plan](../development/roadmap.md).
-
-What *is* real today:
-- All window management (drag, resize, focus, min/max/restore, Alt+Tab)
-- Desktop icons + dock + launcher
-- Theme (dark/light, accent colors)
-- localStorage persistence for desktop layout, notes, todos, calendar events, etc.
-- API Tester actually sends real HTTP requests
-- Calculator, games, image/video viewers, code editor — all real and functional
-
-What's a placeholder:
-- Pod Inspector, Channels, Help (waiting for the pod backend)
-- Wi-Fi, Bluetooth toggles in Settings (decorative)
-- Terminal commands are simulated (real `tytus exec` arrives in Phase 6)
-
-Continue to [windows.md](windows.md) for window controls, or jump to the [apps catalog](apps-catalog.md) to see what's installed.
+Demo/optional apps may exist behind the demo-app toggle. They must not block core pod workflows.

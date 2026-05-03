@@ -1,54 +1,48 @@
 # Desktop
 
-The desktop is the area between the top panel and the dock. It hosts the wallpaper and your icons.
+The desktop is the space below the top menu bar and above the dock. It shows the active wallpaper and product shortcuts.
 
 ## Default icons
 
-8 shortcuts on the left:
+The default production shortcuts are Tytus surfaces, not fake OS controls:
 
-- **Pods** → Pod Inspector
-- **Files** → File Manager
-- **Terminal** → Terminal
-- **Settings** → System Settings
-- **Chat** → Chat
-- **Channels** → Channels
-- **Browser** → Browser
-- **Help** → Help
+- **Pod Inspector** — fleet, gateway, readiness, pod actions
+- **Channels** — messenger/channel setup
+- **System Settings** — account, daemon, sharing, theme, dock, updates
+- **Help** — user manual, troubleshooting, diagnostics
+- **Chat** — open agent chat surfaces
+- **Terminal** — host-backed Tytus terminal
+- **Files** — Tytus Home, shared folders, pod workspaces
+- **Browser** — registered web/app launchers
 
 ## Icon actions
 
 | Action | What happens |
 |---|---|
-| **Double-click** | Opens the app |
-| **Click and drag** | Moves the icon (snaps to 80 × 90 grid) |
-| **Right-click** | Context menu (Open / Cut / Copy / Rename / Move to Trash) |
-| **Single click** | Selects the icon (purple dashed outline) |
+| Double-click | Opens the app |
+| Click and drag | Moves the icon on the desktop grid |
+| Right-click | Opens the app/context menu when available |
+| Single click | Selects the icon |
 
-Icon positions persist in `localStorage` under the key `tytus_desktop_icons`. They survive page reload but reset if you clear browser data.
+Icon positions persist in browser storage and survive reloads.
 
-## Right-click on empty desktop
+## Empty desktop menu
+
+The desktop context menu should only expose actions backed by real product behavior:
 
 | Item | Action |
 |---|---|
-| **New Folder** | (placeholder) |
-| **New Document** | (placeholder) |
-| **Open in Terminal** | Launches Terminal |
-| **Change Background** | Launches Settings → Background |
-| **Arrange Icons** | Auto-aligns to grid |
-| **Display Settings** | Launches Settings → Display |
+| Open Terminal | Opens Terminal in `~/Tytus` |
+| Change Background | Opens Settings -> Background |
+| Arrange Icons | Aligns icons to the grid |
+| Open Help | Opens Help -> Getting Started |
+
+Do not add decorative Display/Wi-Fi/Bluetooth/Printer-style controls unless they are wired to real Tytus behavior.
 
 ## Wallpaper
 
-The default wallpaper is `/wallpaper-default.jpg` (a ~2 MB abstract image bundled with the app). Change it from **Settings → Background**.
-
-The wallpaper is rendered as a fixed-position layer behind everything. It scrolls with the desktop and is covered by windows + dock.
-
-## Selection
-
-Click an icon to select it; click empty desktop space to deselect. Selected icons get a translucent purple background and a dashed outline.
-
-Selection is purely visual — there's no multi-select today.
+The default wallpaper comes from the TytusOS design pack. Change it from **Settings -> Background**.
 
 ## Trash
 
-The trash icon lives at the right end of the dock (not the desktop). Drag desktop icons there to "trash" them — for now this just removes them from the desktop layout. (Real recoverable trash is part of [the FileManager phase](../development/roadmap.md).)
+The trash icon lives at the right end of the dock. Trash/recoverable file operations must be implemented through the Files app and daemon-safe roots; do not simulate destructive behavior.

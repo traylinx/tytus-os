@@ -1,6 +1,6 @@
 # Host Clipboard — Per-Browser Behaviour
 
-Tytus OS's **Cmd+V on the Desktop** (Sprint B Phase 5.4) reads from the
+TytusOS's **Cmd+V on the Desktop** (Sprint B Phase 5.4) reads from the
 host browser's clipboard. The browser's `navigator.clipboard` API isn't
 uniform across vendors — this doc maps what works where and how Tytus
 degrades when something doesn't.

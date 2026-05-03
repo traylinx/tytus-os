@@ -1,110 +1,41 @@
 # Apps Catalog
 
-Every app installed in Tytus OS today — **50 apps in 8 categories**. The Tytus product surfaces (Pod Inspector, Settings, Help, Chat, Files, Channels, Browser) are wired to the daemon — no placeholders. The OS-feel utilities are real and self-contained (Notes / Todo / Calendar all persist to localStorage; API Tester sends real HTTP).
+TytusOS apps fall into two groups:
 
-`isDemo: true` apps in `app/src/apps/registry.ts` are gated by **Settings → Appearance → Show demo apps** (off by default in production builds). They're listed below with a *(demo)* tag.
+1. **Product surfaces** — required for daily Tytus usage and backed by the daemon/pods.
+2. **Optional/demo utilities** — OS-feel tools or demos that must not block core pod workflows.
 
-## System (9)
-
-| App | What it does |
-|---|---|
-| **App Store** | Browse and discover recommended Tytus + community apps; check install status on your machine via the daemon. |
-| **Pod Inspector** | Fleet Overview + per-pod tabs. Sort by *Needs attention* or *Pod ID*; search by `pod_id` or `agent_type`. Each row shows a status pill, an **Open agent UI** button, and click-through to the per-pod tab. The per-pod tab shows a status header, URLs grid, **Pin / Unpin**, an action row (**Open / Restart / Doctor / Stop forwarder / Refresh creds**), and a destructive section (**Uninstall… / Revoke…**). Streaming actions render an inline log pane. Pinned pods sort to top. **Restart all** appears when 2+ pods are allocated. |
-| **System Settings** | Tytus product config (Account, Plan & Units, Pods, Agents, Daemon, Sharing) plus OS-feel preferences (Background, Appearance, Dock, Languages, Notifications, Privacy, About). See [Settings](settings.md). |
-| **Help** | Sidebar tabs: **Doctor**, **Health test**, **Logs**, **About**. Doctor + Test each have a **Run** button, an SSE log pane, and a *"Last run: Xm ago · exit 0"* status line. Logs polls `/api/logs` every 2s with **Pause / Resume** and auto-scroll-when-pinned. About shows daemon PID, formatted uptime, and GitHub links. |
-| **Files** | Pods sidebar plus three tabs: **Inbox** (run-streamed `ls-inbox`), **Downloads** (opens `~/Downloads/tytus/pod-NN/` via `postFilesOpenDownloads`), and **Shared** (bind a Mac folder to one or more pods via Garage — folder picker, bucket validation, auto-sync toggle). |
-| **Terminal** | Simulated bash today. Real `tytus exec` into pod containers in a later phase. |
-| **System Monitor** | CPU, memory, disk, network — host today, pods later. |
-| **Archive Manager** | Create and extract ZIP / TAR / 7Z archives. |
-| **Channels** | Pods sidebar plus **Available** and **Configured** columns. **Add** opens a modal with a `type=password` input — the token travels in the request body, never in the URL. **Remove** asks for confirmation. |
-
-## Internet (4)
+## Product surfaces
 
 | App | What it does |
 |---|---|
-| **Chat** | Pods sidebar plus a main pane showing *"Pod NN ready to chat"* and an **Open Pod NN in browser** button (launches the agent UI). Inline chat planned for v1.1. |
-| **Browser** | URL bar with scheme validation, registered launchers from `getLaunchers`, plus **Quick Actions** (Tytus dashboard / Provider / GitHub). |
-| **Weather** | Forecast with locations. |
-| **RSS Reader** | Feed reader with default subscriptions. |
+| Pod Inspector | Fleet overview, included gateway, readiness, pod detail tabs, restart/doctor/log/env/copy actions |
+| System Settings | Account, Plan & Units, Pods, Agents, Daemon, Sharing, Background, Appearance, Dock, Languages, Notifications, Privacy, About |
+| Files | Finder-like browser for `~/Tytus`, Inbox, Outbox, Downloads, Shared, and pod workspaces |
+| Channels | Per-pod messenger/channel setup with token-safe flows |
+| Terminal | Host-backed shell through the local tray daemon, starting in `~/Tytus` |
+| Browser | Registered launchers and safe web/app links |
+| Help | Bundled manual, troubleshooting, diagnostic links |
+| Chat | Opens agent chat surfaces and pod UIs |
+| Music Creator | Tytus music/lyrics workflow using the included gateway |
 
-## Productivity (10)
+## Included gateway
 
-| App | What it does |
-|---|---|
-| **Notes** | Quick notes with folders. localStorage-backed. |
-| **Todo** | Tasks with priorities, projects, due dates. |
-| **Reminders** | Time-based reminders + system notification on fire. |
-| **Calendar** | Monthly view with events. |
-| **Calculator** | Standard 4-function with history. |
-| **Clock** | World clock, alarms, timer, stopwatch. |
-| **Spreadsheet** | Basic grid with formulas. |
-| **Text Editor** | Plain-text editor. Reads/writes the virtual filesystem. |
-| **Document Viewer** | PDF and document viewer. |
-| **Markdown Preview** | Live markdown rendering with GitHub styling. |
+The All LLM Gateway is not a normal pod app. It is always included, OpenAI-compatible, and exposed in Pod Inspector with private/public URLs and copy formats.
 
-## Media (9)
+## Demo and utility apps
 
-| App | What it does |
-|---|---|
-| **Image Viewer** | Single-image view with zoom and slideshow. |
-| **Image Gallery** | Browse and organize collections. |
-| **Photo Editor** | Crop, filter, adjust. |
-| **Music Player** | Audio playback with playlists. Accepts JULI3TA track drops to start playback (Sprint B). |
-| **JULI3TA** | "Where songs find their soul." AI lyrics + music creation, powered by your private pod. (Internal id: `musiccreator`.) |
-| **Video Player** | Video playback with controls. |
-| **Voice Recorder** | Microphone capture, playback, export (wav/mp3). |
-| **Screen Recorder** | Browser screen capture (uses native API). |
-| **Media Converter** | Format conversion utility. |
+Demo utilities can be present behind **Settings -> Appearance -> Show demo apps**. Keep them clearly marked and never document them as required platform capability.
 
-## DevTools (6)
+Examples: games, ASCII Art, Matrix Rain, local notes/todos/calculator, API Tester, media viewers.
 
-| App | What it does |
-|---|---|
-| **Code Editor** | Syntax-highlighted multi-tab editor. |
-| **API Tester** | Postman-clone — real HTTP requests against any URL. Headers, body, params, history, saved endpoints. |
-| **JSON Formatter** | Format, validate, beautify, tree view. |
-| **Regex Tester** | Test patterns against sample text live. |
-| **Base64 Tool** | Encode / decode Base64 + URL strings. |
-| **Color Palette** | Generate complementary color schemes. |
+## App documentation rule
 
-## Creative (3)
+If an app appears in the production launcher/dock by default, its manual entry must answer:
 
-| App | What it does |
-|---|---|
-| **Drawing** | Canvas-based drawing app with brushes. |
-| **Whiteboard** | Infinite canvas for sketches. |
-| **Color Picker** | Pick colors, build palettes. |
+- What real backend or local storage it uses
+- What user problem it solves
+- What is not implemented yet
+- Where to troubleshoot it
 
-## Demo apps (hidden by default)
-
-The 11 Games plus **ASCII Art** and **Matrix Rain** are gated by the **Show demo apps** toggle in **Settings → Appearance** (default OFF — manifest AN8 demo-apps gate). Flip it on to expose:
-
-- **Minesweeper**, **Snake**, **Tetris**, **Tic-Tac-Toe**, **2048**, **Sudoku**, **Chess**, **Memory**, **Pong**, **Solitaire**, **Flappy Bird**
-- **ASCII Art** — generate ASCII text art and diagrams
-- **Matrix Rain** — animated falling characters (the green movie effect)
-
-## Shell-level surfaces
-
-Beyond windowed apps, Tytus OS now exposes pod state directly from the shell:
-
-- **Top Panel — Daemon status pill** — green / yellow / red / grey. Click opens **Settings → Daemon**.
-- **Top Panel — Fleet Health chip** (next to the daemon pill) — pod count + active jobs, color-coded. Click opens **Pod Inspector**.
-- **Desktop — Reserved Pods Zone** — top-left 4×2 grid for pinned pods. Click → opens **Pod Inspector** with that pod's tab focused. Right-click → **Unpin**. Stale pins (revoked elsewhere) render at 50% opacity.
-- **Desktop — Zero-pods overlay** — appears when `state.agents = []`. CTA jumps to **Settings → Agents**.
-
-## Window state persistence
-
-Open windows persist across reloads — positions, sizes, minimized and maximized state. Focus order and z-index reset on reload.
-
-## Permanently dropped (won't ship)
-
-These were in the original Kimi seed but were cut because they imply product promises we can't keep:
-
-- **Contacts** — fake address book (no real integration)
-- **Email** — fake "send mail" creates a real safety risk
-- **FtpClient** — fake FTP, dials nothing
-- **GitClient** — fake git ops, misleading
-- **NetworkTools** — fake ping/traceroute, dangerous
-- **PasswordManager** — fake password storage, security misrepresentation
-
-If you need any of these, use the real OS-level tool instead.
+If the answer is “nothing real”, keep the app hidden behind the demo-app toggle.

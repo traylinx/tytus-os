@@ -1,6 +1,15 @@
 // ============================================================
-// Help app — Phase 4
+// Help app — user-manual browser + daemon diagnostics
 // ============================================================
+//
+// Primary surface: a docs browser over the bundled user manual
+// (../docs/user-manual/*.md). The registry at lib/docs/registry.ts
+// uses Vite import.meta.glob to bundle every markdown file at build
+// time — drop a new .md into the docs folder and it shows up here.
+//
+// Secondary surface: the existing daemon diagnostics (Doctor, Health
+// test, Channels catalog, Logs, About). These live below the user
+// manual in the sidebar — still accessible, no longer the default.
 //
 // Owned capabilities (manifest §5):
 //   A3.1b — Daemon doctor (POST /api/doctor + SSE)
@@ -8,13 +17,17 @@
 //   A3.3  — Daemon log tail (GET /api/logs?name=daemon|startup&offset=N)
 //   About — version + daemon PID + uptime + keychain health
 //
-// Layout: vertical sidebar like Settings, content pane on the right.
-// Doctor is the default — that's what users open Help for first.
+// Routing: WindowArgs.help.tab accepts either a diagnostic id
+// ('doctor', 'test', 'logs', 'about', 'channels-catalog') or a docs
+// slug prefixed with `docs:` (e.g. `docs:keyboard-shortcuts`). Hash
+// deep-links: #/help/{tab}.
 
 import {
   type FC,
+  type ReactNode,
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from 'react';
@@ -28,6 +41,20 @@ import {
   Pause,
   AlertTriangle,
   ExternalLink,
+  Search,
+  // Icons resolved dynamically by the docs registry — keep this
+  // import alive so tree-shaking can't drop them.
+  Rocket,
+  AppWindow,
+  Monitor,
+  LayoutPanelTop,
+  LayoutGrid,
+  Keyboard,
+  Folder,
+  Settings as SettingsIcon,
+  Wrench,
+  ClipboardList,
+  FileText,
 } from 'lucide-react';
 import LogPane from '@/components/LogPane';
 import { useDaemonClient } from '@/hooks/useDaemonClient';
@@ -35,10 +62,13 @@ import { useDaemonStateContext } from '@/hooks/useDaemonStateContext';
 import { useCurrentWindowArgs } from '@/hooks/useCurrentWindow';
 import { useJobStream } from '@/hooks/useJobStream';
 import type { LogChunk } from '@/types/daemon';
+import { markdownToHtml } from '@/lib/markdown';
+import { DOCS, findDoc, readingTimeMin, type DocEntry } from '@/lib/docs/registry';
 
-type TabId = 'doctor' | 'test' | 'logs' | 'about' | 'channels-catalog';
+type DiagnosticTabId = 'doctor' | 'test' | 'logs' | 'about' | 'channels-catalog';
+type TabId = DiagnosticTabId | `docs:${string}`;
 
-const TABS: { id: TabId; label: string; icon: React.ReactNode }[] = [
+const DIAGNOSTIC_TABS: { id: DiagnosticTabId; label: string; icon: ReactNode }[] = [
   { id: 'doctor', label: 'Doctor', icon: <Stethoscope size={16} /> },
   { id: 'test', label: 'Health test', icon: <Activity size={16} /> },
   { id: 'channels-catalog', label: 'Channels catalog', icon: <ScrollText size={16} /> },
@@ -46,8 +76,36 @@ const TABS: { id: TabId; label: string; icon: React.ReactNode }[] = [
   { id: 'about', label: 'About', icon: <Info size={16} /> },
 ];
 
+// Map a registry icon name string to its lucide-react component.
+// Kept as a stable map so the registry can stay typed-string-only.
+const DOC_ICON: Record<string, ReactNode> = {
+  Rocket: <Rocket size={16} />,
+  AppWindow: <AppWindow size={16} />,
+  Monitor: <Monitor size={16} />,
+  LayoutPanelTop: <LayoutPanelTop size={16} />,
+  LayoutGrid: <LayoutGrid size={16} />,
+  Keyboard: <Keyboard size={16} />,
+  Folder: <Folder size={16} />,
+  Settings: <SettingsIcon size={16} />,
+  Wrench: <Wrench size={16} />,
+  ClipboardList: <ClipboardList size={16} />,
+  Info: <Info size={16} />,
+  FileText: <FileText size={16} />,
+};
+
+const isDocTab = (id: TabId): id is `docs:${string}` => id.startsWith('docs:');
+
+const slugFromTab = (id: TabId): string | null =>
+  isDocTab(id) ? id.slice('docs:'.length) : null;
+
+// Default tab: the first user-manual entry (getting-started under the
+// recommended order). Falls back to 'doctor' if the registry is empty
+// (impossible in practice, but keeps the type happy).
+const DEFAULT_TAB: TabId = DOCS.length > 0 ? `docs:${DOCS[0].slug}` : 'doctor';
+
 const Help: FC = () => {
-  const [active, setActive] = useState<TabId>('doctor');
+  const [active, setActive] = useState<TabId>(DEFAULT_TAB);
+  const [search, setSearch] = useState('');
   const args = useCurrentWindowArgs();
   const helpArgs = args?.help;
 
@@ -59,46 +117,80 @@ const Help: FC = () => {
     setActive(helpArgs.tab);
   }, [helpArgs?.tab, args?.routeNonce]);
 
+  const filteredDocs = useMemo<DocEntry[]>(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return DOCS;
+    return DOCS.filter(
+      (d) =>
+        d.title.toLowerCase().includes(q) ||
+        d.body.toLowerCase().includes(q) ||
+        d.slug.includes(q),
+    );
+  }, [search]);
+
   return (
     <div className="flex h-full" style={{ background: 'var(--bg-window)' }}>
       <div
-        className="w-48 shrink-0 flex flex-col"
+        className="w-56 shrink-0 flex flex-col overflow-hidden"
         style={{
           background: 'var(--bg-titlebar)',
           borderRight: '1px solid var(--border-subtle)',
         }}
       >
-        <div
-          className="px-4 py-3 text-[10px] uppercase tracking-wider font-semibold"
-          style={{ color: 'var(--text-secondary)' }}
-        >
-          Help
-        </div>
-        {TABS.map((t) => (
-          <button
-            key={t.id}
-            onClick={() => setActive(t.id)}
-            className="flex items-center gap-3 px-4 py-2.5 text-sm transition-colors"
+        <div className="px-3 pt-3 pb-2">
+          <div
+            className="flex items-center gap-2 px-2.5 py-1.5 rounded-md"
             style={{
-              background:
-                active === t.id ? 'var(--bg-selected)' : 'transparent',
-              color:
-                active === t.id
-                  ? 'var(--accent-primary)'
-                  : 'var(--text-primary)',
-              borderLeft:
-                active === t.id
-                  ? '3px solid var(--accent-primary)'
-                  : '3px solid transparent',
+              background: 'var(--bg-input, rgba(255,255,255,0.04))',
+              border: '1px solid var(--border-subtle)',
             }}
           >
-            {t.icon}
-            {t.label}
-          </button>
-        ))}
+            <Search size={13} className="text-[var(--text-secondary)] shrink-0" />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search the manual…"
+              className="bg-transparent text-xs flex-1 outline-none text-[var(--text-primary)] placeholder:text-[var(--text-secondary)]"
+            />
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto custom-scrollbar pb-2">
+          <SidebarGroup label="User Manual">
+            {filteredDocs.length === 0 ? (
+              <div className="px-4 py-2 text-[11px] text-[var(--text-secondary)]">
+                No matches.
+              </div>
+            ) : (
+              filteredDocs.map((doc) => (
+                <SidebarButton
+                  key={doc.slug}
+                  active={active === `docs:${doc.slug}`}
+                  onClick={() => setActive(`docs:${doc.slug}`)}
+                  icon={DOC_ICON[doc.icon] ?? DOC_ICON.FileText}
+                  label={doc.title}
+                />
+              ))
+            )}
+          </SidebarGroup>
+
+          <SidebarGroup label="Diagnostics">
+            {DIAGNOSTIC_TABS.map((t) => (
+              <SidebarButton
+                key={t.id}
+                active={active === t.id}
+                onClick={() => setActive(t.id)}
+                icon={t.icon}
+                label={t.label}
+              />
+            ))}
+          </SidebarGroup>
+        </div>
       </div>
 
       <div className="flex-1 overflow-hidden flex flex-col">
+        {isDocTab(active) && <DocPanel slug={slugFromTab(active)!} />}
         {active === 'doctor' && (
           <RunPanel
             kind="doctor"
@@ -123,6 +215,94 @@ const Help: FC = () => {
         )}
         {active === 'logs' && <LogsPanel />}
         {active === 'about' && <AboutPanel />}
+      </div>
+    </div>
+  );
+};
+
+// ============================================================
+// Sidebar primitives
+// ============================================================
+
+const SidebarGroup: FC<{ label: string; children: ReactNode }> = ({
+  label,
+  children,
+}) => (
+  <div className="mt-2">
+    <div
+      className="px-4 py-2 text-[10px] uppercase tracking-wider font-semibold"
+      style={{ color: 'var(--text-secondary)' }}
+    >
+      {label}
+    </div>
+    {children}
+  </div>
+);
+
+const SidebarButton: FC<{
+  active: boolean;
+  onClick: () => void;
+  icon: ReactNode;
+  label: string;
+}> = ({ active, onClick, icon, label }) => (
+  <button
+    onClick={onClick}
+    className="flex items-center gap-3 w-full px-4 py-2 text-sm transition-colors text-left"
+    style={{
+      background: active ? 'var(--bg-selected)' : 'transparent',
+      color: active ? 'var(--accent-primary)' : 'var(--text-primary)',
+      borderLeft: active
+        ? '3px solid var(--accent-primary)'
+        : '3px solid transparent',
+    }}
+  >
+    <span className="shrink-0">{icon}</span>
+    <span className="truncate">{label}</span>
+  </button>
+);
+
+// ============================================================
+// DocPanel — bundled user-manual viewer
+// ============================================================
+
+const DocPanel: FC<{ slug: string }> = ({ slug }) => {
+  const doc = findDoc(slug);
+  const html = useMemo(() => (doc ? markdownToHtml(doc.body) : ''), [doc]);
+
+  if (!doc) {
+    return (
+      <div className="flex-1 flex items-center justify-center text-[var(--text-secondary)] p-6 text-center">
+        <div>
+          <div className="text-sm">Document not found</div>
+          <div className="text-[11px] mt-1">
+            <code className="font-mono">{slug}</code> is not a known doc slug.
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const minutes = readingTimeMin(doc);
+
+  return (
+    <div className="flex-1 overflow-y-auto custom-scrollbar">
+      <div className="max-w-[820px] mx-auto px-8 py-6">
+        <div
+          className="text-[10px] uppercase tracking-wider mb-2"
+          style={{ color: 'var(--text-secondary)' }}
+        >
+          {doc.section === 'troubleshooting' ? 'Troubleshooting' : 'User Manual'}
+          {' · '}
+          {minutes} min read
+          {' · '}
+          <code className="font-mono">{doc.slug}.md</code>
+        </div>
+        <article
+          // markdownToHtml escapes raw HTML; the rest is internal,
+          // bundled markdown content shipped from this repo's docs/
+          // folder. No user input flows here.
+          dangerouslySetInnerHTML={{ __html: html }}
+        />
       </div>
     </div>
   );

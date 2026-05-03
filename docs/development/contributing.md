@@ -67,6 +67,10 @@ app/src/
 
 See [adding-an-app.md](adding-an-app.md).
 
+## Updating the user manual
+
+Manual pages live in `docs/user-manual/*.md`. The Help app picks them up via Vite glob — drop a new `.md`, restart dev, it appears in the sidebar. Full workflow (deep-link routing, sidebar ordering, regenerating the bundled `tytus-cli/os-docs.md`): see [user-manual.md](user-manual.md).
+
 ## Dropping an app
 
 1. `registry.ts` — remove the entry
@@ -82,6 +86,7 @@ See [adding-an-app.md](adding-an-app.md).
 - [ ] `npm run test:smoke` green
 - [ ] If you changed window/dock/launcher behavior, the smoke covers it (extend `scripts/smoke.mjs` if needed)
 - [ ] If you added an app, manual sanity-check it opens and closes
+- [ ] If you touched any `docs/user-manual/*.md` or `docs/troubleshooting/*.md`, regenerate the bundled LLM reference: `cd ../tytus-cli && ./scripts/regen-os-docs.sh && cargo build --release --bin tytus --bin tytus-mcp`
 - [ ] Commit message explains *why*
 
 ## Things to avoid

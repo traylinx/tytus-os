@@ -30,7 +30,12 @@ export interface WindowArgs {
   routeNonce?: string;
   /** Help app route request. */
   help?: {
-    tab: 'doctor' | 'test' | 'logs' | 'about' | 'channels-catalog';
+    /**
+     * Either a diagnostic tab id, or a user-manual doc slug prefixed
+     * with `docs:` (e.g. `docs:keyboard-shortcuts`). The Help app
+     * resolves `docs:<slug>` against the bundled docs registry.
+     */
+    tab: 'doctor' | 'test' | 'logs' | 'about' | 'channels-catalog' | `docs:${string}`;
     autoRun?: boolean;
   };
   /** Pod Inspector route request. Destructive actions still require UI confirm. */

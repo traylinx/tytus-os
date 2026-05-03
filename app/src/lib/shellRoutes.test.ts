@@ -6,9 +6,51 @@ describe("shellTargetForHash", () => {
     expect(shellTargetForHash("#chat")).toMatchObject({ appId: "chat" });
     expect(shellTargetForHash("#files")).toMatchObject({ appId: "filemanager" });
     expect(shellTargetForHash("#channels")).toMatchObject({ appId: "channels" });
-    expect(shellTargetForHash("#help")).toMatchObject({
+    // Plain `#help` opens the Help app on its default doc — the app
+    // resolves the first user-manual entry from the registry, no
+    // explicit tab forced from the router.
+    expect(shellTargetForHash("#help")).toMatchObject({ appId: "help" });
+  });
+
+  it("maps /help/<tab> to a Help-app deep link", () => {
+    // Diagnostic ids stay literal.
+    expect(shellTargetForHash("#/help/doctor?n=1")).toEqual({
       appId: "help",
-      args: { help: { tab: "doctor" } },
+      args: {
+        routeNonce: "1",
+        help: { tab: "doctor" },
+      },
+    });
+    expect(shellTargetForHash("#/help/logs")).toEqual({
+      appId: "help",
+      args: {
+        routeNonce: undefined,
+        help: { tab: "logs" },
+      },
+    });
+    // Anything else is treated as a user-manual slug, surfaced as
+    // `docs:<slug>` so the Help app resolves it in the registry.
+    expect(shellTargetForHash("#/help/keyboard-shortcuts")).toEqual({
+      appId: "help",
+      args: {
+        routeNonce: undefined,
+        help: { tab: "docs:keyboard-shortcuts" },
+      },
+    });
+    expect(shellTargetForHash("#/help/getting-started?n=42")).toEqual({
+      appId: "help",
+      args: {
+        routeNonce: "42",
+        help: { tab: "docs:getting-started" },
+      },
+    });
+    // Bare `/help` (no tab) → Help app, registry default doc.
+    expect(shellTargetForHash("#/help")).toEqual({
+      appId: "help",
+      args: {
+        routeNonce: undefined,
+        help: undefined,
+      },
     });
   });
 

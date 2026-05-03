@@ -1,3 +1,31 @@
+# TytusOS Current Status
+
+Current status as of the v0.6.9 cutover-doc pass. This file used to be an early skeleton snapshot; keep the current section authoritative and treat the old phase notes below as historical evidence only.
+
+## Current production surfaces
+
+| Surface | Status | Notes |
+|---|---|---|
+| Desktop shell | Shipped | top bar, context app menu, dock, windows, launcher |
+| Pod Inspector | Shipped | fleet, gateway, readiness, pod actions, copy formats |
+| Files | Shipped | Tytus Home, shared folders, pod workspace, Inbox/Downloads |
+| Channels | Shipped | per-pod messenger setup and agent-guided fallback |
+| Terminal | Shipped | host-backed PTY through local daemon |
+| Settings | Shipped | Account, Plan, Pods, Agents, Daemon, Sharing, Background, Appearance, Dock, Languages, Notifications, Privacy, About |
+| Session recovery | Shipped | session expired card; pods stay online |
+| Legacy Tower | Rollback only | do not use for normal user docs |
+
+## Current quality bar
+
+- No fake hardware settings in production UI.
+- Pod readiness must show truth, not just URL availability.
+- Missing folders render friendly empty states.
+- Browser gateway calls avoid direct CORS-breaking public pod URLs.
+- Dark/light themes use tokens only.
+
+
+## Historical snapshot
+
 # Skeleton Status
 
 A snapshot of what's working in Tytus OS as of **2026-04-28**, end of Phases 1–7 (shipped same session). 71/71 vitest tests green.

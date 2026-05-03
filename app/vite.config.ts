@@ -70,8 +70,17 @@ export default defineConfig({
   base: './',
   plugins: [react(), daemonProxyPlugin()],
   server: {
+    host: 'localhost',
     port: 4242,
-    strictPort: false,
+    strictPort: true,
+    fs: {
+      // Allow the dev server to read the sibling docs/ folder (one level
+      // above app/). The Help app uses import.meta.glob to bundle every
+      // user-manual markdown file at build time. Production output is
+      // fully static (vite build inlines the markdown into JS chunks),
+      // so this allowance only affects the dev server's file watcher.
+      allow: ['..'],
+    },
   },
   resolve: {
     alias: {
