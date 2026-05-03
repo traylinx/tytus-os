@@ -22,14 +22,11 @@ import Weather from './Weather';
 import RssReader from './RssReader';
 
 // Productivity
-import Notes from './Notes';
 import Todo from './Todo';
 import Reminders from './Reminders';
 import Calendar from './Calendar';
 import Calculator from './Calculator';
 import Clock from './Clock';
-import Spreadsheet from './Spreadsheet';
-import TextEditor from './TextEditor';
 import DocumentViewer from './DocumentViewer';
 import MarkdownPreview from './MarkdownPreview';
 
@@ -37,10 +34,8 @@ import MarkdownPreview from './MarkdownPreview';
 import ImageViewer from './ImageViewer';
 import ImageGallery from './ImageGallery';
 import PhotoEditor from './PhotoEditor';
-import MusicPlayer from './MusicPlayer';
 import MusicCreator from './MusicCreator';
 import VideoPlayer from './VideoPlayer';
-import VoiceRecorder from './VoiceRecorder';
 import ScreenRecorder from './ScreenRecorder';
 import MediaConverter from './MediaConverter';
 
@@ -99,10 +94,23 @@ const WORKSPACE_APP_IDS = new Set([
   'voice-recorder',
 ]);
 
+// Legacy non-hyphenated id → canonical workspace id. The shell + dock
+// + saved windows still reference the old short ids; aliasing lets us
+// delete the in-tree apps without breaking saved state. Removable once
+// all callers have migrated.
+const LEGACY_APP_ID_ALIASES: Record<string, string> = {
+  notes: 'memo',
+  spreadsheet: 'sheet',
+  texteditor: 'studio',
+  musicplayer: 'music-player',
+  voicerecorder: 'voice-recorder',
+};
+
 const AppRouter: FC<AppRouterProps> = ({ appId }) => {
+  const canonical = LEGACY_APP_ID_ALIASES[appId] ?? appId;
   // Dynamic-loader path — workspace packages keyed by their installed_apps id.
-  if (WORKSPACE_APP_IDS.has(appId)) {
-    return <WorkspaceAppHost appId={appId} />;
+  if (WORKSPACE_APP_IDS.has(canonical)) {
+    return <WorkspaceAppHost appId={canonical} />;
   }
 
   switch (appId) {
@@ -128,14 +136,13 @@ const AppRouter: FC<AppRouterProps> = ({ appId }) => {
     case 'rssreader': return <RssReader />;
 
     // Productivity
-    case 'notes': return <Notes />;
+    // 'notes' is aliased to 'memo' above and routed via dynamic loader
     case 'todo': return <Todo />;
     case 'reminders': return <Reminders />;
     case 'calendar': return <Calendar />;
     case 'calculator': return <Calculator />;
     case 'clock': return <Clock />;
-    case 'spreadsheet': return <Spreadsheet />;
-    case 'texteditor': return <TextEditor />;
+    // 'spreadsheet' aliased to 'sheet'; 'texteditor' aliased to 'studio'
     case 'documentviewer': return <DocumentViewer />;
     case 'markdownpreview': return <MarkdownPreview />;
 
@@ -143,10 +150,10 @@ const AppRouter: FC<AppRouterProps> = ({ appId }) => {
     case 'imageviewer': return <ImageViewer />;
     case 'imagegallery': return <ImageGallery />;
     case 'photoeditor': return <PhotoEditor />;
-    case 'musicplayer': return <MusicPlayer />;
+    // 'musicplayer' aliased to 'music-player' above
     case 'musiccreator': return <MusicCreator />;
     case 'videoplayer': return <VideoPlayer />;
-    case 'voicerecorder': return <VoiceRecorder />;
+    // 'voicerecorder' aliased to 'voice-recorder' above
     case 'screenrecorder': return <ScreenRecorder />;
     case 'mediaconverter': return <MediaConverter />;
 
