@@ -127,6 +127,150 @@ describe('Patch algebra — static validation', () => {
   it('PROPOSE_PATCHES_MAX is the spec-defined cap', () => {
     expect(PROPOSE_PATCHES_MAX).toBe(100);
   });
+
+  // ── W6 PR-Studio-Engine — studio.* patch variants ──────────────
+  it('accepts a well-formed studio.replaceBlock patch', () => {
+    const p: Patch = {
+      kind: 'studio.replaceBlock',
+      docId: 'd_1',
+      blockId: 'b_1',
+      newText: 'Concise new prose',
+    };
+    expect(validatePatch(p)).toEqual([]);
+  });
+
+  it('accepts a studio.replaceBlock with newBlockKind override', () => {
+    const p: Patch = {
+      kind: 'studio.replaceBlock',
+      docId: 'd_1',
+      blockId: 'b_1',
+      newText: 'Title',
+      newBlockKind: 'heading-1',
+    };
+    expect(validatePatch(p)).toEqual([]);
+  });
+
+  it('rejects studio.replaceBlock with empty docId / blockId', () => {
+    const p: Patch = {
+      kind: 'studio.replaceBlock',
+      docId: '',
+      blockId: '',
+      newText: 'x',
+    };
+    const issues = validatePatch(p);
+    expect(issues.some((i) => i.path === '/docId')).toBe(true);
+    expect(issues.some((i) => i.path === '/blockId')).toBe(true);
+  });
+
+  it('rejects studio.replaceBlock with non-string newText', () => {
+    const p = {
+      kind: 'studio.replaceBlock',
+      docId: 'd_1',
+      blockId: 'b_1',
+      newText: 42 as unknown as string,
+    } as Patch;
+    expect(validatePatch(p)[0].path).toBe('/newText');
+  });
+
+  it('accepts studio.insertBlock with afterBlockId', () => {
+    const p: Patch = {
+      kind: 'studio.insertBlock',
+      docId: 'd_1',
+      afterBlockId: 'b_1',
+      block: { kind: 'paragraph', text: 'next paragraph' },
+    };
+    expect(validatePatch(p)).toEqual([]);
+  });
+
+  it('accepts studio.insertBlock with beforeBlockId', () => {
+    const p: Patch = {
+      kind: 'studio.insertBlock',
+      docId: 'd_1',
+      beforeBlockId: 'b_1',
+      block: { kind: 'bullet', text: 'an outline bullet' },
+    };
+    expect(validatePatch(p)).toEqual([]);
+  });
+
+  it('rejects studio.insertBlock with neither beforeBlockId nor afterBlockId', () => {
+    const p: Patch = {
+      kind: 'studio.insertBlock',
+      docId: 'd_1',
+      block: { kind: 'paragraph', text: 'orphan' },
+    };
+    expect(validatePatch(p)[0].message).toMatch(
+      /requires exactly one of beforeBlockId or afterBlockId/,
+    );
+  });
+
+  it('rejects studio.insertBlock with both anchors set', () => {
+    const p: Patch = {
+      kind: 'studio.insertBlock',
+      docId: 'd_1',
+      beforeBlockId: 'b_1',
+      afterBlockId: 'b_2',
+      block: { kind: 'paragraph', text: 'ambiguous' },
+    };
+    expect(validatePatch(p)[0].message).toMatch(/cannot set both/);
+  });
+
+  it('rejects studio.insertBlock with missing block.text', () => {
+    const p = {
+      kind: 'studio.insertBlock',
+      docId: 'd_1',
+      afterBlockId: 'b_1',
+      block: { kind: 'paragraph' },
+    } as unknown as Patch;
+    expect(
+      validatePatch(p).some((i) => i.path === '/block/text'),
+    ).toBe(true);
+  });
+
+  it('accepts a well-formed studio.deleteBlock patch', () => {
+    const p: Patch = {
+      kind: 'studio.deleteBlock',
+      docId: 'd_1',
+      blockId: 'b_1',
+    };
+    expect(validatePatch(p)).toEqual([]);
+  });
+
+  it('rejects studio.deleteBlock with empty docId / blockId', () => {
+    const p: Patch = {
+      kind: 'studio.deleteBlock',
+      docId: '',
+      blockId: '',
+    };
+    const issues = validatePatch(p);
+    expect(issues.some((i) => i.path === '/docId')).toBe(true);
+    expect(issues.some((i) => i.path === '/blockId')).toBe(true);
+  });
+
+  it('patchDocId returns docId for the studio.* patches', () => {
+    expect(
+      patchDocId({
+        kind: 'studio.replaceBlock',
+        docId: 'd_x',
+        blockId: 'b_x',
+        newText: '',
+      }),
+    ).toBe('d_x');
+    expect(
+      patchDocId({
+        kind: 'studio.insertBlock',
+        docId: 'd_y',
+        afterBlockId: 'b_a',
+        block: { kind: 'paragraph', text: '' },
+      }),
+    ).toBe('d_y');
+    expect(
+      patchDocId({
+        kind: 'studio.deleteBlock',
+        docId: 'd_z',
+        blockId: 'b_z',
+      }),
+    ).toBe('d_z');
+  });
 });
 
 describe('Patch algebra — helpers', () => {

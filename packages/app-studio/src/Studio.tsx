@@ -48,7 +48,11 @@ import {
   Minus,
   Boxes,
 } from 'lucide-react';
-import type { AppDb, HostClient } from '@tytus/host-api';
+import type { AppBootEnv, AppDb, HostClient } from '@tytus/host-api';
+import type {
+  StudioReplaceBlockPatch,
+  StudioInsertBlockPatch,
+} from '@tytus/ai-engine';
 import {
   listDocuments,
   createDocument,
@@ -109,6 +113,11 @@ function summarise(blocks: BlockRow[]): string {
 export interface StudioProps {
   db: AppDb;
   host: HostClient;
+  /** Engine session factory from `AppBootEnv`. Optional so the legacy
+   *  in-tree boot path (which threads its own `host` and no engine yet)
+   *  still mounts; when absent, ⌘K commands fall back to a tool-direct
+   *  preview path that builds a stub patch without an LLM round-trip. */
+  createSession?: AppBootEnv['createSession'];
 }
 
 interface OpenDoc {
@@ -116,7 +125,41 @@ interface OpenDoc {
   blocks: BlockRow[];
 }
 
-export function Studio({ db, host }: StudioProps) {
+/** ⌘K command identity. */
+type StudioComposeCommand = 'rewrite' | 'continue' | 'outline';
+
+/**
+ * Per-command modal state. The modal captures user intent before the
+ * engine session is opened (tone for Rewrite, intent for Outline, no
+ * extra input for Continue — but we keep the same shape so the close
+ * + submit + label wiring stays uniform).
+ */
+interface ComposeModalState {
+  command: StudioComposeCommand;
+  /** Pre-populated default — "more concise" for rewrite, "the next
+   *  paragraph" for continue, "the document so far" for outline. */
+  input: string;
+  /** Block id Rewrite + Continue anchor against. Outline has no anchor
+   *  (it works on the whole doc). */
+  anchorBlockId?: string;
+}
+
+/**
+ * Apply/Discard ghost preview shown above the document while the user
+ * decides whether to commit a staged patch. We support a single staged
+ * preview at a time; queueing multiple outline bullets onto one preview
+ * is a follow-up.
+ */
+interface GhostPreview {
+  command: StudioComposeCommand;
+  /** Either a single replace patch (Rewrite) or a list of insert patches
+   *  (Continue = 1 patch, Outline = 5 patches at the head). */
+  patches: Array<StudioReplaceBlockPatch | StudioInsertBlockPatch>;
+  /** Human-friendly summary to show in the banner. */
+  summary: string;
+}
+
+export function Studio({ db, host, createSession }: StudioProps) {
   const [documents, setDocuments] = useState<DocumentRow[]>([]);
   // Cache the first-block summary per doc so the left pane doesn't
   // re-query on every render. Re-hydrated whenever we re-list.
@@ -126,6 +169,17 @@ export function Studio({ db, host }: StudioProps) {
   const [draftTitle, setDraftTitle] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [openMenuBlockId, setOpenMenuBlockId] = useState<string | null>(null);
+
+  // ⌘K command modal + ghost-preview state.
+  const [composeModal, setComposeModal] = useState<ComposeModalState | null>(
+    null,
+  );
+  const [ghostPreview, setGhostPreview] = useState<GhostPreview | null>(null);
+  const [composing, setComposing] = useState(false);
+
+  // Track the focused block so ⌘K Rewrite knows which block to anchor
+  // against. We update this on textarea focus inside BlockView.
+  const [focusedBlockId, setFocusedBlockId] = useState<string | null>(null);
 
   // Debounce queue for text edits: blockId -> pending value. Flushed
   // every TEXT_DEBOUNCE_MS, with a final flush on unmount.
@@ -187,20 +241,64 @@ export function Studio({ db, host }: StudioProps) {
     };
   }, [db, activeId]);
 
-  // ---- ⌘K shell-menu stub -----------------------------------------
+  // ---- ⌘K shell-menu integration ---------------------------------
   //
-  // M6.2: register one Edit group with three composition stubs. The
-  // engine integration ships in M6.x via @tytus/ai-engine
-  // createSession + the Patch.studio.* algebra; today the menu items
-  // post a notification so the affordance is mountable + the menu
-  // wiring is verified end-to-end.
+  // M6.x: register one Edit group with three composition commands —
+  // Rewrite selection / Continue / Outline. Each opens a small modal
+  // that captures user intent (tone, intent text), then fires off a
+  // real `createSession({...})` request via the engine. The engine
+  // emits `staged_patch` events which we translate into the in-pane
+  // ghost preview banner with Apply/Discard.
+  //
+  // When `createSession` is missing (legacy boot) or the underlying
+  // pod is offline, the same modal still works through the
+  // tool-direct fallback: we build a stub `studio.replaceBlock` /
+  // `studio.insertBlock` patch locally and surface the same
+  // Apply/Discard banner. The user UX is identical; only the patch
+  // body differs (templated text vs LLM tokens).
+  //
+  // The ref-passing pattern is slightly fiddly because the menu
+  // closure captures stale state otherwise — we route `onClick`
+  // through a stable handler that reads the LATEST state via refs.
+  const focusedBlockIdRef = useRef<string | null>(null);
+  const openDocRef = useRef<OpenDoc | null>(null);
   useEffect(() => {
-    const composeStub = (label: string) =>
-      host.notifications.notify({
-        title: label,
-        body: 'Engine integration ships in M6.x',
-        level: 'info',
+    focusedBlockIdRef.current = focusedBlockId;
+  }, [focusedBlockId]);
+  useEffect(() => {
+    openDocRef.current = open;
+  }, [open]);
+
+  const startCompose = useCallback(
+    (command: StudioComposeCommand) => {
+      if (!openDocRef.current) {
+        host.notifications.notify({
+          title: 'No document open',
+          body: 'Open a document before invoking a Studio composition command.',
+          level: 'info',
+        });
+        return;
+      }
+      const anchor =
+        focusedBlockIdRef.current ??
+        openDocRef.current.blocks[openDocRef.current.blocks.length - 1]?.id ??
+        undefined;
+      const defaultInput =
+        command === 'rewrite'
+          ? 'more concise'
+          : command === 'continue'
+            ? 'the next paragraph'
+            : 'a 5-bullet outline of this document';
+      setComposeModal({
+        command,
+        input: defaultInput,
+        anchorBlockId: anchor,
       });
+    },
+    [host],
+  );
+
+  useEffect(() => {
     const dispose = host.shellMenu.register({
       appId: host.appId,
       groups: [
@@ -211,25 +309,25 @@ export function Studio({ db, host }: StudioProps) {
               id: 'studio.rewrite-selection',
               label: 'Rewrite selection',
               shortcut: '⌘K',
-              onClick: () => composeStub('Rewrite'),
+              onClick: () => startCompose('rewrite'),
             },
             {
               id: 'studio.continue',
               label: 'Continue',
               shortcut: '⌘⇧K',
-              onClick: () => composeStub('Continue'),
+              onClick: () => startCompose('continue'),
             },
             {
               id: 'studio.outline',
               label: 'Outline',
-              onClick: () => composeStub('Outline'),
+              onClick: () => startCompose('outline'),
             },
           ],
         },
       ],
     });
     return dispose;
-  }, [host]);
+  }, [host, startCompose]);
 
   // ---- debounced flush --------------------------------------------
   const scheduleFlush = useCallback(() => {
@@ -412,6 +510,237 @@ export function Studio({ db, host }: StudioProps) {
     window.addEventListener('click', onClick);
     return () => window.removeEventListener('click', onClick);
   }, [openMenuBlockId]);
+
+  // ---- ⌘K compose: modal submit -> engine session -> staged patch -
+  //
+  // Hybrid path:
+  //   1. ALWAYS try `createSession({...})` so the engine is exercised
+  //      end-to-end. The shell's stub may throw — we swallow that and
+  //      fall back to the tool-direct preview.
+  //   2. ALWAYS produce a stub patch via the tool helpers so
+  //      Apply/Discard works against a fully-mocked LLM. Real engine
+  //      sessions emit `staged_patch` events that REPLACE the stub
+  //      preview when the LLM actually streams a response.
+  //
+  // Per spec §"Same degenerate-acceptable as W6-A": if the streaming
+  // UI is too much to integrate in one PR, a tool-direct stub
+  // round-trip still proves the tool registry + patch type wiring.
+  const submitCompose = useCallback(async () => {
+    if (!composeModal) return;
+    const openDoc = openDocRef.current;
+    if (!openDoc) return;
+    setComposing(true);
+    try {
+      // -- Build a stub patch (degenerate-acceptable preview) ---
+      let preview: GhostPreview | null = null;
+      const userInput = composeModal.input.trim() || 'concise';
+      if (composeModal.command === 'rewrite') {
+        const blockId =
+          composeModal.anchorBlockId ??
+          openDoc.blocks.find((b) => b.text.length > 0)?.id;
+        if (!blockId) {
+          throw new Error(
+            'Rewrite needs a focused block — click into a block first.',
+          );
+        }
+        const sourceBlock = openDoc.blocks.find((b) => b.id === blockId);
+        const newText = `${sourceBlock?.text ?? ''} (rewrite: ${userInput})`;
+        const patch: StudioReplaceBlockPatch = {
+          kind: 'studio.replaceBlock',
+          docId: openDoc.doc.id,
+          blockId,
+          newText,
+        };
+        preview = {
+          command: 'rewrite',
+          patches: [patch],
+          summary: `Rewrite block as "${userInput}"`,
+        };
+      } else if (composeModal.command === 'continue') {
+        const anchorId =
+          composeModal.anchorBlockId ??
+          openDoc.blocks[openDoc.blocks.length - 1]?.id;
+        if (!anchorId) {
+          throw new Error(
+            'Continue needs at least one block to anchor against.',
+          );
+        }
+        const patch: StudioInsertBlockPatch = {
+          kind: 'studio.insertBlock',
+          docId: openDoc.doc.id,
+          afterBlockId: anchorId,
+          block: {
+            kind: 'paragraph',
+            text: `(continued: ${userInput})`,
+          },
+        };
+        preview = {
+          command: 'continue',
+          patches: [patch],
+          summary: `Continue with "${userInput}"`,
+        };
+      } else {
+        // outline: insert 5 bullet blocks at the document head.
+        const headBlock = openDoc.blocks[0];
+        if (!headBlock) {
+          throw new Error('Outline needs a non-empty document.');
+        }
+        const patches: StudioInsertBlockPatch[] = [];
+        for (let i = 0; i < 5; i++) {
+          patches.push({
+            kind: 'studio.insertBlock',
+            docId: openDoc.doc.id,
+            beforeBlockId: headBlock.id,
+            block: {
+              kind: 'bullet',
+              text: `(outline ${i + 1}/5: ${userInput})`,
+            },
+          });
+        }
+        preview = {
+          command: 'outline',
+          patches,
+          summary: `Outline: 5 bullets prefixed by "${userInput}"`,
+        };
+      }
+      setGhostPreview(preview);
+
+      // -- Real engine session attempt -------------------------
+      // We do NOT block on the result — the modal closes immediately
+      // so the user sees the stub preview right away. If the engine
+      // produces real `staged_patch` events, they REPLACE the stub
+      // preview asynchronously. (Today's stub `createSession` throws
+      // synchronously, so the catch-and-ignore below is the live
+      // behaviour until M2 wires the real engine through the loader.)
+      if (createSession) {
+        try {
+          const session = createSession({
+            app: 'studio',
+            mode: 'text',
+            documentId: openDoc.doc.id,
+            documentRevision: 0,
+            tools: [],
+            initialContext: {
+              command: composeModal.command,
+              userInput,
+              focusedBlockId: composeModal.anchorBlockId,
+            },
+          });
+          // Best-effort: kick off the request, drain events, replace the
+          // preview if the engine produces real staged patches. Don't
+          // await — let the user keep editing.
+          void (async () => {
+            try {
+              const stream = session.send({
+                intent: 'edit',
+                prompt: `Studio ${composeModal.command} (${userInput})`,
+              });
+              const real: Array<
+                StudioReplaceBlockPatch | StudioInsertBlockPatch
+              > = [];
+              for await (const event of stream as AsyncIterable<{
+                kind?: string;
+                patch?: unknown;
+              }>) {
+                if (
+                  event &&
+                  event.kind === 'staged_patch' &&
+                  typeof event.patch === 'object' &&
+                  event.patch !== null
+                ) {
+                  const p = event.patch as { kind?: string };
+                  if (
+                    p.kind === 'studio.replaceBlock' ||
+                    p.kind === 'studio.insertBlock'
+                  ) {
+                    real.push(
+                      event.patch as
+                        | StudioReplaceBlockPatch
+                        | StudioInsertBlockPatch,
+                    );
+                  }
+                }
+              }
+              if (real.length > 0) {
+                setGhostPreview((prev) =>
+                  prev && prev.command === composeModal.command
+                    ? { ...prev, patches: real }
+                    : prev,
+                );
+              }
+            } catch {
+              /* engine errored — keep the stub preview. */
+            }
+          })();
+        } catch {
+          /* createSession itself threw — stub preview stands. */
+        }
+      }
+    } catch (e) {
+      setError((e as Error).message || 'Compose failed.');
+    } finally {
+      setComposeModal(null);
+      setComposing(false);
+    }
+  }, [composeModal, createSession]);
+
+  /** Apply every patch in the current ghost preview, then clear it. */
+  const applyGhostPreview = useCallback(async () => {
+    if (!ghostPreview || !open) return;
+    try {
+      // We commit the patches here directly through the repo. In a
+      // future PR a TransactionRunner-bound applier will own this; for
+      // M6.x we keep the path narrow.
+      for (const patch of ghostPreview.patches) {
+        if (patch.kind === 'studio.replaceBlock') {
+          const update: { text: string; kind?: BlockKind } = {
+            text: patch.newText,
+          };
+          if (patch.newBlockKind) update.kind = patch.newBlockKind;
+          await updateBlock(db, patch.blockId, update);
+        } else {
+          // studio.insertBlock — resolve a position via the existing
+          // sparse 1024-step rule.
+          const blocks = openDocRef.current?.blocks ?? [];
+          let position = 1024;
+          if (patch.beforeBlockId) {
+            const idx = blocks.findIndex((b) => b.id === patch.beforeBlockId);
+            if (idx >= 0) {
+              const ref = blocks[idx];
+              const prev = idx > 0 ? blocks[idx - 1] : null;
+              position = prev
+                ? Math.floor((prev.position + ref.position) / 2)
+                : ref.position - 1024;
+            }
+          } else if (patch.afterBlockId) {
+            const idx = blocks.findIndex((b) => b.id === patch.afterBlockId);
+            if (idx >= 0) {
+              const ref = blocks[idx];
+              const next = idx < blocks.length - 1 ? blocks[idx + 1] : null;
+              position = next
+                ? Math.floor((ref.position + next.position) / 2)
+                : ref.position + 1024;
+            }
+          }
+          await insertBlock(db, patch.docId, {
+            kind: patch.block.kind,
+            text: patch.block.text,
+            meta: patch.block.meta,
+            position,
+          });
+        }
+      }
+      await reloadOpen();
+    } catch (e) {
+      setError(`Apply failed: ${(e as Error).message}`);
+    } finally {
+      setGhostPreview(null);
+    }
+  }, [db, ghostPreview, open, reloadOpen]);
+
+  const discardGhostPreview = useCallback(() => {
+    setGhostPreview(null);
+  }, []);
 
   // ---- render -----------------------------------------------------
 
@@ -618,6 +947,13 @@ export function Studio({ db, host }: StudioProps) {
         {open && (
           <>
             {titlebar}
+            {ghostPreview && (
+              <GhostPreviewBanner
+                preview={ghostPreview}
+                onApply={() => void applyGhostPreview()}
+                onDiscard={discardGhostPreview}
+              />
+            )}
             <div
               style={{
                 flex: 1,
@@ -650,6 +986,7 @@ export function Studio({ db, host }: StudioProps) {
                   onInsertBelow={() => void insertBlockAt('below', block.id)}
                   onDelete={() => void removeBlock(block.id)}
                   onConvert={(kind) => void convertBlock(block.id, kind)}
+                  onFocus={() => setFocusedBlockId(block.id)}
                 />
               ))}
               <div
@@ -682,6 +1019,223 @@ export function Studio({ db, host }: StudioProps) {
           </>
         )}
       </main>
+      {composeModal && (
+        <ComposeModal
+          state={composeModal}
+          composing={composing}
+          onChange={(input) =>
+            setComposeModal((prev) => (prev ? { ...prev, input } : prev))
+          }
+          onSubmit={() => void submitCompose()}
+          onCancel={() => setComposeModal(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+// ---- ComposeModal --------------------------------------------------
+//
+// The lightweight modal Studio shows when the user invokes a ⌘K
+// command. Captures one piece of free-text intent (tone for Rewrite,
+// continuation hint for Continue, outline angle for Outline) and
+// kicks off `submitCompose`. The same component handles all three
+// commands — only the labels + placeholder change.
+
+interface ComposeModalProps {
+  state: ComposeModalState;
+  composing: boolean;
+  onChange: (input: string) => void;
+  onSubmit: () => void;
+  onCancel: () => void;
+}
+
+function ComposeModal({
+  state,
+  composing,
+  onChange,
+  onSubmit,
+  onCancel,
+}: ComposeModalProps) {
+  const titleByCommand: Record<StudioComposeCommand, string> = {
+    rewrite: 'Rewrite selection',
+    continue: 'Continue writing',
+    outline: 'Outline document',
+  };
+  const labelByCommand: Record<StudioComposeCommand, string> = {
+    rewrite: 'Tone',
+    continue: 'Direction',
+    outline: 'Angle',
+  };
+  return (
+    <div
+      role="dialog"
+      aria-label={titleByCommand[state.command]}
+      style={{
+        position: 'absolute',
+        inset: 0,
+        background: 'rgba(0,0,0,0.35)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 50,
+      }}
+    >
+      <div
+        style={{
+          background: 'white',
+          borderRadius: 6,
+          padding: 16,
+          width: 360,
+          boxShadow: '0 6px 24px rgba(0,0,0,0.2)',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 10,
+        }}
+      >
+        <div style={{ fontSize: 14, fontWeight: 600 }}>
+          {titleByCommand[state.command]}
+        </div>
+        <label style={{ fontSize: 12, color: 'rgba(0,0,0,0.6)' }}>
+          {labelByCommand[state.command]}
+        </label>
+        <input
+          type="text"
+          autoFocus
+          value={state.input}
+          onChange={(e) => onChange(e.target.value)}
+          aria-label={`${state.command} input`}
+          style={{
+            border: '1px solid rgba(0,0,0,0.15)',
+            borderRadius: 4,
+            padding: '6px 8px',
+            fontSize: 13,
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              onSubmit();
+            }
+            if (e.key === 'Escape') {
+              e.preventDefault();
+              onCancel();
+            }
+          }}
+        />
+        <div
+          style={{
+            display: 'flex',
+            gap: 8,
+            justifyContent: 'flex-end',
+            marginTop: 4,
+          }}
+        >
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={composing}
+            style={{
+              border: '1px solid rgba(0,0,0,0.15)',
+              background: 'white',
+              borderRadius: 4,
+              padding: '4px 10px',
+              cursor: composing ? 'not-allowed' : 'pointer',
+              fontSize: 12,
+            }}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onSubmit}
+            disabled={composing}
+            style={{
+              border: '1px solid rgba(40,80,180,0.5)',
+              background: 'rgb(40,80,180)',
+              color: 'white',
+              borderRadius: 4,
+              padding: '4px 10px',
+              cursor: composing ? 'not-allowed' : 'pointer',
+              fontSize: 12,
+            }}
+          >
+            {composing ? 'Working…' : 'Submit'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---- GhostPreviewBanner --------------------------------------------
+//
+// Shows the staged-patch summary above the document body with
+// Apply/Discard buttons. Sits between the titlebar and the block
+// list so the user can keep scanning the document while deciding.
+
+interface GhostPreviewBannerProps {
+  preview: GhostPreview;
+  onApply: () => void;
+  onDiscard: () => void;
+}
+
+function GhostPreviewBanner({
+  preview,
+  onApply,
+  onDiscard,
+}: GhostPreviewBannerProps) {
+  return (
+    <div
+      role="status"
+      aria-label={`Ghost preview: ${preview.command}`}
+      style={{
+        background: 'rgba(40,80,180,0.06)',
+        borderBottom: '1px solid rgba(40,80,180,0.2)',
+        padding: '8px 16px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 12,
+        fontSize: 12,
+      }}
+    >
+      <Sparkles size={14} />
+      <span style={{ flex: 1 }}>
+        <strong style={{ marginRight: 6 }}>{preview.command}</strong>
+        <span style={{ color: 'rgba(0,0,0,0.7)' }}>{preview.summary}</span>
+        <span style={{ color: 'rgba(0,0,0,0.4)', marginLeft: 6 }}>
+          ({preview.patches.length} patch
+          {preview.patches.length === 1 ? '' : 'es'})
+        </span>
+      </span>
+      <button
+        type="button"
+        onClick={onDiscard}
+        style={{
+          border: '1px solid rgba(0,0,0,0.15)',
+          background: 'white',
+          borderRadius: 4,
+          padding: '2px 8px',
+          cursor: 'pointer',
+          fontSize: 12,
+        }}
+      >
+        Discard
+      </button>
+      <button
+        type="button"
+        onClick={onApply}
+        style={{
+          border: '1px solid rgba(40,80,180,0.5)',
+          background: 'rgb(40,80,180)',
+          color: 'white',
+          borderRadius: 4,
+          padding: '2px 10px',
+          cursor: 'pointer',
+          fontSize: 12,
+        }}
+      >
+        Apply
+      </button>
     </div>
   );
 }
@@ -704,6 +1258,10 @@ interface BlockViewProps {
   onInsertBelow: () => void;
   onDelete: () => void;
   onConvert: (kind: BlockKind) => void;
+  /** Called when any text surface inside the block gains focus — Studio
+   *  uses this to anchor ⌘K Rewrite/Continue against the user's last
+   *  cursor location. Optional: not wired by the per-block menu path. */
+  onFocus?: () => void;
 }
 
 const KIND_ICON: Record<BlockKind, React.ReactNode> = {
@@ -722,7 +1280,7 @@ function BlockView(props: BlockViewProps) {
   const {
     block, isMenuOpen, onOpenMenu, onCloseMenu,
     onTextChange, onMetaChange,
-    onInsertAbove, onInsertBelow, onDelete, onConvert,
+    onInsertAbove, onInsertBelow, onDelete, onConvert, onFocus,
   } = props;
 
   // Stop propagation so the global outside-click handler doesn't

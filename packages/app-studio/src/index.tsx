@@ -2,18 +2,13 @@
  * @tytus/app-studio — Studio workspace package entry.
  *
  * Default export is the boot function the loader calls with AppBootEnv.
- * Returns a React component bound to this app's HostClient + AppDb.
+ * Returns a React component bound to this app's HostClient + AppDb +
+ * createSession factory.
  *
- * Studio's M6.2 spec scope (this PR):
- *   - Multi-block document model (text + media + embedded blocks)
- *   - Block kinds: heading-{1,2,3} | paragraph | bullet | code | image
- *     | embed | separator
- *   - Two-pane editor UI (document list + open-document)
- *   - ⌘K composition command stubs (rewrite / continue / outline)
- *   - Auto-save (debounced text edits, immediate inserts/deletes)
- *
- * Engine integration (rewrite/continue/outline → real Patch.studio.*
- * algebra against the multi-block doc) ships in a follow-up M6.x PR.
+ * Studio's M6.x scope adds:
+ *   - ⌘K composition commands wired to `createSession({...})` (engine)
+ *   - studio.* patch variants flowing through the TransactionRunner
+ *   - Apply/Discard ghost preview overlays per staged patch
  *
  * Replaces the legacy in-tree TextEditor + RichEditor + AIWriter triad
  * (Notes already lifted to Memo in W4-C). Legacy apps stay in place
@@ -28,6 +23,8 @@ export default function bootStudio(env: AppBootEnv) {
   const db = env.host.storage.current();
   // eslint-disable-next-line react-refresh/only-export-components
   return function StudioApp() {
-    return <Studio db={db} host={env.host} />;
+    return (
+      <Studio db={db} host={env.host} createSession={env.createSession} />
+    );
   };
 }

@@ -39,7 +39,25 @@ export type Patch =
   | MemoReplacePatch
   | MemoMetadataPatchPatch
   | MemoLinkPatch
+  | StudioReplaceBlockPatch
+  | StudioInsertBlockPatch
+  | StudioDeleteBlockPatch
   | BrainAppendPatch;
+
+/** Block kinds Studio renders. Mirrored from
+ *  `@tytus/app-studio` `BlockKind` — duplicated here so the engine
+ *  package stays free of an app-package dep. Studio's repo asserts the
+ *  union round-trips. */
+export type StudioBlockKind =
+  | 'heading-1'
+  | 'heading-2'
+  | 'heading-3'
+  | 'paragraph'
+  | 'bullet'
+  | 'code'
+  | 'image'
+  | 'embed'
+  | 'separator';
 
 export interface TextReplacePatch {
   kind: 'text.replace';
@@ -125,6 +143,52 @@ export interface BrainAppendPatch {
   block: string;
   /** Required ai-source provenance string ("tytus-os/memo:v<N>"). */
   aiSource: string;
+}
+
+/**
+ * Replace the text (and optionally the kind) of an existing Studio
+ * block in-place. The applier writes to `app_studio_blocks` and bumps
+ * the parent doc's `updated_at`. Maps 1:1 onto `documentRepo.updateBlock`.
+ */
+export interface StudioReplaceBlockPatch {
+  kind: 'studio.replaceBlock';
+  docId: string;
+  blockId: string;
+  newText: string;
+  /** Optional kind override — Rewrite that converts a paragraph to a
+   *  heading-1 supplies this. Leave undefined to preserve the existing
+   *  kind. */
+  newBlockKind?: StudioBlockKind;
+}
+
+/**
+ * Insert a new block adjacent to a reference block in a Studio
+ * document. Exactly one of `beforeBlockId` / `afterBlockId` must be set.
+ * The applier resolves the position via the repo's `positionFor(...)`
+ * (sparse 1024-step sort key, midpoint-on-insert).
+ */
+export interface StudioInsertBlockPatch {
+  kind: 'studio.insertBlock';
+  docId: string;
+  /** Insert above the referenced block (mutually exclusive with afterBlockId). */
+  beforeBlockId?: string;
+  /** Insert below the referenced block (mutually exclusive with beforeBlockId). */
+  afterBlockId?: string;
+  block: {
+    kind: StudioBlockKind;
+    text: string;
+    meta?: Record<string, unknown>;
+  };
+}
+
+/**
+ * Delete a Studio block. The applier writes to `app_studio_blocks`
+ * and bumps the parent doc's `updated_at`.
+ */
+export interface StudioDeleteBlockPatch {
+  kind: 'studio.deleteBlock';
+  docId: string;
+  blockId: string;
 }
 
 /**
@@ -226,6 +290,81 @@ export function validatePatch(patch: Patch): PatchValidationIssue[] {
     // sheet.writeRange / sheet.addSheet / memo.replace / memo.metadataPatch /
     // memo.link have no static-only invariants beyond the shape; runtime
     // checks happen in their PatchApplier.prepare.
+    case 'studio.replaceBlock':
+      if (!patch.docId) {
+        issues.push({
+          path: '/docId',
+          message: 'studio.replaceBlock requires a non-empty docId',
+        });
+      }
+      if (!patch.blockId) {
+        issues.push({
+          path: '/blockId',
+          message: 'studio.replaceBlock requires a non-empty blockId',
+        });
+      }
+      if (typeof patch.newText !== 'string') {
+        issues.push({
+          path: '/newText',
+          message: 'studio.replaceBlock requires newText (string)',
+        });
+      }
+      break;
+    case 'studio.insertBlock':
+      if (!patch.docId) {
+        issues.push({
+          path: '/docId',
+          message: 'studio.insertBlock requires a non-empty docId',
+        });
+      }
+      if (!patch.beforeBlockId && !patch.afterBlockId) {
+        issues.push({
+          path: '/anchor',
+          message:
+            'studio.insertBlock requires exactly one of beforeBlockId or afterBlockId',
+        });
+      }
+      if (patch.beforeBlockId && patch.afterBlockId) {
+        issues.push({
+          path: '/anchor',
+          message:
+            'studio.insertBlock cannot set both beforeBlockId and afterBlockId',
+        });
+      }
+      if (!patch.block || typeof patch.block !== 'object') {
+        issues.push({
+          path: '/block',
+          message: 'studio.insertBlock requires a block object',
+        });
+      } else {
+        if (typeof patch.block.text !== 'string') {
+          issues.push({
+            path: '/block/text',
+            message: 'studio.insertBlock requires block.text (string)',
+          });
+        }
+        if (!patch.block.kind) {
+          issues.push({
+            path: '/block/kind',
+            message: 'studio.insertBlock requires block.kind',
+          });
+        }
+      }
+      break;
+    case 'studio.deleteBlock':
+      if (!patch.docId) {
+        issues.push({
+          path: '/docId',
+          message: 'studio.deleteBlock requires a non-empty docId',
+        });
+      }
+      if (!patch.blockId) {
+        issues.push({
+          path: '/blockId',
+          message: 'studio.deleteBlock requires a non-empty blockId',
+        });
+      }
+      break;
     case 'sheet.writeRange':
     case 'sheet.addSheet':
     case 'memo.replace':
@@ -256,6 +395,10 @@ export function patchDocId(patch: Patch): string | null {
       return patch.docId;
     case 'memo.replace':
       return patch.memoId;
+    case 'studio.replaceBlock':
+    case 'studio.insertBlock':
+    case 'studio.deleteBlock':
+      return patch.docId;
     default:
       return null;
   }
