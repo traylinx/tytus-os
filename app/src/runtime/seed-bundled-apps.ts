@@ -34,17 +34,18 @@ interface BundledManifestSpec {
 }
 
 function manifestEntry(id: string, raw: unknown): BundledManifestSpec {
+  // M3.6: bundled apps share a loader convention — their entry_url is
+  // the npm package identifier `@tytus/app-<id>`. The dynamic-loader
+  // resolves this through Vite's workspace alias in DEV (the symlink
+  // under node_modules/@tytus/app-<id>) and through the bundled chunk
+  // registered by the install pipeline in PROD. Centralising it here
+  // keeps the seed deterministic across boots while leaving the door
+  // open for third-party apps to set arbitrary entry_url values.
   return {
     manifest: raw as Manifest,
-    // null until M3.6 wires real loader URLs; the loader/AppStore
-    // code paths handle null-entry gracefully (the app shows as
-    // "Updating…" until the next boot). Tests + CI builds keep
-    // entry resolution deterministic by reading from
-    // packages/app-<id>/dist/index.js when present.
-    entryUrl: null,
+    entryUrl: `@tytus/app-${id}`,
     assetsUrl: null,
   };
-  void id;
 }
 
 /**

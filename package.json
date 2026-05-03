@@ -9,7 +9,8 @@
   ],
   "scripts": {
     "dev": "npm run dev --workspace app",
-    "build": "npm run build --workspace app",
+    "build": "npm run build:packages && npm run build --workspace app",
+    "build:packages": "npm run build --workspace @tytus/app-memo --workspace @tytus/app-music-creator --workspace @tytus/app-music-player --workspace @tytus/app-sheet --workspace @tytus/app-studio --workspace @tytus/app-voice-recorder --if-present",
     "lint": "npm run lint --workspace app",
     "preview": "npm run preview --workspace app",
     "typecheck": "npm run typecheck --workspaces --if-present",

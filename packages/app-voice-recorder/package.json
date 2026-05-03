@@ -13,6 +13,7 @@
     }
   },
   "scripts": {
+    "build": "vite build --config ../../vite.lib.config.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
