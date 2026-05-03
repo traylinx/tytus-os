@@ -132,6 +132,60 @@ describe("useJobStream", () => {
     expect(result.current.failMessage).toBeNull();
   });
 
+  // Race fix (May 2026): if the first EventSource errors before any
+  // event arrives — the POST→register→GET race where the daemon's SSE
+  // handler 404s because the registry hasn't committed the job yet —
+  // the hook retries the subscription once. Reproduces the screenshot
+  // bug "job XXX · lost" with "Connecting to job stream…" forever.
+  // Uses autoEmit:false so the test drives event timing precisely.
+  it("retries once after an early error and recovers when the second connection succeeds", async () => {
+    const url = "/api/jobs/race/stream";
+    const { Ctor, instances } = makeFakeEventSource({}, { autoEmit: false });
+    const { result } = renderHook(() =>
+      useJobStream({
+        url,
+        EventSourceCtor: Ctor,
+        reconnectDelayMs: 20,
+        lateSubscribeDeadlineMs: 2000,
+      }),
+    );
+    await waitFor(() => expect(instances.length).toBeGreaterThanOrEqual(1));
+    // Force the first connection to fail before any events.
+    instances[0].emitError();
+    // Hook should open a second EventSource after `reconnectDelayMs`.
+    await waitFor(() => expect(instances.length).toBeGreaterThanOrEqual(2), {
+      timeout: 1000,
+    });
+    // Drive the second connection to a successful exit.
+    instances[1].emit("log", "doctor starting…");
+    instances[1].emit("exit", '{"code":0}');
+    await waitFor(() => expect(result.current.status).toBe("success"), {
+      timeout: 2000,
+    });
+    expect(result.current.lines).toContain("doctor starting…");
+    expect(result.current.exitCode).toBe(0);
+  });
+
+  it("goes lost after a single retry attempt also fails with no events", async () => {
+    const url = "/api/jobs/double-dead/stream";
+    const { Ctor, instances } = makeFakeEventSource({}, { autoEmit: false });
+    const { result } = renderHook(() =>
+      useJobStream({
+        url,
+        EventSourceCtor: Ctor,
+        reconnectDelayMs: 20,
+        lateSubscribeDeadlineMs: 200,
+      }),
+    );
+    await waitFor(() => expect(instances.length).toBeGreaterThanOrEqual(1));
+    instances[0].emitError();
+    await waitFor(() => expect(instances.length).toBeGreaterThanOrEqual(2));
+    instances[1].emitError();
+    await waitFor(() => expect(result.current.status).toBe("lost"), {
+      timeout: 2000,
+    });
+  });
+
   // Phase 4 cont — failure-SSE transcript fixture (manifest audit 03 §3).
   // Drives the hook against a captured (synthesized to capture shape)
   // doctor-against-stopped-pod transcript. Pinning the shape catches

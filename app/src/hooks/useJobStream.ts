@@ -35,14 +35,27 @@ export interface UseJobStreamOptions {
   EventSourceCtor?: EventSourceCtor;
   /** Late-subscribe deadline per A19. After this many ms with no events
    *  AND no `exit`, treat the stream as already-finished and resolve with
-   *  empty lines + status `lost`. Default 1000. */
+   *  empty lines + status `lost`. Default 8000ms — long enough to cover
+   *  Rust-subprocess spawn time for `tytus doctor` and `tytus test`,
+   *  short enough that a genuinely dead daemon still surfaces. The old
+   *  1000ms default was too aggressive: doctor on a cold daemon takes
+   *  ~2-3s before the first log line and consistently went `lost`. */
   lateSubscribeDeadlineMs?: number;
+  /** When the connection errors before any event arrives, retry the
+   *  subscription once after this delay. Covers the POST→register→GET
+   *  race where the SSE handler 404s because the registry hasn't
+   *  committed the job yet. Default 500ms. Set to 0 to disable. */
+  reconnectDelayMs?: number;
 }
 
 export const useJobStream = (
   options: UseJobStreamOptions,
 ): UseJobStreamResult => {
-  const { url, lateSubscribeDeadlineMs = 1000 } = options;
+  const {
+    url,
+    lateSubscribeDeadlineMs = 8000,
+    reconnectDelayMs = 500,
+  } = options;
   const [status, setStatus] = useState<JobStatus>("subscribing");
   const [lines, setLines] = useState<string[]>([]);
   const [exitCode, setExitCode] = useState<number | null>(null);
@@ -78,10 +91,11 @@ export const useJobStream = (
       return;
     }
 
-    const src = new Ctor(url);
-    sourceRef.current = src;
     let receivedAny = false;
     let terminal = false;
+    let attempt = 0;
+    let lateTimer: ReturnType<typeof setTimeout> | null = null;
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
     const onLog = (e: MessageEvent | { data: string }) => {
       receivedAny = true;
@@ -103,7 +117,7 @@ export const useJobStream = (
       }
       setExitCode(code);
       setStatus(code === 0 ? "success" : "failed");
-      src.close();
+      sourceRef.current?.close();
     };
 
     const onDone = (e: MessageEvent | { data: string }) => {
@@ -120,7 +134,7 @@ export const useJobStream = (
       setDonePayload(payload);
       setExitCode(0);
       setStatus("success");
-      src.close();
+      sourceRef.current?.close();
     };
 
     const onFail = (e: MessageEvent | { data: string }) => {
@@ -130,39 +144,64 @@ export const useJobStream = (
       setFailMessage(data);
       setExitCode(null);
       setStatus("failed");
-      src.close();
+      sourceRef.current?.close();
     };
 
+    // Connection died. If we'd already seen a terminal event, ignore — close
+    // fired naturally after done/fail/exit. Otherwise:
+    //   - If we'd received non-terminal events, the stream really dropped → lost.
+    //   - If we'd received nothing at all and this is the first attempt,
+    //     retry once after `reconnectDelayMs`. Handles the POST→register→GET
+    //     race where the daemon's SSE handler 404s because the registry
+    //     hasn't committed the job yet.
     const onError = () => {
-      // Connection died. If we'd already seen a terminal event, ignore — close
-      // fired naturally after done/fail/exit.
       if (terminal) return;
-      // If we never got any event AND the deadline has passed, treat as
-      // late-subscribe race per A19.
-      setStatus(receivedAny ? "lost" : "lost");
+      if (receivedAny) {
+        setStatus("lost");
+        return;
+      }
+      if (attempt < 1 && reconnectDelayMs > 0) {
+        attempt += 1;
+        sourceRef.current?.close();
+        sourceRef.current = null;
+        reconnectTimer = setTimeout(() => {
+          if (terminal) return;
+          openSource();
+        }, reconnectDelayMs);
+        return;
+      }
+      setStatus("lost");
     };
 
-    src.addEventListener("log", onLog);
-    src.addEventListener("done", onDone);
-    src.addEventListener("fail", onFail);
-    src.addEventListener("exit", onExit);
-    src.onerror = onError;
+    const openSource = () => {
+      const src = new Ctor(url);
+      sourceRef.current = src;
+      src.addEventListener("log", onLog);
+      src.addEventListener("done", onDone);
+      src.addEventListener("fail", onFail);
+      src.addEventListener("exit", onExit);
+      src.onerror = onError;
+    };
 
-    // A19: if no events arrive within the deadline AND no exit, surface as
-    // `lost`. The daemon-side fix (Q14 retain log) is still pending.
-    const lateTimer = setTimeout(() => {
+    openSource();
+
+    // Late-subscribe deadline: if no events arrive within this window AND
+    // no terminal event has fired, surface as `lost` so the UI doesn't
+    // spin forever. Reset by any incoming event via `receivedAny`.
+    lateTimer = setTimeout(() => {
       if (!receivedAny && !terminal) {
         setStatus("lost");
-        src.close();
+        sourceRef.current?.close();
       }
     }, lateSubscribeDeadlineMs);
 
     return () => {
-      clearTimeout(lateTimer);
-      src.close();
+      if (lateTimer) clearTimeout(lateTimer);
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      sourceRef.current?.close();
       sourceRef.current = null;
     };
-  }, [url, options.EventSourceCtor, lateSubscribeDeadlineMs]);
+  }, [url, options.EventSourceCtor, lateSubscribeDeadlineMs, reconnectDelayMs]);
 
   return { status, lines, exitCode, donePayload, failMessage };
 };

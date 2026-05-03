@@ -68,16 +68,29 @@ describe("computePill", () => {
     expect(r.detail).toContain("refresh error");
   });
 
-  it("uses explicit session-expired copy for expired refresh tokens", () => {
+  it("uses explicit session-expired copy for expired refresh tokens when logged out", () => {
     const s = wrapState({
       ...stateFixture,
+      logged_in: false,
       last_refresh_error: "refresh token expired — run `tytus login`",
     });
-    const r = computePill("online", s, null);
+    const r = computePill("auth_required", s, null);
     expect(r.color).toBe("yellow");
     expect(r.label).toBe("Session expired");
     expect(r.kind).toBe("session-expired");
     expect(r.detail).toContain("Sign in again");
+  });
+
+  it("ignores stale login-required refresh errors after successful login", () => {
+    const s = wrapState({
+      ...stateFixture,
+      logged_in: true,
+      last_refresh_error: "refresh token expired — run `tytus login`",
+    });
+    const r = computePill("online", s, null);
+    expect(r.color).toBe("green");
+    expect(r.label).toBe("Connected");
+    expect(r.kind).toBeUndefined();
   });
 
   it("classifies refresh-token login hints", () => {

@@ -108,17 +108,28 @@ export const parseSseTranscript = (raw: string): ScriptedEvent[] => {
   return out;
 };
 
+export interface FakeEventSourceOptions {
+  /**
+   * If false, the fake does NOT auto-emit script events on construction.
+   * Tests that need to drive timing precisely (e.g. error-before-events
+   * race repros) call `instance.emit(...)` themselves. Default true.
+   */
+  autoEmit?: boolean;
+}
+
 export const makeFakeEventSource = (
   scripts: Record<string, ScriptedEvent[]>,
+  options: FakeEventSourceOptions = {},
 ): FakeEventSourceHandle => {
   const instances: FakeEventSource[] = [];
+  const autoEmit = options.autoEmit ?? true;
 
   class FES extends FakeEventSource {
     constructor(url: string) {
       super(url);
       instances.push(this);
       const script = scripts[url];
-      if (script) {
+      if (script && autoEmit) {
         // Deliver on a microtask so the listeners are attached first.
         queueMicrotask(() => {
           for (const ev of script) this.emit(ev.type, ev.data);

@@ -22,11 +22,17 @@ export const isRefreshTokenExpired = (error: string | null | undefined): boolean
 
 // Tri-state pill per Lope review fix #2.
 //
-//   green  = daemon_running && tunnel_active && keychain_healthy
-//             && last_refresh_error === null
+// Important auth nuance: the daemon socket can keep a stale
+// `last_refresh_error` after browser/device login has refreshed
+// state.json. `/api/state.logged_in === true` means the user is usable
+// now; in that case login-required refresh errors are stale warnings,
+// not an active session-expired state. This mirrors the tray menu.
+//
+//   green  = daemon_running && logged_in && tunnel_active && keychain_healthy
+//             && no active refresh error
 //   yellow = daemon_running && (! tunnel_active
 //                                || ! keychain_healthy
-//                                || last_refresh_error !== null)
+//                                || non-login refresh error)
 //   red    = !daemon_running || status === 'offline'
 //   gray   = loading / unknown
 export const computePill = (
@@ -57,7 +63,8 @@ export const computePill = (
   const issues: string[] = [];
   if (!state.tunnel_active) issues.push("tunnel down");
   if (!state.keychain_healthy) issues.push("keychain unhealthy");
-  if (isRefreshTokenExpired(state.last_refresh_error)) {
+  const loginRequiredRefreshError = isRefreshTokenExpired(state.last_refresh_error);
+  if (loginRequiredRefreshError && !state.logged_in) {
     return {
       color: "yellow",
       label: "Session expired",
@@ -66,8 +73,9 @@ export const computePill = (
       kind: "session-expired",
     };
   }
-  if (state.last_refresh_error)
+  if (state.last_refresh_error && !loginRequiredRefreshError) {
     issues.push(`refresh error: ${state.last_refresh_error}`);
+  }
   if (issues.length > 0) {
     return {
       color: "yellow",
