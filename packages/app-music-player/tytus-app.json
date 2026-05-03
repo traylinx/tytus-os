@@ -17,7 +17,8 @@
     "daemon.network",
     "shell.notifications",
     "shell.dock",
-    "storage.app"
+    "storage.app",
+    "storage.shared.music_creator_tracks"
   ],
 
   "storage": {

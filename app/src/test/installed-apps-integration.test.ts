@@ -135,9 +135,10 @@ describe('Installed-apps end-to-end with real on-disk manifests', () => {
     const sharedFor = await resolveSharedTableNames(db, 'music-creator');
     expect(sharedFor).toEqual(['app_voice_recorder_recordings']);
 
-    // music-player declares no storage.shared.* permission → no shared tables.
+    // music-player declares storage.shared.music_creator_tracks → resolves
+    // to music-creator's app_music_creator_tracks table (W3 PR).
     const sharedForPlayer = await resolveSharedTableNames(db, 'music-player');
-    expect(sharedForPlayer).toEqual([]);
+    expect(sharedForPlayer).toEqual(['app_music_creator_tracks']);
 
     // voice-recorder declares the share but doesn't consume any → no shared
     // tables in its OWN AppDb (an app does not consume itself).
