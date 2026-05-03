@@ -1,15 +1,15 @@
 {
   "name": "@tytus/app-studio",
-  "version": "0.1.0-m6",
+  "version": "0.1.0-m6.2",
   "private": true,
   "type": "module",
   "description": "Studio — bundled Tytus OS app. AI-native long-form composition surface; replaces the legacy in-tree TextEditor + RichEditor + Notes + AIWriter triad with a single multi-block document model.",
-  "main": "./src/index.ts",
-  "types": "./src/index.ts",
+  "main": "./src/index.tsx",
+  "types": "./src/index.tsx",
   "exports": {
     ".": {
-      "types": "./src/index.ts",
-      "import": "./src/index.ts"
+      "types": "./src/index.tsx",
+      "import": "./src/index.tsx"
     }
   },
   "scripts": {
@@ -18,6 +18,14 @@
   "dependencies": {
     "@tytus/host-api": "*",
     "@tytus/contracts": "*",
-    "@tytus/ai-engine": "*"
+    "@tytus/ai-engine": "*",
+    "lucide-react": "^0.562.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.5",
+    "@types/react-dom": "^19.2.3",
+    "typescript": "~5.9.3"
   }
 }
