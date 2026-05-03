@@ -4,6 +4,7 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { OSProvider, useOS } from '@/hooks/useOSStore';
+import { HostBridgeWiring } from '@/runtime/HostBridgeWiring';
 import { DaemonClientProvider } from '@/hooks/useDaemonClient';
 import { DaemonStateProvider, useDaemonStateContext } from '@/hooks/useDaemonStateContext';
 import { logLaunch } from '@/lib/repo/appLaunches';
@@ -537,6 +538,7 @@ export default function App() {
       <DaemonStateProvider>
         <OSProvider>
           <ClipboardProvider>
+            <HostBridgeWiring />
             <AppShell />
           </ClipboardProvider>
         </OSProvider>
