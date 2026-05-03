@@ -61,4 +61,30 @@ describe('Music suite — cross-app share declarations are paired', () => {
       'app_voice_recorder_recordings',
     );
   });
+
+  it('music-creator declares the share that music-player consumes (W3)', () => {
+    const fs = require('node:fs') as typeof import('node:fs');
+    const player = JSON.parse(
+      fs.readFileSync(
+        path.resolve(REPO_ROOT, 'packages/app-music-player/tytus-app.json'),
+        'utf8',
+      ),
+    ) as {
+      permissions: string[];
+    };
+    const creator = JSON.parse(
+      fs.readFileSync(
+        path.resolve(REPO_ROOT, 'packages/app-music-creator/tytus-app.json'),
+        'utf8',
+      ),
+    ) as {
+      storage?: { shares?: Record<string, string> };
+    };
+    expect(player.permissions).toContain(
+      'storage.shared.music_creator_tracks',
+    );
+    expect(creator.storage?.shares?.music_creator_tracks).toBe(
+      'app_music_creator_tracks',
+    );
+  });
 });

@@ -25,6 +25,7 @@ export default defineConfig({
       // Pick up tests inside workspace packages so we don't need a
       // second vitest setup per package.
       "../packages/*/src/**/*.test.ts",
+      "../packages/*/src/**/*.test.tsx",
       "../packages/*/test/**/*.test.ts",
     ],
     setupFiles: ["./src/test/setup.ts"],

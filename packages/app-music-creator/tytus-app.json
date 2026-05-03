@@ -33,7 +33,10 @@
         "name": "settings",
         "schema": "migrations/0002_settings.sql"
       }
-    ]
+    ],
+    "shares": {
+      "music_creator_tracks": "app_music_creator_tracks"
+    }
   },
 
   "entry": {
