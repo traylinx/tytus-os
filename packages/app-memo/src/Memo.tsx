@@ -29,7 +29,12 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Plus, NotebookPen, Link2, Tag, Sparkles, Trash2 } from 'lucide-react';
-import type { AppDb, HostClient } from '@tytus/host-api';
+import type {
+  AppDb,
+  BrainSearchResult,
+  HostClient,
+} from '@tytus/host-api';
+import { DaemonClientError } from '@tytus/host-api';
 import {
   listMemos,
   getMemo,
@@ -40,6 +45,7 @@ import {
   type MemoRow,
 } from './repo/memoRepo';
 import { slugifyTarget } from './repo/linkResolver';
+import type { BrainBridge } from './lib/brainBridge';
 
 // `Sparkles` is referenced here to keep the icon set imported even
 // when the Brain-mirror UI doesn't render the sparkle (e.g. when
@@ -50,7 +56,15 @@ void Sparkles;
 interface Props {
   db: AppDb;
   host: HostClient;
+  /** Optional Brain bridge — when null the mirror_to_brain toggle stays
+   *  a UI-only flag (the row preserves the bit for next session). */
+  brain?: BrainBridge | null;
 }
+
+// "Brain backlinks" cache TTL — keeps the editor from pummelling the
+// daemon on every selection flip. 30s matches the spec; user-driven
+// edits aren't expected to need fresher data.
+const BRAIN_BACKLINKS_TTL_MS = 30_000;
 
 // ---- Slug derivation -------------------------------------------------
 // Used for new-memo creation. The user types a title; the slug is
@@ -94,16 +108,22 @@ const parseOutline = (body: string): OutlinerLine[] => {
 };
 
 // ---- Component ------------------------------------------------------
-export function Memo({ db, host }: Props) {
+export function Memo({ db, host, brain = null }: Props) {
   const [memos, setMemos] = useState<MemoRow[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [active, setActive] = useState<MemoRow | null>(null);
   const [backlinks, setBacklinks] = useState<MemoRow[]>([]);
+  const [brainBacklinks, setBrainBacklinks] = useState<BrainSearchResult[]>([]);
   const [outliner, setOutliner] = useState(false);
   const [draftTitle, setDraftTitle] = useState('');
   const [draftBody, setDraftBody] = useState('');
 
   const bodyRef = useRef<HTMLTextAreaElement | null>(null);
+  // Per-slug 30s cache for Brain backlinks. Lives in a ref so
+  // re-renders don't churn it; cleared on selection change.
+  const brainCacheRef = useRef<
+    Map<string, { results: BrainSearchResult[]; expiresAt: number }>
+  >(new Map());
 
   // ---- load memo list at mount + on refresh ----
   const refreshList = useCallback(async () => {
@@ -118,10 +138,15 @@ export function Memo({ db, host }: Props) {
   // ---- load active memo + its backlinks when selection changes ----
   useEffect(() => {
     let cancelled = false;
+    const ac = new AbortController();
     if (!selectedId) {
       setActive(null);
       setBacklinks([]);
-      return;
+      setBrainBacklinks([]);
+      return () => {
+        cancelled = true;
+        ac.abort();
+      };
     }
     void (async () => {
       const row = await getMemo(db, selectedId);
@@ -131,11 +156,72 @@ export function Memo({ db, host }: Props) {
       setDraftBody(row?.body ?? '');
       const back = row ? await listBacklinks(db, row.id) : [];
       if (!cancelled) setBacklinks(back);
+
+      // Brain backlinks — cache-then-fetch. The cache is per-slug, so
+      // selection flips between memos don't refetch within the TTL.
+      if (!row || !brain) {
+        if (!cancelled) setBrainBacklinks([]);
+        return;
+      }
+      const cache = brainCacheRef.current;
+      const cached = cache.get(row.slug);
+      const now = Date.now();
+      if (cached && cached.expiresAt > now) {
+        if (!cancelled) setBrainBacklinks(cached.results);
+        return;
+      }
+      try {
+        const results = await brain.searchBacklinks(row.slug, ac.signal);
+        if (cancelled) return;
+        cache.set(row.slug, {
+          results,
+          expiresAt: Date.now() + BRAIN_BACKLINKS_TTL_MS,
+        });
+        setBrainBacklinks(results);
+      } catch (err) {
+        // AbortError on selection-flip is expected, swallow silently.
+        // Anything else (daemon offline, 5xx) collapses the panel.
+        if (cancelled) return;
+        if (err instanceof DOMException && err.name === 'AbortError') return;
+        setBrainBacklinks([]);
+      }
     })();
     return () => {
       cancelled = true;
+      ac.abort();
     };
-  }, [db, selectedId]);
+  }, [db, selectedId, brain]);
+
+  // ---- Brain mirror helper (used by both save paths) ----
+  // Best-effort: a daemon failure surfaces a notification and bails.
+  // The local memo save itself is NOT rolled back — the Brain mirror
+  // is intentionally additive (the user re-toggles or re-saves to
+  // retry). Keeping mirror_to_brain on the row preserves the user's
+  // intent across sessions even when the daemon is offline.
+  const mirrorToBrain = useCallback(
+    async (row: MemoRow) => {
+      if (!brain || !row.mirrorToBrain) return;
+      try {
+        await brain.appendMemo(row.slug, row.title, row.body);
+        // Invalidate the per-slug cache so the next selection flip
+        // refetches the Brain backlinks (the just-appended entry now
+        // matches the [[slug]] search).
+        brainCacheRef.current.delete(row.slug);
+      } catch (err) {
+        const detail =
+          err instanceof DaemonClientError && err.statusCode !== null
+            ? `Daemon returned ${err.statusCode}.`
+            : 'Daemon unreachable; saved locally only.';
+        host.notifications.notify({
+          title: 'Brain mirror failed',
+          body: detail,
+          level: 'warning',
+          unread: false,
+        });
+      }
+    },
+    [brain, host],
+  );
 
   // ---- save handlers (blur-driven) ----
   const saveTitle = useCallback(async () => {
@@ -162,7 +248,8 @@ export function Memo({ db, host }: Props) {
     await refreshList();
     const fresh = await getMemo(db, active.id);
     setActive(fresh);
-  }, [active, draftTitle, db, host, refreshList]);
+    if (fresh) await mirrorToBrain(fresh);
+  }, [active, draftTitle, db, host, refreshList, mirrorToBrain]);
 
   const saveBody = useCallback(async () => {
     if (!active) return;
@@ -171,7 +258,8 @@ export function Memo({ db, host }: Props) {
     const fresh = await getMemo(db, active.id);
     setActive(fresh);
     setBacklinks(fresh ? await listBacklinks(db, fresh.id) : []);
-  }, [active, draftBody, db]);
+    if (fresh) await mirrorToBrain(fresh);
+  }, [active, draftBody, db, mirrorToBrain]);
 
   const toggleMirrorToBrain = useCallback(async () => {
     if (!active) return;
@@ -532,7 +620,7 @@ export function Memo({ db, host }: Props) {
               </div>
             )}
 
-            {/* Backlinks panel */}
+            {/* Backlinks panel (in-app) */}
             <div
               style={{
                 borderTop: '1px solid rgba(0,0,0,0.08)',
@@ -553,7 +641,7 @@ export function Memo({ db, host }: Props) {
                   marginBottom: 4,
                 }}
               >
-                <Link2 size={12} /> Backlinks ({backlinks.length})
+                <Link2 size={12} /> Backlinks (in-app) ({backlinks.length})
               </div>
               {backlinks.length === 0 && (
                 <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.4)' }}>
@@ -589,6 +677,66 @@ export function Memo({ db, host }: Props) {
                 </button>
               ))}
             </div>
+
+            {/* Brain backlinks panel — populated only when the bridge is
+                wired AND a memo is selected. Hidden entirely when brain
+                is null so unsupported runtimes (e.g. tests, headless
+                agent) don't render an empty section. */}
+            {brain && (
+              <div
+                data-testid="brain-backlinks-panel"
+                style={{
+                  borderTop: '1px solid rgba(0,0,0,0.08)',
+                  padding: '8px 16px',
+                  background: 'rgba(0,0,0,0.02)',
+                  maxHeight: 160,
+                  overflowY: 'auto',
+                }}
+              >
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 4,
+                    fontSize: 12,
+                    fontWeight: 500,
+                    color: 'rgba(0,0,0,0.6)',
+                    marginBottom: 4,
+                  }}
+                >
+                  <Sparkles size={12} /> Brain backlinks ({brainBacklinks.length})
+                </div>
+                {brainBacklinks.length === 0 && (
+                  <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.4)' }}>
+                    No Brain entries reference [[{active.slug}]] yet.
+                  </div>
+                )}
+                {brainBacklinks.map((b) => (
+                  <div
+                    key={b.id}
+                    style={{
+                      padding: '2px 0',
+                      fontSize: 13,
+                      lineHeight: 1.4,
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontFamily: 'monospace',
+                        fontSize: 11,
+                        color: 'rgba(0,0,0,0.5)',
+                        marginRight: 6,
+                      }}
+                    >
+                      {b.source.kind}:{b.source.path}
+                    </span>
+                    <span style={{ color: 'rgba(0,0,0,0.85)' }}>
+                      {b.snippet}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
           </>
         )}
       </main>
