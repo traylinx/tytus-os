@@ -454,7 +454,7 @@ const Dock = memo(function Dock() {
             ? {
                 outline: '2px solid var(--accent-error)',
                 outlineOffset: 2,
-                borderRadius: 6,
+                borderRadius: 'var(--radius-sm)',
               }
             : {}),
         }}

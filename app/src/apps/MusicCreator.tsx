@@ -2233,7 +2233,7 @@ function EmptyState({ retrying, onRetry }: EmptyStateProps) {
         draggable={false}
         style={{
           width: 96, height: 96,
-          borderRadius: 22,
+          borderRadius: 'var(--radius-2xl)',
           marginBottom: 20,
           boxShadow: '0 8px 32px rgba(200, 55, 126, 0.4)',
           animation: 'pulse 2s infinite',
@@ -4641,7 +4641,7 @@ function LyricsRendered({ text }: { text: string }) {
                 textTransform: 'uppercase',
                 color: 'var(--text-secondary)',
                 background: 'var(--bg-titlebar)',
-                borderRadius: 6,
+                borderRadius: 'var(--radius-sm)',
                 border: '1px solid var(--border-subtle)',
               }}
             >
@@ -4684,7 +4684,7 @@ function PlayerView({ track, player, onEditInCreator, onSwitchToCreator, onSearc
           draggable={false}
           style={{
             width: 120, height: 120,
-            borderRadius: 26,
+            borderRadius: 'var(--radius-2xl)',
             marginBottom: 20,
             boxShadow: 'var(--shadow-md)',
             userSelect: 'none',
@@ -4859,7 +4859,7 @@ function PlayerView({ track, player, onEditInCreator, onSwitchToCreator, onSearc
                 background: 'rgba(255,255,255,0.12)',
                 backdropFilter: 'blur(8px)',
                 padding: '4px 10px',
-                borderRadius: 999,
+                borderRadius: 'var(--radius-full)',
                 marginBottom: 12,
                 border: '1px solid rgba(255,255,255,0.10)',
               }}
@@ -5388,7 +5388,7 @@ function MusicSearchPane({
                   border: '1px solid var(--border-subtle)',
                 }}
               >
-                <span style={{ width: 7, height: 7, borderRadius: 999, background: status.ready ? 'var(--status-success)' : 'var(--accent-secondary)' }} />
+                <span style={{ width: 7, height: 7, borderRadius: 'var(--radius-full)', background: status.ready ? 'var(--status-success)' : 'var(--accent-secondary)' }} />
                 {status.ready ? 'Music engine ready' : status.installing ? 'Installing engine…' : 'Music engine offline'}
               </div>
             )}
@@ -5466,7 +5466,7 @@ function MusicSearchPane({
               ))}
             </div>
             <div className="rounded-lg px-3 flex items-center gap-2" style={{ height: 28, fontSize: 11, color: 'var(--text-secondary)', background: 'var(--bg-titlebar)', border: '1px solid var(--border-subtle)' }}>
-              <span style={{ width: 7, height: 7, borderRadius: 999, background: 'var(--status-success)' }} />
+              <span style={{ width: 7, height: 7, borderRadius: 'var(--radius-full)', background: 'var(--status-success)' }} />
               Provider: Auto / YouTube
             </div>
           </div>
@@ -5493,10 +5493,10 @@ function MusicSearchPane({
                 className="flex items-center gap-3 rounded-xl px-3 py-2"
                 style={{ background: 'var(--bg-titlebar)', border: '1px solid var(--border-subtle)', opacity: 0.78 }}
               >
-                <div className="animate-pulse" style={{ width: 56, height: 56, borderRadius: 12, background: 'var(--bg-hover)' }} />
+                <div className="animate-pulse" style={{ width: 56, height: 56, borderRadius: 'var(--radius-xl)', background: 'var(--bg-hover)' }} />
                 <div className="flex-1 min-w-0">
-                  <div className="animate-pulse" style={{ height: 12, width: `${70 - i * 6}%`, borderRadius: 999, background: 'var(--bg-hover)' }} />
-                  <div className="animate-pulse" style={{ height: 10, width: `${45 - i * 4}%`, borderRadius: 999, background: 'var(--bg-hover)', marginTop: 8 }} />
+                  <div className="animate-pulse" style={{ height: 12, width: `${70 - i * 6}%`, borderRadius: 'var(--radius-full)', background: 'var(--bg-hover)' }} />
+                  <div className="animate-pulse" style={{ height: 10, width: `${45 - i * 4}%`, borderRadius: 'var(--radius-full)', background: 'var(--bg-hover)', marginTop: 8 }} />
                 </div>
                 <Loader2 size={14} className="animate-spin" style={{ color: 'var(--accent-primary)' }} />
               </div>
@@ -5514,9 +5514,9 @@ function MusicSearchPane({
                   style={{ background: 'var(--bg-titlebar)', border: '1px solid var(--border-subtle)' }}
                 >
                   {r.thumbnailUrl || youtubeThumbnail(r.id) ? (
-                    <img src={r.thumbnailUrl || youtubeThumbnail(r.id)} alt="" style={{ width: 56, height: 56, borderRadius: 12, objectFit: 'cover' }} />
+                    <img src={r.thumbnailUrl || youtubeThumbnail(r.id)} alt="" style={{ width: 56, height: 56, borderRadius: 'var(--radius-xl)', objectFit: 'cover' }} />
                   ) : (
-                    <div className="flex items-center justify-center" style={{ width: 56, height: 56, borderRadius: 12, background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))' }}>
+                    <div className="flex items-center justify-center" style={{ width: 56, height: 56, borderRadius: 'var(--radius-xl)', background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))' }}>
                       <Music2 size={20} style={{ color: 'white' }} />
                     </div>
                   )}
@@ -8029,7 +8029,7 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
               style={{
                 width: 22, height: 22,
                 border: '1px solid var(--border-subtle)',
-                borderRadius: 6,
+                borderRadius: 'var(--radius-sm)',
                 background: 'var(--bg-window)',
                 color: 'var(--text-secondary)',
                 opacity: hostLibraryBusy ? 0.5 : 1,

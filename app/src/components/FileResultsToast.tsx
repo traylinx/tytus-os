@@ -91,7 +91,7 @@ const FileResultsToast = memo(function FileResultsToast({
           {failed.map((f, i) => (
             <li
               key={i}
-              className="flex items-start justify-between gap-2 px-1 py-1 rounded"
+              className="flex items-start justify-between gap-2 px-1 py-1 rounded-md"
               style={{ background: "var(--bg-card)" }}
             >
               <div className="min-w-0 flex-1">

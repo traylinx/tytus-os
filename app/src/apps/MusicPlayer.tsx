@@ -400,7 +400,7 @@ export default function MusicPlayer() {
             draggable={false}
             style={{
               width: 96, height: 96,
-              borderRadius: 22,
+              borderRadius: 'var(--radius-2xl)',
               marginBottom: 16,
               opacity: 0.85,
               userSelect: 'none',

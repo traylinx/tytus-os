@@ -392,7 +392,7 @@ function SnapOverlay({ kind }: { kind: SnapKind }) {
         ...style,
         background: 'rgba(124, 77, 255, 0.18)',
         border: '2px solid var(--accent-primary)',
-        borderRadius: 8,
+        borderRadius: 'var(--radius-lg)',
         pointerEvents: 'none',
         zIndex: 9000,
         transition: 'all 80ms ease-out',

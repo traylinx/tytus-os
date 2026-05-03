@@ -152,7 +152,7 @@ const FileConflictDialog = memo(function FileConflictDialog({
           <button
             type="button"
             onClick={onCancel}
-            className="px-3 py-1.5 rounded text-sm"
+            className="px-3 py-1.5 rounded-md text-sm"
             style={{
               border: "1px solid var(--border-default)",
               color: "var(--text-primary)",
@@ -163,7 +163,7 @@ const FileConflictDialog = memo(function FileConflictDialog({
           <button
             type="button"
             onClick={submit}
-            className="px-3 py-1.5 rounded text-sm font-medium"
+            className="px-3 py-1.5 rounded-md text-sm font-medium"
             style={{
               background: "var(--accent-primary)",
               color: "var(--text-on-accent)",

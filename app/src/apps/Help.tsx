@@ -151,7 +151,7 @@ const Help: FC = () => {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search the manual…"
-              className="bg-transparent text-xs flex-1 outline-none text-[var(--text-primary)] placeholder:text-[var(--text-secondary)]"
+              className="rounded-input bg-transparent text-xs flex-1 outline-none text-[var(--text-primary)] placeholder:text-[var(--text-secondary)]"
             />
           </div>
         </div>

@@ -1496,7 +1496,7 @@ const Settings: React.FC = () => {
                         },
                       })
                     }
-                    className="px-3 py-1.5 rounded text-xs font-medium"
+                    className="px-3 py-1.5 rounded-md text-xs font-medium"
                     style={{
                       background:
                         state.theme.dock.position === opt.v
@@ -1536,7 +1536,7 @@ const Settings: React.FC = () => {
                         },
                       })
                     }
-                    className="px-3 py-1.5 rounded text-xs font-medium"
+                    className="px-3 py-1.5 rounded-md text-xs font-medium"
                     style={{
                       background:
                         state.theme.dock.size === opt.v
@@ -1588,7 +1588,7 @@ const Settings: React.FC = () => {
                     theme: { dock: { ...state.theme.dock, order: [] } },
                   })
                 }
-                className="px-3 py-1.5 rounded text-xs font-medium border"
+                className="px-3 py-1.5 rounded-md text-xs font-medium border"
                 style={{
                   borderColor: "var(--border-default)",
                   color: "var(--text-primary)",
