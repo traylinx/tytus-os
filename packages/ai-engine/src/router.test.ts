@@ -7,7 +7,15 @@ import {
   type Endpoint,
   type ModelInfo,
 } from './router';
-import type { HostClient, Pod } from '@tytus/host-api';
+import type {
+  HostClient,
+  Juli3taLibraryApi,
+  MusicDaemonApi,
+  Pod,
+} from '@tytus/host-api';
+
+const stubMusic = {} as MusicDaemonApi;
+const stubJuli3ta = {} as Juli3taLibraryApi;
 
 function makeHost(pods: Pod[]): HostClient {
   return {
@@ -18,6 +26,8 @@ function makeHost(pods: Pod[]): HostClient {
       onStateChange: () => () => {},
       callPodEndpoint: async (_id, _path) =>
         new Response(JSON.stringify({ data: [] })),
+      music: stubMusic,
+      juli3taLibrary: stubJuli3ta,
     },
     windows: {} as never,
     notifications: {} as never,
@@ -97,6 +107,8 @@ describe('router — discoverModels', () => {
               ],
             }),
           ),
+        music: stubMusic,
+        juli3taLibrary: stubJuli3ta,
       },
     };
     const ep: Endpoint = {
@@ -125,6 +137,8 @@ describe('router — discoverModels', () => {
         onStateChange: () => () => {},
         callPodEndpoint: async () =>
           new Response('forbidden', { status: 403 }),
+        music: stubMusic,
+        juli3taLibrary: stubJuli3ta,
       },
     } as HostClient;
     const ep: Endpoint = {
