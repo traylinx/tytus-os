@@ -117,6 +117,33 @@ export {
   webFetchTool,
 } from './tools/common/webFetch';
 
+// W6 PR-Sheet-Engine (M4.4) — sheet-specific tools.
+export type {
+  CellReadRangeArgs,
+  CellReadRangeFactoryOpts,
+  CellReadRangeResult,
+  CellReadSheetArgs,
+  CellReadSheetFactoryOpts,
+  CellReadSheetResult,
+  CellFormulaArgs,
+  CellFormulaResult,
+} from './tools/sheet';
+export {
+  CELL_FORMULA_TOOL_NAME,
+  CELL_READ_RANGE_TOOL_NAME,
+  CELL_READ_SHEET_TOOL_NAME,
+  cellFormulaTool,
+  cellReadRangeTool,
+  cellReadSheetTool,
+  evaluateFormula,
+  makeSheetTools,
+  parseCellFormulaArgs,
+  parseCellReadRangeArgs,
+  parseCellReadSheetArgs,
+  readRange,
+  readSheet,
+} from './tools/sheet';
+
 export type {
   ChatMessage,
   ChatRequest,
