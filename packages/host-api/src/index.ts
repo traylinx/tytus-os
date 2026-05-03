@@ -77,3 +77,16 @@ export {
   AssetEscapeError,
   ManifestValidationError,
 } from './errors';
+
+export type {
+  UsageRecord,
+  BrainSearchResult,
+  BrainSearchResultSource,
+  BrainEntry,
+} from './daemon/types';
+export { DaemonClientError } from './daemon/types';
+export type {
+  DaemonClient,
+  CreateDaemonClientOpts,
+} from './daemon/clients';
+export { createDaemonClient } from './daemon/clients';
