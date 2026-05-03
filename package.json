@@ -19,6 +19,7 @@
     "test:smoke": "npm run test:smoke --workspace app",
     "test:probe": "npm run test:probe --workspace app",
     "audit:radius": "npm run audit:radius --workspace app",
+    "audit:bundle-strict": "npm run audit:bundle-strict --workspace app",
     "i18n:check": "npm run i18n:check --workspace app",
     "i18n:update-allowlist": "npm run i18n:update-allowlist --workspace app"
   }
