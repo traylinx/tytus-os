@@ -1,7 +1,7 @@
 import { type FC, useEffect, useState, useMemo } from 'react';
 import { Store, Search, CheckCircle2, Download, ExternalLink, Package, Loader2, AlertCircle } from 'lucide-react';
 import { useDaemonClient } from '@/hooks/useDaemonClient';
-import { useOS } from '@/hooks/useOSStore';
+import { useWindows } from '@/hooks/useOSStore';
 import type { StoreApp } from '@/types/daemon';
 import { TytusAppsTab } from './TytusAppsTab';
 
@@ -11,7 +11,7 @@ type ActiveTab = 'tytus' | 'desktop';
 
 const AppStore: FC = () => {
   const [activeTab, setActiveTab] = useState<ActiveTab>('tytus');
-  const { openWindow } = useOS();
+  const { openWindow } = useWindows();
 
   return (
     <div className="h-full flex flex-col" style={{ background: 'var(--bg-window)' }}>
