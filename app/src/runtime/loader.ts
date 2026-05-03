@@ -16,11 +16,10 @@
 
 import type {
   AppBootEnv,
-  AppCreateSession,
-  HostClient,
   Manifest,
 } from '@tytus/host-api';
 
+import { makeAppBootEnv } from './host-impl';
 import { transformCss, type StyleIsolationOptions } from './style-isolator';
 
 /** Resolved URLs for an app's bundle. The shell's registry computes these
@@ -63,87 +62,6 @@ export interface LoadedApp {
   dispose: () => void;
   /** Diagnostics from the style-isolator (rejections, warnings). */
   styleWarnings: string[];
-}
-
-/** Stub: PR4 replaces this with a real implementation in
- *  `apps/host/src/runtime/legacy-shim.ts`. The stub returns enough of the
- *  HostClient surface for the loader to compile + early-tests to mock-call. */
-function makeHostForAppStub(
-  appId: string,
-  _manifest: Manifest,
-  _entryUrls: EntryUrls,
-): HostClient {
-  const notImpl = (name: string) => {
-    return () => {
-      throw new Error(
-        `host.${name} is not implemented in M1 PR3 stub — fills in PR4.`,
-      );
-    };
-  };
-  return {
-    appId,
-    fs: {
-      ensureUserFolder: notImpl('fs.ensureUserFolder'),
-      read: notImpl('fs.read'),
-      write: notImpl('fs.write'),
-      createFile: notImpl('fs.createFile'),
-      createFolder: notImpl('fs.createFolder'),
-      rename: notImpl('fs.rename'),
-      list: notImpl('fs.list'),
-      findChildByName: notImpl('fs.findChildByName'),
-      getNodeById: notImpl('fs.getNodeById'),
-      getIconForFileName: () => 'File',
-      watch: () => () => {},
-    },
-    daemon: {
-      state: { agents: [], included: [] },
-      onStateChange: () => () => {},
-      callPodEndpoint: notImpl('daemon.callPodEndpoint'),
-    },
-    windows: {
-      current: { id: 'stub', appId },
-      open: notImpl('windows.open'),
-      openOrFocus: notImpl('windows.openOrFocus'),
-      close: notImpl('windows.close'),
-      addDesktopIcon: notImpl('windows.addDesktopIcon'),
-    },
-    notifications: { notify: () => {} },
-    shellMenu: { register: () => () => {} },
-    i18n: {
-      locale: 'en',
-      t: (key) => key,
-      onLocaleChange: () => () => {},
-    },
-    storage: {
-      current: notImpl('storage.current'),
-      forApp: notImpl('storage.forApp'),
-      forSharedKey: () => null,
-    },
-    events: {
-      on: () => () => {},
-      emit: () => {},
-    },
-    media: {
-      requestMicrophone: notImpl('media.requestMicrophone'),
-      requestDisplay: notImpl('media.requestDisplay'),
-    },
-    assets: {
-      text: notImpl('assets.text'),
-      bytes: notImpl('assets.bytes'),
-      url: () => '',
-    },
-  };
-}
-
-/** Stub: M2 replaces this with the real engine `createSession` factory. The
- *  stub throws if any AI app actually tries to send — fine for M1 because
- *  PR5's Notes proof doesn't use AI. */
-function createSessionStub(): AppCreateSession {
-  return () => {
-    throw new Error(
-      'createSession is not available in M1 PR3 stub — fills in M2 (ai-engine package).',
-    );
-  };
 }
 
 /**
@@ -217,11 +135,7 @@ export async function loadApp(opts: LoadAppOptions): Promise<LoadedApp> {
     );
   }
 
-  const host = makeHostForAppStub(appId, manifest, entryUrls);
-  const env: AppBootEnv = {
-    host,
-    createSession: createSessionStub(),
-  };
+  const env: AppBootEnv = makeAppBootEnv(appId, manifest, entryUrls);
   const component = mod.default(env);
 
   return {

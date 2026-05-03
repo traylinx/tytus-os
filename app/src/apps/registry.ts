@@ -1,4 +1,4 @@
-import type { AppDefinition } from '@/types';
+import type { AppDefinition, AppKind } from '@/types';
 
 // 50 apps total in v1.
 // 8 Tytus product surfaces + 42 OS-feel utilities (kept from the original Kimi seed).
@@ -255,11 +255,77 @@ export const APP_REGISTRY: AppDefinition[] = [
     defaultSize: { width: 400, height: 560 }, minSize: { width: 280, height: 400 }, isDemo: true },
 ];
 
-export const getAppById = (id: string): AppDefinition | undefined =>
-  APP_REGISTRY.find((a) => a.id === id);
+/**
+ * Fill in the registry kind when omitted. Existing in-tree apps default to
+ * `legacy` since they're React components imported via AppRouter, not
+ * loaded through the workspace-package loader. Workspace packages mark
+ * themselves explicitly as `bundled` (M3+ when they extract).
+ *
+ * Aliases must declare `kind: 'alias'` explicitly — `aliasOf` is required
+ * with `kind: 'alias'`, and an alias missing `aliasOf` is a programmer
+ * error caught by `tytus-app validate` before install.
+ */
+export function normalizeApp(app: AppDefinition): AppDefinition & {
+  kind: AppKind;
+} {
+  return { ...app, kind: app.kind ?? 'legacy' };
+}
+
+export const getAppById = (id: string): AppDefinition | undefined => {
+  // Alias resolution: if the requested id points at an alias, follow it
+  // once. We don't recurse — manifests with `aliasOf` chains are an
+  // install-time error, not something the registry tries to repair.
+  const direct = APP_REGISTRY.find((a) => a.id === id);
+  if (direct?.kind === 'alias' && direct.aliasOf) {
+    return APP_REGISTRY.find((a) => a.id === direct.aliasOf);
+  }
+  return direct;
+};
 
 export const getAppsByCategory = (category: string): AppDefinition[] =>
-  APP_REGISTRY.filter((a) => a.category === category);
+  APP_REGISTRY.filter((a) => a.category === category && !a.hidden);
+
+export const getAppsByKind = (kind: AppKind): AppDefinition[] =>
+  APP_REGISTRY.filter((a) => normalizeApp(a).kind === kind);
+
+/**
+ * Resolve an alias entry to the live app + transformed window args.
+ * Returns null when the id is not an alias. When the alias's
+ * `rewriteArgs` body throws, returns the args unchanged (the alias still
+ * resolves; the caller surfaces a warning).
+ */
+export function resolveAlias(
+  id: string,
+  args: unknown,
+):
+  | { resolvedAppId: string; rewrittenArgs: unknown; rewriterErrored: boolean }
+  | null {
+  const entry = APP_REGISTRY.find((a) => a.id === id);
+  if (!entry || entry.kind !== 'alias' || !entry.aliasOf) return null;
+  let rewrittenArgs: unknown = args;
+  let rewriterErrored = false;
+  if (entry.rewriteArgs) {
+    try {
+      // The function body comes from a manifest the shell controls; it is
+      // not user-provided runtime input. Static manifests pass through
+      // `tytus-app validate` at install time, so this Function() call is
+      // bounded by the install pipeline.
+      // eslint-disable-next-line @typescript-eslint/no-implied-eval
+      const rewriter = new Function(
+        'args',
+        `return (${entry.rewriteArgs})(args);`,
+      ) as (a: unknown) => unknown;
+      rewrittenArgs = rewriter(args);
+    } catch {
+      rewriterErrored = true;
+    }
+  }
+  return {
+    resolvedAppId: entry.aliasOf,
+    rewrittenArgs,
+    rewriterErrored,
+  };
+}
 
 export const getDefaultDockApps = (): string[] => [
   'pod-inspector',
