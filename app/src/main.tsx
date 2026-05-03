@@ -4,6 +4,7 @@ import './styles/window-animations.css'
 import App from './App.tsx'
 import { initDb, getDbMeta } from '@/lib/db'
 import { seedBundledAppsAtBoot } from '@/runtime/seed-bundled-apps'
+import { migrateLegacyMusicCreatorTables } from '@/runtime/legacy-migrations'
 import { I18nProvider } from '@/i18n'
 
 // Boot the SQLite worker before mounting. Failure here is non-fatal:
@@ -19,6 +20,26 @@ initDb()
         `[tytusos] SQLite ready (lib=${meta.libVersion}, schema=v${meta.version}, ` +
           `${meta.persistent ? 'OPFS-persistent' : 'in-memory fallback'})`,
       )
+    }
+    // One-shot legacy-data migration. Lifts music_creator_* rows
+    // into the per-app prefixed namespace BEFORE per-app DBs bind —
+    // workspace packages can't see un-prefixed legacy tables. Each
+    // step is idempotent via migration_flags so re-runs are no-ops.
+    // Failure is non-fatal; per-app gallery just renders empty for
+    // pre-existing tracks until the next boot retries.
+    try {
+      const result = await migrateLegacyMusicCreatorTables(db)
+      if (
+        result.tracksImported > 0
+        || result.settingsImported > 0
+        || result.youtubeToLibraryImported > 0
+      ) {
+        console.info(
+          `[tytusos] legacy migration: tracks=${result.tracksImported} settings=${result.settingsImported} yt→library=${result.youtubeToLibraryImported}`,
+        )
+      }
+    } catch (err) {
+      console.warn('[tytusos] legacy music_creator_* migration failed', err)
     }
     // Seed installed_apps with bundled manifests (idempotent — re-
     // asserts manifest_json every boot). Failure is non-fatal; App
