@@ -32,6 +32,10 @@
       {
         "name": "links",
         "schema": "migrations/0002_links.sql"
+      },
+      {
+        "name": "memos",
+        "schema": "migrations/0003_memos.sql"
       }
     ]
   },
