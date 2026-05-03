@@ -1,6 +1,6 @@
 # TytusOS Current Status
 
-Current status as of the v0.6.9 cutover-doc pass. This file used to be an early skeleton snapshot; keep the current section authoritative and treat the old phase notes below as historical evidence only.
+Current status as of the v0.6.10 cutover-doc pass. This file used to be an early skeleton snapshot; keep the current section authoritative and treat the old phase notes below as historical evidence only.
 
 ## Current production surfaces
 
