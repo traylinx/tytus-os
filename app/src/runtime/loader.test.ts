@@ -178,7 +178,7 @@ describe('loader.loadApp', () => {
       }),
     });
     expect(() => envOut!.createSession()).toThrow(
-      /createSession is not available in M1 PR3 stub/,
+      /createSession is not available.*wired in M2/,
     );
   });
 });
