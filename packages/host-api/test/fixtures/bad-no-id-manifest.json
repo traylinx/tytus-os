@@ -1,0 +1,9 @@
+{
+  "name": "Bad",
+  "version": "1.0.0",
+  "icon": "Table2",
+  "category": "Productivity",
+  "description": "Missing id and window.",
+  "permissions": [],
+  "entry": { "module": "./dist/index.js" }
+}

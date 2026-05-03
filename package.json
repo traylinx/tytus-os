@@ -1,0 +1,25 @@
+{
+  "name": "tytus-os-monorepo",
+  "private": true,
+  "version": "0.0.1",
+  "description": "Tytus OS — workspace root for the apps platform.",
+  "workspaces": [
+    "app",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace app",
+    "build": "npm run build --workspace app",
+    "lint": "npm run lint --workspace app",
+    "preview": "npm run preview --workspace app",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "typecheck:guard": "npm run typecheck:guard --workspace app",
+    "test": "npm run test --workspaces --if-present",
+    "test:watch": "npm run test:watch --workspace app",
+    "test:smoke": "npm run test:smoke --workspace app",
+    "test:probe": "npm run test:probe --workspace app",
+    "audit:radius": "npm run audit:radius --workspace app",
+    "i18n:check": "npm run i18n:check --workspace app",
+    "i18n:update-allowlist": "npm run i18n:update-allowlist --workspace app"
+  }
+}

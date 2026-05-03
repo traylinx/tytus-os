@@ -1,0 +1,229 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://tytus.traylinx.com/schema/app/v1.json",
+  "title": "Tytus App Manifest v1",
+  "description": "Schema for tytus-app.json — the contract between an app and the Tytus OS shell.",
+  "type": "object",
+  "required": ["id", "name", "version", "icon", "category", "description", "window", "permissions"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "format": "uri"
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9-]+$",
+      "minLength": 1,
+      "maxLength": 64,
+      "description": "App id; lowercase letters, digits, hyphens. Used as the registry primary key."
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+(?:-[0-9A-Za-z.-]+)?(?:\\+[0-9A-Za-z.-]+)?$",
+      "description": "Semantic version (semver 2.0)."
+    },
+    "icon": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "description": "Lucide icon name (e.g. Table2). The shell renders the matching icon."
+    },
+    "category": {
+      "type": "string",
+      "enum": [
+        "System",
+        "Internet",
+        "Productivity",
+        "Creative",
+        "Games",
+        "Utilities",
+        "Media",
+        "Development"
+      ]
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "kind": {
+      "type": "string",
+      "enum": ["bundled", "installed", "legacy", "alias"]
+    },
+    "window": {
+      "type": "object",
+      "required": ["defaultSize", "minSize"],
+      "additionalProperties": false,
+      "properties": {
+        "defaultSize": { "$ref": "#/$defs/size" },
+        "minSize": { "$ref": "#/$defs/size" },
+        "maxSize": { "$ref": "#/$defs/size" }
+      }
+    },
+    "permissions": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/permission" },
+      "uniqueItems": true
+    },
+    "storage": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "tables": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "schema"],
+            "additionalProperties": false,
+            "properties": {
+              "name": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_]*$",
+                "description": "Logical table name; physical name is `app_<sqlAppId>_<name>`."
+              },
+              "schema": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Path to the migration SQL file, relative to the manifest."
+              }
+            }
+          }
+        },
+        "shares": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "pattern": "^app_[a-z][a-z0-9_]*$"
+          },
+          "description": "Map of share-key to physical table name owned by this app."
+        }
+      }
+    },
+    "entry": {
+      "type": "object",
+      "required": ["module"],
+      "additionalProperties": false,
+      "properties": {
+        "module": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Path to the ESM entry module, relative to the manifest."
+        },
+        "assets": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Bundle root for host.assets.* resolution. Defaults to ./assets/ next to module."
+        },
+        "css": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Optional CSS file. Loader fetches, transforms for isolation, and injects inline."
+        },
+        "i18n": {
+          "type": "object",
+          "additionalProperties": { "type": "string", "minLength": 1 }
+        },
+        "fonts": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "uniqueItems": true,
+          "description": "Font URLs to preload before app code runs. @font-face inside app CSS is REJECTED — declare fonts here."
+        }
+      }
+    },
+    "contributes": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "fileAssociations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["extension", "mimeType"],
+            "additionalProperties": false,
+            "properties": {
+              "extension": {
+                "type": "string",
+                "pattern": "^\\.[a-zA-Z0-9.-]+$"
+              },
+              "mimeType": {
+                "type": "string",
+                "pattern": "^[a-zA-Z0-9.+-]+/[a-zA-Z0-9.+-]+$"
+              }
+            }
+          },
+          "uniqueItems": true
+        }
+      }
+    },
+    "aliasOf": {
+      "type": "string",
+      "pattern": "^[a-z0-9-]+$",
+      "description": "Required when kind=alias. Live app id this alias resolves to."
+    },
+    "rewriteArgs": {
+      "type": "string",
+      "description": "Function body (string) that maps legacy WindowArgs to the live app's shape."
+    },
+    "removeInVersion": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+(?:-[0-9A-Za-z.-]+)?$",
+      "description": "Future Tytus version that drops this alias entirely."
+    },
+    "hidden": {
+      "type": "boolean"
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "kind": { "const": "alias" } }, "required": ["kind"] },
+      "then": { "required": ["aliasOf", "removeInVersion"] },
+      "else": { "required": ["entry"] }
+    }
+  ],
+  "$defs": {
+    "size": {
+      "type": "object",
+      "required": ["width", "height"],
+      "additionalProperties": false,
+      "properties": {
+        "width": { "type": "integer", "minimum": 80, "maximum": 8192 },
+        "height": { "type": "integer", "minimum": 80, "maximum": 8192 }
+      }
+    },
+    "permission": {
+      "anyOf": [
+        {
+          "type": "string",
+          "enum": [
+            "daemon.read",
+            "daemon.network",
+            "vfs.user.music",
+            "vfs.user.documents",
+            "vfs.user.desktop",
+            "vfs.user.downloads",
+            "vfs.system",
+            "shell.openWindow",
+            "shell.notifications",
+            "shell.menu",
+            "shell.dock",
+            "storage.app",
+            "media.microphone",
+            "media.display",
+            "clipboard"
+          ]
+        },
+        {
+          "type": "string",
+          "pattern": "^storage\\.shared\\.[a-z][a-z0-9_]*$"
+        }
+      ]
+    }
+  }
+}

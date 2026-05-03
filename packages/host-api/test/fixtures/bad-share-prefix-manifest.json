@@ -1,0 +1,19 @@
+{
+  "id": "music-creator",
+  "name": "Music Creator",
+  "version": "1.0.0",
+  "icon": "Music",
+  "category": "Creative",
+  "description": "Share value points at another app's prefix — should fail semantic check.",
+  "window": {
+    "defaultSize": { "width": 760, "height": 560 },
+    "minSize": { "width": 480, "height": 360 }
+  },
+  "permissions": ["storage.app"],
+  "storage": {
+    "shares": {
+      "voice_recordings": "app_voice_recorder_recordings"
+    }
+  },
+  "entry": { "module": "./dist/index.js" }
+}
