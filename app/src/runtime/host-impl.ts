@@ -23,33 +23,53 @@
  */
 
 import type {
+  AnyWindowArgs,
   AppBootEnv,
   AppCreateSession,
   AppDb,
   AssetsApi,
   DaemonApi,
+  DaemonState,
   EventsApi,
   FsApi,
   HostClient,
   I18nApi,
+  Juli3taFileLibraryResponse,
+  Juli3taFileTrack,
+  Juli3taLibraryApi,
   Manifest,
   MediaApi,
+  MicrophoneStream,
+  MusicConnectorStatus,
+  MusicDaemonApi,
+  MusicProviderStatus,
+  MusicSearchResult,
+  MusicStatus,
+  MusicStreamInfo,
   NotificationsApi,
+  Pod,
+  SharedDb,
   ShellEventName,
   ShellEventPayload,
   ShellMenuApi,
+  ShellMenuSpec,
   StorageApi,
+  UnifiedMusicSearchResponse,
   WindowsApi,
 } from '@tytus/host-api';
 import {
   AssetEscapeError,
   AssetTooLargeError,
+  PermissionDeniedError,
 } from '@tytus/host-api';
 
 import type { EntryUrls } from './loader';
 import { createLocalStorageFs } from './host-fs-localstorage';
 import { createAppDb } from './storage-impl';
-import { resolveSharedTableNames } from './installed-apps-repo';
+import {
+  listInstalledApps,
+  resolveSharedTableNames,
+} from './installed-apps-repo';
 import { getDb } from '@/lib/db';
 
 const ASSET_SIZE_LIMIT_BYTES = 1024 * 1024; // 1 MB per spec.
@@ -60,6 +80,140 @@ const notImpl = (name: string, milestone: string) => {
       `host.${name} is not implemented yet — wired in ${milestone}.`,
     );
   };
+};
+
+// ─── Shell bridges ────────────────────────────────────────────────────
+// host-impl is plain JS — it can't read React context. The shell wires
+// its live state and dispatch handlers in via setter functions below.
+// Tests inject mocks the same way. Each setter is a clear seam so the
+// data flow from React → host-impl is explicit.
+
+/** Pod descriptor as the host-api Pod type sees it, plus a private
+ *  `bearer` field the shell injects so callPodEndpoint can attach the
+ *  Authorization header without exposing the secret to apps. */
+export interface ShellPodDescriptor {
+  pod: Pod;
+  /** Bearer token. Populated by the shell from the daemon's Secret-typed
+   *  user_key via `revealSecret(secret, 'user_gesture')`. */
+  bearer: string | null;
+}
+
+interface DaemonStateProvider {
+  getState(): DaemonState;
+  /** Resolve a pod by id including its bearer; null if the pod is not
+   *  in the current included set. */
+  getPod(podId: string): ShellPodDescriptor | null;
+  subscribe(fn: (s: DaemonState) => void): () => void;
+}
+
+let DAEMON_STATE_PROVIDER: DaemonStateProvider | null = null;
+export function setDaemonStateProvider(
+  provider: DaemonStateProvider | null,
+): void {
+  DAEMON_STATE_PROVIDER = provider;
+}
+
+interface WindowsActions {
+  open(appId: string, args?: AnyWindowArgs): string;
+  openOrFocus(appId: string, args?: AnyWindowArgs): string;
+  close(windowId: string): void;
+  addDesktopIcon(opts: {
+    label: string;
+    iconUrl: string;
+    onClick: () => void;
+  }): void;
+  /** The active window the calling app currently owns. Null when the
+   *  app has no open window — apps that need a window-id at boot should
+   *  open one first. */
+  current(appId: string): { id: string; appId: string; args?: AnyWindowArgs };
+}
+
+let WINDOWS_ACTIONS: WindowsActions | null = null;
+export function setWindowsActions(actions: WindowsActions | null): void {
+  WINDOWS_ACTIONS = actions;
+}
+
+interface ShellMenuActions {
+  registerForApp(spec: ShellMenuSpec): () => void;
+}
+
+let SHELL_MENU_ACTIONS: ShellMenuActions | null = null;
+export function setShellMenuActions(actions: ShellMenuActions | null): void {
+  SHELL_MENU_ACTIONS = actions;
+}
+
+// ─── Same-origin JSON helpers ─────────────────────────────────────────
+// These bind to whatever `globalThis.fetch` resolves to at call time so
+// tests can swap fetch via vi.stubGlobal without touching this module.
+
+interface JsonHttpError extends Error {
+  status: number;
+  code: string;
+}
+
+const httpError = (status: number, code: string, message: string): JsonHttpError => {
+  const err = new Error(message) as JsonHttpError;
+  err.status = status;
+  err.code = code;
+  return err;
+};
+
+const sameOriginGetJson = async <T>(
+  path: string,
+  signal?: AbortSignal,
+): Promise<T> => {
+  const res = await fetch(path, {
+    method: 'GET',
+    headers: { Accept: 'application/json' },
+    credentials: 'same-origin',
+    signal,
+  });
+  let body: unknown = null;
+  try {
+    body = await res.json();
+  } catch {
+    body = null;
+  }
+  if (!res.ok) {
+    const maybe = body as { error?: unknown } | null;
+    const code =
+      typeof maybe?.error === 'string' ? maybe.error : `http_${res.status}`;
+    throw httpError(res.status, code, code);
+  }
+  return body as T;
+};
+
+const sameOriginPostJson = async <T>(
+  path: string,
+  body: unknown,
+  init?: RequestInit,
+  signal?: AbortSignal,
+): Promise<T> => {
+  const res = await fetch(path, {
+    method: 'POST',
+    ...(init ?? {}),
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+      ...(init?.headers ?? {}),
+    },
+    credentials: 'same-origin',
+    body: JSON.stringify(body),
+    signal,
+  });
+  let parsed: unknown = null;
+  try {
+    parsed = await res.json();
+  } catch {
+    parsed = null;
+  }
+  if (!res.ok) {
+    const maybe = parsed as { error?: unknown } | null;
+    const code =
+      typeof maybe?.error === 'string' ? maybe.error : `http_${res.status}`;
+    throw httpError(res.status, code, code);
+  }
+  return parsed as T;
 };
 
 /**
@@ -205,15 +359,19 @@ function makeI18nApi(): I18nApi {
   };
 }
 
-/** Build the notifications namespace. M1: console + in-memory queue
- *  (shells observe via getNotificationQueue()). M3+ wires to sonner
- *  which the existing app already uses. */
+/** Build the notifications namespace. Records each notify call into an
+ *  inspectable queue (the shell drains this into the OS notification
+ *  store on a timer). The bound `appId` is the caller's identity by
+ *  default; `opts.appId` overrides it for the rare privileged shell
+ *  surface that posts on behalf of another app. `unread` defaults to
+ *  true — apps like Memo that want a silent audit trail pass `false`. */
 const NOTIFICATION_QUEUE: Array<{
   appId: string;
   title: string;
   body?: string;
   level?: string;
   durationMs?: number;
+  unread: boolean;
   ts: number;
 }> = [];
 export function getNotificationQueue() {
@@ -222,15 +380,18 @@ export function getNotificationQueue() {
 export function clearNotificationQueue(): void {
   NOTIFICATION_QUEUE.length = 0;
 }
-function makeNotificationsApi(appId: string): NotificationsApi {
+function makeNotificationsApi(boundAppId: string): NotificationsApi {
   return {
     notify(opts) {
+      const appId = opts.appId ?? boundAppId;
+      const unread = opts.unread ?? true;
       NOTIFICATION_QUEUE.push({
         appId,
         title: opts.title,
         body: opts.body,
         level: opts.level,
         durationMs: opts.durationMs,
+        unread,
         ts: Date.now(),
       });
       // Surface in dev so missing UI doesn't hide bugs.
@@ -257,38 +418,243 @@ function makeFsApi(): FsApi {
   });
 }
 
-/** Build a stub daemon namespace. M3+ wires to useDaemonStateContext. */
-function makeStubDaemonApi(): DaemonApi {
+/** Build the daemon namespace. Reads live state through the
+ *  shell-injected DaemonStateProvider so the React side owns the polling
+ *  loop and host-impl stays React-free. `callPodEndpoint` looks up the
+ *  pod descriptor (including its bearer) and prepends the public URL —
+ *  apps never see the bearer or assemble URLs themselves. The music and
+ *  juli3taLibrary sub-clients hit same-origin daemon HTTP routes. */
+function makeDaemonApi(): DaemonApi {
+  const provider = DAEMON_STATE_PROVIDER;
+  const state = provider ? provider.getState() : { agents: [], included: [] };
+  const onStateChange = provider
+    ? (fn: (s: DaemonState) => void) => provider.subscribe(fn)
+    : () => () => {};
+
+  const callPodEndpoint = async (
+    podId: string,
+    path: string,
+    init?: RequestInit,
+  ): Promise<Response> => {
+    if (!provider) {
+      throw new Error(
+        'host.daemon.callPodEndpoint: no DaemonStateProvider wired. ' +
+          'Call setDaemonStateProvider() at shell boot or in tests.',
+      );
+    }
+    const descriptor = provider.getPod(podId);
+    if (!descriptor) {
+      throw new Error(
+        `host.daemon.callPodEndpoint: pod "${podId}" not found in current daemon state.`,
+      );
+    }
+    const publicUrl = descriptor.pod.publicUrl;
+    if (!publicUrl) {
+      throw new Error(
+        `host.daemon.callPodEndpoint: pod "${podId}" has no public URL — wait for state.connected.`,
+      );
+    }
+    const headers = new Headers(init?.headers ?? {});
+    if (descriptor.bearer) {
+      headers.set('Authorization', `Bearer ${descriptor.bearer}`);
+    }
+    const url = `${publicUrl}${path}`;
+    return fetch(url, { ...init, headers });
+  };
+
   return {
-    state: { agents: [], included: [] },
-    onStateChange: () => () => {},
-    callPodEndpoint: notImpl('daemon.callPodEndpoint', 'M3+'),
+    state,
+    onStateChange,
+    callPodEndpoint,
+    music: makeMusicDaemonApi(),
+    juli3taLibrary: makeJuli3taLibraryApi(),
   };
 }
 
-/** Build a stub windows namespace. M3+ wires to useOSStore. */
-function makeStubWindowsApi(appId: string): WindowsApi {
+/** Same-origin music gateway client. Mirrors the verbs from
+ *  app/src/lib/musicDaemon.ts so the in-tree extraction can swap import
+ *  sites for `host.daemon.music.*` without behavior change. */
+function makeMusicDaemonApi(): MusicDaemonApi {
   return {
-    current: { id: 'stub', appId },
-    open: notImpl('windows.open', 'M3+'),
-    openOrFocus: notImpl('windows.openOrFocus', 'M3+'),
-    close: notImpl('windows.close', 'M3+'),
-    addDesktopIcon: notImpl('windows.addDesktopIcon', 'M3+'),
+    getStatus: (signal) =>
+      sameOriginGetJson<MusicStatus>('/api/music/status', signal),
+    getProviders: async (signal) => {
+      const body = await sameOriginGetJson<{ providers: MusicProviderStatus[] }>(
+        '/api/music/providers',
+        signal,
+      );
+      return body.providers ?? [];
+    },
+    getConnectors: async (signal) => {
+      const body = await sameOriginGetJson<{
+        connectors: MusicConnectorStatus[];
+      }>('/api/music/connectors', signal);
+      return body.connectors ?? [];
+    },
+    configureConnector: (provider, credentials, signal) =>
+      sameOriginPostJson<MusicConnectorStatus>(
+        '/api/music/connectors/configure',
+        { provider, credentials },
+        undefined,
+        signal,
+      ),
+    disconnectConnector: (provider, signal) =>
+      sameOriginPostJson<MusicConnectorStatus>(
+        '/api/music/connectors/disconnect',
+        { provider },
+        undefined,
+        signal,
+      ),
+    search: async (query, limit = 20, signal) => {
+      const q = new URLSearchParams({ q: query, limit: String(limit) });
+      const body = await sameOriginGetJson<{ results: MusicSearchResult[] }>(
+        `/api/music/search?${q.toString()}`,
+        signal,
+      );
+      return body.results ?? [];
+    },
+    searchUnified: (
+      query,
+      types = 'tracks,albums,artists,playlists',
+      limit = 20,
+      signal,
+    ) => {
+      const q = new URLSearchParams({
+        q: query,
+        types,
+        provider: 'auto',
+        limit: String(limit),
+      });
+      return sameOriginGetJson<UnifiedMusicSearchResponse>(
+        `/api/music/search2?${q.toString()}`,
+        signal,
+      );
+    },
+    getStream: (videoId, signal) => {
+      const q = new URLSearchParams({ videoId });
+      return sameOriginGetJson<MusicStreamInfo>(
+        `/api/music/stream?${q.toString()}`,
+        signal,
+      );
+    },
   };
 }
 
-/** Build a stub shellMenu namespace. M3+ wires to useShellMenu. */
-function makeStubShellMenuApi(): ShellMenuApi {
+/** JULI3TA generated-tracks library client. Saves/lists/deletes go
+ *  through same-origin daemon routes so the daemon stays the source of
+ *  truth for files under ~/Music/JULI3TA. Browser SQLite is a warm cache
+ *  only. */
+function makeJuli3taLibraryApi(): Juli3taLibraryApi {
   return {
-    register: () => () => {},
+    listGeneratedTracks: () =>
+      sameOriginGetJson<Juli3taFileLibraryResponse>(
+        '/api/juli3ta/library/tracks',
+      ),
+    saveGeneratedTrack: async (track: Juli3taFileTrack) => {
+      const body: Juli3taFileTrack = {
+        ...track,
+        source: track.source ?? 'juli3ta',
+        audioKind:
+          track.audioKind ??
+          (track.audioDataUrl ? 'data_url' : 'lyrics_only'),
+      };
+      const res = await sameOriginPostJson<{
+        ok: boolean;
+        rootPath: string;
+        track: Juli3taFileTrack;
+      }>(
+        '/api/juli3ta/library/tracks',
+        body,
+        {
+          headers: {
+            'Idempotency-Key': `juli3ta-save-${track.id}-${track.createdAt}`,
+          },
+        },
+      );
+      return res.track;
+    },
+    deleteGeneratedTrack: async (id: string) => {
+      await sameOriginPostJson<{ ok: boolean }>(
+        '/api/juli3ta/library/delete',
+        { id },
+        {
+          headers: { 'Idempotency-Key': `juli3ta-delete-${id}` },
+        },
+      );
+    },
+    openGeneratedTracksFolder: async () => {
+      const res = await sameOriginPostJson<{ ok: boolean; path: string }>(
+        '/api/juli3ta/library/open-folder',
+        {},
+        {
+          headers: {
+            'Idempotency-Key': `juli3ta-open-folder-${Date.now()}`,
+          },
+        },
+      );
+      return res.path;
+    },
+  };
+}
+
+/** Build the windows namespace. The shell wires its useOSStore dispatch
+ *  surface in via setWindowsActions; calls before the wiring lands
+ *  throw a clear "no shell yet" error rather than a no-op so missing
+ *  initialization is visible. */
+function makeWindowsApi(appId: string): WindowsApi {
+  const requireActions = (): WindowsActions => {
+    if (!WINDOWS_ACTIONS) {
+      throw new Error(
+        'host.windows: no WindowsActions wired. Call setWindowsActions() at shell boot.',
+      );
+    }
+    return WINDOWS_ACTIONS;
+  };
+  return {
+    get current() {
+      // `current` reads through every access so the bound app sees the
+      // most recently focused window, not whatever was active at boot.
+      // When no shell is wired (legacy in-tree calls during the shell's
+      // own boot), fall back to a synthetic descriptor — apps that need
+      // a real window-id call open() first.
+      if (!WINDOWS_ACTIONS) return { id: 'stub', appId };
+      try {
+        return WINDOWS_ACTIONS.current(appId);
+      } catch {
+        return { id: 'stub', appId };
+      }
+    },
+    open: (id, args) => requireActions().open(id, args),
+    openOrFocus: (id, args) => requireActions().openOrFocus(id, args),
+    close: (id) => requireActions().close(id),
+    addDesktopIcon: (opts) => requireActions().addDesktopIcon(opts),
+  };
+}
+
+/** Build the shellMenu namespace. Forwards `register(spec)` to the
+ *  shell's per-app menu store; the shell maps the app's spec onto the
+ *  active window when one becomes foreground. Without a wired actions
+ *  surface (tests that don't care about menus, host pre-shell-boot)
+ *  the call is a no-op disposer so app code stays simple. */
+function makeShellMenuApi(): ShellMenuApi {
+  return {
+    register: (spec) => {
+      if (!SHELL_MENU_ACTIONS) {
+        return () => {};
+      }
+      return SHELL_MENU_ACTIONS.registerForApp(spec);
+    },
   };
 }
 
 /** Build the storage namespace bound to the given appId.
- *  M3: real per-app AppDb backed by the live SQLite worker, with the
- *  prefix guard enforcing physical-name discipline + cross-app shared
- *  reads resolved through installed_apps.manifest_json.storage.shares. */
-function makeStorageApi(appId: string): StorageApi {
+ *  Per-app AppDb backed by the live SQLite worker, with the prefix
+ *  guard enforcing physical-name discipline. `forSharedKey(key)` reads
+ *  the bound app's manifest synchronously to confirm the permission is
+ *  declared, then returns a SharedDb that lazily resolves the owner's
+ *  physical table on first query — installed_apps may not be seeded
+ *  yet at construction time and the host-api surface is sync. */
+function makeStorageApi(appId: string, manifest: Manifest): StorageApi {
   // Cache resolved shared-table names so we don't query installed_apps
   // on every host.storage.current() call. The cache is invalidated on
   // app.installed / app.uninstalled / app.updated events from the
@@ -351,24 +717,111 @@ function makeStorageApi(appId: string): StorageApi {
         `host.storage.forApp is not callable from app code — privileged path only. App "${appId}" attempted.`,
       );
     },
-    forSharedKey: (key) => {
-      // Sync surface — cached lookup. If the cache is empty, return
-      // null and let the next async run/query refresh it. Apps using
-      // forSharedKey for read access call query() right after, which
-      // triggers the lazy refresh path.
-      void key;
-      // M3 PR3+ adds a real SharedDb impl here. Today: still null so
-      // existing callers continue to handle the not-shared path.
-      return null;
+    forSharedKey: (key: string): SharedDb | null => {
+      // Sync permission check from the bound manifest — apps that don't
+      // declare `storage.shared.<key>` get a clear PermissionDeniedError
+      // immediately (NOT a silent null) so the foot-gun is visible at
+      // call time, not when the empty result confuses the consumer.
+      const requested = `storage.shared.${key}`;
+      const granted = (manifest.permissions ?? []).some(
+        (p) => p === requested,
+      );
+      if (!granted) {
+        throw new PermissionDeniedError({
+          permission: requested,
+          appId,
+          message: `App "${appId}" did not declare permission "${requested}" — add it to the manifest's permissions[] to read shared key "${key}".`,
+        });
+      }
+
+      // Lazy owner-table resolution. The shared-key SharedDb only
+      // exposes query(); inserts/updates/deletes throw at the AppDb
+      // layer because SharedDb has no run/migrate surface. The
+      // underlying AppDb is constructed with `sharedTableNames: [resolved]`
+      // so the prefix guard accepts that one physical table.
+      let cachedReadOnly: AppDb | null = null;
+      let cachedSharedTables: string[] | null = null;
+      const resolveOwner = async (): Promise<{
+        appDb: AppDb;
+        tables: string[];
+      }> => {
+        if (cachedReadOnly && cachedSharedTables) {
+          return { appDb: cachedReadOnly, tables: cachedSharedTables };
+        }
+        const db = getDb();
+        if (!db) {
+          throw new Error(
+            `host.storage.forSharedKey("${key}"): SQLite DB not initialized yet.`,
+          );
+        }
+        // Ask the registry which physical tables this reader is
+        // allowed to consume; if the requested key isn't backed by an
+        // installed owner, throw — silent empty would shadow a real
+        // installation gap.
+        const installed = await listInstalledApps(db);
+        const owners = installed.filter((row) => {
+          if (row.id === appId) return false;
+          const shares = row.manifest.storage?.shares;
+          return shares && Object.prototype.hasOwnProperty.call(shares, key);
+        });
+        if (owners.length === 0) {
+          throw new Error(
+            `host.storage.forSharedKey("${key}"): no installed app declares storage.shares.${key}.`,
+          );
+        }
+        const tables = await resolveSharedTableNames(db, appId);
+        cachedSharedTables = tables;
+        cachedReadOnly = createAppDb({
+          db,
+          appId,
+          sharedTableNames: tables,
+        });
+        return { appDb: cachedReadOnly, tables };
+      };
+
+      return {
+        async query<T>(sql: string, args?: readonly unknown[]): Promise<T[]> {
+          const { appDb } = await resolveOwner();
+          return appDb.query<T>(sql, args);
+        },
+      } satisfies SharedDb;
     },
   };
 }
 
-/** Build a stub media namespace. M3+ wires to navigator.mediaDevices. */
-function makeStubMediaApi(): MediaApi {
+/** Build the media namespace. `requestMicrophone` runs the same probe
+ *  ladder as the in-tree VoiceRecorder so callers don't have to repeat
+ *  the logic — the host returns the live stream + the best-supported
+ *  MediaRecorder mime type in one call. `requestDisplay` stays stubbed
+ *  until a real shell consumer surfaces. */
+const MIC_MIME_CANDIDATES = [
+  'audio/webm;codecs=opus',
+  'audio/webm',
+  'audio/mp4',
+  'audio/ogg;codecs=opus',
+];
+
+function makeMediaApi(): MediaApi {
   return {
-    requestMicrophone: notImpl('media.requestMicrophone', 'M3+ (Voice Recorder)'),
-    requestDisplay: notImpl('media.requestDisplay', 'M3+'),
+    requestMicrophone: async (): Promise<MicrophoneStream> => {
+      const md = navigator?.mediaDevices;
+      if (!md || typeof md.getUserMedia !== 'function') {
+        throw new Error(
+          'host.media.requestMicrophone: navigator.mediaDevices.getUserMedia is unavailable.',
+        );
+      }
+      const stream = await md.getUserMedia({ audio: true });
+      const recorderCtor =
+        (globalThis as unknown as {
+          MediaRecorder?: { isTypeSupported(type: string): boolean };
+        }).MediaRecorder;
+      const mimeType = recorderCtor
+        ? MIC_MIME_CANDIDATES.find((m) => recorderCtor.isTypeSupported(m)) ??
+          ''
+        : '';
+      return { stream, mimeType };
+    },
+    requestDisplay: notImpl('media.requestDisplay', 'post-W2'),
   };
 }
 
@@ -381,20 +834,20 @@ function makeStubMediaApi(): MediaApi {
  */
 export function makeHostForApp(
   appId: string,
-  _manifest: Manifest,
+  manifest: Manifest,
   entryUrls: EntryUrls,
 ): HostClient {
   return {
     appId,
     fs: makeFsApi(),
-    daemon: makeStubDaemonApi(),
-    windows: makeStubWindowsApi(appId),
+    daemon: makeDaemonApi(),
+    windows: makeWindowsApi(appId),
     notifications: makeNotificationsApi(appId),
-    shellMenu: makeStubShellMenuApi(),
+    shellMenu: makeShellMenuApi(),
     i18n: makeI18nApi(),
-    storage: makeStorageApi(appId),
+    storage: makeStorageApi(appId, manifest),
     events: getShellEventBus(),
-    media: makeStubMediaApi(),
+    media: makeMediaApi(),
     assets: makeAssetsApi(appId, entryUrls.assets),
   };
 }

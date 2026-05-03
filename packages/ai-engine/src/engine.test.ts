@@ -2,7 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { createSessionWithTransport } from './engine';
 import type { PodTransport } from './transport';
 import type { AssetResolver } from './types';
-import type { HostClient } from '@tytus/host-api';
+import type {
+  HostClient,
+  Juli3taLibraryApi,
+  MusicDaemonApi,
+} from '@tytus/host-api';
 import type { EngineEvent } from './events';
 import { streamFromStrings } from './stream';
 import { PodOfflineError } from './router';
@@ -25,6 +29,8 @@ function fakeHost(): HostClient {
       state: { agents: [], included: [] },
       onStateChange: () => () => {},
       callPodEndpoint: async () => new Response('{"data":[]}'),
+      music: {} as MusicDaemonApi,
+      juli3taLibrary: {} as Juli3taLibraryApi,
     },
     windows: {} as never,
     notifications: {} as never,

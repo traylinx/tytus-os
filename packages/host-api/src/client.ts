@@ -101,12 +101,179 @@ export interface Pod {
   id: string;
   agentId?: string;
   status: 'starting' | 'running' | 'stopped' | 'error' | string;
+  /** Public HTTPS URL of the pod's gateway. Apps never assemble this
+   *  manually — they go through `daemon.callPodEndpoint(podId, path)` so
+   *  the bearer is injected without leaking into app code. Optional
+   *  because pods that haven't fully booted may not have a public URL yet. */
+  publicUrl?: string;
+  /** Gateway kind. `'ail'` = switchAILocal-style OpenAI-compatible
+   *  surface. Future kinds (vLLM-direct, llama.cpp HTTP, etc.) extend
+   *  this string. Open-ended so apps can branch on the kind they
+   *  support without the host-api needing a release for every new
+   *  gateway shape. */
+  kind?: 'ail' | string;
   meta?: Record<string, unknown>;
 }
 
 export interface DaemonState {
   agents: Agent[];
   included: Pod[];
+}
+
+// ─── Music daemon (same-origin /api/music/*) ─────────────────────────
+
+export interface MusicStatus {
+  ready: boolean;
+  installing: boolean;
+  source: string;
+  version?: string | null;
+  error?: string | null;
+}
+
+export interface MusicSearchResult {
+  id: string;
+  source: 'youtube';
+  title: string;
+  durationMs?: number | null;
+  thumbnailUrl?: string | null;
+  channel?: string | null;
+}
+
+export interface MusicStreamInfo {
+  videoId: string;
+  proxyUrl: string;
+  durationMs?: number | null;
+  title?: string | null;
+  container?: string | null;
+  codec?: string | null;
+}
+
+export interface MusicProviderStatus {
+  id: string;
+  name: string;
+  kind: string;
+  state: string;
+  configured: boolean;
+  needs: string[];
+  capabilities: {
+    searchTracks: boolean;
+    searchAlbums: boolean;
+    searchArtists: boolean;
+    searchPlaylists: boolean;
+    streamResolve: boolean;
+    libraryMetadata: boolean;
+    accountConnect: boolean;
+  };
+  loadMs?: number | null;
+  message: string;
+}
+
+export interface MusicConnectorCredentialSpec {
+  name: string;
+  label: string;
+  secret: boolean;
+  required: boolean;
+}
+
+export interface MusicConnectorStatus {
+  provider: string;
+  name: string;
+  connected: boolean;
+  configurable: boolean;
+  oauthRequired: boolean;
+  account?: string | null;
+  credentialSpecs: MusicConnectorCredentialSpec[];
+  verifiedAt?: string | null;
+  lastError?: string | null;
+  message: string;
+}
+
+export interface UnifiedMusicSearchResponse {
+  provider: string;
+  results: {
+    tracks: MusicSearchResult[];
+    albums: MusicSearchResult[];
+    artists: MusicSearchResult[];
+    playlists: MusicSearchResult[];
+  };
+  warnings: string[];
+}
+
+/**
+ * Same-origin music gateway exposed by the local daemon. Gated by the
+ * `daemon.network` permission. All methods accept an `AbortSignal` so
+ * apps can cancel in-flight requests on unmount or new search input.
+ */
+export interface MusicDaemonApi {
+  getStatus(signal?: AbortSignal): Promise<MusicStatus>;
+  getProviders(signal?: AbortSignal): Promise<MusicProviderStatus[]>;
+  getConnectors(signal?: AbortSignal): Promise<MusicConnectorStatus[]>;
+  configureConnector(
+    provider: string,
+    credentials: Record<string, string>,
+    signal?: AbortSignal,
+  ): Promise<MusicConnectorStatus>;
+  disconnectConnector(
+    provider: string,
+    signal?: AbortSignal,
+  ): Promise<MusicConnectorStatus>;
+  search(
+    query: string,
+    limit?: number,
+    signal?: AbortSignal,
+  ): Promise<MusicSearchResult[]>;
+  searchUnified(
+    query: string,
+    types?: string,
+    limit?: number,
+    signal?: AbortSignal,
+  ): Promise<UnifiedMusicSearchResponse>;
+  getStream(videoId: string, signal?: AbortSignal): Promise<MusicStreamInfo>;
+}
+
+// ─── JULI3TA generated-tracks library (same-origin /api/juli3ta/*) ────
+
+export interface Juli3taFileTrack {
+  id: string;
+  title: string;
+  styleTags: string;
+  lyricsPreview: string;
+  durationMs: number;
+  bitrate: number;
+  sampleRate: number;
+  sizeBytes: number;
+  createdAt: number;
+  audioDataUrl: string;
+  specsJson: string;
+  coverDataUrl: string;
+  theme: string;
+  source?: 'juli3ta' | 'youtube';
+  audioKind?: 'data_url' | 'remote_stream' | 'lyrics_only';
+  externalId?: string;
+  externalUrl?: string;
+  thumbnailUrl?: string;
+  artist?: string;
+  album?: string;
+  folderPath?: string;
+  audioPath?: string;
+  lyricsPath?: string;
+  metadataPath?: string;
+}
+
+export interface Juli3taFileLibraryResponse {
+  rootPath: string;
+  tracks: Juli3taFileTrack[];
+}
+
+/**
+ * JULI3TA library client — generated-track CRUD against the local
+ * daemon's `~/Music/JULI3TA/` mirror. Gated by `daemon.network`.
+ */
+export interface Juli3taLibraryApi {
+  listGeneratedTracks(): Promise<Juli3taFileLibraryResponse>;
+  saveGeneratedTrack(track: Juli3taFileTrack): Promise<Juli3taFileTrack>;
+  deleteGeneratedTrack(id: string): Promise<void>;
+  openGeneratedTracksFolder(): Promise<string>;
 }
 
 export interface DaemonApi {
@@ -117,6 +284,10 @@ export interface DaemonApi {
     path: string,
     init?: RequestInit,
   ): Promise<Response>;
+  /** Same-origin music gateway. Gated by `daemon.network`. */
+  music: MusicDaemonApi;
+  /** JULI3TA generated-tracks library. Gated by `daemon.network`. */
+  juli3taLibrary: Juli3taLibraryApi;
 }
 
 // ─── host.windows ────────────────────────────────────────────────────
@@ -153,6 +324,15 @@ export interface NotifyOpts {
   level?: NotificationLevel;
   /** Auto-dismiss after this many ms; default 6000. */
   durationMs?: number;
+  /** Override the bound caller's appId. Rare — only privileged shell
+   *  surfaces (settings, app store) post notifications on behalf of
+   *  another app. App-bound clients should omit and let the host
+   *  derive `appId` from the bound HostClient. */
+  appId?: string;
+  /** Notification starts unread. Default `true`. Apps like Memo (which
+   *  surface user-driven action) may pass `false` so the badge does
+   *  not pop for an interaction the user already saw. */
+  unread?: boolean;
 }
 
 export interface NotificationsApi {
@@ -243,8 +423,20 @@ export interface StorageApi {
 
 // ─── host.media ──────────────────────────────────────────────────────
 
+export interface MicrophoneStream {
+  /** Live microphone stream from `navigator.mediaDevices.getUserMedia`. */
+  stream: MediaStream;
+  /** First MediaRecorder mime type the browser supports (probe ladder:
+   *  `audio/webm;codecs=opus`, `audio/webm`, `audio/mp4`,
+   *  `audio/ogg;codecs=opus`). Empty string if none of the candidates
+   *  match — callers should treat that as "let MediaRecorder pick". */
+  mimeType: string;
+}
+
 export interface MediaApi {
-  requestMicrophone(): Promise<MediaStream>;
+  /** Prompt the user for mic access and return the stream plus the
+   *  best-supported MediaRecorder mime type. */
+  requestMicrophone(): Promise<MicrophoneStream>;
   requestDisplay(): Promise<MediaStream>;
 }
 
