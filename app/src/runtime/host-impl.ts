@@ -49,6 +49,7 @@ import {
 import type { EntryUrls } from './loader';
 import { createLocalStorageFs } from './host-fs-localstorage';
 import { createAppDb } from './storage-impl';
+import { resolveSharedTableNames } from './installed-apps-repo';
 import { getDb } from '@/lib/db';
 
 const ASSET_SIZE_LIMIT_BYTES = 1024 * 1024; // 1 MB per spec.
@@ -285,30 +286,81 @@ function makeStubShellMenuApi(): ShellMenuApi {
 
 /** Build the storage namespace bound to the given appId.
  *  M3: real per-app AppDb backed by the live SQLite worker, with the
- *  prefix guard enforcing physical-name discipline. The host.fs side
- *  is independent (localStorage-backed for M1; OPFS lift in M7). */
+ *  prefix guard enforcing physical-name discipline + cross-app shared
+ *  reads resolved through installed_apps.manifest_json.storage.shares. */
 function makeStorageApi(appId: string): StorageApi {
-  const lazyAppDb = (): AppDb => {
+  // Cache resolved shared-table names so we don't query installed_apps
+  // on every host.storage.current() call. The cache is invalidated on
+  // app.installed / app.uninstalled / app.updated events from the
+  // shell event bus.
+  let sharedTableCache: string[] | null = null;
+  const bus = getShellEventBus();
+  const invalidate = () => {
+    sharedTableCache = null;
+  };
+  bus.on('app.installed', invalidate);
+  bus.on('app.uninstalled', invalidate);
+  bus.on('app.updated', invalidate);
+
+  const lazyAppDb = async (): Promise<AppDb> => {
     const db = getDb();
     if (!db) {
-      // Engine code paths through createSession ensure the boot
-      // sequence has called initDb() before any tool execute fires.
-      // Tests inject via setDbForTesting. If neither: throw with a
-      // clear hint; never hand back a partial AppDb.
       throw new Error(
         `host.storage.current(): SQLite DB not initialized yet. Call initDb() at boot or setDbForTesting() in tests.`,
       );
     }
-    return createAppDb({ db, appId });
+    if (sharedTableCache === null) {
+      try {
+        sharedTableCache = await resolveSharedTableNames(db, appId);
+      } catch {
+        // installed_apps may not exist yet (M5 wires the seed). Treat
+        // as no shared tables — the prefix guard still permits the
+        // app's own tables.
+        sharedTableCache = [];
+      }
+    }
+    return createAppDb({ db, appId, sharedTableNames: sharedTableCache });
   };
+
+  // host.storage.current() in the host-api spec is sync — but its
+  // returned AppDb's methods are async, so we can resolve shared
+  // tables on the first run/query call. Wrap a thin async-aware proxy.
+  const proxyDb: AppDb = {
+    async run(sql, args) {
+      const inner = await lazyAppDb();
+      return inner.run(sql, args);
+    },
+    async query<T>(sql: string, args?: readonly unknown[]) {
+      const inner = await lazyAppDb();
+      return inner.query<T>(sql, args);
+    },
+    async migrate(dir) {
+      const inner = await lazyAppDb();
+      return inner.migrate(dir);
+    },
+    async listOwnedTables() {
+      const inner = await lazyAppDb();
+      return inner.listOwnedTables();
+    },
+  };
+
   return {
-    current: () => lazyAppDb(),
+    current: () => proxyDb,
     forApp: () => {
       throw new Error(
         `host.storage.forApp is not callable from app code — privileged path only. App "${appId}" attempted.`,
       );
     },
-    forSharedKey: () => null,
+    forSharedKey: (key) => {
+      // Sync surface — cached lookup. If the cache is empty, return
+      // null and let the next async run/query refresh it. Apps using
+      // forSharedKey for read access call query() right after, which
+      // triggers the lazy refresh path.
+      void key;
+      // M3 PR3+ adds a real SharedDb impl here. Today: still null so
+      // existing callers continue to handle the not-shared path.
+      return null;
+    },
   };
 }
 
