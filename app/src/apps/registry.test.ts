@@ -47,11 +47,11 @@ describe('registry — getAppsByKind', () => {
   });
 });
 
-describe('registry — alias resolution', () => {
+describe('registry — alias resolution (structured rewriteArgs)', () => {
   // Aliases are not in the static APP_REGISTRY today — they're added at
   // install time when a retired app id needs to redirect. We exercise
   // resolveAlias's logic by mutating a fixture entry locally for the test.
-  const aliasFixture: AppDefinition = {
+  const baseAliasFixture: AppDefinition = {
     id: '__test_alias__',
     name: 'Test Alias',
     icon: 'Box',
@@ -61,64 +61,105 @@ describe('registry — alias resolution', () => {
     minSize: { width: 100, height: 100 },
     kind: 'alias',
     aliasOf: 'settings',
-    rewriteArgs: '(args) => ({ section: "general", ...args })',
+    rewriteArgs: { type: 'identity' },
     removeInVersion: '0.18.0',
     hidden: true,
   };
+
+  function withFixture<T>(fixture: AppDefinition, body: () => T): T {
+    APP_REGISTRY.push(fixture);
+    try {
+      return body();
+    } finally {
+      const idx = APP_REGISTRY.indexOf(fixture);
+      if (idx >= 0) APP_REGISTRY.splice(idx, 1);
+    }
+  }
 
   it('returns null for non-alias ids', () => {
     expect(resolveAlias('settings', {})).toBeNull();
   });
 
-  it('resolves alias to target id and applies rewriteArgs', () => {
-    APP_REGISTRY.push(aliasFixture);
-    try {
-      const result = resolveAlias('__test_alias__', { focus: 'wallpaper' });
-      expect(result).not.toBeNull();
-      expect(result?.resolvedAppId).toBe('settings');
-      expect(result?.rewrittenArgs).toEqual({
-        section: 'general',
-        focus: 'wallpaper',
-      });
-      expect(result?.rewriterErrored).toBe(false);
-    } finally {
-      const idx = APP_REGISTRY.indexOf(aliasFixture);
-      if (idx >= 0) APP_REGISTRY.splice(idx, 1);
-    }
+  it('identity descriptor passes args through unchanged', () => {
+    withFixture(baseAliasFixture, () => {
+      const r = resolveAlias('__test_alias__', { foo: 'bar' });
+      expect(r?.resolvedAppId).toBe('settings');
+      expect(r?.rewrittenArgs).toEqual({ foo: 'bar' });
+    });
   });
 
-  it('flags rewriter errors but still returns the resolved id', () => {
-    const fixture: AppDefinition = {
-      ...aliasFixture,
-      id: '__test_alias_bad__',
-      rewriteArgs: '(args) => { throw new Error("boom") }',
+  it('studio descriptor sets mode + carries fileRef from legacy args', () => {
+    const fx: AppDefinition = {
+      ...baseAliasFixture,
+      id: '__alias_studio__',
+      aliasOf: 'studio',
+      rewriteArgs: { type: 'studio', mode: 'markdown', readOnly: false },
     };
-    APP_REGISTRY.push(fixture);
-    try {
-      const result = resolveAlias('__test_alias_bad__', {});
-      expect(result?.resolvedAppId).toBe('settings');
-      expect(result?.rewriterErrored).toBe(true);
-      // When the rewriter errors, args pass through unchanged.
-      expect(result?.rewrittenArgs).toEqual({});
-    } finally {
-      const idx = APP_REGISTRY.indexOf(fixture);
-      if (idx >= 0) APP_REGISTRY.splice(idx, 1);
-    }
+    withFixture(fx, () => {
+      const r = resolveAlias('__alias_studio__', {
+        fileRef: { fileNodeId: 'abc' },
+      });
+      expect(r?.resolvedAppId).toBe('studio');
+      expect(r?.rewrittenArgs).toEqual({
+        mode: 'markdown',
+        readOnly: false,
+        fileRef: { fileNodeId: 'abc' },
+      });
+    });
+  });
+
+  it('static descriptor uses args verbatim, ignoring legacy input', () => {
+    const fx: AppDefinition = {
+      ...baseAliasFixture,
+      id: '__alias_static__',
+      aliasOf: 'settings',
+      rewriteArgs: { type: 'static', args: { section: 'general' } },
+    };
+    withFixture(fx, () => {
+      const r = resolveAlias('__alias_static__', { ignored: true });
+      expect(r?.rewrittenArgs).toEqual({ section: 'general' });
+    });
+  });
+
+  it('memo descriptor carries focusLine + fileRef when present', () => {
+    const fx: AppDefinition = {
+      ...baseAliasFixture,
+      id: '__alias_memo__',
+      aliasOf: 'memo',
+      rewriteArgs: { type: 'memo', readOnly: true },
+    };
+    withFixture(fx, () => {
+      const r = resolveAlias('__alias_memo__', {
+        fileRef: { fileNodeId: 'm1' },
+        focusLine: 7,
+      });
+      expect(r?.rewrittenArgs).toEqual({
+        readOnly: true,
+        fileRef: { fileNodeId: 'm1' },
+        focusLine: 7,
+      });
+    });
+  });
+
+  it('absent rewriteArgs treats as identity', () => {
+    const fx: AppDefinition = {
+      ...baseAliasFixture,
+      id: '__alias_no_descriptor__',
+      rewriteArgs: undefined,
+    };
+    withFixture(fx, () => {
+      const r = resolveAlias('__alias_no_descriptor__', { x: 1 });
+      expect(r?.rewrittenArgs).toEqual({ x: 1 });
+    });
   });
 
   it('getAppById follows alias indirection once', () => {
-    const fixture: AppDefinition = {
-      ...aliasFixture,
+    const fx: AppDefinition = {
+      ...baseAliasFixture,
       id: '__test_alias_byid__',
-      aliasOf: 'settings',
     };
-    APP_REGISTRY.push(fixture);
-    try {
-      const resolved = getAppById('__test_alias_byid__');
-      expect(resolved?.id).toBe('settings');
-    } finally {
-      const idx = APP_REGISTRY.indexOf(fixture);
-      if (idx >= 0) APP_REGISTRY.splice(idx, 1);
-    }
+    withFixture(fx, () => {
+      expect(getAppById('__test_alias_byid__')?.id).toBe('settings');
+    });
   });
 });

@@ -97,13 +97,39 @@ export interface ManifestContributes {
   fileAssociations?: ManifestFileAssociation[];
 }
 
+/**
+ * Structured rewrite descriptor for alias manifests. The registry resolver
+ * reads this and constructs the target app's WindowArgs from a small
+ * typed mapping — NO `new Function`/`eval` of arbitrary strings.
+ *
+ * Per 09-decisions.md M1-owned gap: "Alias `rewriteArgs` should NOT be
+ * serialized JS. Use structured rewrite descriptors..." Removes the
+ * eval-injection surface and makes registry rows portable.
+ */
+export type AliasRewriteDescriptor =
+  /** Pass the legacy WindowArgs through unchanged to the live app. */
+  | { type: 'identity' }
+  /** Open the target Studio with a fixed mode (and optional readOnly). The
+   *  legacy app's `fileRef` (if present) carries through. */
+  | {
+      type: 'studio';
+      mode: 'code' | 'text' | 'markdown' | 'json';
+      readOnly?: boolean;
+    }
+  /** Open the target Sheet; carries `fileRef` + optional `readOnly`. */
+  | { type: 'sheet'; readOnly?: boolean }
+  /** Open the target Memo; carries `fileRef` + optional `readOnly`. */
+  | { type: 'memo'; readOnly?: boolean }
+  /** Static args — the descriptor IS the WindowArgs object verbatim. Use
+   *  for one-off redirects that don't fit the typed shapes above. */
+  | { type: 'static'; args: Record<string, unknown> };
+
 export interface AliasManifestExtras {
   /** ID of the live app that this alias resolves to. */
   aliasOf?: string;
-  /** Function body (string) that, when invoked with the legacy WindowArgs,
-   *  returns the live app's WindowArgs shape. Eval'd at the loader's
-   *  alias-resolution call site. */
-  rewriteArgs?: string;
+  /** Structured descriptor — NOT a serialized function. The registry maps
+   *  this to a target WindowArgs at resolve time. Absent → identity. */
+  rewriteArgs?: AliasRewriteDescriptor;
   /** Future Tytus version that will drop this alias entirely. CI rejects PRs
    *  that ship past this version still carrying the alias. */
   removeInVersion?: string;
@@ -136,7 +162,12 @@ export interface Manifest extends AliasManifestExtras {
   window: ManifestWindow;
   permissions: Permission[];
   storage?: ManifestStorage;
-  entry: ManifestEntry;
+  /** Required for `kind` ∈ {bundled, installed, legacy}. ABSENT for
+   *  `kind: 'alias'` — alias manifests redirect to `aliasOf` and have no
+   *  entry of their own. The JSON Schema enforces this conditional via
+   *  if/else; the runtime must not assume `entry` is present without
+   *  first checking `kind`. */
+  entry?: ManifestEntry;
   contributes?: ManifestContributes;
 }
 

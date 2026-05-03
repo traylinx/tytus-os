@@ -127,16 +127,25 @@ export async function loadApp(opts: LoadAppOptions): Promise<LoadedApp> {
     onWarning(w);
   }
 
-  const mod = await importModule(entryUrls.module);
-  if (typeof mod.default !== 'function') {
+  // Wrap import + entry-call in a single try/catch so any failure (network
+  // error during import, default-not-a-function, exception inside the
+  // app's bootSheet/bootStudio/...) tears down the already-injected
+  // <style> tag instead of leaking it. Without this, the next mount
+  // attempt for the same app id stacks a second <style> on top.
+  let component: unknown;
+  try {
+    const mod = await importModule(entryUrls.module);
+    if (typeof mod.default !== 'function') {
+      throw new Error(
+        `App "${appId}" entry "${entryUrls.module}" did not export a default function.`,
+      );
+    }
+    const env: AppBootEnv = makeAppBootEnv(appId, manifest, entryUrls);
+    component = mod.default(env);
+  } catch (err) {
     disposeStyles();
-    throw new Error(
-      `App "${appId}" entry "${entryUrls.module}" did not export a default function.`,
-    );
+    throw err;
   }
-
-  const env: AppBootEnv = makeAppBootEnv(appId, manifest, entryUrls);
-  const component = mod.default(env);
 
   return {
     appId,

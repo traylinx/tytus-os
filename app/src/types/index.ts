@@ -138,10 +138,10 @@ export interface AppDefinition {
   kind?: AppKind;
   /** When `kind === 'alias'`: id of the live app this entry redirects to. */
   aliasOf?: string;
-  /** When `kind === 'alias'`: function body (string) that maps legacy
-   *  WindowArgs to the live app's shape. Eval'd at the loader's
-   *  alias-resolution call site. */
-  rewriteArgs?: string;
+  /** When `kind === 'alias'`: structured descriptor — NOT a serialized
+   *  function. The registry resolver maps this to a target WindowArgs at
+   *  resolve time. */
+  rewriteArgs?: import('@tytus/host-api').AliasRewriteDescriptor;
   /** When `kind === 'alias'`: future Tytus version that drops this alias. */
   removeInVersion?: string;
   /** When `kind === 'alias'`: hide from App Store + launcher. */

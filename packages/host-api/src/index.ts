@@ -19,6 +19,7 @@ export type {
   ManifestFileAssociation,
   ManifestContributes,
   AliasManifestExtras,
+  AliasRewriteDescriptor,
   InstalledAppRow,
 } from './manifest';
 export { APP_ID_PATTERN, sqlAppId, physicalTableName } from './manifest';

@@ -168,8 +168,52 @@
       "description": "Required when kind=alias. Live app id this alias resolves to."
     },
     "rewriteArgs": {
-      "type": "string",
-      "description": "Function body (string) that maps legacy WindowArgs to the live app's shape."
+      "description": "Structured rewrite descriptor — NOT a serialized function. The registry maps this to a target WindowArgs at resolve time.",
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["type"],
+          "additionalProperties": false,
+          "properties": { "type": { "const": "identity" } }
+        },
+        {
+          "type": "object",
+          "required": ["type", "mode"],
+          "additionalProperties": false,
+          "properties": {
+            "type": { "const": "studio" },
+            "mode": { "enum": ["code", "text", "markdown", "json"] },
+            "readOnly": { "type": "boolean" }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["type"],
+          "additionalProperties": false,
+          "properties": {
+            "type": { "const": "sheet" },
+            "readOnly": { "type": "boolean" }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["type"],
+          "additionalProperties": false,
+          "properties": {
+            "type": { "const": "memo" },
+            "readOnly": { "type": "boolean" }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["type", "args"],
+          "additionalProperties": false,
+          "properties": {
+            "type": { "const": "static" },
+            "args": { "type": "object" }
+          }
+        }
+      ]
     },
     "removeInVersion": {
       "type": "string",

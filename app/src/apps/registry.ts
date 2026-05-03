@@ -1,3 +1,4 @@
+import type { AliasRewriteDescriptor } from '@tytus/host-api';
 import type { AppDefinition, AppKind } from '@/types';
 
 // 50 apps total in v1.
@@ -289,41 +290,64 @@ export const getAppsByKind = (kind: AppKind): AppDefinition[] =>
   APP_REGISTRY.filter((a) => normalizeApp(a).kind === kind);
 
 /**
+ * Apply a structured rewrite descriptor to legacy WindowArgs. Pure
+ * function — no eval, no Function constructor — so registry rows are
+ * portable and the alias surface has no script-injection footprint.
+ *
+ * Per 09-decisions.md M1-owned gap: rewriteArgs is a structured
+ * descriptor, not a serialized function.
+ */
+export function applyRewriteDescriptor(
+  descriptor: AliasRewriteDescriptor | undefined,
+  legacyArgs: unknown,
+): unknown {
+  if (!descriptor) return legacyArgs;
+  const legacy =
+    legacyArgs && typeof legacyArgs === 'object'
+      ? (legacyArgs as Record<string, unknown>)
+      : {};
+  switch (descriptor.type) {
+    case 'identity':
+      return legacyArgs;
+    case 'static':
+      return { ...descriptor.args };
+    case 'studio': {
+      const out: Record<string, unknown> = { mode: descriptor.mode };
+      if (descriptor.readOnly !== undefined) out.readOnly = descriptor.readOnly;
+      if ('fileRef' in legacy) out.fileRef = legacy.fileRef;
+      return out;
+    }
+    case 'sheet': {
+      const out: Record<string, unknown> = {};
+      if (descriptor.readOnly !== undefined) out.readOnly = descriptor.readOnly;
+      if ('fileRef' in legacy) out.fileRef = legacy.fileRef;
+      return out;
+    }
+    case 'memo': {
+      const out: Record<string, unknown> = {};
+      if (descriptor.readOnly !== undefined) out.readOnly = descriptor.readOnly;
+      if ('fileRef' in legacy) out.fileRef = legacy.fileRef;
+      if ('focusLine' in legacy) out.focusLine = legacy.focusLine;
+      return out;
+    }
+  }
+}
+
+/**
  * Resolve an alias entry to the live app + transformed window args.
- * Returns null when the id is not an alias. When the alias's
- * `rewriteArgs` body throws, returns the args unchanged (the alias still
- * resolves; the caller surfaces a warning).
+ * Returns null when the id is not an alias.
  */
 export function resolveAlias(
   id: string,
   args: unknown,
 ):
-  | { resolvedAppId: string; rewrittenArgs: unknown; rewriterErrored: boolean }
+  | { resolvedAppId: string; rewrittenArgs: unknown }
   | null {
   const entry = APP_REGISTRY.find((a) => a.id === id);
   if (!entry || entry.kind !== 'alias' || !entry.aliasOf) return null;
-  let rewrittenArgs: unknown = args;
-  let rewriterErrored = false;
-  if (entry.rewriteArgs) {
-    try {
-      // The function body comes from a manifest the shell controls; it is
-      // not user-provided runtime input. Static manifests pass through
-      // `tytus-app validate` at install time, so this Function() call is
-      // bounded by the install pipeline.
-      // eslint-disable-next-line @typescript-eslint/no-implied-eval
-      const rewriter = new Function(
-        'args',
-        `return (${entry.rewriteArgs})(args);`,
-      ) as (a: unknown) => unknown;
-      rewrittenArgs = rewriter(args);
-    } catch {
-      rewriterErrored = true;
-    }
-  }
   return {
     resolvedAppId: entry.aliasOf,
-    rewrittenArgs,
-    rewriterErrored,
+    rewrittenArgs: applyRewriteDescriptor(entry.rewriteArgs, args),
   };
 }
 
