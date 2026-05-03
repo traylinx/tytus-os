@@ -47,6 +47,7 @@ import {
 } from '@tytus/host-api';
 
 import type { EntryUrls } from './loader';
+import { createLocalStorageFs } from './host-fs-localstorage';
 
 const ASSET_SIZE_LIMIT_BYTES = 1024 * 1024; // 1 MB per spec.
 
@@ -235,23 +236,22 @@ function makeNotificationsApi(appId: string): NotificationsApi {
   };
 }
 
-/** Build a stub fs namespace that throws on every method. PR5 replaces
- *  this with a localStorage-backed minimal implementation just for the
- *  Notes proof; M3 lifts to FileRef-backed via useFileSystem. */
-function makeStubFsApi(): FsApi {
-  return {
-    ensureUserFolder: notImpl('fs.ensureUserFolder', 'PR5/M3'),
-    read: notImpl('fs.read', 'PR5/M3'),
-    write: notImpl('fs.write', 'PR5/M3'),
-    createFile: notImpl('fs.createFile', 'PR5/M3'),
-    createFolder: notImpl('fs.createFolder', 'M3'),
-    rename: notImpl('fs.rename', 'M3'),
-    list: notImpl('fs.list', 'PR5/M3'),
-    findChildByName: notImpl('fs.findChildByName', 'M3'),
-    getNodeById: notImpl('fs.getNodeById', 'PR5/M3'),
-    getIconForFileName: () => 'File',
-    watch: () => () => {},
-  };
+/** Build the fs namespace. M1 PR5: localStorage-backed minimal real
+ *  implementation (created in host-fs-localstorage.ts) so Notes-style
+ *  proofs work end-to-end. M3 swaps in the FileRef-backed implementation
+ *  wired to the existing useFileSystem context. */
+function makeFsApi(): FsApi {
+  return createLocalStorageFs({
+    onChange: (event) => {
+      // Bridge fs change events into the shell event bus so other apps
+      // listening on `vfs.changed` see them.
+      getShellEventBus().emit('vfs.changed', {
+        fileNodeId: event.fileNodeId,
+        parentId: event.parentId,
+        kind: event.kind,
+      });
+    },
+  });
 }
 
 /** Build a stub daemon namespace. M3+ wires to useDaemonStateContext. */
@@ -323,7 +323,7 @@ export function makeHostForApp(
 ): HostClient {
   return {
     appId,
-    fs: makeStubFsApi(),
+    fs: makeFsApi(),
     daemon: makeStubDaemonApi(),
     windows: makeStubWindowsApi(appId),
     notifications: makeNotificationsApi(appId),

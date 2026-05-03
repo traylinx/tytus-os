@@ -157,9 +157,14 @@ describe('makeHostForApp — notifications', () => {
 });
 
 describe('makeHostForApp — stubbed namespaces throw with milestone hints', () => {
-  it('fs throws with a clear message', () => {
+  it('fs is REAL (localStorage-backed) — PR5 — but throws on missing nodes', async () => {
     const host = makeHostForApp('demo', fakeManifest, fakeEntryUrls);
-    expect(() => host.fs.read('x')).toThrow(/PR5\/M3/);
+    await expect(host.fs.read('does-not-exist')).rejects.toThrow(
+      /node not found/,
+    );
+    // ensureUserFolder pre-seeds; reading the folder doesn't throw.
+    const docs = await host.fs.ensureUserFolder('documents');
+    expect(typeof docs).toBe('string');
   });
 
   it('storage.forApp throws permission-denied for app-side calls', () => {

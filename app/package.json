@@ -15,6 +15,8 @@
     "test:watch": "vitest",
     "test:smoke": "node scripts/smoke.mjs",
     "test:probe": "node scripts/probe-phase2.mjs",
+    "bundle:check": "node scripts/check-bundle-budget.mjs",
+    "bundle:check:strict": "node scripts/check-bundle-budget.mjs --strict",
     "audit:radius": "node scripts/audit-radius.mjs",
     "i18n:check": "node scripts/i18n-check.mjs",
     "i18n:update-allowlist": "node scripts/i18n-check.mjs --write-allowlist"
