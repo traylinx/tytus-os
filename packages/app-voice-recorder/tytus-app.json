@@ -1,0 +1,47 @@
+{
+  "$schema": "https://tytus.traylinx.com/schema/app/v1.json",
+  "id": "voice-recorder",
+  "name": "Voice Recorder",
+  "version": "1.0.0",
+  "icon": "Mic",
+  "category": "Media",
+  "description": "Record voice memos. Recordings are sharable into Music Creator.",
+
+  "window": {
+    "defaultSize": { "width": 520, "height": 480 },
+    "minSize": { "width": 360, "height": 320 }
+  },
+
+  "permissions": [
+    "shell.notifications",
+    "shell.dock",
+    "storage.app",
+    "media.microphone"
+  ],
+
+  "storage": {
+    "tables": [
+      {
+        "name": "recordings",
+        "schema": "migrations/0001_recordings.sql"
+      }
+    ],
+    "shares": {
+      "voice_recordings": "app_voice_recorder_recordings"
+    }
+  },
+
+  "entry": {
+    "module": "./dist/index.js",
+    "assets": "./dist/assets/"
+  },
+
+  "contributes": {
+    "fileAssociations": [
+      {
+        "extension": ".tytus-voice.json",
+        "mimeType": "application/x-tytus-voice-recording"
+      }
+    ]
+  }
+}
