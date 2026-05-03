@@ -3,6 +3,7 @@ import './index.css'
 import './styles/window-animations.css'
 import App from './App.tsx'
 import { initDb, getDbMeta } from '@/lib/db'
+import { seedBundledAppsAtBoot } from '@/runtime/seed-bundled-apps'
 import { I18nProvider } from '@/i18n'
 
 // Boot the SQLite worker before mounting. Failure here is non-fatal:
@@ -18,6 +19,14 @@ initDb()
         `[tytusos] SQLite ready (lib=${meta.libVersion}, schema=v${meta.version}, ` +
           `${meta.persistent ? 'OPFS-persistent' : 'in-memory fallback'})`,
       )
+    }
+    // Seed installed_apps with bundled manifests (idempotent — re-
+    // asserts manifest_json every boot). Failure is non-fatal; App
+    // Store + cross-app shares degrade to empty until next boot.
+    try {
+      await seedBundledAppsAtBoot(db)
+    } catch (err) {
+      console.warn('[tytusos] bundled-apps seed failed', err)
     }
     // Dev-only debug handle. Lets you poke at the DB from DevTools:
     //   await window.tytusDb.query('SELECT count(*) as n FROM api_history')
