@@ -1,0 +1,36 @@
+{
+  "$schema": "https://tytus.traylinx.com/schema/app/v1.json",
+  "id": "sheet",
+  "name": "Sheet",
+  "version": "1.0.0",
+  "icon": "Table2",
+  "category": "Productivity",
+  "description": "Tabular data with AI-driven analysis.",
+  "window": {
+    "defaultSize": { "width": 800, "height": 560 },
+    "minSize": { "width": 480, "height": 320 }
+  },
+  "permissions": [
+    "daemon.read",
+    "daemon.network",
+    "vfs.user.documents",
+    "shell.notifications",
+    "storage.app"
+  ],
+  "storage": {
+    "tables": [
+      { "name": "ai_usage", "schema": "migrations/0001_ai_usage.sql" }
+    ]
+  },
+  "entry": {
+    "module": "./dist/index.js",
+    "assets": "./dist/assets/",
+    "i18n": { "en": "./locales/en.json", "es": "./locales/es.json" }
+  },
+  "contributes": {
+    "fileAssociations": [
+      { "extension": ".tytus-sheet.json", "mimeType": "application/x-tytus-sheet" },
+      { "extension": ".csv", "mimeType": "text/csv" }
+    ]
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "id": "spreadsheet",
+  "name": "Spreadsheet",
+  "version": "1.0.0",
+  "icon": "Sheet",
+  "category": "Productivity",
+  "description": "Retired. Redirects to Sheet.",
+  "kind": "alias",
+  "aliasOf": "sheet",
+  "rewriteArgs": "(args) => ({ fileRef: args.fileRef })",
+  "removeInVersion": "0.18.0",
+  "hidden": true,
+  "window": {
+    "defaultSize": { "width": 800, "height": 560 },
+    "minSize": { "width": 480, "height": 320 }
+  },
+  "permissions": []
+}

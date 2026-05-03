@@ -13,6 +13,15 @@
     }
   },
   "scripts": {
-    "typecheck": "tsc --noEmit -p tsconfig.json"
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "validate": "node bin/tytus-app.mjs"
+  },
+  "bin": {
+    "tytus-app": "./bin/tytus-app.mjs"
+  },
+  "dependencies": {
+    "@tytus/contracts": "*",
+    "ajv": "^8.17.1",
+    "ajv-formats": "^3.0.1"
   }
 }
