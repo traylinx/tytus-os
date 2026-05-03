@@ -77,3 +77,19 @@ export type {
 
 export type { ConsumeOptions, SsePodResponse } from './stream';
 export { consumeStream, parseSseEvent, streamFromStrings } from './stream';
+
+export type { Endpoint, ModelInfo } from './router';
+export { PodOfflineError, discoverModels, pickModel, resolveEndpoint } from './router';
+
+export type {
+  CostReporterDeps,
+  CostStore,
+  UsageRecord,
+} from './cost';
+export { CostReporter, MemoryCostStore } from './cost';
+
+export type { PromptDocument } from './prompts';
+export { loadPrompt, parsePromptDocument, promptPath } from './prompts';
+
+export type { ContextTrimResult, ContextTurn, SummaryFn } from './context';
+export { trimContext } from './context';
