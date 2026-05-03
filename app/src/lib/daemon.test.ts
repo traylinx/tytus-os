@@ -385,6 +385,30 @@ describe("daemon client — other GETs", () => {
     expect(r.ok).toBe(false);
   });
 
+  it("canonicalizes single-digit pod ids before readiness requests", async () => {
+    const fake = makeFakeFetch([
+      { method: "GET", path: "/api/pod/ready?pod=01", body: podReadyFixture },
+      {
+        method: "GET",
+        path: "/api/pods/01/readiness",
+        body: { ...podReadinessFixture, pod_id: "01" },
+      },
+    ]);
+    const client = createDaemonClient({ fetch: fake.fetch });
+
+    const legacy = await client.getPodReady("1");
+    const structured = await client.getPodReadiness("1");
+
+    expect(legacy.ok).toBe(true);
+    expect(structured.ok).toBe(true);
+    expect(
+      fake.calls.map((c) => {
+        const url = new URL(c.url, "http://localhost");
+        return url.pathname + url.search;
+      }),
+    ).toEqual(["/api/pod/ready?pod=01", "/api/pods/01/readiness"]);
+  });
+
   it("getPodReady parses fixture", async () => {
     const { fetch } = makeFakeFetch([
       { method: "GET", path: "/api/pod/ready?pod=02", body: podReadyFixture },

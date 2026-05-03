@@ -332,6 +332,11 @@ const isLogChunk = (v: unknown): v is LogChunk =>
   typeof v.truncated === "boolean" &&
   typeof v.missing === "boolean";
 
+const canonicalPodId = (podId: string): string => {
+  const trimmed = podId.trim();
+  return /^\d$/.test(trimmed) ? `0${trimmed}` : trimmed;
+};
+
 const isPodReady = (v: unknown): v is PodReady =>
   isObject(v) &&
   typeof v.ready === "boolean" &&
@@ -954,22 +959,26 @@ export const createDaemonClient = (
         (b) => expectShape(b, isLogChunk, "malformed /api/logs"),
       ),
 
-    getPodReady: (podId, signal) =>
-      runRequest(
+    getPodReady: (podId, signal) => {
+      const pod = canonicalPodId(podId);
+      return runRequest(
         deps,
-        `/api/pod/ready?pod=${encodeURIComponent(podId)}`,
+        `/api/pod/ready?pod=${encodeURIComponent(pod)}`,
         { signal },
         (b) => expectShape(b, isPodReady, "malformed /api/pod/ready"),
-      ),
+      );
+    },
 
-    getPodReadiness: (podId, signal) =>
-      runRequest(
+    getPodReadiness: (podId, signal) => {
+      const pod = canonicalPodId(podId);
+      return runRequest(
         deps,
-        `/api/pods/${encodeURIComponent(podId)}/readiness`,
+        `/api/pods/${encodeURIComponent(pod)}/readiness`,
         { signal },
         (b) =>
           expectShape(b, isPodReadiness, "malformed /api/pods/:pod/readiness"),
-      ),
+      );
+    },
 
     getPodEnv: (podId, revealSecrets, signal) => {
       const reveal = revealSecrets ? "&reveal=secrets" : "";
