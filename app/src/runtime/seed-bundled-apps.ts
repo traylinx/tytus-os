@@ -6,10 +6,10 @@
  *    manifest JSON for bundled apps so an upgrade with a newer
  *    manifest gets picked up."
  *
- * M3.5 wires this. Today the three music-suite manifests + Sheet
- * (M4 PR-M4.1) + Studio (M6 PR-M6.1) get seeded. As Memo extracts
- * in M7, its manifest joins BUNDLED_APP_MANIFESTS and picks up the
- * same flow automatically.
+ * M3.5 wires this. Today all six bundled-app manifests get seeded:
+ * the three music-suite manifests + Sheet (M4 PR-M4.1) + Studio
+ * (M6 PR-M6.1) + Memo (M7 PR-M7.1). As subsequent sub-PRs lift
+ * each app's UI, the seed shape stays unchanged.
  *
  * `entryUrl` and `assetsUrl` are resolved per Vite mode (DEV vs
  * production build). M3.5 leaves them null because the actual
@@ -23,6 +23,7 @@ import musicPlayerManifest from '../../../packages/app-music-player/tytus-app.js
 import voiceRecorderManifest from '../../../packages/app-voice-recorder/tytus-app.json';
 import sheetManifest from '../../../packages/app-sheet/tytus-app.json';
 import studioManifest from '../../../packages/app-studio/tytus-app.json';
+import memoManifest from '../../../packages/app-memo/tytus-app.json';
 import { seedInstalledApps } from './installed-apps-repo';
 import type { Db } from '@/lib/db/types';
 
@@ -57,6 +58,7 @@ export const BUNDLED_APP_MANIFESTS: BundledManifestSpec[] = [
   manifestEntry('voice-recorder', voiceRecorderManifest),
   manifestEntry('sheet', sheetManifest),
   manifestEntry('studio', studioManifest),
+  manifestEntry('memo', memoManifest),
 ];
 
 /**
