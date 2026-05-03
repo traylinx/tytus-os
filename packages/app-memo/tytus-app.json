@@ -1,0 +1,56 @@
+{
+  "$schema": "https://tytus.traylinx.com/schema/app/v1.json",
+  "id": "memo",
+  "name": "Memo",
+  "version": "1.0.0",
+  "icon": "NotebookPen",
+  "category": "Productivity",
+  "description": "Atomic note + outline surface with bidirectional [[wikilinks]] and Brain bridge. AI-native replacement for the legacy Notes + Outliner pair.",
+
+  "window": {
+    "defaultSize": { "width": 920, "height": 700 },
+    "minSize": { "width": 520, "height": 400 }
+  },
+
+  "permissions": [
+    "daemon.read",
+    "daemon.network",
+    "vfs.user.documents",
+    "shell.notifications",
+    "shell.dock",
+    "storage.app",
+    "brain.read",
+    "brain.append"
+  ],
+
+  "storage": {
+    "tables": [
+      {
+        "name": "ai_usage",
+        "schema": "migrations/0001_ai_usage.sql"
+      },
+      {
+        "name": "links",
+        "schema": "migrations/0002_links.sql"
+      }
+    ]
+  },
+
+  "entry": {
+    "module": "./dist/index.js",
+    "assets": "./dist/assets/"
+  },
+
+  "contributes": {
+    "fileAssociations": [
+      {
+        "extension": ".tytus-memo.json",
+        "mimeType": "application/x-tytus-memo"
+      },
+      {
+        "extension": ".md",
+        "mimeType": "text/markdown"
+      }
+    ]
+  }
+}
