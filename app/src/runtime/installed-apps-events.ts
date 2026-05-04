@@ -50,10 +50,7 @@ export function subscribeInstalledAppsChanged(
   return () => target.removeEventListener(INSTALLED_APPS_CHANGED, handler);
 }
 
-/** Test-only: reset listeners between tests. EventTarget has no
- *  built-in `removeAllListeners`, so we keep this as a smoke seam. */
-export function __resetInstalledAppsEventsForTests(): void {
-  // EventTarget doesn't expose listener enumeration. Tests that need
-  // a fresh bus should construct a fresh module via vi.resetModules.
-  // This export is a marker for that intent; no-op in production code.
-}
+// Test-only reset removed: EventTarget exposes no listener enumeration,
+// and tests that need a fresh bus already use `vi.resetModules()` (or
+// rely on per-test subscribe/unsubscribe pairs). A no-op marker export
+// would just mislead future test authors.

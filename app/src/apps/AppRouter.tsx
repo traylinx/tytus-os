@@ -181,7 +181,7 @@ const AppRouter: FC<AppRouterProps> = ({ appId }) => {
     case 'calendar': return <Calendar />;
     case 'calculator': return <Calculator />;
     case 'clock': return <Clock />;
-    // 'spreadsheet' aliased to 'sheet'; 'texteditor' aliased to 'studio'
+    // 'spreadsheet' aliased to 'sheet'; 'texteditor' aliased to 'text-editor' workspace package (Phase 5)
     case 'documentviewer': return <DocumentViewer />;
     // 'markdownpreview' aliased to 'markdown-preview' workspace package (Phase 5)
 

@@ -259,6 +259,53 @@ describe('loadAppById', () => {
       /not found in installed_apps/,
     );
   });
+
+  it('opens an installed third-party app end-to-end (regression for the open-installed-apps bug)', async () => {
+    // SPRINT-TYTUS-APP-SYSTEM-V1 audit follow-up: lock the full chain
+    // for the bug fixed in 80550cd. The "open via WorkspaceAppHost"
+    // path was silently broken because AppRouter routed third-party
+    // installed ids to AppPlaceholder. This test exercises the runtime
+    // half of that chain — given a kind='installed' row with a https
+    // entry URL, loadAppById should resolve through the transport-B
+    // (remote-loader) branch and return a mounted Component.
+    const db = new MemoryDb();
+    const url =
+      'https://cdn.jsdelivr.net/gh/example/tytus-app-third-party/dist/index.js';
+    const installedManifest: Manifest = {
+      ...fakeManifest,
+      id: 'third-party-app',
+      entry: { url },
+    };
+    await db.run(
+      `INSERT INTO installed_apps (id, kind, manifest_json, entry_url, assets_url, installed_at, enabled, builtin_protected) VALUES (?,?,?,?,?,?,?,?)`,
+      [
+        'third-party-app',
+        'installed',
+        JSON.stringify(installedManifest),
+        url,
+        null,
+        0,
+        1,
+        0,
+      ],
+    );
+
+    const FakeComponent = () => null;
+    const importModule = vi.fn(async () => ({
+      default: () => FakeComponent,
+    }));
+    const makeEnv = vi.fn(() => fakeEnv);
+
+    const result = await loadAppById('third-party-app', db, {
+      importModule,
+      makeEnv,
+    });
+
+    expect(importModule).toHaveBeenCalledWith(url);
+    expect(result.appId).toBe('third-party-app');
+    expect(result.Component).toBe(FakeComponent);
+    expect(result.manifest.id).toBe('third-party-app');
+  });
 });
 
 describe('loadApp — transport-B (https) delegates to remote-loader', () => {

@@ -358,6 +358,30 @@ describe('reinstallApp', () => {
     expect(err).toBeInstanceOf(InstallerError);
     expect(err.code).toBe('invalid_manifest');
   });
+
+  it("rejects with code='cannot_reinstall' when the row has no manifestUrl on file", async () => {
+    // Simulate a kind='bundled' row (e.g. a system app seeded at boot)
+    // — those have null manifest_url and Reinstall must refuse rather
+    // than mis-firing as 'not_found'.
+    db.rows.push({
+      id: 'memo',
+      kind: 'bundled',
+      manifest_json: JSON.stringify(goodManifest('memo')),
+      entry_url: '@tytus/app-memo',
+      assets_url: null,
+      manifest_url: null,
+      installed_at: 0,
+      enabled: 1,
+      builtin_protected: 1,
+    });
+    const err = await reinstallApp({
+      appId: 'memo',
+      db,
+    }).catch((e) => e);
+    expect(err).toBeInstanceOf(InstallerError);
+    expect(err.code).toBe('cannot_reinstall');
+    expect((err.details as { id: string }).id).toBe('memo');
+  });
 });
 
 describe('InstallerError', () => {

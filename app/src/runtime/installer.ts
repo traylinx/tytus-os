@@ -3,14 +3,10 @@
  * for third-party Tytus OS apps.
  *
  * Phase 2 of SPRINT-TYTUS-APP-SYSTEM-V1. The App Store UI (Phase 3,
- * AppStore.tsx + TytusAppsTab.tsx) drives this; the tytus-cli `app`
- * subcommand (Phase 2.5) will too.
- *
- * TODO(tytus-cli): drive this same installer from CLI. The CLI lives in
- * /Users/sebastian/Projects/makakoo/api/ProjectWannolot/services/tytus-cli/
- * and runs in Node, not the browser, so the `Db` instance it threads in
- * will be a CLI-side adapter to the same SQLite file (or an RPC into
- * the running shell, TBD).
+ * AppStore.tsx + TytusAppsTab.tsx) drives this directly. The tytus-cli
+ * `app` subcommand (Phase 2.5, shipped) surfaces URLs + paste-ready
+ * install instructions; a future tytus-cli ↔ daemon RPC could drive
+ * this installer in-place from the terminal.
  *
  * Wire shape
  * ----------
@@ -61,6 +57,10 @@ import type { Db } from '@/lib/db/types';
  *   - `bad_transport`: manifest validates but uses entry.module instead
  *     of entry.url — installed apps MUST ship via URL transport.
  *     `details` is `{ id: string }`.
+ *   - `cannot_reinstall`: reinstall ran against a row that exists but
+ *     has no `manifestUrl` recorded (typically a `kind='bundled'` row).
+ *     `details` is `{ id: string, reason: string }`. Caller should fall
+ *     back to the Install-from-URL flow.
  */
 export type InstallerErrorCode =
   | 'invalid_manifest'
@@ -69,7 +69,8 @@ export type InstallerErrorCode =
   | 'protected'
   | 'fetch_failed'
   | 'parse_failed'
-  | 'bad_transport';
+  | 'bad_transport'
+  | 'cannot_reinstall';
 
 export class InstallerError extends Error {
   readonly code: InstallerErrorCode;
@@ -242,9 +243,10 @@ export async function reinstallApp(
     throw new InstallerError('not_found', { id: appId });
   }
   if (!existing.manifestUrl) {
-    // No source URL on file — can't re-fetch. Caller should treat this
-    // as "use Install from URL again" UX.
-    throw new InstallerError('not_found', {
+    // No source URL on file — can't re-fetch. Typically a kind='bundled'
+    // row (system app); the App Store hides the Reinstall button on
+    // those, but the runtime guard catches programmatic callers.
+    throw new InstallerError('cannot_reinstall', {
       id: appId,
       reason: 'manifest_url missing on row',
     });
