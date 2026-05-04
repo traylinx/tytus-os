@@ -59,21 +59,18 @@ initDb()
       console.warn('[tytusos] bundled-apps seed failed', err)
     }
     // Dev-only debug handle. Lets you poke at the DB from DevTools:
-    //   await window.tytusDb.query('SELECT count(*) as n FROM api_history')
-    //   await window.tytusDb.query('SELECT * FROM api_collections')
-    //   await window.tytusDb.run('DELETE FROM api_history')   // careful!
+    //   await window.tytusDb.query('SELECT * FROM installed_apps')
+    //   await window.tytusDb.query('SELECT * FROM music_library')
     // Stripped from production builds by import.meta.env.DEV.
     if (import.meta.env.DEV) {
-      const [history, collections, musicLibrary, downloadMod] = await Promise.all([
-        import('@/lib/repo/apiHistory'),
-        import('@/lib/repo/apiCollections'),
+      const [musicLibrary, downloadMod] = await Promise.all([
         import('@/lib/repo/musicLibrary'),
         import('@/lib/db/download'),
       ])
       ;(window as unknown as Record<string, unknown>).tytusDb = Object.assign(db, {
         download: downloadMod.downloadDb,
       })
-      ;(window as unknown as Record<string, unknown>).tytusRepos = { history, collections, musicLibrary }
+      ;(window as unknown as Record<string, unknown>).tytusRepos = { musicLibrary }
       console.info(
         '[tytusos] dev handles: window.tytusDb (raw + .download()), window.tytusRepos (repos)',
       )
