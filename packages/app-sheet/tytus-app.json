@@ -1,0 +1,58 @@
+{
+  "$schema": "https://tytus.traylinx.com/schema/app/v1.json",
+  "id": "sheet",
+  "name": "Sheet",
+  "version": "1.0.0",
+  "icon": "Table2",
+  "category": "Productivity",
+  "description": "Tabular data with AI-driven analysis. AI-native replacement for the legacy in-tree Spreadsheet app.",
+
+  "window": {
+    "defaultSize": { "width": 980, "height": 720 },
+    "minSize": { "width": 560, "height": 420 }
+  },
+
+  "permissions": [
+    "daemon.read",
+    "daemon.network",
+    "vfs.user.documents",
+    "shell.notifications",
+    "shell.dock",
+    "storage.app"
+  ],
+
+  "storage": {
+    "tables": [
+      {
+        "name": "ai_usage",
+        "schema": "migrations/0001_ai_usage.sql"
+      },
+      {
+        "name": "cells",
+        "schema": "migrations/0002_cells.sql"
+      },
+      {
+        "name": "sheets",
+        "schema": "migrations/0002_cells.sql"
+      }
+    ]
+  },
+
+  "entry": {
+    "module": "./dist/index.js",
+    "assets": "./dist/assets/"
+  },
+
+  "contributes": {
+    "fileAssociations": [
+      {
+        "extension": ".tytus-sheet.json",
+        "mimeType": "application/x-tytus-sheet"
+      },
+      {
+        "extension": ".csv",
+        "mimeType": "text/csv"
+      }
+    ]
+  }
+}

@@ -1,0 +1,41 @@
+{
+  "$schema": "https://tytus.traylinx.com/schema/app/v1.json",
+  "id": "music-player",
+  "name": "Music Player",
+  "version": "1.0.0",
+  "icon": "Headphones",
+  "category": "Media",
+  "description": "Listen to JULI3TA-generated tracks + your provider-backed music library.",
+
+  "window": {
+    "defaultSize": { "width": 880, "height": 600 },
+    "minSize": { "width": 520, "height": 400 }
+  },
+
+  "permissions": [
+    "daemon.read",
+    "daemon.network",
+    "shell.notifications",
+    "shell.dock",
+    "storage.app",
+    "storage.shared.music_creator_tracks"
+  ],
+
+  "storage": {
+    "tables": [
+      {
+        "name": "library_tracks",
+        "schema": "migrations/0001_library.sql"
+      },
+      {
+        "name": "playlists",
+        "schema": "migrations/0001_library.sql"
+      }
+    ]
+  },
+
+  "entry": {
+    "module": "./dist/index.js",
+    "assets": "./dist/assets/"
+  }
+}

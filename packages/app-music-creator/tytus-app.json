@@ -1,0 +1,55 @@
+{
+  "$schema": "https://tytus.traylinx.com/schema/app/v1.json",
+  "id": "music-creator",
+  "name": "Music Creator",
+  "version": "1.0.0",
+  "icon": "Music",
+  "category": "Creative",
+  "description": "Generate songs from a theme + style tags. Powered by JULI3TA.",
+
+  "window": {
+    "defaultSize": { "width": 980, "height": 720 },
+    "minSize": { "width": 720, "height": 520 }
+  },
+
+  "permissions": [
+    "daemon.read",
+    "daemon.network",
+    "vfs.user.music",
+    "shell.notifications",
+    "shell.dock",
+    "storage.app",
+    "storage.shared.voice_recordings",
+    "media.microphone"
+  ],
+
+  "storage": {
+    "tables": [
+      {
+        "name": "tracks",
+        "schema": "migrations/0001_tracks.sql"
+      },
+      {
+        "name": "settings",
+        "schema": "migrations/0002_settings.sql"
+      }
+    ],
+    "shares": {
+      "music_creator_tracks": "app_music_creator_tracks"
+    }
+  },
+
+  "entry": {
+    "module": "./dist/index.js",
+    "assets": "./dist/assets/"
+  },
+
+  "contributes": {
+    "fileAssociations": [
+      {
+        "extension": ".tytus-track.json",
+        "mimeType": "application/x-tytus-track"
+      }
+    ]
+  }
+}

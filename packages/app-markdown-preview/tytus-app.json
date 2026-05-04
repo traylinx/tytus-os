@@ -1,0 +1,35 @@
+{
+  "$schema": "https://tytus.traylinx.com/schema/app/v1.json",
+  "id": "markdown-preview",
+  "name": "Markdown Preview",
+  "version": "1.0.0",
+  "icon": "Eye",
+  "category": "Productivity",
+  "description": "Live-rendered Markdown viewer with reading-flow stylesheet, ToC sidebar, and link navigation.",
+
+  "window": {
+    "defaultSize": { "width": 900, "height": 720 },
+    "minSize": { "width": 480, "height": 360 }
+  },
+
+  "permissions": [
+    "vfs.user.documents",
+    "shell.notifications"
+  ],
+
+  "storage": {
+    "tables": []
+  },
+
+  "entry": {
+    "module": "./dist/index.js",
+    "assets": "./dist/assets/"
+  },
+
+  "contributes": {
+    "fileAssociations": [
+      { "extension": ".md", "mimeType": "text/markdown" },
+      { "extension": ".markdown", "mimeType": "text/markdown" }
+    ]
+  }
+}

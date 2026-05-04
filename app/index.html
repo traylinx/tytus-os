@@ -10,6 +10,28 @@
     <link rel="icon" type="image/png" sizes="32x32" href="/favicons/favicon-32x32.png" />
     <link rel="apple-touch-icon" href="/favicons/apple-touch-icon.png" />
     <link rel="manifest" href="/site.webmanifest" />
+
+    <!--
+      Tytus install-transport-B externals importmap.
+      Installed apps loaded via dynamic import(https://cdn...) build with
+      `react`, `react-dom`, `react/jsx-runtime`, and `@tytus/host-api`
+      marked as bundler externals. The importmap below rewrites those
+      bare specifiers to small shim modules served from /public — those
+      shims read the host's already-loaded singletons off
+      window.__TYTUS_EXTERNALS__ so the entire OS shares one React
+      instance. See packages/host-api/EXTERNAL_APP_BUILD.md and
+      app/src/runtime/externals/install-host-externals.ts.
+    -->
+    <script type="importmap">
+      {
+        "imports": {
+          "react": "/__tytus_externals/react.js",
+          "react-dom": "/__tytus_externals/react-dom.js",
+          "react/jsx-runtime": "/__tytus_externals/react-jsx-runtime.js",
+          "@tytus/host-api": "/__tytus_externals/host-api.js"
+        }
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>

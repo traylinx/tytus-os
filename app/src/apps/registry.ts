@@ -1,4 +1,7 @@
-import type { AppDefinition } from '@/types';
+import type { AliasRewriteDescriptor, AppCategory as ManifestAppCategory } from '@tytus/host-api';
+import type { AppDefinition, AppKind, AppCategory } from '@/types';
+import { getInstalledAppRow } from '@/runtime/installed-apps-cache';
+import type { InstalledAppRow } from '@/runtime/installed-apps-repo';
 
 // 50 apps total in v1.
 // 8 Tytus product surfaces + 42 OS-feel utilities (kept from the original Kimi seed).
@@ -255,11 +258,151 @@ export const APP_REGISTRY: AppDefinition[] = [
     defaultSize: { width: 400, height: 560 }, minSize: { width: 280, height: 400 }, isDemo: true },
 ];
 
-export const getAppById = (id: string): AppDefinition | undefined =>
-  APP_REGISTRY.find((a) => a.id === id);
+/**
+ * Fill in the registry kind when omitted. Existing in-tree apps default to
+ * `legacy` since they're React components imported via AppRouter, not
+ * loaded through the workspace-package loader. Workspace packages mark
+ * themselves explicitly as `bundled` (M3+ when they extract).
+ *
+ * Aliases must declare `kind: 'alias'` explicitly — `aliasOf` is required
+ * with `kind: 'alias'`, and an alias missing `aliasOf` is a programmer
+ * error caught by `tytus-app validate` before install.
+ */
+export function normalizeApp(app: AppDefinition): AppDefinition & {
+  kind: AppKind;
+} {
+  return { ...app, kind: app.kind ?? 'legacy' };
+}
+
+export const getAppById = (id: string): AppDefinition | undefined => {
+  // Alias resolution: if the requested id points at an alias, follow it
+  // once. We don't recurse — manifests with `aliasOf` chains are an
+  // install-time error, not something the registry tries to repair.
+  const direct = APP_REGISTRY.find((a) => a.id === id);
+  if (direct?.kind === 'alias' && direct.aliasOf) {
+    return APP_REGISTRY.find((a) => a.id === direct.aliasOf);
+  }
+  if (direct) return direct;
+
+  // Fallback: the live `installed_apps` cache (kept in sync by
+  // installer.ts on install / uninstall / reinstall, and primed once at
+  // boot from main.tsx). This is what makes third-party apps installed
+  // at runtime — e.g. the App Store's Featured catalog —
+  // openable. Without this fallback `useOSStore.createWindow` throws
+  // "Unknown app: <id>" for any id missing from the build-time
+  // APP_REGISTRY, killing the click before AppRouter ever renders.
+  const row = getInstalledAppRow(id);
+  if (row) return appDefinitionFromInstalledRow(row);
+
+  return undefined;
+};
+
+/** Map an `installed_apps` row's manifest into the static `AppDefinition`
+ *  shape `useOSStore.createWindow` expects. The manifest's `window`
+ *  block carries the geometry; everything else maps 1:1. */
+function appDefinitionFromInstalledRow(row: InstalledAppRow): AppDefinition {
+  const m = row.manifest;
+  return {
+    id: row.id,
+    name: m.name,
+    icon: m.icon,
+    category: manifestCategoryToAppCategory(m.category),
+    description: m.description,
+    defaultSize: m.window.defaultSize,
+    minSize: m.window.minSize,
+    kind: row.kind,
+  };
+}
+
+/** The host-api manifest enum and the in-tree `AppCategory` enum are
+ *  intentionally separate (the in-tree one was the original; host-api
+ *  was extracted later). They overlap on every value except 'Utilities'
+ *  which only the host-api side defines. Any unknown value collapses to
+ *  'System' so launcher rendering never crashes. */
+function manifestCategoryToAppCategory(c: ManifestAppCategory): AppCategory {
+  switch (c) {
+    case 'System':
+    case 'Internet':
+    case 'Productivity':
+    case 'Creative':
+    case 'Games':
+    case 'Media':
+    case 'DevTools':
+      return c;
+    case 'Utilities':
+      return 'System';
+    default:
+      return 'System';
+  }
+}
 
 export const getAppsByCategory = (category: string): AppDefinition[] =>
-  APP_REGISTRY.filter((a) => a.category === category);
+  APP_REGISTRY.filter((a) => a.category === category && !a.hidden);
+
+export const getAppsByKind = (kind: AppKind): AppDefinition[] =>
+  APP_REGISTRY.filter((a) => normalizeApp(a).kind === kind);
+
+/**
+ * Apply a structured rewrite descriptor to legacy WindowArgs. Pure
+ * function — no eval, no Function constructor — so registry rows are
+ * portable and the alias surface has no script-injection footprint.
+ *
+ * Per 09-decisions.md M1-owned gap: rewriteArgs is a structured
+ * descriptor, not a serialized function.
+ */
+export function applyRewriteDescriptor(
+  descriptor: AliasRewriteDescriptor | undefined,
+  legacyArgs: unknown,
+): unknown {
+  if (!descriptor) return legacyArgs;
+  const legacy =
+    legacyArgs && typeof legacyArgs === 'object'
+      ? (legacyArgs as Record<string, unknown>)
+      : {};
+  switch (descriptor.type) {
+    case 'identity':
+      return legacyArgs;
+    case 'static':
+      return { ...descriptor.args };
+    case 'studio': {
+      const out: Record<string, unknown> = { mode: descriptor.mode };
+      if (descriptor.readOnly !== undefined) out.readOnly = descriptor.readOnly;
+      if ('fileRef' in legacy) out.fileRef = legacy.fileRef;
+      return out;
+    }
+    case 'sheet': {
+      const out: Record<string, unknown> = {};
+      if (descriptor.readOnly !== undefined) out.readOnly = descriptor.readOnly;
+      if ('fileRef' in legacy) out.fileRef = legacy.fileRef;
+      return out;
+    }
+    case 'memo': {
+      const out: Record<string, unknown> = {};
+      if (descriptor.readOnly !== undefined) out.readOnly = descriptor.readOnly;
+      if ('fileRef' in legacy) out.fileRef = legacy.fileRef;
+      if ('focusLine' in legacy) out.focusLine = legacy.focusLine;
+      return out;
+    }
+  }
+}
+
+/**
+ * Resolve an alias entry to the live app + transformed window args.
+ * Returns null when the id is not an alias.
+ */
+export function resolveAlias(
+  id: string,
+  args: unknown,
+):
+  | { resolvedAppId: string; rewrittenArgs: unknown }
+  | null {
+  const entry = APP_REGISTRY.find((a) => a.id === id);
+  if (!entry || entry.kind !== 'alias' || !entry.aliasOf) return null;
+  return {
+    resolvedAppId: entry.aliasOf,
+    rewrittenArgs: applyRewriteDescriptor(entry.rewriteArgs, args),
+  };
+}
 
 export const getDefaultDockApps = (): string[] => [
   'pod-inspector',

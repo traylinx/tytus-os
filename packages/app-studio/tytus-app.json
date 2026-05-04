@@ -1,0 +1,62 @@
+{
+  "$schema": "https://tytus.traylinx.com/schema/app/v1.json",
+  "id": "studio",
+  "name": "Studio",
+  "version": "1.0.0",
+  "icon": "PenLine",
+  "category": "Productivity",
+  "description": "AI-native long-form composition surface. Multi-block document model with text + media + embedded structured blocks. Replaces the legacy TextEditor + RichEditor + Notes + AIWriter triad.",
+
+  "window": {
+    "defaultSize": { "width": 1040, "height": 760 },
+    "minSize": { "width": 600, "height": 440 }
+  },
+
+  "permissions": [
+    "daemon.read",
+    "daemon.network",
+    "vfs.user.documents",
+    "shell.notifications",
+    "shell.dock",
+    "storage.app"
+  ],
+
+  "storage": {
+    "tables": [
+      {
+        "name": "ai_usage",
+        "schema": "migrations/0001_ai_usage.sql"
+      },
+      {
+        "name": "documents",
+        "schema": "migrations/0002_documents.sql"
+      },
+      {
+        "name": "blocks",
+        "schema": "migrations/0002_documents.sql"
+      }
+    ]
+  },
+
+  "entry": {
+    "module": "./dist/index.js",
+    "assets": "./dist/assets/"
+  },
+
+  "contributes": {
+    "fileAssociations": [
+      {
+        "extension": ".tytus-studio.json",
+        "mimeType": "application/x-tytus-studio"
+      },
+      {
+        "extension": ".md",
+        "mimeType": "text/markdown"
+      },
+      {
+        "extension": ".txt",
+        "mimeType": "text/plain"
+      }
+    ]
+  }
+}

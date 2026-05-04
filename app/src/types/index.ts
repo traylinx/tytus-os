@@ -97,6 +97,26 @@ export interface Window {
 
 export type AppCategory = 'System' | 'Internet' | 'Productivity' | 'Media' | 'DevTools' | 'Games' | 'Creative';
 
+/**
+ * Registry kind — disambiguates how the shell loads + protects an app.
+ *
+ * - `bundled`   workspace package shipped with this Tytus build (Sheet,
+ *               Studio, Memo, Music Creator, Music Player, Voice Recorder
+ *               once they extract). Loader resolves entry from the
+ *               workspace; built-in protection blocks uninstall in v1.
+ * - `installed` post-v1: third-party `.tytusapp` zipped into OPFS.
+ *               Loader resolves entry from OPFS; user can uninstall.
+ * - `legacy`    in-tree React component imported via apps/AppRouter.tsx
+ *               switch. No loader, no manifest — just a placeholder
+ *               registry entry so the launcher knows it exists. Default
+ *               for every existing AppDefinition until M3+ extracts.
+ * - `alias`     retired registry id that redirects to another app
+ *               (`aliasOf` + `rewriteArgs`). Hidden from App Store.
+ *
+ * Source of truth: `01-host-api.md` §"Registry kinds" (decision D9 + D28).
+ */
+export type AppKind = 'bundled' | 'installed' | 'legacy' | 'alias';
+
 export interface AppDefinition {
   id: string;
   name: string;
@@ -114,6 +134,18 @@ export interface AppDefinition {
    * launcher only shows the apps with a real product role.
    */
   isDemo?: boolean;
+  /** Registry kind (M1+). Undefined → `legacy` after `normalizeApp`. */
+  kind?: AppKind;
+  /** When `kind === 'alias'`: id of the live app this entry redirects to. */
+  aliasOf?: string;
+  /** When `kind === 'alias'`: structured descriptor — NOT a serialized
+   *  function. The registry resolver maps this to a target WindowArgs at
+   *  resolve time. */
+  rewriteArgs?: import('@tytus/host-api').AliasRewriteDescriptor;
+  /** When `kind === 'alias'`: future Tytus version that drops this alias. */
+  removeInVersion?: string;
+  /** When `kind === 'alias'`: hide from App Store + launcher. */
+  hidden?: boolean;
 }
 
 // --------------------------------------------------------

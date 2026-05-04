@@ -1,0 +1,32 @@
+{
+  "name": "@tytus/app-sheet",
+  "version": "0.1.0-m4.2",
+  "private": true,
+  "type": "module",
+  "description": "Sheet — bundled Tytus OS app. AI-native tabular data editor; replaces the legacy in-tree Spreadsheet.",
+  "main": "./src/index.tsx",
+  "types": "./src/index.tsx",
+  "exports": {
+    ".": {
+      "types": "./src/index.tsx",
+      "import": "./src/index.tsx"
+    }
+  },
+  "scripts": {
+    "build": "vite build --config ../../vite.lib.config.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@tytus/host-api": "*",
+    "@tytus/contracts": "*",
+    "@tytus/ai-engine": "*",
+    "lucide-react": "^0.562.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.5",
+    "@types/react-dom": "^19.2.3",
+    "typescript": "~5.9.3"
+  }
+}

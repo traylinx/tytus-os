@@ -1,0 +1,31 @@
+{
+  "name": "@tytus/app-music-player",
+  "version": "0.1.0-m3",
+  "private": true,
+  "type": "module",
+  "description": "Music Player — bundled Tytus OS app. Plays JULI3TA-generated tracks + provider-backed library. Extracted in M3 of the Apps Platform sprint.",
+  "main": "./src/index.tsx",
+  "types": "./src/index.tsx",
+  "exports": {
+    ".": {
+      "types": "./src/index.tsx",
+      "import": "./src/index.tsx"
+    }
+  },
+  "scripts": {
+    "build": "vite build --config ../../vite.lib.config.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@tytus/host-api": "*",
+    "@tytus/contracts": "*",
+    "lucide-react": "^0.562.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.5",
+    "@types/react-dom": "^19.2.3",
+    "typescript": "~5.9.3"
+  }
+}

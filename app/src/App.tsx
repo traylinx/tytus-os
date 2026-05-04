@@ -4,6 +4,7 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { OSProvider, useOS } from '@/hooks/useOSStore';
+import { HostBridgeWiring, ShellMenuBridge } from '@/runtime/HostBridgeWiring';
 import { DaemonClientProvider } from '@/hooks/useDaemonClient';
 import { DaemonStateProvider, useDaemonStateContext } from '@/hooks/useDaemonStateContext';
 import { logLaunch } from '@/lib/repo/appLaunches';
@@ -431,6 +432,7 @@ function AppShell() {
       {/* Desktop Shell */}
       {showDesktop && (
         <ShellMenuProvider>
+        <ShellMenuBridge />
         <div className="relative w-full h-full" style={{ background: 'var(--bg-desktop)' }}>
           {/* Wallpaper layer — preset image, custom-uploaded image, or solid color */}
           <div
@@ -537,6 +539,7 @@ export default function App() {
       <DaemonStateProvider>
         <OSProvider>
           <ClipboardProvider>
+            <HostBridgeWiring />
             <AppShell />
           </ClipboardProvider>
         </OSProvider>

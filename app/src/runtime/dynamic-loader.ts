@@ -1,0 +1,272 @@
+/**
+ * Dynamic loader bridge between `installed_apps` rows and the workspace
+ * / remote app boot flow. This is the PRODUCTION path used by
+ * `WorkspaceAppHost.useLoadedApp` for every window the user opens.
+ *
+ * Dual-loader split (post audit 2026-05-04)
+ * -----------------------------------------
+ * The codebase has two loader modules with overlapping responsibilities:
+ *
+ *   - `runtime/loader.ts`      — the M3.5 mount path. Owns CSS fetch +
+ *                                 style-isolator transform + inline
+ *                                 `<style>` injection + bundled-package
+ *                                 dynamic import. Used today by tests
+ *                                 and as the legacy entry point. Has its
+ *                                 own `loadRemoteApp` branch when the
+ *                                 manifest carries `entry.url`.
+ *
+ *   - `runtime/dynamic-loader.ts` (this file) — the M3.6 production
+ *                                 path. Sits one layer up: accepts an
+ *                                 `InstalledAppRow` from the SQLite
+ *                                 registry, resolves its `entryUrl`,
+ *                                 and dispatches to either:
+ *                                   (a) native dynamic `import()` for
+ *                                       workspace-package shapes
+ *                                       (`@tytus/app-<id>` / built chunk
+ *                                       URLs), or
+ *                                   (b) `loadRemoteApp` from
+ *                                       `remote-loader.ts` for fully
+ *                                       qualified `https://` URLs (so
+ *                                       installed third-party apps get
+ *                                       per-URL caching + typed
+ *                                       RemoteAppLoadError shaping).
+ *
+ * Both files MUST stay in sync on the bootApp(env) contract — a
+ * workspace package's default export receives the same `AppBootEnv`
+ * regardless of which loader called it. The cleanup PR (post-Phase-5)
+ * will fold loader.ts into dynamic-loader.ts once style isolation moves
+ * out of the loader and into a per-window wrapper component.
+ *
+ * Resolution rules (entry.url / entry.module):
+ *   - DEV (Vite serves source): the entryUrl is a synthetic
+ *     `@tytus/app-<id>` package identifier. Forwarded verbatim to
+ *     `import()`; Vite resolves via the workspace symlink in
+ *     `node_modules/@tytus/app-<id>/`.
+ *   - PROD bundled (transport A): the entryUrl is the chunk URL
+ *     emitted by `npm run build:packages`
+ *     (e.g. `/packages/app-<id>/dist/index.js`). `import()` fetches it
+ *     relative to the document.
+ *   - INSTALLED third-party (transport B): the entryUrl is a fully
+ *     qualified CDN URL (jsDelivr / GitHub Pages). Routed to
+ *     `loadRemoteApp` so React + host-api remain singletons via the
+ *     importmap defined in `app/index.html`.
+ *
+ * Failures are normalised to `AppLoadError` so the shell's error
+ * boundary has a single error type to switch on.
+ *
+ * Per spec §"Loader topology" / W5 PR-DynLoader (M3.6).
+ */
+
+import type {
+  AppBootEnv,
+  Manifest,
+} from '@tytus/host-api';
+import type { ComponentType } from 'react';
+import type { Db } from '@/lib/db/types';
+
+import { getInstalledApp, type InstalledAppRow } from './installed-apps-repo';
+import { makeAppBootEnv } from './host-impl';
+import { loadRemoteApp, RemoteAppLoadError } from './remote-loader';
+
+/** Public result the window manager renders. */
+export interface LoadedApp {
+  appId: string;
+  /** React component returned by the workspace package's bootApp. */
+  Component: ComponentType;
+  /** Resolved manifest from installed_apps. */
+  manifest: Manifest;
+}
+
+/** Every workspace package's default export has this shape. */
+export type AppEntry = (env: AppBootEnv) => unknown;
+
+/**
+ * Normalised failure mode. The shell's error fallback switches on
+ * `appId` for the user-facing message; `cause` carries the underlying
+ * exception for telemetry / dev-mode `console.error`.
+ */
+export class AppLoadError extends Error {
+  appId: string;
+  override cause: unknown;
+  constructor(appId: string, message: string, cause?: unknown) {
+    super(`[tytus-loader] app "${appId}" failed to load: ${message}`);
+    this.name = 'AppLoadError';
+    this.appId = appId;
+    this.cause = cause;
+  }
+}
+
+/**
+ * Resolve an InstalledApp row's `entryUrl` to the URL string `import()`
+ * should consume. Pure — no I/O — so unit tests can verify the
+ * mapping without spinning up Vite.
+ *
+ * Convention (W5):
+ *   - `'@tytus/app-<id>'` → DEV: passed through verbatim. Vite
+ *     resolves it via the workspace symlink. PROD: only emitted when
+ *     the install pipeline rewrites entry_url to a real chunk URL, so
+ *     a package-spec passing through here in PROD is a programmer
+ *     error.
+ *   - `'/packages/app-<id>/dist/index.js'` (or any absolute / relative
+ *     URL) → forwarded as-is.
+ *
+ * Returning the input verbatim is intentional — Vite + browser dynamic
+ * import handle both shapes natively. Centralising the resolution
+ * keeps the option open to layer caching / version pinning later
+ * without re-touching every call site.
+ */
+export function resolveEntryUrl(entryUrl: string): string {
+  return entryUrl;
+}
+
+/** Heuristic: is this entryUrl a fully-qualified URL that should go
+ *  through the remote-loader (transport B) rather than transport A? */
+function isRemoteEntryUrl(entryUrl: string): boolean {
+  return /^https?:\/\//i.test(entryUrl);
+}
+
+export interface LoadAppOptions {
+  /** Injected for testability. Production code uses native dynamic
+   *  import. The function returns the imported module — the loader
+   *  reads `.default` off it and calls it as `bootApp(env)`. */
+  importModule?: (url: string) => Promise<{ default?: unknown }>;
+}
+
+/**
+ * Load an installed app: resolve entryUrl → dynamic-import →
+ * `bootApp(env)` → wrap as `LoadedApp`. Any failure throws
+ * `AppLoadError`.
+ *
+ * The caller (window-manager / AppRouter) is responsible for:
+ *   - Wrapping the returned Component in a Suspense boundary if it
+ *     uses async APIs internally.
+ *   - Catching `AppLoadError` in an error boundary so a bad app
+ *     doesn't crash the shell.
+ */
+export async function loadApp(
+  app: InstalledAppRow,
+  env: AppBootEnv,
+  opts: LoadAppOptions = {},
+): Promise<LoadedApp> {
+  const { importModule = (url) => import(/* @vite-ignore */ url) } = opts;
+
+  if (!app.entryUrl) {
+    throw new AppLoadError(
+      app.id,
+      'installed_apps row has null entry_url; the app is not loadable until the seed/install pipeline writes a real entry url.',
+    );
+  }
+
+  const url = resolveEntryUrl(app.entryUrl);
+
+  // Transport B (installed third-party app on https:// CDN): delegate
+  // to the remote-loader so we get the per-URL module dedupe + typed
+  // RemoteAppLoadError shaping. Transport A (workspace package via
+  // `@tytus/app-<id>` or built chunk URL) stays on the inlined import
+  // path below — its module identity is already managed by the
+  // bundler / Vite, so adding the dedupe layer would be redundant.
+  let bootApp: AppEntry;
+  if (isRemoteEntryUrl(url)) {
+    try {
+      bootApp = (await loadRemoteApp(app.manifest, {
+        importModule,
+      })) as AppEntry;
+    } catch (err) {
+      // Re-wrap as AppLoadError so callers (WorkspaceAppHost's error
+      // boundary) can switch on a single error type. Preserve the
+      // RemoteAppLoadError as `cause` for telemetry.
+      const message =
+        err instanceof RemoteAppLoadError
+          ? err.message
+          : `remote import of "${url}" rejected: ${(err as Error)?.message ?? String(err)}`;
+      throw new AppLoadError(app.id, message, err);
+    }
+  } else {
+    let mod: { default?: unknown };
+    try {
+      mod = await importModule(url);
+    } catch (err) {
+      throw new AppLoadError(
+        app.id,
+        `dynamic import of "${url}" rejected: ${(err as Error)?.message ?? String(err)}`,
+        err,
+      );
+    }
+
+    if (mod.default === undefined || mod.default === null) {
+      throw new AppLoadError(
+        app.id,
+        `module "${url}" has no default export. Workspace apps must export a default \`bootApp(env)\` function.`,
+      );
+    }
+    if (typeof mod.default !== 'function') {
+      throw new AppLoadError(
+        app.id,
+        `module "${url}" default export is not a function (got ${typeof mod.default}). Workspace apps must export a default \`bootApp(env)\` function.`,
+      );
+    }
+    bootApp = mod.default as AppEntry;
+  }
+
+  let returned: unknown;
+  try {
+    returned = bootApp(env);
+  } catch (err) {
+    throw new AppLoadError(
+      app.id,
+      `bootApp(env) threw: ${(err as Error)?.message ?? String(err)}`,
+      err,
+    );
+  }
+
+  if (typeof returned !== 'function') {
+    throw new AppLoadError(
+      app.id,
+      `bootApp(env) returned ${typeof returned}; expected a React component (() => ReactNode).`,
+    );
+  }
+
+  return {
+    appId: app.id,
+    Component: returned as ComponentType,
+    manifest: app.manifest,
+  };
+}
+
+/**
+ * Convenience: look up an installed_apps row by id, build the
+ * AppBootEnv for it, and dispatch through `loadApp`. Used by the
+ * AppRouter glue when the shell only has an appId in hand.
+ */
+export async function loadAppById(
+  appId: string,
+  db: Db,
+  opts: LoadAppOptions & {
+    /** Test seam — production passes the live `makeAppBootEnv`. */
+    makeEnv?: (appId: string, manifest: Manifest) => AppBootEnv;
+  } = {},
+): Promise<LoadedApp> {
+  const row = await getInstalledApp(db, appId);
+  if (!row) {
+    throw new AppLoadError(
+      appId,
+      `not found in installed_apps. Boot seed missed the row, or the app id is wrong.`,
+    );
+  }
+  const makeEnv =
+    opts.makeEnv ??
+    ((id: string, manifest: Manifest) =>
+      makeAppBootEnv(id, manifest, {
+        // Dynamic-loader-driven boot doesn't have a CSS-or-asset
+        // bundle URL today (workspace packages ship CSS via their
+        // own React imports / lib build). Pass synthetic empty
+        // entries; assets-namespace consumers degrade with a
+        // 404 — apps that need a real assets root use a manifest
+        // entry instead (post-W5).
+        module: row.entryUrl ?? '',
+        assets: '/',
+        css: null,
+      }));
+  const env = makeEnv(row.id, row.manifest);
+  return loadApp(row, env, opts);
+}

@@ -10,7 +10,7 @@
 //
 // Phase 2 ships the API Tester migration: history + collections.
 
-export const SCHEMA_VERSION = 11;
+export const SCHEMA_VERSION = 13;
 
 export const SCHEMA_V1 = `
 CREATE TABLE IF NOT EXISTS api_history (
@@ -288,4 +288,47 @@ CREATE INDEX IF NOT EXISTS idx_trash_items_deleted_at
   ON trash_items(deleted_at DESC);
 CREATE INDEX IF NOT EXISTS idx_trash_items_source
   ON trash_items(source);
+`;
+
+// Schema V12: installed_apps registry — Apps Platform M1.
+//
+// Shell-private state (NOT inside any app's `app_<id>_*` prefix). The
+// registry tracks which apps are present and what kind they are
+// (bundled = shipped with the OS, installed = post-v1 third-party,
+// legacy = in-tree React component, alias = retired id that redirects).
+//
+// M1 ships the table; M3's shared-key validation will read it; M5 wires
+// the App Store UI on top. Seeding from the runtime APP_REGISTRY happens
+// at shell boot once M5 lands; until then the table sits empty.
+//
+// `manifest_json` is the canonical source for everything not promoted
+// into a dedicated column. For aliases, `aliasOf` / `rewriteArgs` /
+// `removeInVersion` / `hidden` ride inside `manifest_json`.
+export const SCHEMA_V12 = `
+CREATE TABLE IF NOT EXISTS installed_apps (
+  id                 TEXT PRIMARY KEY,                                          -- matches manifest.id
+  kind               TEXT NOT NULL CHECK (kind IN ('bundled', 'installed', 'legacy', 'alias')),
+  manifest_json      TEXT NOT NULL,                                             -- full manifest as JSON
+  entry_url          TEXT,                                                      -- resolved entry.module URL; NULL for kind='legacy' or 'alias'
+  assets_url         TEXT,                                                      -- resolved entry.assets root URL; NULL if no assets
+  installed_at       INTEGER NOT NULL,                                          -- unix ms
+  enabled            INTEGER NOT NULL DEFAULT 1,                                -- 0/1; future: user can disable without uninstall
+  builtin_protected  INTEGER NOT NULL DEFAULT 0                                 -- 0/1; bundled apps that can't be uninstalled in v1
+);
+CREATE INDEX IF NOT EXISTS idx_installed_apps_kind ON installed_apps(kind);
+`;
+
+// Schema V13: installed_apps.manifest_url — Apps Platform Phase 2/3.
+//
+// Adds a nullable column that remembers WHERE the manifest was fetched
+// from on first install, so the App Store's "Reinstall" affordance can
+// re-fetch the same `tytus-app.json` URL without making the user
+// re-paste it. Only set for kind='installed' rows; bundled / legacy /
+// alias rows leave it NULL.
+//
+// The migration is gated through the same column-presence check the
+// V5–V8 ALTERs use (PRAGMA table_info), so a partially-applied schema
+// (HMR reload mid-migration, etc.) self-heals on the next boot.
+export const SCHEMA_V13 = `
+ALTER TABLE installed_apps ADD COLUMN manifest_url TEXT;
 `;
