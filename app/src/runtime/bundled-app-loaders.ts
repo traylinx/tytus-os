@@ -3,10 +3,7 @@
  *
  * Why this file exists
  * --------------------
- * The dynamic loader used to default to:
- *
- *     import(/* @vite-ignore *​/ url)
- *
+ * The dynamic loader used to forward runtime URLs directly to the browser,
  * which forwards the runtime URL to the browser unchanged. For a fully
  * qualified `https://` URL that's correct (transport B). For a workspace
  * package specifier like `@tytus/app-sheet` (transport A) it's fatal —
@@ -24,7 +21,7 @@
  * ----------------
  *   - `@tytus/app-<id>` specifiers go through `BUNDLED_APP_LOADERS`.
  *   - Anything else (https URL, absolute / relative path) falls through
- *     to native `import(/* @vite-ignore *​/ url)` so transport-B installs
+ *     to native `native dynamic import(url)` so transport-B installs
  *     keep working.
  */
 
@@ -32,7 +29,6 @@ export const BUNDLED_APP_LOADERS: Record<
   string,
   () => Promise<{ default?: unknown }>
 > = {
-  'music-creator': () => import('@tytus/app-music-creator'),
   'music-player': () => import('@tytus/app-music-player'),
   'voice-recorder': () => import('@tytus/app-voice-recorder'),
   sheet: () => import('@tytus/app-sheet'),

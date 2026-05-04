@@ -68,6 +68,7 @@ import type { EntryUrls } from './loader';
 import { createDaemonFs } from './host-fs-daemon';
 import { createLocalStorageFs } from './host-fs-localstorage';
 import { createAppDb } from './storage-impl';
+import { resolveManifestMigrations } from './app-migrations';
 import {
   listInstalledApps,
   resolveSharedTableNames,
@@ -668,6 +669,8 @@ function makeStorageApi(appId: string, manifest: Manifest): StorageApi {
   bus.on('app.uninstalled', invalidate);
   bus.on('app.updated', invalidate);
 
+  const migrations = resolveManifestMigrations(manifest);
+
   const lazyAppDb = async (): Promise<AppDb> => {
     const db = getDb();
     if (!db) {
@@ -685,7 +688,12 @@ function makeStorageApi(appId: string, manifest: Manifest): StorageApi {
         sharedTableCache = [];
       }
     }
-    return createAppDb({ db, appId, sharedTableNames: sharedTableCache });
+    return createAppDb({
+      db,
+      appId,
+      sharedTableNames: sharedTableCache,
+      migrations,
+    });
   };
 
   // host.storage.current() in the host-api spec is sync — but its

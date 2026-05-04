@@ -12,9 +12,8 @@
  *     collections + history (see ./repo)
  *
  * Migrations are declared in tytus-app.json (storage.tables) and live
- * under `migrations/`. We call `db.migrate('migrations/')` once at boot
- * so the per-app `app_api_tester_*` tables exist before the React tree
- * starts issuing queries.
+ * under `migrations/`. We gate first paint on `db.migrate()` so a
+ * fresh database cannot render repo calls before its tables exist.
  *
  * Network: `fetch()` is still used directly inside ApiTester (the host
  * api's `daemon.callPodEndpoint` is pod-targeted, not a general
@@ -22,18 +21,43 @@
  * carry that traffic so CORS-blocked endpoints work end-to-end.
  */
 
+import { useEffect, useState } from 'react';
 import type { AppBootEnv } from '@tytus/host-api';
 import { ApiTester } from './ApiTester';
 
+type MigrationState = { ready: boolean; error: string | null };
+
+const errorMessage = (err: unknown): string =>
+  err instanceof Error ? err.message : String(err);
+
 export default function bootApiTester(env: AppBootEnv) {
   const db = env.host.storage.current();
-  // Fire-and-forget: the migration runner is idempotent (it tracks
-  // applied names in `<sqlAppId>__migrations`), so reloads are safe.
-  // The repo functions tolerate the brief window before the schema is
-  // up — listCollections/listHistory just return [] on error.
-  void db.migrate('migrations/');
   // eslint-disable-next-line react-refresh/only-export-components
   return function ApiTesterApp() {
+    const [state, setState] = useState<MigrationState>({
+      ready: false,
+      error: null,
+    });
+
+    useEffect(() => {
+      let alive = true;
+      void db
+        .migrate('migrations/')
+        .then(() => {
+          if (alive) setState({ ready: true, error: null });
+        })
+        .catch((err: unknown) => {
+          if (alive) setState({ ready: false, error: errorMessage(err) });
+        });
+      return () => {
+        alive = false;
+      };
+    }, []);
+
+    if (state.error) {
+      return <div role="alert">API Tester failed to initialize: {state.error}</div>;
+    }
+    if (!state.ready) return <div>Preparing API Tester…</div>;
     return <ApiTester host={env.host} db={db} />;
   };
 }

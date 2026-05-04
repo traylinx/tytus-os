@@ -4,7 +4,7 @@
  * routing.
  *
  * Background: the dynamic-loader used to default to
- * `import(/* @vite-ignore *​/ url)` which breaks for `@tytus/app-<id>`
+ * a browser-native dynamic import call which breaks for `@tytus/app-<id>`
  * specifiers (browser refuses to resolve a bare identifier without an
  * importmap). This file is the regression net for that bug.
  */
@@ -21,7 +21,7 @@ import { BUNDLED_APP_MANIFESTS } from './seed-bundled-apps';
 describe('bundled-app-loaders helpers', () => {
   it('isBundledSpecifier matches @tytus/app-<id>', () => {
     expect(isBundledSpecifier('@tytus/app-sheet')).toBe(true);
-    expect(isBundledSpecifier('@tytus/app-music-creator')).toBe(true);
+    expect(isBundledSpecifier('@tytus/app-memo')).toBe(true);
   });
 
   it('isBundledSpecifier rejects URLs and other prefixes', () => {
@@ -34,9 +34,7 @@ describe('bundled-app-loaders helpers', () => {
 
   it('bundledIdFromSpecifier strips the @tytus/app- prefix', () => {
     expect(bundledIdFromSpecifier('@tytus/app-sheet')).toBe('sheet');
-    expect(bundledIdFromSpecifier('@tytus/app-music-creator')).toBe(
-      'music-creator',
-    );
+    expect(bundledIdFromSpecifier('@tytus/app-memo')).toBe('memo');
   });
 });
 

@@ -6,10 +6,11 @@
  *    manifest JSON for bundled apps so an upgrade with a newer
  *    manifest gets picked up."
  *
- * M3.5 wires this. Today all six bundled-app manifests get seeded:
- * the three music-suite manifests + Sheet (M4 PR-M4.1) + Studio
- * (M6 PR-M6.1) + Memo (M7 PR-M7.1). As subsequent sub-PRs lift
- * each app's UI, the seed shape stays unchanged.
+ * M3.5 wires this. Today five real bundled-app manifests get seeded:
+ * Music Player + Voice Recorder + Sheet + Studio + Memo. The old
+ * `music-creator` package remains in the repo only as a deprecated
+ * extraction stub and is NOT exposed as a system app; the real product
+ * is the standalone installed `juli3ta` app.
  *
  * `entryUrl` and `assetsUrl` are resolved per Vite mode (DEV vs
  * production build). M3.5 leaves them null because the actual
@@ -24,7 +25,6 @@ import type { Manifest } from '@tytus/host-api';
 // + published to jsDelivr. Discovered via App Store's Featured section,
 // installed via "Install from URL" → kind='installed' rows. Seeding them
 // as bundled would collide with the install-from-URL path on duplicate id.
-import musicCreatorManifest from '../../../packages/app-music-creator/tytus-app.json';
 import musicPlayerManifest from '../../../packages/app-music-player/tytus-app.json';
 import voiceRecorderManifest from '../../../packages/app-voice-recorder/tytus-app.json';
 import sheetManifest from '../../../packages/app-sheet/tytus-app.json';
@@ -60,9 +60,10 @@ function manifestEntry(id: string, raw: unknown): BundledManifestSpec {
  * dev/prod boot loops re-assert manifest_json on every run.
  */
 export const BUNDLED_APP_MANIFESTS: BundledManifestSpec[] = [
-  // System apps (built-in, builtin_protected=1). Carve targets stay
-  // bundled with the shell — they ship in lockstep with the OS.
-  manifestEntry('music-creator', musicCreatorManifest),
+  // System apps (built-in, builtin_protected=1). Only apps with real
+  // UI ship here. `music-creator` is intentionally omitted because
+  // Sebastian's real JULI3TA lives in the verified standalone `juli3ta`
+  // app; keeping the extraction stub visible creates a fake app.
   manifestEntry('music-player', musicPlayerManifest),
   manifestEntry('voice-recorder', voiceRecorderManifest),
   manifestEntry('sheet', sheetManifest),

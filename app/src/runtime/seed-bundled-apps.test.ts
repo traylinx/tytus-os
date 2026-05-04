@@ -52,7 +52,6 @@ class MemoryDb implements Db {
 
 const SYSTEM_APP_IDS = [
   'memo',
-  'music-creator',
   'music-player',
   'sheet',
   'studio',
@@ -60,7 +59,7 @@ const SYSTEM_APP_IDS = [
 ];
 
 describe('BUNDLED_APP_MANIFESTS', () => {
-  it('contains only the 6 system-app manifests (user apps install via URL)', () => {
+  it('contains only the 5 real system-app manifests (user apps install via URL)', () => {
     const ids = BUNDLED_APP_MANIFESTS.map((b) => b.manifest.id).sort();
     expect(ids).toEqual(SYSTEM_APP_IDS);
   });

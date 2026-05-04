@@ -23,9 +23,15 @@
  * lib/brainBridge.ts.
  */
 
+import { useEffect, useState } from 'react';
 import type { AppBootEnv } from '@tytus/host-api';
 import { Memo } from './Memo';
 import { createBrainBridge } from './lib/brainBridge';
+
+type MigrationState = { ready: boolean; error: string | null };
+
+const errorMessage = (err: unknown): string =>
+  err instanceof Error ? err.message : String(err);
 
 export default function bootMemo(env: AppBootEnv) {
   const db = env.host.storage.current();
@@ -34,6 +40,30 @@ export default function bootMemo(env: AppBootEnv) {
   const brain = createBrainBridge({ baseUrl: '' });
   // eslint-disable-next-line react-refresh/only-export-components
   return function MemoApp() {
+    const [state, setState] = useState<MigrationState>({
+      ready: false,
+      error: null,
+    });
+
+    useEffect(() => {
+      let alive = true;
+      void db
+        .migrate('migrations/')
+        .then(() => {
+          if (alive) setState({ ready: true, error: null });
+        })
+        .catch((err: unknown) => {
+          if (alive) setState({ ready: false, error: errorMessage(err) });
+        });
+      return () => {
+        alive = false;
+      };
+    }, []);
+
+    if (state.error) {
+      return <div role="alert">Memo failed to initialize: {state.error}</div>;
+    }
+    if (!state.ready) return <div>Preparing Memo…</div>;
     return <Memo db={db} host={env.host} brain={brain} />;
   };
 }

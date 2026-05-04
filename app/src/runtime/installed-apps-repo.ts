@@ -37,7 +37,6 @@ const BUILT_IN_PROTECTED = new Set([
   'sheet',
   'studio',
   'memo',
-  'music-creator',
   'music-player',
   'voice-recorder',
 ]);

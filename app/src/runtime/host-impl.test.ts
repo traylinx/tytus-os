@@ -11,6 +11,7 @@ import {
 } from '@tytus/host-api';
 import type { Db, SqlValue } from '@/lib/db/types';
 import { setDbForTesting } from '@/lib/db';
+import sheetManifest from '../../../packages/app-sheet/tytus-app.json';
 import { seedInstalledApps } from './installed-apps-repo';
 import {
   clearNotificationQueue,
@@ -539,7 +540,9 @@ describe('media.requestMicrophone', () => {
 
 class MemoryDb implements Db {
   rows: Array<Record<string, SqlValue>> = [];
-  async exec(): Promise<void> {}
+  async exec(sql?: string): Promise<void> {
+    void sql;
+  }
   async query<T>(sql: string, bindings: SqlValue[] = []): Promise<T[]> {
     if (/sqlite_master/i.test(sql)) return [] as unknown as T[];
     // Only the installed_apps repo's SELECTs return rows; every other
@@ -602,6 +605,28 @@ const sharedOwnerManifest: Manifest = {
     shares: { voice_recordings: 'app_voice_recorder_recordings' },
   },
 };
+
+
+class RecordingMigrationDb extends MemoryDb {
+  execSql: string[] = [];
+  async exec(sql: string): Promise<void> {
+    this.execSql.push(sql);
+  }
+}
+
+describe('storage.current migrations', () => {
+  it('passes manifest-declared SQL migrations into the app DB', async () => {
+    const db = new RecordingMigrationDb();
+    setDbForTesting(db);
+    const host = makeHostForApp('sheet', sheetManifest as Manifest, fakeEntryUrls);
+
+    await host.storage.current().migrate('migrations/');
+
+    expect(db.execSql.join('\n')).toContain(
+      'CREATE TABLE IF NOT EXISTS app_sheet_sheets',
+    );
+  });
+});
 
 describe('storage.forSharedKey', () => {
   it('returns a SharedDb whose query() resolves through the owner\'s physical table', async () => {

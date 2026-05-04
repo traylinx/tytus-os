@@ -100,7 +100,6 @@ const WORKSPACE_APP_IDS_HINT = new Set([
   // via App Store → Featured (or Install from URL); they do NOT
   // appear in the boot seed and don't need a hint here.
   'memo',
-  'music-creator',
   'music-player',
   'sheet',
   'studio',

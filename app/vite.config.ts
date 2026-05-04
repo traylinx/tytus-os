@@ -147,7 +147,6 @@ export default defineConfig({
     exclude: ['@sqlite.org/sqlite-wasm'],
     include: [
       '@tytus/app-memo',
-      '@tytus/app-music-creator',
       '@tytus/app-music-player',
       '@tytus/app-sheet',
       '@tytus/app-studio',

@@ -16,13 +16,43 @@
  * once the loader-driven boot path verifies end-to-end.
  */
 
+import { useEffect, useState } from 'react';
 import type { AppBootEnv } from '@tytus/host-api';
 import { Studio } from './Studio';
+
+type MigrationState = { ready: boolean; error: string | null };
+
+const errorMessage = (err: unknown): string =>
+  err instanceof Error ? err.message : String(err);
 
 export default function bootStudio(env: AppBootEnv) {
   const db = env.host.storage.current();
   // eslint-disable-next-line react-refresh/only-export-components
   return function StudioApp() {
+    const [state, setState] = useState<MigrationState>({
+      ready: false,
+      error: null,
+    });
+
+    useEffect(() => {
+      let alive = true;
+      void db
+        .migrate('migrations/')
+        .then(() => {
+          if (alive) setState({ ready: true, error: null });
+        })
+        .catch((err: unknown) => {
+          if (alive) setState({ ready: false, error: errorMessage(err) });
+        });
+      return () => {
+        alive = false;
+      };
+    }, []);
+
+    if (state.error) {
+      return <div role="alert">Studio failed to initialize: {state.error}</div>;
+    }
+    if (!state.ready) return <div>Preparing Studio…</div>;
     return (
       <Studio db={db} host={env.host} createSession={env.createSession} />
     );

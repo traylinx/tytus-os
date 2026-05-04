@@ -10,17 +10,45 @@
  * it once the loader-driven boot path verifies end-to-end.
  */
 
+import { useEffect, useState } from 'react';
 import type { AppBootEnv } from '@tytus/host-api';
 import { VoiceRecorder } from './VoiceRecorder';
 import { tryImportLegacyRows } from './repo/voiceRecordings';
 
+type MigrationState = { ready: boolean; error: string | null };
+
+const errorMessage = (err: unknown): string =>
+  err instanceof Error ? err.message : String(err);
+
 export default function bootVoiceRecorder(env: AppBootEnv) {
   const db = env.host.storage.current();
-  // One-shot legacy import (no-op when no legacy rows exist). Fire-and-
-  // forget so first paint is not blocked.
-  void tryImportLegacyRows(db);
   // eslint-disable-next-line react-refresh/only-export-components
   return function VoiceRecorderApp() {
+    const [state, setState] = useState<MigrationState>({
+      ready: false,
+      error: null,
+    });
+
+    useEffect(() => {
+      let alive = true;
+      void db
+        .migrate('migrations/')
+        .then(() => tryImportLegacyRows(db))
+        .then(() => {
+          if (alive) setState({ ready: true, error: null });
+        })
+        .catch((err: unknown) => {
+          if (alive) setState({ ready: false, error: errorMessage(err) });
+        });
+      return () => {
+        alive = false;
+      };
+    }, []);
+
+    if (state.error) {
+      return <div role="alert">Voice Recorder failed to initialize: {state.error}</div>;
+    }
+    if (!state.ready) return <div>Preparing Voice Recorder…</div>;
     return <VoiceRecorder db={db} host={env.host} />;
   };
 }
