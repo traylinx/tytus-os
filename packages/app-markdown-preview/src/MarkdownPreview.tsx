@@ -1,14 +1,20 @@
 // ============================================================
 // Markdown Preview — Split-pane editor + live preview
 // ============================================================
+//
+// Lifted from app/src/apps/MarkdownPreview.tsx as part of
+// SPRINT-TYTUS-APP-SYSTEM-V1 Phase 5. Shell-internal hooks
+// (`useFileSystem`) replaced with `host.fs.*` calls; the markdown→HTML
+// renderer is vendored into ./lib/ so the package has no shell-tree
+// imports.
 
 import { useState, useCallback, useMemo, useRef } from 'react';
-import { useFileSystem } from '@/hooks/useFileSystem';
+import type { HostClient } from '@tytus/host-api';
 import {
   Bold, Italic, Heading, Link, Image, Code, Quote, List,
   ListOrdered, CheckSquare, Minus, Eye, FileCode, Copy, Save, Download, FileUp,
 } from 'lucide-react';
-import { markdownToHtml } from '@/lib/markdown';
+import { markdownToHtml } from './lib/markdown';
 
 const DEFAULT_MD = `# Welcome to Markdown Preview
 
@@ -52,11 +58,15 @@ function greet(name) {
 Enjoy writing!
 `;
 
-export default function MarkdownPreview() {
-  const fs = useFileSystem();
+interface Props {
+  host: HostClient;
+}
+
+export function MarkdownPreview({ host }: Props) {
   const [content, setContent] = useState(DEFAULT_MD);
   const [syncScroll, setSyncScroll] = useState(true);
   const [copied, setCopied] = useState(false);
+  const [statusText, setStatusText] = useState<string | null>(null);
   const editorRef = useRef<HTMLTextAreaElement>(null);
   const previewRef = useRef<HTMLDivElement>(null);
   const isScrolling = useRef(false);
@@ -113,26 +123,42 @@ export default function MarkdownPreview() {
     setTimeout(() => setCopied(false), 1500);
   }, [html]);
 
-  const saveToFS = useCallback(() => {
-    const docs = Object.values(fs.fs.nodes).find(
-      (n) => n.name === 'Documents' && n.parentId
-    );
-    if (docs) {
-      fs.createFile(docs.id, 'document.md', content);
+  const saveToFS = useCallback(async () => {
+    try {
+      const docs = await host.fs.ensureUserFolder('documents');
+      await host.fs.createFile(docs, 'document.md', content, {
+        mimeType: 'text/markdown',
+      });
+      setStatusText('Saved to Documents/document.md');
+      setTimeout(() => setStatusText(null), 2000);
+    } catch (err) {
+      setStatusText(`Save failed: ${(err as Error).message}`);
+      setTimeout(() => setStatusText(null), 3000);
     }
-  }, [fs, content]);
+  }, [host, content]);
 
-  const loadFromFS = useCallback(() => {
-    const docs = Object.values(fs.fs.nodes).find(
-      (n) => n.name === 'Documents' && n.parentId
-    );
-    if (!docs) return;
-    const files = fs.getChildren(docs.id).filter((n) => n.type === 'file' && n.name.endsWith('.md'));
-    if (files.length > 0) {
-      const c = fs.readFile(files[0].id) || '';
-      setContent(c);
+  const loadFromFS = useCallback(async () => {
+    try {
+      const docs = await host.fs.ensureUserFolder('documents');
+      const children = await host.fs.list(docs);
+      const mdFile = children.find(
+        (n) => !n.isDirectory && n.name.toLowerCase().endsWith('.md'),
+      );
+      if (!mdFile) {
+        setStatusText('No .md files found in Documents');
+        setTimeout(() => setStatusText(null), 2000);
+        return;
+      }
+      const raw = await host.fs.read(mdFile.id);
+      const text = typeof raw === 'string' ? raw : new TextDecoder().decode(raw);
+      setContent(text);
+      setStatusText(`Loaded ${mdFile.name}`);
+      setTimeout(() => setStatusText(null), 2000);
+    } catch (err) {
+      setStatusText(`Load failed: ${(err as Error).message}`);
+      setTimeout(() => setStatusText(null), 3000);
     }
-  }, [fs]);
+  }, [host]);
 
   return (
     <div className="h-full flex flex-col" style={{ background: 'var(--bg-window)' }}>
@@ -159,7 +185,10 @@ export default function MarkdownPreview() {
         <button onClick={exportHtml} className="flex items-center gap-1 px-2 py-1 rounded text-xs hover:bg-[var(--bg-hover)]">
           <Download size={12} /> Export HTML
         </button>
-        <div className="ml-auto flex items-center gap-1">
+        <div className="ml-auto flex items-center gap-2">
+          {statusText && (
+            <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{statusText}</span>
+          )}
           <button onClick={loadFromFS} className="flex items-center gap-1 px-2 py-1 rounded text-xs hover:bg-[var(--bg-hover)]">
             <FileUp size={12} /> Load
           </button>

@@ -28,7 +28,7 @@ import Calendar from './Calendar';
 import Calculator from './Calculator';
 import Clock from './Clock';
 import DocumentViewer from './DocumentViewer';
-import MarkdownPreview from './MarkdownPreview';
+// MarkdownPreview lifted to @tytus/app-markdown-preview workspace package (Phase 5).
 
 // Media
 import ImageViewer from './ImageViewer';
@@ -118,13 +118,13 @@ const LEGACY_APP_ID_ALIASES: Record<string, string> = {
   spreadsheet: 'sheet',
   musicplayer: 'music-player',
   voicerecorder: 'voice-recorder',
+  markdownpreview: 'markdown-preview',
   // Pending Phase 5 lifts (re-enable per app once code is moved):
-  //   texteditor      → text-editor
-  //   markdownpreview → markdown-preview
-  //   apitester       → api-tester
-  //   photoeditor     → photo-editor
-  //   codeeditor      → code-editor
-  //   musiccreator    → music-creator
+  //   texteditor   → text-editor
+  //   apitester    → api-tester
+  //   photoeditor  → photo-editor
+  //   codeeditor   → code-editor
+  //   musiccreator → music-creator
 };
 
 const AppRouter: FC<AppRouterProps> = ({ appId }) => {
@@ -165,7 +165,7 @@ const AppRouter: FC<AppRouterProps> = ({ appId }) => {
     case 'clock': return <Clock />;
     // 'spreadsheet' aliased to 'sheet'; 'texteditor' aliased to 'studio'
     case 'documentviewer': return <DocumentViewer />;
-    case 'markdownpreview': return <MarkdownPreview />;
+    // 'markdownpreview' aliased to 'markdown-preview' workspace package (Phase 5)
 
     // Media
     case 'imageviewer': return <ImageViewer />;
