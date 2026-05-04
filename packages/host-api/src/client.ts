@@ -54,7 +54,8 @@ export type UserFolderName =
   | 'music'
   | 'documents'
   | 'desktop'
-  | 'downloads';
+  | 'downloads'
+  | 'pictures';
 
 export interface FsApi {
   ensureUserFolder(name: UserFolderName): Promise<string>;

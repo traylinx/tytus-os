@@ -17,7 +17,7 @@ export type AppCategory =
   | 'Games'
   | 'Utilities'
   | 'Media'
-  | 'Development';
+  | 'DevTools';
 
 /**
  * Granular permissions an app can request in `manifest.permissions[]`.
@@ -34,6 +34,7 @@ export type CorePermission =
   | 'vfs.user.documents'
   | 'vfs.user.desktop'
   | 'vfs.user.downloads'
+  | 'vfs.user.pictures'
   | 'vfs.system'
   | 'shell.openWindow'
   | 'shell.notifications'
@@ -42,7 +43,9 @@ export type CorePermission =
   | 'storage.app'
   | 'media.microphone'
   | 'media.display'
-  | 'clipboard';
+  | 'clipboard'
+  | 'brain.read'
+  | 'brain.append';
 
 /** `storage.shared.<key>` — declares this app reads a shared table key
  *  registered by some other app's `storage.shares`. */

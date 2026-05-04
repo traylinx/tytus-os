@@ -44,7 +44,7 @@
         "Games",
         "Utilities",
         "Media",
-        "Development"
+        "DevTools"
       ]
     },
     "description": {
@@ -262,6 +262,7 @@
             "vfs.user.documents",
             "vfs.user.desktop",
             "vfs.user.downloads",
+            "vfs.user.pictures",
             "vfs.system",
             "shell.openWindow",
             "shell.notifications",
@@ -270,7 +271,9 @@
             "storage.app",
             "media.microphone",
             "media.display",
-            "clipboard"
+            "clipboard",
+            "brain.read",
+            "brain.append"
           ]
         },
         {
