@@ -90,6 +90,7 @@ const FOLDER_LABEL: Record<UserFolderName, string> = {
   desktop: 'Desktop',
   downloads: 'Downloads',
   music: 'Music',
+  pictures: 'Pictures',
 };
 
 const getFileExt = (name: string): string => {
@@ -666,4 +667,3 @@ export function TextEditor({ host }: Props) {
     </div>
   );
 }
-
