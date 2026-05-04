@@ -21,8 +21,10 @@ export type {
   AliasManifestExtras,
   AliasRewriteDescriptor,
   InstalledAppRow,
+  ManifestValidationIssue,
+  ManifestValidationResult,
 } from './manifest';
-export { APP_ID_PATTERN, sqlAppId, physicalTableName } from './manifest';
+export { APP_ID_PATTERN, sqlAppId, physicalTableName, validateManifest } from './manifest';
 
 export type {
   AppMode,

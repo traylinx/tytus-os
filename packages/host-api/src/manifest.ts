@@ -198,3 +198,182 @@ export function sqlAppId(appId: string): string {
 export function physicalTableName(appId: string, tableName: string): string {
   return `app_${sqlAppId(appId)}_${tableName}`;
 }
+
+// ─── Runtime manifest validation ─────────────────────────────────────
+//
+// `validateManifest` is a lightweight runtime check used at install time
+// inside the browser (where bundling Ajv would add ~80KB). It enforces
+// the structural rules that prevent catastrophic installs:
+//   - id matches APP_ID_PATTERN
+//   - required fields present (name, version, window, permissions[])
+//   - window.defaultSize + minSize have positive numeric width/height
+//   - storage.tables[].name matches APP_ID_PATTERN (so the prefix guard
+//     doesn't blow up later)
+//   - entry.module is a non-empty string when kind ∈ {bundled, installed,
+//     legacy} (never for kind='alias')
+//   - permissions are strings (we DON'T enumerate the allowed set here —
+//     the install pipeline can warn on unknown permissions, but the
+//     authoritative permission whitelist lives in manifest.schema.json
+//     and shifts more often than this runtime guard)
+//
+// The build-time CLI (bin/tytus-app.mjs, Ajv-driven) remains the
+// canonical full-schema validator. Apps that pass `validateManifest`
+// at runtime can still fail the CLI gate — that's intentional: stricter
+// checks belong at build, not install.
+
+export interface ManifestValidationIssue {
+  /** JSON-Pointer-style path to the offending field. Empty for root issues. */
+  path: string;
+  /** Short human-readable reason. */
+  message: string;
+}
+
+export interface ManifestValidationResult {
+  valid: boolean;
+  issues: ManifestValidationIssue[];
+}
+
+const SEMVER_LOOSE = /^\d+\.\d+\.\d+(-[A-Za-z0-9.-]+)?$/;
+
+/**
+ * Validate a runtime manifest object — typically the JSON parsed from a
+ * `tytus-app.json` an install pipeline just fetched. Returns ALL issues
+ * (does not bail on first failure) so the App Store can show a useful
+ * "this manifest is broken because..." message instead of one line at a
+ * time.
+ *
+ * NOTE: this does NOT verify the resolved entry-module URL is reachable;
+ * that's the install pipeline's job. It also does NOT enforce that
+ * referenced migration files exist on disk — that's a build-time concern.
+ */
+export function validateManifest(raw: unknown): ManifestValidationResult {
+  const issues: ManifestValidationIssue[] = [];
+  const push = (path: string, message: string) => issues.push({ path, message });
+
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
+    return { valid: false, issues: [{ path: '', message: 'manifest must be a JSON object' }] };
+  }
+  const m = raw as Record<string, unknown>;
+
+  // id
+  const id = m.id;
+  if (typeof id !== 'string' || id.length === 0) {
+    push('/id', 'required string');
+  } else if (!APP_ID_PATTERN.test(id)) {
+    push('/id', `must match ${APP_ID_PATTERN} (lowercase, digits, hyphen)`);
+  }
+
+  // name
+  if (typeof m.name !== 'string' || m.name.trim().length === 0) {
+    push('/name', 'required non-empty string');
+  }
+
+  // version
+  if (typeof m.version !== 'string') {
+    push('/version', 'required string');
+  } else if (!SEMVER_LOOSE.test(m.version)) {
+    push('/version', `not a valid semver (got ${JSON.stringify(m.version)})`);
+  }
+
+  // kind (optional, default = 'installed' at install time)
+  if (m.kind !== undefined) {
+    const allowed: AppKind[] = ['bundled', 'installed', 'legacy', 'alias'];
+    if (typeof m.kind !== 'string' || !allowed.includes(m.kind as AppKind)) {
+      push('/kind', `must be one of ${allowed.join(', ')}`);
+    }
+  }
+  const effectiveKind: AppKind = (m.kind as AppKind | undefined) ?? 'installed';
+
+  // window (required for non-alias)
+  if (effectiveKind !== 'alias') {
+    const w = m.window;
+    if (typeof w !== 'object' || w === null) {
+      push('/window', 'required object');
+    } else {
+      const ww = w as Record<string, unknown>;
+      validateSize(ww.defaultSize, '/window/defaultSize', push);
+      validateSize(ww.minSize, '/window/minSize', push);
+      if (ww.maxSize !== undefined) validateSize(ww.maxSize, '/window/maxSize', push);
+    }
+  }
+
+  // permissions (always required, possibly empty array)
+  if (!Array.isArray(m.permissions)) {
+    push('/permissions', 'required array');
+  } else {
+    m.permissions.forEach((p, i) => {
+      if (typeof p !== 'string' || p.length === 0) {
+        push(`/permissions/${i}`, 'must be a non-empty string');
+      }
+    });
+  }
+
+  // storage (optional)
+  if (m.storage !== undefined) {
+    const s = m.storage;
+    if (typeof s !== 'object' || s === null) {
+      push('/storage', 'must be object when present');
+    } else {
+      const ss = s as Record<string, unknown>;
+      if (ss.tables !== undefined) {
+        if (!Array.isArray(ss.tables)) {
+          push('/storage/tables', 'must be array when present');
+        } else {
+          ss.tables.forEach((t, i) => {
+            if (typeof t !== 'object' || t === null) {
+              push(`/storage/tables/${i}`, 'must be object');
+              return;
+            }
+            const tt = t as Record<string, unknown>;
+            if (typeof tt.name !== 'string' || !APP_ID_PATTERN.test(tt.name)) {
+              push(`/storage/tables/${i}/name`, 'must match APP_ID_PATTERN');
+            }
+            if (typeof tt.schema !== 'string' || tt.schema.length === 0) {
+              push(`/storage/tables/${i}/schema`, 'required non-empty string');
+            }
+          });
+        }
+      }
+      if (ss.shares !== undefined) {
+        if (typeof ss.shares !== 'object' || ss.shares === null || Array.isArray(ss.shares)) {
+          push('/storage/shares', 'must be object {key: physicalTableName} when present');
+        }
+      }
+    }
+  }
+
+  // entry — required for non-alias kinds
+  if (effectiveKind !== 'alias') {
+    const e = m.entry;
+    if (typeof e !== 'object' || e === null) {
+      push('/entry', 'required object for non-alias kinds');
+    } else {
+      const ee = e as Record<string, unknown>;
+      if (typeof ee.module !== 'string' || ee.module.length === 0) {
+        push('/entry/module', 'required non-empty string');
+      }
+    }
+  } else if (m.entry !== undefined) {
+    push('/entry', "must be omitted when kind='alias'");
+  }
+
+  return { valid: issues.length === 0, issues };
+}
+
+function validateSize(
+  v: unknown,
+  path: string,
+  push: (path: string, message: string) => void,
+): void {
+  if (typeof v !== 'object' || v === null) {
+    push(path, 'required object {width, height}');
+    return;
+  }
+  const s = v as Record<string, unknown>;
+  if (typeof s.width !== 'number' || s.width <= 0 || !Number.isFinite(s.width)) {
+    push(`${path}/width`, 'must be a positive number');
+  }
+  if (typeof s.height !== 'number' || s.height <= 0 || !Number.isFinite(s.height)) {
+    push(`${path}/height`, 'must be a positive number');
+  }
+}

@@ -1,6 +1,6 @@
 {
   "name": "@tytus/host-api",
-  "version": "0.1.0-m1",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
   "description": "Typed Host API contract that Tytus apps consume.",
