@@ -390,8 +390,8 @@ export function Memo({ db, host, brain = null }: Props) {
         display: 'flex',
         height: '100%',
         width: '100%',
-        background: 'var(--tytus-bg, #fafafa)',
-        color: 'var(--tytus-fg, #111)',
+        background: 'var(--bg-window, #141414)',
+        color: 'var(--text-primary, #f5f5f5)',
         fontFamily:
           'system-ui, -apple-system, BlinkMacSystemFont, sans-serif',
       }}
@@ -400,10 +400,10 @@ export function Memo({ db, host, brain = null }: Props) {
       <aside
         style={{
           width: 260,
-          borderRight: '1px solid rgba(0,0,0,0.08)',
+          borderRight: '1px solid var(--border-subtle, rgba(255,255,255,0.12))',
           display: 'flex',
           flexDirection: 'column',
-          background: 'rgba(0,0,0,0.02)',
+          background: 'var(--bg-titlebar, rgba(255,255,255,0.04))',
         }}
       >
         <div
@@ -412,7 +412,7 @@ export function Memo({ db, host, brain = null }: Props) {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            borderBottom: '1px solid rgba(0,0,0,0.08)',
+            borderBottom: '1px solid var(--border-subtle, rgba(255,255,255,0.12))',
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -424,8 +424,8 @@ export function Memo({ db, host, brain = null }: Props) {
             onClick={() => void newMemo()}
             title="New memo"
             style={{
-              border: '1px solid rgba(0,0,0,0.15)',
-              background: 'white',
+              border: '1px solid var(--border-subtle, rgba(255,255,255,0.14))',
+              background: 'var(--bg-window, #1f1f1f)',
               borderRadius: 4,
               padding: '2px 6px',
               cursor: 'pointer',
@@ -451,7 +451,7 @@ export function Memo({ db, host, brain = null }: Props) {
             <li
               style={{
                 padding: '16px 12px',
-                color: 'rgba(0,0,0,0.5)',
+                color: 'var(--text-secondary, rgba(255,255,255,0.62))',
                 fontSize: 13,
               }}
             >
@@ -468,7 +468,7 @@ export function Memo({ db, host, brain = null }: Props) {
                   textAlign: 'left',
                   border: 'none',
                   background:
-                    selectedId === m.id ? 'rgba(0,0,0,0.07)' : 'transparent',
+                    selectedId === m.id ? 'var(--bg-hover, rgba(255,255,255,0.08))' : 'transparent',
                   padding: '8px 12px',
                   cursor: 'pointer',
                   display: 'block',
@@ -478,7 +478,7 @@ export function Memo({ db, host, brain = null }: Props) {
                 <div
                   style={{
                     fontSize: 11,
-                    color: 'rgba(0,0,0,0.5)',
+                    color: 'var(--text-secondary, rgba(255,255,255,0.62))',
                     fontFamily: 'monospace',
                   }}
                 >
@@ -506,7 +506,7 @@ export function Memo({ db, host, brain = null }: Props) {
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              color: 'rgba(0,0,0,0.4)',
+              color: 'var(--text-disabled, rgba(255,255,255,0.42))',
               fontSize: 14,
             }}
           >
@@ -518,7 +518,7 @@ export function Memo({ db, host, brain = null }: Props) {
             <div
               style={{
                 padding: '10px 16px',
-                borderBottom: '1px solid rgba(0,0,0,0.08)',
+                borderBottom: '1px solid var(--border-subtle, rgba(255,255,255,0.12))',
                 display: 'flex',
                 alignItems: 'center',
                 gap: 12,
@@ -538,6 +538,7 @@ export function Memo({ db, host, brain = null }: Props) {
                   border: 'none',
                   background: 'transparent',
                   outline: 'none',
+                  color: 'inherit',
                 }}
               />
               <label
@@ -579,9 +580,9 @@ export function Memo({ db, host, brain = null }: Props) {
                 onClick={() => void removeActive()}
                 title="Delete memo"
                 style={{
-                  border: '1px solid rgba(180,40,40,0.4)',
-                  background: 'white',
-                  color: 'rgb(180,40,40)',
+                  border: '1px solid rgba(239,68,68,0.45)',
+                  background: 'var(--bg-window, #1f1f1f)',
+                  color: 'var(--accent-error, #ef4444)',
                   borderRadius: 4,
                   padding: '2px 6px',
                   cursor: 'pointer',
@@ -595,7 +596,7 @@ export function Memo({ db, host, brain = null }: Props) {
               </button>
             </div>
 
-            <div style={{ padding: '6px 16px', fontSize: 11, color: 'rgba(0,0,0,0.5)' }}>
+            <div style={{ padding: '6px 16px', fontSize: 11, color: 'var(--text-secondary, rgba(255,255,255,0.62))' }}>
               <span style={{ fontFamily: 'monospace' }}>{active.slug}</span>
               {active.tags.length > 0 && (
                 <span style={{ marginLeft: 12, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
@@ -618,6 +619,7 @@ export function Memo({ db, host, brain = null }: Props) {
                   border: 'none',
                   outline: 'none',
                   background: 'transparent',
+                  color: 'inherit',
                   padding: '12px 16px',
                   fontFamily:
                     outliner
@@ -635,15 +637,15 @@ export function Memo({ db, host, brain = null }: Props) {
             {outliner && outline && (
               <div
                 style={{
-                  borderTop: '1px dashed rgba(0,0,0,0.1)',
+                  borderTop: '1px dashed var(--border-subtle, rgba(255,255,255,0.12))',
                   padding: '8px 16px',
-                  background: 'rgba(0,0,0,0.02)',
+                  background: 'var(--bg-titlebar, rgba(255,255,255,0.04))',
                   fontSize: 13,
                   maxHeight: 160,
                   overflowY: 'auto',
                 }}
               >
-                <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.5)', marginBottom: 4 }}>
+                <div style={{ fontSize: 11, color: 'var(--text-secondary, rgba(255,255,255,0.62))', marginBottom: 4 }}>
                   Outline preview
                 </div>
                 {outline.map((l, i) =>
@@ -664,9 +666,9 @@ export function Memo({ db, host, brain = null }: Props) {
             {/* Backlinks panel (in-app) */}
             <div
               style={{
-                borderTop: '1px solid rgba(0,0,0,0.08)',
+                borderTop: '1px solid var(--border-subtle, rgba(255,255,255,0.12))',
                 padding: '8px 16px',
-                background: 'rgba(0,0,0,0.02)',
+                background: 'var(--bg-titlebar, rgba(255,255,255,0.04))',
                 maxHeight: 140,
                 overflowY: 'auto',
               }}
@@ -678,14 +680,14 @@ export function Memo({ db, host, brain = null }: Props) {
                   gap: 4,
                   fontSize: 12,
                   fontWeight: 500,
-                  color: 'rgba(0,0,0,0.6)',
+                  color: 'var(--text-secondary, rgba(255,255,255,0.68))',
                   marginBottom: 4,
                 }}
               >
                 <Link2 size={12} /> Backlinks (in-app) ({backlinks.length})
               </div>
               {backlinks.length === 0 && (
-                <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.4)' }}>
+                <div style={{ fontSize: 12, color: 'var(--text-disabled, rgba(255,255,255,0.42))' }}>
                   No memos link to this one yet.
                 </div>
               )}
@@ -698,7 +700,7 @@ export function Memo({ db, host, brain = null }: Props) {
                     display: 'block',
                     background: 'transparent',
                     border: 'none',
-                    color: 'rgb(40,80,200)',
+                    color: 'var(--accent-primary, #8b5cf6)',
                     padding: '2px 0',
                     cursor: 'pointer',
                     fontSize: 13,
@@ -709,7 +711,7 @@ export function Memo({ db, host, brain = null }: Props) {
                   <span
                     style={{
                       fontSize: 11,
-                      color: 'rgba(0,0,0,0.4)',
+                      color: 'var(--text-disabled, rgba(255,255,255,0.42))',
                       fontFamily: 'monospace',
                     }}
                   >
@@ -727,9 +729,9 @@ export function Memo({ db, host, brain = null }: Props) {
               <div
                 data-testid="brain-backlinks-panel"
                 style={{
-                  borderTop: '1px solid rgba(0,0,0,0.08)',
+                  borderTop: '1px solid var(--border-subtle, rgba(255,255,255,0.12))',
                   padding: '8px 16px',
-                  background: 'rgba(0,0,0,0.02)',
+                  background: 'var(--bg-titlebar, rgba(255,255,255,0.04))',
                   maxHeight: 160,
                   overflowY: 'auto',
                 }}
@@ -741,14 +743,14 @@ export function Memo({ db, host, brain = null }: Props) {
                     gap: 4,
                     fontSize: 12,
                     fontWeight: 500,
-                    color: 'rgba(0,0,0,0.6)',
+                    color: 'var(--text-secondary, rgba(255,255,255,0.68))',
                     marginBottom: 4,
                   }}
                 >
                   <Sparkles size={12} /> Brain backlinks ({brainBacklinks.length})
                 </div>
                 {brainBacklinks.length === 0 && (
-                  <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.4)' }}>
+                  <div style={{ fontSize: 12, color: 'var(--text-disabled, rgba(255,255,255,0.42))' }}>
                     No Brain entries reference [[{active.slug}]] yet.
                   </div>
                 )}
@@ -765,13 +767,13 @@ export function Memo({ db, host, brain = null }: Props) {
                       style={{
                         fontFamily: 'monospace',
                         fontSize: 11,
-                        color: 'rgba(0,0,0,0.5)',
+                        color: 'var(--text-secondary, rgba(255,255,255,0.62))',
                         marginRight: 6,
                       }}
                     >
                       {b.source.kind}:{b.source.path}
                     </span>
-                    <span style={{ color: 'rgba(0,0,0,0.85)' }}>
+                    <span style={{ color: 'var(--text-primary, rgba(255,255,255,0.9))' }}>
                       {b.snippet}
                     </span>
                   </div>

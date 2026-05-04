@@ -749,7 +749,7 @@ export function Studio({ db, host, createSession }: StudioProps) {
       <div
         style={{
           padding: '10px 16px',
-          borderBottom: '1px solid rgba(0,0,0,0.08)',
+          borderBottom: '1px solid var(--border-subtle, rgba(255,255,255,0.12))',
           display: 'flex',
           alignItems: 'center',
           gap: 12,
@@ -782,9 +782,9 @@ export function Studio({ db, host, createSession }: StudioProps) {
             onClick={() => void removeDocument()}
             title="Delete document"
             style={{
-              border: '1px solid rgba(180,40,40,0.4)',
-              background: 'white',
-              color: 'rgb(180,40,40)',
+              border: '1px solid rgba(239,68,68,0.45)',
+              background: 'var(--bg-window, #1f1f1f)',
+              color: 'var(--accent-error, #ef4444)',
               borderRadius: 4,
               padding: '2px 8px',
               cursor: 'pointer',
@@ -808,8 +808,8 @@ export function Studio({ db, host, createSession }: StudioProps) {
         display: 'flex',
         height: '100%',
         width: '100%',
-        background: 'var(--tytus-bg, #fafafa)',
-        color: 'var(--tytus-fg, #111)',
+        background: 'var(--bg-window, #141414)',
+        color: 'var(--text-primary, #f5f5f5)',
         fontFamily:
           'system-ui, -apple-system, BlinkMacSystemFont, sans-serif',
       }}
@@ -818,10 +818,10 @@ export function Studio({ db, host, createSession }: StudioProps) {
       <aside
         style={{
           width: 280,
-          borderRight: '1px solid rgba(0,0,0,0.08)',
+          borderRight: '1px solid var(--border-subtle, rgba(255,255,255,0.12))',
           display: 'flex',
           flexDirection: 'column',
-          background: 'rgba(0,0,0,0.02)',
+          background: 'var(--bg-titlebar, rgba(255,255,255,0.04))',
         }}
       >
         <div
@@ -830,7 +830,7 @@ export function Studio({ db, host, createSession }: StudioProps) {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            borderBottom: '1px solid rgba(0,0,0,0.08)',
+            borderBottom: '1px solid var(--border-subtle, rgba(255,255,255,0.12))',
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -842,8 +842,8 @@ export function Studio({ db, host, createSession }: StudioProps) {
             onClick={() => void newDocument()}
             title="New document"
             style={{
-              border: '1px solid rgba(0,0,0,0.15)',
-              background: 'white',
+              border: '1px solid var(--border-subtle, rgba(255,255,255,0.14))',
+              background: 'var(--bg-window, #1f1f1f)',
               borderRadius: 4,
               padding: '2px 8px',
               cursor: 'pointer',
@@ -869,7 +869,7 @@ export function Studio({ db, host, createSession }: StudioProps) {
             <li
               style={{
                 padding: '16px 12px',
-                color: 'rgba(0,0,0,0.5)',
+                color: 'var(--text-secondary, rgba(255,255,255,0.62))',
                 fontSize: 13,
               }}
             >
@@ -886,7 +886,7 @@ export function Studio({ db, host, createSession }: StudioProps) {
                   textAlign: 'left',
                   border: 'none',
                   background:
-                    activeId === d.id ? 'rgba(0,0,0,0.07)' : 'transparent',
+                    activeId === d.id ? 'var(--bg-hover, rgba(255,255,255,0.08))' : 'transparent',
                   padding: '10px 12px',
                   cursor: 'pointer',
                   display: 'block',
@@ -896,7 +896,7 @@ export function Studio({ db, host, createSession }: StudioProps) {
                 <div
                   style={{
                     fontSize: 11,
-                    color: 'rgba(0,0,0,0.5)',
+                    color: 'var(--text-secondary, rgba(255,255,255,0.62))',
                     marginTop: 2,
                   }}
                 >
@@ -911,9 +911,9 @@ export function Studio({ db, host, createSession }: StudioProps) {
             style={{
               padding: '6px 12px',
               fontSize: 11,
-              color: 'rgb(180,40,40)',
-              borderTop: '1px solid rgba(180,40,40,0.2)',
-              background: 'rgba(180,40,40,0.04)',
+              color: 'var(--accent-error, #ef4444)',
+              borderTop: '1px solid rgba(239,68,68,0.35)',
+              background: 'rgba(239,68,68,0.10)',
             }}
           >
             {error}
@@ -937,7 +937,7 @@ export function Studio({ db, host, createSession }: StudioProps) {
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              color: 'rgba(0,0,0,0.4)',
+              color: 'var(--text-disabled, rgba(255,255,255,0.42))',
               fontSize: 14,
             }}
           >
@@ -964,7 +964,7 @@ export function Studio({ db, host, createSession }: StudioProps) {
               {open.blocks.length === 0 && (
                 <div
                   style={{
-                    color: 'rgba(0,0,0,0.4)',
+                    color: 'var(--text-disabled, rgba(255,255,255,0.42))',
                     fontSize: 13,
                     padding: '24px 0',
                     textAlign: 'center',
@@ -1000,13 +1000,13 @@ export function Studio({ db, host, createSession }: StudioProps) {
                   onClick={() => void insertBlockAt('tail')}
                   title="Append a new paragraph block"
                   style={{
-                    border: '1px dashed rgba(0,0,0,0.25)',
+                    border: '1px dashed var(--border-strong, rgba(255,255,255,0.22))',
                     background: 'transparent',
                     borderRadius: 4,
                     padding: '6px 12px',
                     cursor: 'pointer',
                     fontSize: 12,
-                    color: 'rgba(0,0,0,0.6)',
+                    color: 'var(--text-secondary, rgba(255,255,255,0.68))',
                     display: 'inline-flex',
                     alignItems: 'center',
                     gap: 4,
@@ -1074,7 +1074,7 @@ function ComposeModal({
       style={{
         position: 'absolute',
         inset: 0,
-        background: 'rgba(0,0,0,0.35)',
+        background: 'rgba(0,0,0,0.62)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -1083,7 +1083,7 @@ function ComposeModal({
     >
       <div
         style={{
-          background: 'white',
+          background: 'var(--bg-window, #1f1f1f)',
           borderRadius: 6,
           padding: 16,
           width: 360,
@@ -1096,7 +1096,7 @@ function ComposeModal({
         <div style={{ fontSize: 14, fontWeight: 600 }}>
           {titleByCommand[state.command]}
         </div>
-        <label style={{ fontSize: 12, color: 'rgba(0,0,0,0.6)' }}>
+        <label style={{ fontSize: 12, color: 'var(--text-secondary, rgba(255,255,255,0.68))' }}>
           {labelByCommand[state.command]}
         </label>
         <input
@@ -1106,7 +1106,7 @@ function ComposeModal({
           onChange={(e) => onChange(e.target.value)}
           aria-label={`${state.command} input`}
           style={{
-            border: '1px solid rgba(0,0,0,0.15)',
+            border: '1px solid var(--border-subtle, rgba(255,255,255,0.14))',
             borderRadius: 4,
             padding: '6px 8px',
             fontSize: 13,
@@ -1135,8 +1135,8 @@ function ComposeModal({
             onClick={onCancel}
             disabled={composing}
             style={{
-              border: '1px solid rgba(0,0,0,0.15)',
-              background: 'white',
+              border: '1px solid var(--border-subtle, rgba(255,255,255,0.14))',
+              background: 'var(--bg-window, #1f1f1f)',
               borderRadius: 4,
               padding: '4px 10px',
               cursor: composing ? 'not-allowed' : 'pointer',
@@ -1151,7 +1151,7 @@ function ComposeModal({
             disabled={composing}
             style={{
               border: '1px solid rgba(40,80,180,0.5)',
-              background: 'rgb(40,80,180)',
+              background: 'var(--accent-primary, #8b5cf6)',
               color: 'white',
               borderRadius: 4,
               padding: '4px 10px',
@@ -1189,7 +1189,7 @@ function GhostPreviewBanner({
       role="status"
       aria-label={`Ghost preview: ${preview.command}`}
       style={{
-        background: 'rgba(40,80,180,0.06)',
+        background: 'rgba(139,92,246,0.14)',
         borderBottom: '1px solid rgba(40,80,180,0.2)',
         padding: '8px 16px',
         display: 'flex',
@@ -1201,8 +1201,8 @@ function GhostPreviewBanner({
       <Sparkles size={14} />
       <span style={{ flex: 1 }}>
         <strong style={{ marginRight: 6 }}>{preview.command}</strong>
-        <span style={{ color: 'rgba(0,0,0,0.7)' }}>{preview.summary}</span>
-        <span style={{ color: 'rgba(0,0,0,0.4)', marginLeft: 6 }}>
+        <span style={{ color: 'var(--text-secondary, rgba(255,255,255,0.74))' }}>{preview.summary}</span>
+        <span style={{ color: 'var(--text-disabled, rgba(255,255,255,0.42))', marginLeft: 6 }}>
           ({preview.patches.length} patch
           {preview.patches.length === 1 ? '' : 'es'})
         </span>
@@ -1211,8 +1211,8 @@ function GhostPreviewBanner({
         type="button"
         onClick={onDiscard}
         style={{
-          border: '1px solid rgba(0,0,0,0.15)',
-          background: 'white',
+          border: '1px solid var(--border-subtle, rgba(255,255,255,0.14))',
+          background: 'var(--bg-window, #1f1f1f)',
           borderRadius: 4,
           padding: '2px 8px',
           cursor: 'pointer',
@@ -1226,7 +1226,7 @@ function GhostPreviewBanner({
         onClick={onApply}
         style={{
           border: '1px solid rgba(40,80,180,0.5)',
-          background: 'rgb(40,80,180)',
+          background: 'var(--accent-primary, #8b5cf6)',
           color: 'white',
           borderRadius: 4,
           padding: '2px 10px',
@@ -1321,7 +1321,7 @@ function BlockView(props: BlockViewProps) {
             border: 'none',
             background: 'transparent',
             cursor: 'pointer',
-            color: 'rgba(0,0,0,0.4)',
+            color: 'var(--text-disabled, rgba(255,255,255,0.42))',
             padding: 0,
           }}
         >
@@ -1347,10 +1347,10 @@ function BlockView(props: BlockViewProps) {
             top: 22,
             left: 0,
             zIndex: 5,
-            background: 'white',
-            border: '1px solid rgba(0,0,0,0.15)',
+            background: 'var(--bg-window, #1f1f1f)',
+            border: '1px solid var(--border-subtle, rgba(255,255,255,0.14))',
             borderRadius: 4,
-            boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+            boxShadow: '0 4px 12px var(--border-subtle, rgba(255,255,255,0.12))',
             minWidth: 180,
             padding: 4,
             fontSize: 12,
@@ -1374,11 +1374,11 @@ function BlockView(props: BlockViewProps) {
           />
           <div
             style={{
-              borderTop: '1px solid rgba(0,0,0,0.08)',
+              borderTop: '1px solid var(--border-subtle, rgba(255,255,255,0.12))',
               margin: '4px 0',
             }}
           />
-          <div style={{ padding: '4px 8px', fontSize: 10, color: 'rgba(0,0,0,0.5)' }}>
+          <div style={{ padding: '4px 8px', fontSize: 10, color: 'var(--text-secondary, rgba(255,255,255,0.62))' }}>
             Convert to
           </div>
           {BLOCK_KIND_ORDER.map((kind) => (
@@ -1415,13 +1415,13 @@ function MenuItem({ onClick, icon, label, checked, danger }: MenuItemProps) {
         gap: 6,
         width: '100%',
         textAlign: 'left',
-        background: checked ? 'rgba(0,0,0,0.06)' : 'transparent',
+        background: checked ? 'var(--bg-hover, rgba(255,255,255,0.08))' : 'transparent',
         border: 'none',
         padding: '4px 8px',
         cursor: 'pointer',
         borderRadius: 3,
         fontSize: 12,
-        color: danger ? 'rgb(180,40,40)' : 'inherit',
+        color: danger ? 'var(--accent-error, #ef4444)' : 'inherit',
       }}
     >
       {icon}
@@ -1465,7 +1465,7 @@ function BlockBody({ block, onTextChange, onMetaChange }: BlockBodyProps) {
             style={{
               fontSize: 14,
               lineHeight: 1.5,
-              color: 'rgba(0,0,0,0.6)',
+              color: 'var(--text-secondary, rgba(255,255,255,0.68))',
               userSelect: 'none',
             }}
           >
@@ -1502,7 +1502,7 @@ function BlockBody({ block, onTextChange, onMetaChange }: BlockBodyProps) {
         <hr
           style={{
             border: 'none',
-            borderTop: '1px solid rgba(0,0,0,0.15)',
+            borderTop: '1px solid var(--border-subtle, rgba(255,255,255,0.14))',
             margin: '8px 0',
           }}
         />
@@ -1605,7 +1605,7 @@ function CodeBlock({
   return (
     <div
       style={{
-        background: 'rgba(0,0,0,0.04)',
+        background: 'var(--bg-titlebar, rgba(255,255,255,0.04))',
         borderRadius: 4,
         padding: 8,
       }}
@@ -1618,7 +1618,7 @@ function CodeBlock({
           marginBottom: 4,
         }}
       >
-        <span style={{ fontSize: 10, color: 'rgba(0,0,0,0.5)' }}>Language</span>
+        <span style={{ fontSize: 10, color: 'var(--text-secondary, rgba(255,255,255,0.62))' }}>Language</span>
         <input
           type="text"
           value={language}
@@ -1626,13 +1626,13 @@ function CodeBlock({
           onChange={(e) => onMetaChange({ ...block.meta, language: e.target.value })}
           aria-label="Code language"
           style={{
-            border: '1px solid rgba(0,0,0,0.15)',
+            border: '1px solid var(--border-subtle, rgba(255,255,255,0.14))',
             borderRadius: 3,
             padding: '1px 4px',
             fontSize: 11,
             fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
             width: 80,
-            background: 'white',
+            background: 'var(--bg-window, #1f1f1f)',
           }}
         />
       </div>
@@ -1672,17 +1672,17 @@ function ImageBlock({
             maxHeight: 280,
             display: 'block',
             borderRadius: 4,
-            background: 'rgba(0,0,0,0.05)',
+            background: 'var(--bg-hover, rgba(255,255,255,0.08))',
           }}
         />
       ) : (
         <div
           style={{
-            border: '1px dashed rgba(0,0,0,0.2)',
+            border: '1px dashed var(--border-strong, rgba(255,255,255,0.22))',
             borderRadius: 4,
             padding: 16,
             textAlign: 'center',
-            color: 'rgba(0,0,0,0.5)',
+            color: 'var(--text-secondary, rgba(255,255,255,0.62))',
             fontSize: 12,
             display: 'flex',
             flexDirection: 'column',
@@ -1703,7 +1703,7 @@ function ImageBlock({
         style={{
           width: '100%',
           marginTop: 4,
-          border: '1px solid rgba(0,0,0,0.15)',
+          border: '1px solid var(--border-subtle, rgba(255,255,255,0.14))',
           borderRadius: 3,
           padding: '2px 6px',
           fontSize: 11,
@@ -1719,7 +1719,7 @@ function ImageBlock({
         style={{
           width: '100%',
           marginTop: 2,
-          border: '1px solid rgba(0,0,0,0.15)',
+          border: '1px solid var(--border-subtle, rgba(255,255,255,0.14))',
           borderRadius: 3,
           padding: '2px 6px',
           fontSize: 11,
@@ -1749,19 +1749,19 @@ function EmbedBlock({ block }: { block: BlockRow }) {
   return (
     <div
       style={{
-        border: '1px solid rgba(0,0,0,0.15)',
+        border: '1px solid var(--border-subtle, rgba(255,255,255,0.14))',
         borderLeft: '3px solid rgba(80,120,200,0.6)',
         borderRadius: 4,
         padding: '8px 12px',
-        background: 'rgba(80,120,200,0.04)',
+        background: 'rgba(139,92,246,0.10)',
         fontSize: 12,
       }}
     >
       <div style={{ fontWeight: 600, marginBottom: 2 }}>Embed</div>
-      <div style={{ color: 'rgba(0,0,0,0.6)', fontFamily: 'ui-monospace, monospace' }}>
+      <div style={{ color: 'var(--text-secondary, rgba(255,255,255,0.68))', fontFamily: 'ui-monospace, monospace' }}>
         {kind}:{targetId}
       </div>
-      <div style={{ color: 'rgba(0,0,0,0.4)', fontSize: 11, marginTop: 4 }}>
+      <div style={{ color: 'var(--text-disabled, rgba(255,255,255,0.42))', fontSize: 11, marginTop: 4 }}>
         Inline preview lands in M6.x.
       </div>
     </div>
