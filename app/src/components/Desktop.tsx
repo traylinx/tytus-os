@@ -13,6 +13,7 @@ import { Box, Star } from 'lucide-react';
 import type { LucideProps } from 'lucide-react';
 import { BrandIcon, isBrandIconName } from './BrandIcon';
 import { useI18n } from '@/i18n';
+import { localizedAppName } from '@/i18n/app-name';
 import { parsePayload, type DnDPayload } from '@/lib/dnd';
 import { useSelection, lassoRect, rectsIntersect } from '@/lib/selection';
 import { registerShortcut } from '@/lib/shortcuts';
@@ -626,7 +627,7 @@ const Desktop = memo(function Desktop() {
               background: (icon.isSelected || selection.isSelected(icon)) ? 'rgba(124,77,255,0.30)' : 'transparent',
             }}
           >
-            {icon.appId ? t(`app.${icon.appId}.name`) : icon.name}
+            {icon.appId ? localizedAppName(t, icon.appId, icon.name) : icon.name}
           </span>
         </div>
       ))}

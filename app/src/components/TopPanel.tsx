@@ -24,6 +24,8 @@ import { useRegisteredShellMenu } from '@/hooks/useShellMenu';
 import { computePill } from '@/lib/statusPill';
 import { defaultShellMenuForApp, type ShellMenuActionId, type ShellMenuGroup, type ShellMenuItem } from '@/lib/shellMenu';
 import { useI18n } from '@/i18n';
+import { localizedAppName } from '@/i18n/app-name';
+import { getAppById } from '@/apps/registry';
 
 const BRAND_MARK = '/brand/tytusos-mark-32.png';
 
@@ -219,7 +221,13 @@ const TopPanel = memo(function TopPanel() {
   const formattedDate = format(time, 'EEEE, d MMMM yyyy, HH:mm:ss', { locale: dateLocale });
   const userLabel = daemon.state?.email ?? state.auth.userName;
   const localizedMenuModel = useMemo(() => ({
-    appLabel: activeWindow?.appId ? t(`app.${activeWindow.appId}.name`) : menuModel.appLabel,
+    appLabel: activeWindow?.appId
+      ? localizedAppName(
+          t,
+          activeWindow.appId,
+          getAppById(activeWindow.appId)?.name ?? menuModel.appLabel,
+        )
+      : menuModel.appLabel,
     groups: menuModel.groups.map((group) => ({
       ...group,
       label: t(`shell.${group.label}`),

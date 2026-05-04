@@ -5,6 +5,7 @@ import App from './App.tsx'
 import { initDb, getDbMeta } from '@/lib/db'
 import { seedBundledAppsAtBoot } from '@/runtime/seed-bundled-apps'
 import { autoInstallFeaturedAtBoot } from '@/runtime/auto-install-featured'
+import { cleanupJuli3taAlphaIfPresent } from '@/runtime/cleanup-juli3ta-alpha'
 import { migrateLegacyMusicCreatorTables } from '@/runtime/legacy-migrations'
 import { installHostExternals } from '@/runtime/externals/install-host-externals'
 import { notifyInstalledAppsChanged } from '@/runtime/installed-apps-events'
@@ -61,14 +62,28 @@ initDb()
     } catch (err) {
       console.warn('[tytusos] bundled-apps seed failed', err)
     }
+    // One-shot cleanup: drop any pre-existing JULI3TA alpha placeholder
+    // row. The carved-out alpha was briefly auto-installed in b08b794
+    // and confused the launcher with a duplicate icon next to the
+    // legacy Music Creator (which is the real working app today).
+    // Runs BEFORE the Featured auto-install so the slot is free if a
+    // future non-alpha JULI3TA returns to the catalog.
+    try {
+      const report = await cleanupJuli3taAlphaIfPresent(db)
+      if (report.removed) {
+        console.info(`[tytusos] juli3ta alpha cleanup: ${report.reason}`)
+      }
+    } catch (err) {
+      console.warn('[tytusos] juli3ta alpha cleanup failed', err)
+    }
     // Auto-install every Featured catalog entry that isn't already
-    // present. JULI3TA + the 5 carved-out user apps (text-editor,
-    // code-editor, markdown-preview, photo-editor, api-tester) are
-    // treated as default-installed: the launcher should show them with
-    // an Open button on first boot, not an empty placeholder. Network
-    // failures are tolerated — the next boot retries any still-missing
-    // apps. Runs BEFORE populateInstalledAppsCache so the cache picks
-    // up the freshly installed rows on its first read.
+    // present. The 5 carved-out user apps (text-editor, code-editor,
+    // markdown-preview, photo-editor, api-tester) are treated as
+    // default-installed: the launcher should show them with an Open
+    // button on first boot, not an empty placeholder. Network failures
+    // are tolerated — the next boot retries any still-missing apps.
+    // Runs BEFORE populateInstalledAppsCache so the cache picks up the
+    // freshly installed rows on its first read.
     try {
       await autoInstallFeaturedAtBoot(db)
     } catch (err) {

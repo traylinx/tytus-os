@@ -33,14 +33,12 @@ export interface FeaturedApp {
 }
 
 export const FEATURED_APPS: FeaturedApp[] = [
-  {
-    id: 'juli3ta',
-    name: 'JULI3TA',
-    description: 'AI-native music creator. Currently alpha — full Music Creator UI lift in progress.',
-    icon: 'Music',
-    category: 'Creative',
-    manifestUrl: 'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-juli3ta@v0.0.2-alpha.1/tytus-app.json',
-  },
+  // JULI3TA is intentionally NOT in this list while the carved-out
+  // tytus-app-juli3ta@v0.0.2-alpha.1 is still an alpha placeholder.
+  // The legacy in-tree Music Creator (`musiccreator` registry id,
+  // launcher label "JULI3TA") is the real, working product today.
+  // Re-add this entry once SPRINT-TYTUS-APP-JULI3TA-V1 M4-M7 ships
+  // a non-alpha v0.1.0 of the standalone repo.
   {
     id: 'text-editor',
     name: 'Text Editor',

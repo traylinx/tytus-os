@@ -9,6 +9,7 @@ import { LayoutGrid, Trash2 } from 'lucide-react';
 import * as Icons from 'lucide-react';
 import type { LucideProps } from 'lucide-react';
 import { useI18n } from '@/i18n';
+import { localizedAppName } from '@/i18n/app-name';
 import { BrandIcon, isBrandIconName } from './BrandIcon';
 import { parsePayload, serializePayload } from '@/lib/dnd';
 import * as trashRepo from '@/lib/repo/trash';
@@ -285,15 +286,15 @@ const Dock = memo(function Dock() {
               animation: 'tooltipAppear 100ms ease',
             }}
           >
-            {isTrash ? t('dock.trash') : app ? t(`app.${app.id}.name`) : appId}
+            {isTrash ? t('dock.trash') : app ? localizedAppName(t, app.id, app.name) : appId}
           </div>
         )}
 
         {/* Icon */}
         <button
           onClick={() => isTrash ? handleTrashClick() : handleAppClick(appId)}
-          aria-label={isTrash ? t('dock.trash') : app ? t(`app.${app.id}.name`) : appId}
-          title={isTrash ? t('dock.trash') : app ? t(`app.${app.id}.name`) : appId}
+          aria-label={isTrash ? t('dock.trash') : app ? localizedAppName(t, app.id, app.name) : appId}
+          title={isTrash ? t('dock.trash') : app ? localizedAppName(t, app.id, app.name) : appId}
           className="rounded-md flex items-center justify-center transition-all"
           style={{
             width: iconExtent,

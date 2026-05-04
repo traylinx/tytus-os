@@ -4,6 +4,7 @@ import AutoInstallApp from './AutoInstallApp';
 import WorkspaceAppHost from './WorkspaceAppHost';
 import { useInstalledAppIds } from '@/runtime/hooks/use-installed-app-ids';
 import { FEATURED_APPS } from './featured-apps-catalog';
+import { LEGACY_APP_ID_ALIASES } from './legacy-app-aliases';
 
 // Tytus product surfaces
 import PodInspector from './PodInspector';
@@ -106,31 +107,10 @@ const WORKSPACE_APP_IDS_HINT = new Set([
   'voice-recorder',
 ]);
 
-// Legacy non-hyphenated id → canonical workspace id. Aliases route old
-// ids to NEW workspace packages whose source has been lifted. Until a
-// Phase-5 lift actually moves the legacy file's body into the package,
-// keep the legacy id on the static-switch path below so users don't get
-// a placeholder when opening a working app. Add an alias here ONLY
-// once the matching workspace package has the real implementation.
-//
-// Note (D-decision): the previous shell aliased 'texteditor' → 'studio'
-// because TextEditor was deleted in W7. The new direction (this sprint)
-// routes 'texteditor' → 'text-editor' workspace package; until that
-// package's lift completes the alias stays disabled so saved-state
-// callers fall to <AppPlaceholder /> instead of the empty placeholder.
-const LEGACY_APP_ID_ALIASES: Record<string, string> = {
-  notes: 'memo',
-  spreadsheet: 'sheet',
-  musicplayer: 'music-player',
-  voicerecorder: 'voice-recorder',
-  markdownpreview: 'markdown-preview',
-  photoeditor: 'photo-editor',
-  texteditor: 'text-editor',
-  codeeditor: 'code-editor',
-  apitester: 'api-tester',
-  // Pending Phase 5 lifts (re-enable per app once code is moved):
-  //   musiccreator → music-creator
-};
+// LEGACY_APP_ID_ALIASES is the source of truth for legacy → canonical
+// id mapping; lives in `./legacy-app-aliases` so AppLauncher (recents
+// dedupe) and AppRouter (mount routing) share one map without circular
+// imports.
 
 const AppRouter: FC<AppRouterProps> = ({ appId }) => {
   const canonical = LEGACY_APP_ID_ALIASES[appId] ?? appId;

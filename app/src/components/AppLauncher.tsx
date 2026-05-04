@@ -5,6 +5,7 @@
 import { useState, useCallback, useRef, useEffect, memo } from 'react';
 import { useOS } from '@/hooks/useOSStore';
 import { getAppById } from '@/apps/registry';
+import { resolveCanonicalAppId } from '@/apps/legacy-app-aliases';
 import { useDemoApps } from '@/hooks/useDemoApps';
 import { useDaemonStateContext } from '@/hooks/useDaemonStateContext';
 import { getFrequentApps } from '@/lib/repo/appLaunches';
@@ -13,6 +14,7 @@ import * as Icons from 'lucide-react';
 import type { LucideProps } from 'lucide-react';
 import type { AppDefinition } from '@/types';
 import { useI18n } from '@/i18n';
+import { localizedAppName } from '@/i18n/app-name';
 import { BrandIcon, isBrandIconName } from './BrandIcon';
 
 const DynamicIcon = ({ name, ...props }: { name: string } & LucideProps) => {
@@ -72,11 +74,22 @@ const AppLauncher = memo(function AppLauncher() {
       /* eslint-disable-next-line react-hooks/set-state-in-effect -- opening launcher resets transient search state. */
       setSearchQuery('');
       setTimeout(() => inputRef.current?.focus(), 100);
-      // Load scored frequent apps from usage history
+      // Load scored frequent apps from usage history. Two stages:
+      // (1) collapse legacy/canonical pairs into one canonical id
+      //     (e.g. `markdownpreview` and `markdown-preview` both
+      //     contribute to the same Frequently Used slot);
+      // (2) drop ids whose AppDefinition lookup misses (uninstalled
+      //     third-party app, alpha row that was just cleaned up).
       getFrequentApps(8).then((scored) => {
-        const resolved = scored
-          .map((s) => getAppById(s.appId))
-          .filter(Boolean) as AppDefinition[];
+        const seen = new Set<string>();
+        const resolved: AppDefinition[] = [];
+        for (const s of scored) {
+          const canonical = resolveCanonicalAppId(s.appId);
+          if (seen.has(canonical)) continue;
+          seen.add(canonical);
+          const def = getAppById(canonical);
+          if (def) resolved.push(def);
+        }
         setScoredFrequent(resolved);
       });
     }
@@ -110,10 +123,14 @@ const AppLauncher = memo(function AppLauncher() {
     // of category or search match. User can opt back in via Settings
     // → Display.
     if (app.isDemo && !showDemoApps) return false;
+    const q = searchQuery.toLowerCase();
+    const descriptionKey = `app.${app.id}.description`;
+    const descriptionResult = t(descriptionKey);
+    const description = descriptionResult === descriptionKey ? (app.description ?? '') : descriptionResult;
     const matchesSearch = !searchQuery ||
-      t(`app.${app.id}.name`).toLowerCase().includes(searchQuery.toLowerCase()) ||
-      t(`app.${app.id}.description`).toLowerCase().includes(searchQuery.toLowerCase()) ||
-      t(`category.${app.category}`).toLowerCase().includes(searchQuery.toLowerCase());
+      localizedAppName(t, app.id, app.name).toLowerCase().includes(q) ||
+      description.toLowerCase().includes(q) ||
+      t(`category.${app.category}`).toLowerCase().includes(q);
     const matchesCategory = activeCategory === 'All' || activeCategory === 'Favorites'
       ? true
       : app.category === activeCategory;
@@ -222,7 +239,7 @@ const AppLauncher = memo(function AppLauncher() {
                   style={{ background: 'var(--bg-hover)' }}>
                   <DynamicIcon name={app.icon} size={24} className="text-[var(--text-primary)]" />
                 </div>
-                <span className="text-[10px] text-[var(--text-primary)] text-center truncate max-w-[64px]">{t(`app.${app.id}.name`)}</span>
+                <span className="text-[10px] text-[var(--text-primary)] text-center truncate max-w-[64px]">{localizedAppName(t, app.id, app.name)}</span>
               </button>
             ))}
           </div>
@@ -318,7 +335,7 @@ const AppLauncher = memo(function AppLauncher() {
               <DynamicIcon name={app.icon} size={32} className="text-[var(--text-primary)]" />
             </div>
             <span className="text-[10px] text-[var(--text-primary)] text-center truncate max-w-[72px]">
-              {t(`app.${app.id}.name`)}
+              {localizedAppName(t, app.id, app.name)}
             </span>
           </button>
         ))}
