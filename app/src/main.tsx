@@ -5,7 +5,16 @@ import App from './App.tsx'
 import { initDb, getDbMeta } from '@/lib/db'
 import { seedBundledAppsAtBoot } from '@/runtime/seed-bundled-apps'
 import { migrateLegacyMusicCreatorTables } from '@/runtime/legacy-migrations'
+import { installHostExternals } from '@/runtime/externals/install-host-externals'
 import { I18nProvider } from '@/i18n'
+
+// Publish React + host-api singletons on window.__TYTUS_EXTERNALS__
+// BEFORE any installed-app import() resolves. The importmap in
+// app/index.html points apps' bare specifiers (`react`,
+// `react/jsx-runtime`, `react-dom`, `@tytus/host-api`) at shim modules
+// in /__tytus_externals/* that read this object. Must run before the
+// first remote-loader call to avoid a blank-screen race on cold boot.
+installHostExternals()
 
 // Boot the SQLite worker before mounting. Failure here is non-fatal:
 // the app still renders, repos detect getDb() === null and route to

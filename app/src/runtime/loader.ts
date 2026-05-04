@@ -20,6 +20,7 @@ import type {
 } from '@tytus/host-api';
 
 import { makeAppBootEnv } from './host-impl';
+import { loadRemoteApp } from './remote-loader';
 import { transformCss, type StyleIsolationOptions } from './style-isolator';
 
 /** Resolved URLs for an app's bundle. The shell's registry computes these
@@ -134,14 +135,26 @@ export async function loadApp(opts: LoadAppOptions): Promise<LoadedApp> {
   // attempt for the same app id stacks a second <style> on top.
   let component: unknown;
   try {
-    const mod = await importModule(entryUrls.module);
-    if (typeof mod.default !== 'function') {
-      throw new Error(
-        `App "${appId}" entry "${entryUrls.module}" did not export a default function.`,
-      );
+    // Transport B (installed): manifest.entry.url is a fully-qualified
+    // https:// CDN URL. Delegate to the remote loader, which manages
+    // the per-session module cache + RemoteAppLoadError shaping. The
+    // bundled transport A path (entryUrls.module) is unchanged below.
+    let bootApp: (env: AppBootEnv) => unknown;
+    if (manifest.entry?.url) {
+      bootApp = (await loadRemoteApp(manifest, { importModule })) as (
+        env: AppBootEnv,
+      ) => unknown;
+    } else {
+      const mod = await importModule(entryUrls.module);
+      if (typeof mod.default !== 'function') {
+        throw new Error(
+          `App "${appId}" entry "${entryUrls.module}" did not export a default function.`,
+        );
+      }
+      bootApp = mod.default;
     }
     const env: AppBootEnv = makeAppBootEnv(appId, manifest, entryUrls);
-    component = mod.default(env);
+    component = bootApp(env);
   } catch (err) {
     disposeStyles();
     throw err;

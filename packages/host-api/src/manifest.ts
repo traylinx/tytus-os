@@ -72,8 +72,20 @@ export interface ManifestStorage {
 }
 
 export interface ManifestEntry {
-  /** Path to the ESM entry module, relative to the manifest. */
-  module: string;
+  /** Path to the ESM entry module, relative to the manifest.
+   *  Used for **bundled** apps (workspace packages resolved at build time).
+   *  Mutually exclusive with `url` — exactly one of `module` / `url` MUST
+   *  be set on a non-alias manifest. */
+  module?: string;
+  /** Fully-qualified `https://` URL to a remote ESM module (e.g. jsDelivr
+   *  / GitHub Pages chunk URL like
+   *  `https://cdn.jsdelivr.net/gh/<owner>/<repo>@<tag>/dist/index.js`).
+   *  Used for **installed** apps that ship via a CDN, not the workspace.
+   *  The remote loader does `await import(url)` and expects the same
+   *  `bootApp(env): Component` default-export shape as workspace apps.
+   *  Mutually exclusive with `module`. Only `https://` is accepted —
+   *  `http://`, `data:`, `blob:`, `file://` are rejected. */
+  url?: string;
   /** Optional bundle root for `host.assets.*` resolution. Defaults to
    *  `./assets/` next to `module` if omitted. */
   assets?: string;
@@ -342,15 +354,54 @@ export function validateManifest(raw: unknown): ManifestValidationResult {
     }
   }
 
-  // entry — required for non-alias kinds
+  // entry — required for non-alias kinds. Must have exactly one of
+  // `module` (bundled / workspace package) or `url` (installed remote ESM
+  // via CDN, e.g. jsDelivr / GitHub Pages). XOR is enforced because the
+  // two transports have totally different resolution paths and a manifest
+  // that sets both is almost certainly a misconfiguration.
   if (effectiveKind !== 'alias') {
     const e = m.entry;
     if (typeof e !== 'object' || e === null) {
       push('/entry', 'required object for non-alias kinds');
     } else {
       const ee = e as Record<string, unknown>;
-      if (typeof ee.module !== 'string' || ee.module.length === 0) {
-        push('/entry/module', 'required non-empty string');
+      const hasModule = typeof ee.module === 'string' && ee.module.length > 0;
+      const hasUrl = typeof ee.url === 'string' && ee.url.length > 0;
+
+      if (!hasModule && !hasUrl) {
+        push(
+          '/entry',
+          'must set exactly one of `module` (bundled) or `url` (installed remote)',
+        );
+      } else if (hasModule && hasUrl) {
+        push(
+          '/entry',
+          '`module` and `url` are mutually exclusive — set one or the other, not both',
+        );
+      }
+
+      // Reject any `module` value that exists but isn't a non-empty string.
+      if (ee.module !== undefined && !hasModule) {
+        push('/entry/module', 'must be a non-empty string when present');
+      }
+
+      // Reject any `url` value that exists but isn't a non-empty string,
+      // and require https:// when it IS a non-empty string. Cheap-but-firm
+      // guard against http://, data:, blob:, file:// and similar shapes
+      // that would let an installed-app manifest smuggle a non-CDN
+      // transport into the loader.
+      if (ee.url !== undefined) {
+        if (!hasUrl) {
+          push('/entry/url', 'must be a non-empty string when present');
+        } else {
+          const url = ee.url as string;
+          if (!url.startsWith('https://')) {
+            push(
+              '/entry/url',
+              `must be an https:// URL (got ${JSON.stringify(url)})`,
+            );
+          }
+        }
       }
     }
   } else if (m.entry !== undefined) {

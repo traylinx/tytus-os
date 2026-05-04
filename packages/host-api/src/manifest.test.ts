@@ -87,6 +87,67 @@ describe('validateManifest', () => {
     expect(r.issues.some((i) => i.path === '/storage/tables/0/name')).toBe(true);
   });
 
+  it('accepts entry.url as the installed-app remote ESM transport', () => {
+    const { entry: _entry, ...withoutEntry } = VALID;
+    const r = validateManifest({
+      ...withoutEntry,
+      kind: 'installed',
+      entry: {
+        url: 'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-text-editor@v0.1.0/dist/index.js',
+      },
+    });
+    expect(r.valid).toBe(true);
+    expect(r.issues).toEqual([]);
+  });
+
+  it('rejects entry with neither module nor url', () => {
+    const { entry: _entry, ...withoutEntry } = VALID;
+    const r = validateManifest({
+      ...withoutEntry,
+      kind: 'installed',
+      entry: {},
+    });
+    expect(r.valid).toBe(false);
+    expect(r.issues.some((i) => i.path === '/entry')).toBe(true);
+  });
+
+  it('rejects entry with both module and url set (XOR)', () => {
+    const { entry: _entry, ...withoutEntry } = VALID;
+    const r = validateManifest({
+      ...withoutEntry,
+      kind: 'installed',
+      entry: {
+        module: './dist/index.js',
+        url: 'https://cdn.example.com/app.js',
+      },
+    });
+    expect(r.valid).toBe(false);
+    expect(
+      r.issues.some(
+        (i) => i.path === '/entry' && /mutually exclusive/.test(i.message),
+      ),
+    ).toBe(true);
+  });
+
+  it('rejects entry.url that is not https://', () => {
+    const { entry: _entry, ...withoutEntry } = VALID;
+    for (const url of [
+      'http://cdn.example.com/app.js',
+      'data:text/javascript,export default null',
+      'blob:https://x',
+      'file:///tmp/app.js',
+      'cdn.example.com/app.js',
+    ]) {
+      const r = validateManifest({
+        ...withoutEntry,
+        kind: 'installed',
+        entry: { url },
+      });
+      expect(r.valid, `should reject url ${url}`).toBe(false);
+      expect(r.issues.some((i) => i.path === '/entry/url')).toBe(true);
+    }
+  });
+
   it('reports multiple issues without bailing', () => {
     const r = validateManifest({
       id: 'BAD',

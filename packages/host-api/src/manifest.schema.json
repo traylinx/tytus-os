@@ -107,13 +107,23 @@
     },
     "entry": {
       "type": "object",
-      "required": ["module"],
       "additionalProperties": false,
+      "oneOf": [
+        { "required": ["module"], "not": { "required": ["url"] } },
+        { "required": ["url"], "not": { "required": ["module"] } }
+      ],
       "properties": {
         "module": {
           "type": "string",
           "minLength": 1,
-          "description": "Path to the ESM entry module, relative to the manifest."
+          "description": "Path to the ESM entry module, relative to the manifest. Used for bundled / workspace-package apps. Mutually exclusive with `url`."
+        },
+        "url": {
+          "type": "string",
+          "format": "uri",
+          "pattern": "^https://",
+          "minLength": 1,
+          "description": "Fully-qualified https:// URL to a remote ESM module (e.g. jsDelivr / GitHub Pages chunk). Used for installed apps. Mutually exclusive with `module`."
         },
         "assets": {
           "type": "string",
