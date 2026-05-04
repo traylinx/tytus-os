@@ -299,8 +299,11 @@ export const getAppById = (id: string): AppDefinition | undefined => {
 
 /** Map an `installed_apps` row's manifest into the static `AppDefinition`
  *  shape `useOSStore.createWindow` expects. The manifest's `window`
- *  block carries the geometry; everything else maps 1:1. */
-function appDefinitionFromInstalledRow(row: InstalledAppRow): AppDefinition {
+ *  block carries the geometry; everything else maps 1:1. Exported so
+ *  the launcher can unify legacy registry entries with their canonical
+ *  installed counterparts (matching icons + names across grid /
+ *  Frequently Used / Dock). */
+export function appDefinitionFromInstalledRow(row: InstalledAppRow): AppDefinition {
   const m = row.manifest;
   return {
     id: row.id,

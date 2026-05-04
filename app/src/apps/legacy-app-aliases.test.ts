@@ -10,7 +10,15 @@ import { describe, expect, it } from 'vitest';
 import {
   LEGACY_APP_ID_ALIASES,
   resolveCanonicalAppId,
+  unifyAppDefinition,
 } from './legacy-app-aliases';
+import {
+  __clearInstalledAppsCacheForTests,
+  addToInstalledAppsCache,
+} from '@/runtime/installed-apps-cache';
+import type { AppDefinition } from '@/types';
+import type { Manifest } from '@tytus/host-api';
+import { afterEach, beforeEach } from 'vitest';
 
 describe('resolveCanonicalAppId', () => {
   it('returns the canonical id for every alias', () => {
@@ -36,5 +44,62 @@ describe('resolveCanonicalAppId', () => {
     for (const [legacy, canonical] of Object.entries(LEGACY_APP_ID_ALIASES)) {
       expect(legacy).not.toBe(canonical);
     }
+  });
+});
+
+const baseManifest = (id: string, name: string, icon: string): Manifest => ({
+  id,
+  name,
+  version: '1.0.0',
+  icon,
+  category: 'Productivity',
+  description: `${name} description`,
+  window: {
+    defaultSize: { width: 800, height: 600 },
+    minSize: { width: 400, height: 320 },
+  },
+  permissions: [],
+  entry: { url: 'https://cdn.example.com/x.js' },
+});
+
+const legacyDef: AppDefinition = {
+  id: 'markdownpreview',
+  name: 'Markdown Preview',
+  icon: 'FileCode',
+  category: 'Productivity',
+  description: 'Live markdown with GitHub styling.',
+  defaultSize: { width: 800, height: 600 },
+  minSize: { width: 480, height: 360 },
+};
+
+describe('unifyAppDefinition', () => {
+  beforeEach(() => __clearInstalledAppsCacheForTests());
+  afterEach(() => __clearInstalledAppsCacheForTests());
+
+  it('returns the input verbatim when the id has no alias', () => {
+    const native: AppDefinition = { ...legacyDef, id: 'memo', name: 'Memo' };
+    expect(unifyAppDefinition(native)).toBe(native);
+  });
+
+  it('returns the input verbatim when the canonical row is not installed', () => {
+    expect(unifyAppDefinition(legacyDef)).toBe(legacyDef);
+  });
+
+  it('replaces legacy entry with canonical AppDefinition when installed', () => {
+    addToInstalledAppsCache({
+      id: 'markdown-preview',
+      kind: 'installed',
+      manifest: baseManifest('markdown-preview', 'Markdown Preview', 'Eye'),
+      entryUrl: 'https://cdn.example.com/markdown.js',
+      assetsUrl: null,
+      manifestUrl: 'https://cdn.example.com/tytus-app.json',
+      installedAt: 0,
+      enabled: true,
+      builtinProtected: false,
+    });
+    const unified = unifyAppDefinition(legacyDef);
+    expect(unified.id).toBe('markdown-preview');
+    expect(unified.icon).toBe('Eye');
+    expect(unified.name).toBe('Markdown Preview');
   });
 });

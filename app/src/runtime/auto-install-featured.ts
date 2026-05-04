@@ -22,6 +22,7 @@
  */
 
 import {
+  AUTO_INSTALL_DENYLIST,
   loadFeaturedApps,
   type FeaturedApp,
 } from '@/apps/featured-apps-catalog';
@@ -118,9 +119,15 @@ export async function autoInstallFeaturedAtBoot(
     (await listInstalledApps(db)).map((row) => row.id),
   );
 
-  const targets = catalog.filter((entry) => !existing.has(entry.id));
+  const targets = catalog.filter(
+    (entry) =>
+      !existing.has(entry.id) && !AUTO_INSTALL_DENYLIST.has(entry.id),
+  );
   const skipped = catalog
-    .filter((entry) => existing.has(entry.id))
+    .filter(
+      (entry) =>
+        existing.has(entry.id) || AUTO_INSTALL_DENYLIST.has(entry.id),
+    )
     .map((entry) => entry.id);
 
   const installed: string[] = [];

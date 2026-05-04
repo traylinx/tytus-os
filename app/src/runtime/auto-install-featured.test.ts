@@ -18,12 +18,12 @@ import type { Db, SqlValue } from '@/lib/db/types';
 
 const FAKE_CATALOG: FeaturedApp[] = [
   {
-    id: 'juli3ta',
-    name: 'JULI3TA',
+    id: 'mock-music',
+    name: 'Mock Music',
     description: 'Music creator.',
     icon: 'Music',
     category: 'Creative',
-    manifestUrl: 'https://cdn.example.com/juli3ta/tytus-app.json',
+    manifestUrl: 'https://cdn.example.com/mock-music/tytus-app.json',
   },
   {
     id: 'text-editor',
@@ -84,7 +84,7 @@ describe('autoInstallFeaturedAtBoot', () => {
   it('installs every Featured app that is missing from installed_apps', async () => {
     const db = new MemoryDb();
     const install = vi.fn(async ({ manifestUrl }: { manifestUrl: string }) => {
-      const id = manifestUrl.split('/')[3]; // /juli3ta/...
+      const id = manifestUrl.split('/')[3]; // /mock-music/...
       db.__seedRow(id);
     });
     const report = await autoInstallFeaturedAtBoot(db, {
@@ -95,7 +95,7 @@ describe('autoInstallFeaturedAtBoot', () => {
 
     expect(report.attempted).toBe(3);
     expect(report.installed.sort()).toEqual([
-      'juli3ta',
+      'mock-music',
       'photo-editor',
       'text-editor',
     ]);
@@ -106,7 +106,7 @@ describe('autoInstallFeaturedAtBoot', () => {
 
   it('skips apps that are already installed', async () => {
     const db = new MemoryDb();
-    db.__seedRow('juli3ta');
+    db.__seedRow('mock-music');
     db.__seedRow('text-editor');
 
     const install = vi.fn(async ({ manifestUrl }: { manifestUrl: string }) => {
@@ -122,7 +122,7 @@ describe('autoInstallFeaturedAtBoot', () => {
 
     expect(report.attempted).toBe(1);
     expect(report.installed).toEqual(['photo-editor']);
-    expect(report.skipped.sort()).toEqual(['juli3ta', 'text-editor']);
+    expect(report.skipped.sort()).toEqual(['mock-music', 'text-editor']);
     expect(install).toHaveBeenCalledTimes(1);
   });
 
@@ -169,10 +169,52 @@ describe('autoInstallFeaturedAtBoot', () => {
       logger: { info: () => undefined, warn: () => undefined },
     });
 
-    expect(report.installed.sort()).toEqual(['juli3ta', 'photo-editor']);
+    expect(report.installed.sort()).toEqual(['mock-music', 'photo-editor']);
     expect(report.failed).toHaveLength(1);
     expect(report.failed[0].id).toBe('text-editor');
     expect(report.failed[0].reason).toMatch(/fetch_failed/);
+  });
+
+  it('skips ids in AUTO_INSTALL_DENYLIST (juli3ta alpha guard)', async () => {
+    const db = new MemoryDb();
+    const denylistedCatalog = [
+      // The real denylist contains 'juli3ta'; if the catalog ever
+      // surfaces it again (stale CDN tag, race), the OS must NOT
+      // auto-install it.
+      {
+        id: 'juli3ta',
+        name: 'JULI3TA',
+        description: 'alpha placeholder',
+        icon: 'Music',
+        category: 'Creative',
+        manifestUrl: 'https://cdn.example.com/juli3ta/tytus-app.json',
+      },
+      {
+        id: 'text-editor',
+        name: 'Text Editor',
+        description: 'editor',
+        icon: 'FileText',
+        category: 'Productivity',
+        manifestUrl: 'https://cdn.example.com/text-editor/tytus-app.json',
+      },
+    ];
+    const install = vi.fn(async ({ manifestUrl }: { manifestUrl: string }) => {
+      const id = manifestUrl.split('/')[3];
+      db.__seedRow(id);
+    });
+    const report = await autoInstallFeaturedAtBoot(db, {
+      loadCatalog: async () => denylistedCatalog,
+      install,
+      logger: { info: () => undefined, warn: () => undefined },
+    });
+    expect(report.installed).toEqual(['text-editor']);
+    expect(report.skipped).toContain('juli3ta');
+    expect(install).toHaveBeenCalledTimes(1);
+    expect(install).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        manifestUrl: 'https://cdn.example.com/juli3ta/tytus-app.json',
+      }),
+    );
   });
 
   it('returns an empty report when the catalog fails to load', async () => {

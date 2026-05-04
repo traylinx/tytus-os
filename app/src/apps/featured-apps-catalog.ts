@@ -83,9 +83,20 @@ export const FEATURED_APPS: FeaturedApp[] = [
 
 /** URL of the remote Featured catalog. Bumped per OS release; the
  *  catalog repo is independently versioned so featured-app additions
- *  don't require a Tytus OS rebuild. */
+ *  don't require a Tytus OS rebuild. v0.5.0 drops the juli3ta alpha. */
 export const FEATURED_CATALOG_URL =
-  'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-catalog@v0.4.0/featured.json';
+  'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-catalog@v0.5.0/featured.json';
+
+/**
+ * Denylist of catalog ids the OS will refuse to auto-install at boot,
+ * regardless of what the remote catalog says. Belt-and-suspenders for
+ * the (juli3ta) alpha-placeholder cleanup — even if a stale catalog
+ * version surfaces juli3ta, this OS build will skip it. Drop entries
+ * here once their non-alpha version is ready to ship.
+ */
+export const AUTO_INSTALL_DENYLIST: ReadonlySet<string> = new Set([
+  'juli3ta',
+]);
 
 interface RemoteCatalogShape {
   version?: number;

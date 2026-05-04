@@ -5,7 +5,10 @@
 import { useState, useCallback, useRef, useEffect, memo } from 'react';
 import { useOS } from '@/hooks/useOSStore';
 import { getAppById } from '@/apps/registry';
-import { resolveCanonicalAppId } from '@/apps/legacy-app-aliases';
+import {
+  resolveCanonicalAppId,
+  unifyAppDefinition,
+} from '@/apps/legacy-app-aliases';
 import { useDemoApps } from '@/hooks/useDemoApps';
 import { useDaemonStateContext } from '@/hooks/useDaemonStateContext';
 import { getFrequentApps } from '@/lib/repo/appLaunches';
@@ -74,12 +77,13 @@ const AppLauncher = memo(function AppLauncher() {
       /* eslint-disable-next-line react-hooks/set-state-in-effect -- opening launcher resets transient search state. */
       setSearchQuery('');
       setTimeout(() => inputRef.current?.focus(), 100);
-      // Load scored frequent apps from usage history. Two stages:
+      // Load scored frequent apps from usage history. Three stages:
       // (1) collapse legacy/canonical pairs into one canonical id
       //     (e.g. `markdownpreview` and `markdown-preview` both
       //     contribute to the same Frequently Used slot);
       // (2) drop ids whose AppDefinition lookup misses (uninstalled
-      //     third-party app, alpha row that was just cleaned up).
+      //     third-party app, alpha row that was just cleaned up);
+      // (3) unify the entry so the canonical icon + name show.
       getFrequentApps(8).then((scored) => {
         const seen = new Set<string>();
         const resolved: AppDefinition[] = [];
@@ -88,7 +92,7 @@ const AppLauncher = memo(function AppLauncher() {
           if (seen.has(canonical)) continue;
           seen.add(canonical);
           const def = getAppById(canonical);
-          if (def) resolved.push(def);
+          if (def) resolved.push(unifyAppDefinition(def));
         }
         setScoredFrequent(resolved);
       });
@@ -118,7 +122,23 @@ const AppLauncher = memo(function AppLauncher() {
     [dispatch]
   );
 
-  const filteredApps = apps.filter((app) => {
+  // Unify legacy/canonical pairs so the grid shows ONE icon per
+  // concept with the canonical icon + name. Then drop any entries
+  // whose canonical id has already been folded in (so we don't list
+  // both 'markdownpreview' and 'markdown-preview').
+  const unifiedApps = (() => {
+    const seen = new Set<string>();
+    const out: AppDefinition[] = [];
+    for (const app of apps) {
+      const u = unifyAppDefinition(app);
+      if (seen.has(u.id)) continue;
+      seen.add(u.id);
+      out.push(u);
+    }
+    return out;
+  })();
+
+  const filteredApps = unifiedApps.filter((app) => {
     // Manifest AN8: hide demo apps when the toggle is off, regardless
     // of category or search match. User can opt back in via Settings
     // → Display.
