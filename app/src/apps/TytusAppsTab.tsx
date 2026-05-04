@@ -37,7 +37,7 @@ import {
   reinstallApp,
   uninstallApp,
 } from '@/runtime/installer';
-import { FEATURED_APPS, type FeaturedApp } from './featured-apps-catalog';
+import { FEATURED_APPS, type FeaturedApp, loadFeaturedApps } from './featured-apps-catalog';
 
 interface TytusAppsTabProps {
   /** Optional override — tests pass an in-memory db so the component
@@ -51,6 +51,9 @@ interface TytusAppsTabProps {
   onInstallFromUrl?: (manifestUrl: string) => Promise<InstalledAppRow>;
   onUninstall?: (appId: string) => Promise<void>;
   onReinstall?: (appId: string) => Promise<InstalledAppRow>;
+  /** Test injection: stub the Featured-catalog fetch. Defaults to
+   *  loadFeaturedApps() which fetches the remote catalog with fallback. */
+  loadFeatured?: () => Promise<FeaturedApp[]>;
 }
 
 const SYSTEM_APP_TOOLTIP =
@@ -62,12 +65,17 @@ export const TytusAppsTab: FC<TytusAppsTabProps> = ({
   onInstallFromUrl,
   onUninstall,
   onReinstall,
+  loadFeatured,
 }) => {
   const [rows, setRows] = useState<InstalledAppRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
   const [installModalOpen, setInstallModalOpen] = useState(false);
+  /** Featured catalog state — fetched once on mount, refreshed when the
+   *  installer triggers a reloadKey bump. Falls back to FEATURED_APPS on
+   *  any fetch / parse failure (handled inside loadFeaturedApps). */
+  const [featured, setFeatured] = useState<FeaturedApp[]>(FEATURED_APPS);
   /** Per-row busy ids (uninstalling / reinstalling) — disables the
    *  buttons and shows a spinner without re-rendering the whole list. */
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -160,11 +168,30 @@ export const TytusAppsTab: FC<TytusAppsTabProps> = ({
     }
   };
 
+  // Fetch the remote catalog once on mount. Errors fall back to the
+  // hardcoded baseline silently (loadFeaturedApps handles that).
+  useEffect(() => {
+    let cancelled = false;
+    const load = loadFeatured ?? loadFeaturedApps;
+    void load()
+      .then((list) => {
+        if (!cancelled) setFeatured(list);
+      })
+      .catch(() => {
+        // loadFeaturedApps already swallows errors and returns the
+        // baseline; this catch is just defence-in-depth.
+        if (!cancelled) setFeatured(FEATURED_APPS);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [loadFeatured]);
+
   /** Featured apps NOT yet installed — surface in the catalog section. */
   const availableFeatured = useMemo(() => {
     const knownIds = new Set(rows.map((r) => r.id));
-    return FEATURED_APPS.filter((f) => !knownIds.has(f.id));
-  }, [rows]);
+    return featured.filter((f) => !knownIds.has(f.id));
+  }, [rows, featured]);
 
   const handleFeaturedInstall = async (featured: FeaturedApp) => {
     setBusyId(featured.id);

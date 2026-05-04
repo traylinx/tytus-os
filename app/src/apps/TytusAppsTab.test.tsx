@@ -1,8 +1,24 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { TytusAppsTab } from './TytusAppsTab';
 import type { InstalledAppRow } from '@/runtime/installed-apps-repo';
 import type { Manifest } from '@tytus/host-api';
+
+// Stub global fetch so the production loadFeaturedApps() default
+// doesn't fire a real network request during tests (which dangles past
+// teardown and triggers a happy-dom AbortError noise). Tests that need
+// specific Featured behaviour inject `loadFeatured` directly.
+beforeEach(() => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () => {
+      throw new Error('fetch is stubbed in TytusAppsTab tests');
+    }),
+  );
+});
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 function row(
   id: string,
