@@ -67,6 +67,7 @@ import type { Db } from '@/lib/db/types';
 import { getInstalledApp, type InstalledAppRow } from './installed-apps-repo';
 import { makeAppBootEnv } from './host-impl';
 import { loadRemoteApp, RemoteAppLoadError } from './remote-loader';
+import { importBundledOrUrl } from './bundled-app-loaders';
 
 /** Public result the window manager renders. */
 export interface LoadedApp {
@@ -148,7 +149,7 @@ export async function loadApp(
   env: AppBootEnv,
   opts: LoadAppOptions = {},
 ): Promise<LoadedApp> {
-  const { importModule = (url) => import(/* @vite-ignore */ url) } = opts;
+  const { importModule = importBundledOrUrl } = opts;
 
   if (!app.entryUrl) {
     throw new AppLoadError(

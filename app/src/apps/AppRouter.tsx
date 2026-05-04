@@ -1,7 +1,9 @@
 import type { FC } from 'react';
 import AppPlaceholder from './AppPlaceholder';
+import AutoInstallApp from './AutoInstallApp';
 import WorkspaceAppHost from './WorkspaceAppHost';
 import { useInstalledAppIds } from '@/runtime/hooks/use-installed-app-ids';
+import { FEATURED_APPS } from './featured-apps-catalog';
 
 // Tytus product surfaces
 import PodInspector from './PodInspector';
@@ -150,6 +152,20 @@ const AppRouter: FC<AppRouterProps> = ({ appId }) => {
   // AppPlaceholder for them while the live map is still empty).
   if (installedIds.size === 0 && WORKSPACE_APP_IDS_HINT.has(canonical)) {
     return <WorkspaceAppHost appId={canonical} />;
+  }
+
+  // Auto-install path — the launcher advertises carved-out user apps
+  // (markdown-preview, photo-editor, etc.) but they're not seeded as
+  // bundled rows. If the canonical id matches a Featured catalog entry
+  // and the live DB has loaded (so we know it's not a transient empty
+  // state), kick off an in-place install. After install the
+  // useInstalledAppIds map flips, this component re-renders, and we
+  // hit the WorkspaceAppHost branch above.
+  if (installedIds.size > 0) {
+    const catalogEntry = FEATURED_APPS.find((a) => a.id === canonical);
+    if (catalogEntry) {
+      return <AutoInstallApp appId={canonical} catalogEntry={catalogEntry} />;
+    }
   }
 
   switch (appId) {

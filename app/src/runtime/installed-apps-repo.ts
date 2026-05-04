@@ -202,6 +202,28 @@ export async function seedInstalledApps(
       args,
     );
   }
+
+  // Garbage-collect orphan bundled rows. When a bundled app is dropped
+  // from the manifest list (e.g. carved out into a standalone repo),
+  // its old `kind='bundled'` row otherwise survives in the user's local
+  // SQLite forever — with a stale `entry_url` (a `@tytus/app-<id>` bare
+  // specifier that no longer resolves) and blocking install-from-URL on
+  // the same id. Sweeping here keeps the table aligned with what this
+  // build actually ships. Only `kind='bundled'` rows are touched —
+  // user-installed third-party apps (kind='installed') are never
+  // garbage-collected by this seed.
+  const currentIds = new Set(bundled.map((b) => b.manifest.id));
+  const existing = await db.query<{ id: string }>(
+    `SELECT id FROM installed_apps WHERE kind = 'bundled'`,
+  );
+  for (const row of existing) {
+    if (!currentIds.has(row.id)) {
+      await db.run(
+        `DELETE FROM installed_apps WHERE id = ? AND kind = 'bundled'`,
+        [row.id],
+      );
+    }
+  }
 }
 
 /**

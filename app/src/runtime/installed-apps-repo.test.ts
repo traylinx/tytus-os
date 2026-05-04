@@ -18,6 +18,9 @@ class MemoryInstalledAppsDb implements Db {
       const id = String(bindings[0]);
       return this.rows.filter((r) => r.id === id) as unknown as T[];
     }
+    if (/WHERE\s+kind\s*=\s*'bundled'/i.test(sql)) {
+      return this.rows.filter((r) => r.kind === 'bundled') as unknown as T[];
+    }
     return this.rows as unknown as T[];
   }
 
@@ -58,7 +61,12 @@ class MemoryInstalledAppsDb implements Db {
     }
     if (/DELETE\s+FROM\s+installed_apps/i.test(sql)) {
       const id = String(bindings[0]);
-      this.rows = this.rows.filter((r) => r.id !== id);
+      const requireBundled = /AND\s+kind\s*=\s*'bundled'/i.test(sql);
+      this.rows = this.rows.filter((r) => {
+        if (r.id !== id) return true;
+        if (requireBundled && r.kind !== 'bundled') return true;
+        return false;
+      });
       return;
     }
     if (/UPDATE\s+installed_apps/i.test(sql)) {
@@ -135,6 +143,58 @@ describe('seedInstalledApps', () => {
     const rows = await listInstalledApps(db);
     expect(rows.find((r) => r.id === 'sheet')?.builtinProtected).toBe(true);
     expect(rows.find((r) => r.id === 'settings')?.builtinProtected).toBe(false);
+  });
+
+  it('garbage-collects orphan bundled rows that disappear from the seed list', async () => {
+    // Seed an old bundled row that the new build no longer ships
+    // (mimics the user's local DB carrying a stale `markdown-preview`
+    // row from a prior build).
+    db.__seed([
+      {
+        id: 'markdown-preview',
+        kind: 'bundled',
+        manifest_json: JSON.stringify(baseManifest('markdown-preview')),
+        entry_url: '@tytus/app-markdown-preview',
+        assets_url: null,
+        manifest_url: null,
+        installed_at: 0,
+        enabled: 1,
+        builtin_protected: 0,
+      },
+    ]);
+
+    await seedInstalledApps(db, [
+      { manifest: baseManifest('sheet'), entryUrl: '@tytus/app-sheet', assetsUrl: null },
+    ]);
+
+    const remaining = (await listInstalledApps(db)).map((r) => r.id).sort();
+    expect(remaining).toEqual(['sheet']);
+  });
+
+  it('preserves kind="installed" rows even when their id is not in the seed list', async () => {
+    // A user-installed third-party app must NEVER be touched by the
+    // boot-seed garbage collector — only kind='bundled' orphans are
+    // swept.
+    db.__seed([
+      {
+        id: 'todoist',
+        kind: 'installed',
+        manifest_json: JSON.stringify(baseManifest('todoist')),
+        entry_url: 'https://cdn.example.com/todoist/index.js',
+        assets_url: null,
+        manifest_url: 'https://cdn.example.com/todoist/tytus-app.json',
+        installed_at: 0,
+        enabled: 1,
+        builtin_protected: 0,
+      },
+    ]);
+
+    await seedInstalledApps(db, [
+      { manifest: baseManifest('sheet'), entryUrl: '@tytus/app-sheet', assetsUrl: null },
+    ]);
+
+    const ids = (await listInstalledApps(db)).map((r) => r.id).sort();
+    expect(ids).toEqual(['sheet', 'todoist']);
   });
 
   it('re-asserts manifest_json on conflict (idempotent for boot seed)', async () => {

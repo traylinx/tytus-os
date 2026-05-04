@@ -38,6 +38,7 @@ import type {
 import { makeAppBootEnv } from './host-impl';
 import { loadRemoteApp } from './remote-loader';
 import { transformCss, type StyleIsolationOptions } from './style-isolator';
+import { importBundledOrUrl } from './bundled-app-loaders';
 
 /** Resolved URLs for an app's bundle. The shell's registry computes these
  *  when the app is registered; the loader reads them out of the resolved
@@ -122,7 +123,7 @@ export async function loadApp(opts: LoadAppOptions): Promise<LoadedApp> {
     manifest,
     entryUrls,
     fetchText = (url) => fetch(url).then((r) => r.text()),
-    importModule = (url) => import(/* @vite-ignore */ url),
+    importModule = (url) => importBundledOrUrl(url) as Promise<{ default: AppEntry }>,
     doc = document,
     onWarning = (w) => console.warn('[tytus-loader]', w),
   } = opts;
