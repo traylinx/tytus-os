@@ -40,7 +40,7 @@ import ScreenRecorder from './ScreenRecorder';
 import MediaConverter from './MediaConverter';
 
 // DevTools
-import CodeEditor from './CodeEditor';
+// CodeEditor lifted to @tytus/app-code-editor workspace package (Phase 5).
 import ApiTester from './ApiTester';
 import JsonFormatter from './JsonFormatter';
 import RegexTester from './RegexTester';
@@ -120,10 +120,10 @@ const LEGACY_APP_ID_ALIASES: Record<string, string> = {
   voicerecorder: 'voice-recorder',
   markdownpreview: 'markdown-preview',
   photoeditor: 'photo-editor',
+  texteditor: 'text-editor',
+  codeeditor: 'code-editor',
   // Pending Phase 5 lifts (re-enable per app once code is moved):
-  //   texteditor   → text-editor
   //   apitester    → api-tester
-  //   codeeditor   → code-editor
   //   musiccreator → music-creator
 };
 
@@ -179,7 +179,7 @@ const AppRouter: FC<AppRouterProps> = ({ appId }) => {
     case 'mediaconverter': return <MediaConverter />;
 
     // DevTools
-    case 'codeeditor': return <CodeEditor />;
+    // 'codeeditor' aliased to 'code-editor' workspace package (Phase 5)
     case 'apitester': return <ApiTester />;
     case 'jsonformatter': return <JsonFormatter />;
     case 'regextester': return <RegexTester />;

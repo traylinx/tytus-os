@@ -1,6 +1,6 @@
 {
   "name": "@tytus/app-text-editor",
-  "version": "0.1.0-skeleton",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
   "description": "Text Editor — user-installable Tytus app. Plain-text editor with multi-file tabs, syntax highlighting, and search/replace. Will be carved into its own git repo (tytus-app-text-editor) post-skeleton.",

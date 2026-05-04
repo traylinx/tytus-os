@@ -1,6 +1,6 @@
 {
   "name": "@tytus/app-code-editor",
-  "version": "0.1.0-skeleton",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
   "description": "Code Editor — user-installable Tytus app. Multi-language code editor with syntax highlighting, file tree, and search. Will be carved into its own git repo (tytus-app-code-editor) post-skeleton.",
