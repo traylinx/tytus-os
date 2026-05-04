@@ -86,24 +86,45 @@ interface AppRouterProps {
  * PR removes the in-tree files.
  */
 const WORKSPACE_APP_IDS = new Set([
+  // System apps (bundled with shell)
   'memo',
   'music-creator',
   'music-player',
   'sheet',
   'studio',
   'voice-recorder',
+  // User apps (own-repo carve targets — SPRINT-TYTUS-APP-SYSTEM-V1)
+  'text-editor',
+  'markdown-preview',
+  'api-tester',
+  'photo-editor',
+  'code-editor',
 ]);
 
-// Legacy non-hyphenated id → canonical workspace id. The shell + dock
-// + saved windows still reference the old short ids; aliasing lets us
-// delete the in-tree apps without breaking saved state. Removable once
-// all callers have migrated.
+// Legacy non-hyphenated id → canonical workspace id. Aliases route old
+// ids to NEW workspace packages whose source has been lifted. Until a
+// Phase-5 lift actually moves the legacy file's body into the package,
+// keep the legacy id on the static-switch path below so users don't get
+// a placeholder when opening a working app. Add an alias here ONLY
+// once the matching workspace package has the real implementation.
+//
+// Note (D-decision): the previous shell aliased 'texteditor' → 'studio'
+// because TextEditor was deleted in W7. The new direction (this sprint)
+// routes 'texteditor' → 'text-editor' workspace package; until that
+// package's lift completes the alias stays disabled so saved-state
+// callers fall to <AppPlaceholder /> instead of the empty placeholder.
 const LEGACY_APP_ID_ALIASES: Record<string, string> = {
   notes: 'memo',
   spreadsheet: 'sheet',
-  texteditor: 'studio',
   musicplayer: 'music-player',
   voicerecorder: 'voice-recorder',
+  // Pending Phase 5 lifts (re-enable per app once code is moved):
+  //   texteditor      → text-editor
+  //   markdownpreview → markdown-preview
+  //   apitester       → api-tester
+  //   photoeditor     → photo-editor
+  //   codeeditor      → code-editor
+  //   musiccreator    → music-creator
 };
 
 const AppRouter: FC<AppRouterProps> = ({ appId }) => {

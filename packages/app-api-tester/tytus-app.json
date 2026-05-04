@@ -1,0 +1,32 @@
+{
+  "$schema": "https://tytus.traylinx.com/schema/app/v1.json",
+  "id": "api-tester",
+  "name": "API Tester",
+  "version": "1.0.0",
+  "icon": "Plug",
+  "category": "DevTools",
+  "description": "Postman-style HTTP request builder with history, environments, headers/body editor, and pretty-printed response viewer.",
+
+  "window": {
+    "defaultSize": { "width": 1100, "height": 760 },
+    "minSize": { "width": 640, "height": 480 }
+  },
+
+  "permissions": [
+    "daemon.network",
+    "shell.notifications",
+    "storage.app"
+  ],
+
+  "storage": {
+    "tables": [
+      { "name": "requests", "schema": "migrations/0001_requests.sql" },
+      { "name": "environments", "schema": "migrations/0002_environments.sql" }
+    ]
+  },
+
+  "entry": {
+    "module": "./dist/index.js",
+    "assets": "./dist/assets/"
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "name": "@tytus/app-text-editor",
+  "version": "0.1.0-skeleton",
+  "private": true,
+  "type": "module",
+  "description": "Text Editor — user-installable Tytus app. Plain-text editor with multi-file tabs, syntax highlighting, and search/replace. Will be carved into its own git repo (tytus-app-text-editor) post-skeleton.",
+  "main": "./src/index.tsx",
+  "types": "./src/index.tsx",
+  "exports": {
+    ".": {
+      "types": "./src/index.tsx",
+      "import": "./src/index.tsx"
+    }
+  },
+  "scripts": {
+    "build": "vite build --config ../../vite.lib.config.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@tytus/host-api": "*",
+    "lucide-react": "^0.562.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.5",
+    "@types/react-dom": "^19.2.3",
+    "typescript": "~5.9.3"
+  }
+}

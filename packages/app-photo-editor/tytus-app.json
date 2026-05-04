@@ -1,0 +1,41 @@
+{
+  "$schema": "https://tytus.traylinx.com/schema/app/v1.json",
+  "id": "photo-editor",
+  "name": "Photo Editor",
+  "version": "1.0.0",
+  "icon": "Image",
+  "category": "Media",
+  "description": "Crop, rotate, resize, filter, and basic adjustment tools (brightness, contrast, saturation) for raster images.",
+
+  "window": {
+    "defaultSize": { "width": 1100, "height": 760 },
+    "minSize": { "width": 640, "height": 480 }
+  },
+
+  "permissions": [
+    "vfs.user.documents",
+    "vfs.user.pictures",
+    "shell.notifications",
+    "storage.app"
+  ],
+
+  "storage": {
+    "tables": [
+      { "name": "edits", "schema": "migrations/0001_edits.sql" }
+    ]
+  },
+
+  "entry": {
+    "module": "./dist/index.js",
+    "assets": "./dist/assets/"
+  },
+
+  "contributes": {
+    "fileAssociations": [
+      { "extension": ".png", "mimeType": "image/png" },
+      { "extension": ".jpg", "mimeType": "image/jpeg" },
+      { "extension": ".jpeg", "mimeType": "image/jpeg" },
+      { "extension": ".webp", "mimeType": "image/webp" }
+    ]
+  }
+}

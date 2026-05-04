@@ -18,12 +18,23 @@
  */
 
 import type { Manifest } from '@tytus/host-api';
+// System apps — bundled with the shell, kind='bundled', builtin_protected=1.
 import musicCreatorManifest from '../../../packages/app-music-creator/tytus-app.json';
 import musicPlayerManifest from '../../../packages/app-music-player/tytus-app.json';
 import voiceRecorderManifest from '../../../packages/app-voice-recorder/tytus-app.json';
 import sheetManifest from '../../../packages/app-sheet/tytus-app.json';
 import studioManifest from '../../../packages/app-studio/tytus-app.json';
 import memoManifest from '../../../packages/app-memo/tytus-app.json';
+// User apps — installable via App Store. Live in the monorepo today as
+// workspace packages; will be carved into their own git repos in Phase 5
+// of SPRINT-TYTUS-APP-SYSTEM-V1. While bundled they seed with kind='bundled'
+// + builtin_protected=0 so the App Store renders an "Uninstall" affordance
+// (which becomes real once filesystem-install lands).
+import textEditorManifest from '../../../packages/app-text-editor/tytus-app.json';
+import markdownPreviewManifest from '../../../packages/app-markdown-preview/tytus-app.json';
+import apiTesterManifest from '../../../packages/app-api-tester/tytus-app.json';
+import photoEditorManifest from '../../../packages/app-photo-editor/tytus-app.json';
+import codeEditorManifest from '../../../packages/app-code-editor/tytus-app.json';
 import { seedInstalledApps } from './installed-apps-repo';
 import type { Db } from '@/lib/db/types';
 
@@ -54,12 +65,20 @@ function manifestEntry(id: string, raw: unknown): BundledManifestSpec {
  * dev/prod boot loops re-assert manifest_json on every run.
  */
 export const BUNDLED_APP_MANIFESTS: BundledManifestSpec[] = [
+  // System apps (built-in, builtin_protected=1).
   manifestEntry('music-creator', musicCreatorManifest),
   manifestEntry('music-player', musicPlayerManifest),
   manifestEntry('voice-recorder', voiceRecorderManifest),
   manifestEntry('sheet', sheetManifest),
   manifestEntry('studio', studioManifest),
   manifestEntry('memo', memoManifest),
+  // User apps (workspace skeletons). Carve to own repos in Phase 5;
+  // builtin_protected stays 0 so the App Store can offer Uninstall.
+  manifestEntry('text-editor', textEditorManifest),
+  manifestEntry('markdown-preview', markdownPreviewManifest),
+  manifestEntry('api-tester', apiTesterManifest),
+  manifestEntry('photo-editor', photoEditorManifest),
+  manifestEntry('code-editor', codeEditorManifest),
 ];
 
 /**

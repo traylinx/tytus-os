@@ -1,0 +1,44 @@
+{
+  "$schema": "https://tytus.traylinx.com/schema/app/v1.json",
+  "id": "code-editor",
+  "name": "Code Editor",
+  "version": "1.0.0",
+  "icon": "Code2",
+  "category": "DevTools",
+  "description": "Multi-language code editor with syntax highlighting, file tree, search/replace, and split panes. Built on a lightweight code-mirror style core.",
+
+  "window": {
+    "defaultSize": { "width": 1200, "height": 800 },
+    "minSize": { "width": 640, "height": 480 }
+  },
+
+  "permissions": [
+    "vfs.user.documents",
+    "shell.notifications",
+    "storage.app"
+  ],
+
+  "storage": {
+    "tables": [
+      { "name": "recent_files", "schema": "migrations/0001_recent_files.sql" }
+    ]
+  },
+
+  "entry": {
+    "module": "./dist/index.js",
+    "assets": "./dist/assets/"
+  },
+
+  "contributes": {
+    "fileAssociations": [
+      { "extension": ".ts", "mimeType": "text/typescript" },
+      { "extension": ".tsx", "mimeType": "text/typescript" },
+      { "extension": ".js", "mimeType": "text/javascript" },
+      { "extension": ".jsx", "mimeType": "text/javascript" },
+      { "extension": ".py", "mimeType": "text/x-python" },
+      { "extension": ".go", "mimeType": "text/x-go" },
+      { "extension": ".rs", "mimeType": "text/x-rust" },
+      { "extension": ".json", "mimeType": "application/json" }
+    ]
+  }
+}
