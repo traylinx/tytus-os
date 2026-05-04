@@ -18,6 +18,16 @@ export interface InstalledAppRow {
   manifest: Manifest;
   entryUrl: string | null;
   assetsUrl: string | null;
+  /**
+   * URL the manifest was fetched from on first install. Set only for
+   * kind='installed' rows; bundled / legacy / alias rows leave it null.
+   * The App Store's "Reinstall" affordance refetches this URL.
+   *
+   * Backed by SCHEMA_V13. Older databases that haven't run V13 yet will
+   * report this as null even on previously-installed rows — that's fine,
+   * the UI just hides the Reinstall button when manifestUrl is missing.
+   */
+  manifestUrl: string | null;
   installedAt: number;
   enabled: boolean;
   builtinProtected: boolean;
@@ -32,31 +42,40 @@ const BUILT_IN_PROTECTED = new Set([
   'voice-recorder',
 ]);
 
+interface InstalledAppRawRow {
+  id: string;
+  kind: AppKind;
+  manifest_json: string;
+  entry_url: string | null;
+  assets_url: string | null;
+  manifest_url: string | null;
+  installed_at: number;
+  enabled: number;
+  builtin_protected: number;
+}
+
+const SELECT_COLUMNS =
+  'id, kind, manifest_json, entry_url, assets_url, manifest_url, installed_at, enabled, builtin_protected';
+
+const mapRow = (r: InstalledAppRawRow): InstalledAppRow => ({
+  id: r.id,
+  kind: r.kind,
+  manifest: JSON.parse(r.manifest_json) as Manifest,
+  entryUrl: r.entry_url,
+  assetsUrl: r.assets_url,
+  manifestUrl: r.manifest_url ?? null,
+  installedAt: r.installed_at,
+  enabled: !!r.enabled,
+  builtinProtected: !!r.builtin_protected,
+});
+
 /** Read every row from installed_apps. Used by the App Store UI (M5)
  *  + by forSharedKey resolution. */
 export async function listInstalledApps(db: Db): Promise<InstalledAppRow[]> {
-  const rows = await db.query<{
-    id: string;
-    kind: AppKind;
-    manifest_json: string;
-    entry_url: string | null;
-    assets_url: string | null;
-    installed_at: number;
-    enabled: number;
-    builtin_protected: number;
-  }>(
-    'SELECT id, kind, manifest_json, entry_url, assets_url, installed_at, enabled, builtin_protected FROM installed_apps',
+  const rows = await db.query<InstalledAppRawRow>(
+    `SELECT ${SELECT_COLUMNS} FROM installed_apps`,
   );
-  return rows.map((r) => ({
-    id: r.id,
-    kind: r.kind,
-    manifest: JSON.parse(r.manifest_json) as Manifest,
-    entryUrl: r.entry_url,
-    assetsUrl: r.assets_url,
-    installedAt: r.installed_at,
-    enabled: !!r.enabled,
-    builtinProtected: !!r.builtin_protected,
-  }));
+  return rows.map(mapRow);
 }
 
 /** Read one installed_apps row by id. */
@@ -64,31 +83,79 @@ export async function getInstalledApp(
   db: Db,
   id: string,
 ): Promise<InstalledAppRow | null> {
-  const rows = await db.query<{
-    id: string;
-    kind: AppKind;
-    manifest_json: string;
-    entry_url: string | null;
-    assets_url: string | null;
-    installed_at: number;
-    enabled: number;
-    builtin_protected: number;
-  }>(
-    'SELECT id, kind, manifest_json, entry_url, assets_url, installed_at, enabled, builtin_protected FROM installed_apps WHERE id = ?',
+  const rows = await db.query<InstalledAppRawRow>(
+    `SELECT ${SELECT_COLUMNS} FROM installed_apps WHERE id = ?`,
     [id],
   );
   const r = rows[0];
-  if (!r) return null;
-  return {
-    id: r.id,
-    kind: r.kind,
-    manifest: JSON.parse(r.manifest_json) as Manifest,
-    entryUrl: r.entry_url,
-    assetsUrl: r.assets_url,
-    installedAt: r.installed_at,
-    enabled: !!r.enabled,
-    builtinProtected: !!r.builtin_protected,
-  };
+  return r ? mapRow(r) : null;
+}
+
+/**
+ * Insert a brand-new `installed_apps` row. Used by `installer.ts` when
+ * a user installs a third-party app via "Install from URL" in the App
+ * Store. Caller must reject duplicates upstream — this function fails
+ * if the id already exists (PRIMARY KEY violation surfaces from SQLite).
+ */
+export async function insertInstalledApp(
+  db: Db,
+  row: Omit<InstalledAppRow, 'manifest'> & { manifest: Manifest },
+): Promise<void> {
+  const args: SqlValue[] = [
+    row.id,
+    row.kind,
+    JSON.stringify(row.manifest),
+    row.entryUrl,
+    row.assetsUrl,
+    row.manifestUrl,
+    row.installedAt,
+    row.enabled ? 1 : 0,
+    row.builtinProtected ? 1 : 0,
+  ];
+  await db.run(
+    `INSERT INTO installed_apps
+       (id, kind, manifest_json, entry_url, assets_url, manifest_url, installed_at, enabled, builtin_protected)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    args,
+  );
+}
+
+/** Delete an installed_apps row by id. Idempotent — a no-op when the
+ *  row doesn't exist (the installer enforces presence + protection
+ *  before calling). */
+export async function deleteInstalledApp(db: Db, id: string): Promise<void> {
+  await db.run('DELETE FROM installed_apps WHERE id = ?', [id]);
+}
+
+/**
+ * Replace an existing row's manifest + URLs in place. Used by reinstall:
+ * the user keeps the same `id` but the manifest JSON / entry URL / assets
+ * URL / version may all change. installed_at is left untouched (the row
+ * is not re-counted as a fresh install).
+ */
+export async function updateInstalledApp(
+  db: Db,
+  id: string,
+  patch: {
+    manifest: Manifest;
+    entryUrl: string | null;
+    assetsUrl: string | null;
+    manifestUrl: string | null;
+  },
+): Promise<void> {
+  const args: SqlValue[] = [
+    JSON.stringify(patch.manifest),
+    patch.entryUrl,
+    patch.assetsUrl,
+    patch.manifestUrl,
+    id,
+  ];
+  await db.run(
+    `UPDATE installed_apps
+        SET manifest_json = ?, entry_url = ?, assets_url = ?, manifest_url = ?
+      WHERE id = ?`,
+    args,
+  );
 }
 
 /**
@@ -114,6 +181,10 @@ export async function seedInstalledApps(
       JSON.stringify(b.manifest),
       b.entryUrl,
       b.assetsUrl,
+      // Bundled apps don't have a remote manifest_url — they ship with
+      // the OS bundle. NULL here keeps the App Store's reinstall logic
+      // off this row.
+      null,
       now(),
       1,
       builtinProtected,
@@ -122,8 +193,8 @@ export async function seedInstalledApps(
     // assets on every boot so an OS update lands new metadata cleanly.
     await db.run(
       `INSERT INTO installed_apps
-         (id, kind, manifest_json, entry_url, assets_url, installed_at, enabled, builtin_protected)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+         (id, kind, manifest_json, entry_url, assets_url, manifest_url, installed_at, enabled, builtin_protected)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(id) DO UPDATE SET
          manifest_json = excluded.manifest_json,
          entry_url = excluded.entry_url,

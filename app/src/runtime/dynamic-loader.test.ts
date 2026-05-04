@@ -41,6 +41,7 @@ const fakeRow: InstalledAppRow = {
   manifest: fakeManifest,
   entryUrl: '@tytus/app-demo',
   assetsUrl: null,
+  manifestUrl: null,
   installedAt: 0,
   enabled: true,
   builtinProtected: true,

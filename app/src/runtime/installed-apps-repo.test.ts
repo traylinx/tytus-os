@@ -29,6 +29,7 @@ class MemoryInstalledAppsDb implements Db {
         manifest_json,
         entry_url,
         assets_url,
+        manifest_url,
         installed_at,
         enabled,
         builtin_protected,
@@ -40,6 +41,7 @@ class MemoryInstalledAppsDb implements Db {
         manifest_json,
         entry_url,
         assets_url,
+        manifest_url,
         installed_at,
         enabled,
         builtin_protected,
@@ -52,6 +54,23 @@ class MemoryInstalledAppsDb implements Db {
       } else {
         this.rows.push(row);
       }
+      return;
+    }
+    if (/DELETE\s+FROM\s+installed_apps/i.test(sql)) {
+      const id = String(bindings[0]);
+      this.rows = this.rows.filter((r) => r.id !== id);
+      return;
+    }
+    if (/UPDATE\s+installed_apps/i.test(sql)) {
+      const [manifest_json, entry_url, assets_url, manifest_url, id] = bindings;
+      const idx = this.rows.findIndex((r) => r.id === id);
+      if (idx >= 0) {
+        this.rows[idx].manifest_json = manifest_json;
+        this.rows[idx].entry_url = entry_url;
+        this.rows[idx].assets_url = assets_url;
+        this.rows[idx].manifest_url = manifest_url;
+      }
+      return;
     }
   }
 

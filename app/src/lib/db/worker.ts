@@ -24,7 +24,7 @@ import sqlite3InitModule, {
   type Database,
   type Sqlite3Static,
 } from '@sqlite.org/sqlite-wasm';
-import { SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V9, SCHEMA_V10, SCHEMA_V11, SCHEMA_V12, SCHEMA_VERSION } from './schema';
+import { SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V9, SCHEMA_V10, SCHEMA_V11, SCHEMA_V12, SCHEMA_V13, SCHEMA_VERSION } from './schema';
 
 declare const self: DedicatedWorkerGlobalScope;
 
@@ -101,9 +101,14 @@ const openDb = async (): Promise<{ persistent: boolean; libVersion: string }> =>
   // schema rather than user_version, so a stuck migration in a previous
   // run (HMR-driven worker restart, parallel init, etc.) self-heals on
   // the next boot. Add new V*+1 migrations by appending another call.
-  const ensureColumn = (column: string, ddl: string, label: string) => {
+  const ensureColumnOn = (
+    table: string,
+    column: string,
+    ddl: string,
+    label: string,
+  ) => {
     const cols = db!.exec({
-      sql: 'PRAGMA table_info(music_creator_tracks)',
+      sql: `PRAGMA table_info(${table})`,
       returnValue: 'resultRows',
       rowMode: 'object',
     }) as unknown as Array<{ name: string }>;
@@ -112,7 +117,7 @@ const openDb = async (): Promise<{ persistent: boolean; libVersion: string }> =>
       db!.exec(ddl);
     } catch (e) {
       const after = db!.exec({
-        sql: 'PRAGMA table_info(music_creator_tracks)',
+        sql: `PRAGMA table_info(${table})`,
         returnValue: 'resultRows',
         rowMode: 'object',
       }) as unknown as Array<{ name: string }>;
@@ -121,6 +126,12 @@ const openDb = async (): Promise<{ persistent: boolean; libVersion: string }> =>
       }
     }
   };
+
+  // Back-compat alias — the music_creator_tracks ALTERs grew up before
+  // we needed a generic column ensurer. Keep the old name as a thin
+  // shim so the migration list below reads identically to before V13.
+  const ensureColumn = (column: string, ddl: string, label: string) =>
+    ensureColumnOn('music_creator_tracks', column, ddl, label);
 
   ensureColumn('specs_json', SCHEMA_V5, 'SCHEMA_V5');
   ensureColumn('cover_data_url', SCHEMA_V6, 'SCHEMA_V6');
@@ -132,6 +143,11 @@ const openDb = async (): Promise<{ persistent: boolean; libVersion: string }> =>
   ensureColumn('thumbnail_url', "ALTER TABLE music_creator_tracks ADD COLUMN thumbnail_url TEXT NOT NULL DEFAULT '';", 'SCHEMA_V8_thumbnail_url');
   ensureColumn('artist', "ALTER TABLE music_creator_tracks ADD COLUMN artist TEXT NOT NULL DEFAULT '';", 'SCHEMA_V8_artist');
   ensureColumn('album', "ALTER TABLE music_creator_tracks ADD COLUMN album TEXT NOT NULL DEFAULT '';", 'SCHEMA_V8_album');
+
+  // V13: nullable manifest_url on installed_apps so the App Store can
+  // remember where it fetched a third-party app's tytus-app.json from
+  // and offer "Reinstall" without re-prompting the user for the URL.
+  ensureColumnOn('installed_apps', 'manifest_url', SCHEMA_V13, 'SCHEMA_V13');
 
   db.exec(`PRAGMA user_version = ${SCHEMA_VERSION}`);
 
