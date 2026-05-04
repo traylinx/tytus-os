@@ -1,5 +1,5 @@
 /**
- * One-shot cleanup: uninstall the JULI3TA alpha placeholder.
+ * One-shot cleanup: uninstall incomplete standalone JULI3TA rows.
  *
  * `tytus-app-juli3ta@v0.0.2-alpha.1` was briefly auto-installed by
  * commit b08b794 as part of the Featured-apps boot seed. The alpha
@@ -10,13 +10,9 @@
  *
  * Shipping both leaves the launcher with two icons that look like the
  * same product, plus a duplicate row in Frequently Used. This module
- * deletes the alpha row on boot — safe because the alpha never wrote
- * any meaningful data (drafts only, and the user never used them).
+ * deletes incomplete standalone rows on boot — safe because the standalone releases only wrote draft rows and the working product/data lives in legacy `musiccreator`.
  *
- * Idempotent. Once the install lands a non-alpha v0.1.0 of
- * `tytus-app-juli3ta`, this cleanup becomes a no-op (the version
- * check below short-circuits). At that point the alpha cleanup can
- * be retired.
+ * Idempotent. Remove this only after the real 9k LOC JULI3TA lift ships with verified data migration from legacy `musiccreator`.
  */
 
 import {
@@ -27,7 +23,7 @@ import { removeFromInstalledAppsCache } from './installed-apps-cache';
 import { notifyInstalledAppsChanged } from './installed-apps-events';
 import type { Db } from '@/lib/db/types';
 
-const ALPHA_VERSION_PREFIX = '0.0.';
+const INCOMPLETE_VERSION_PREFIXES = ['0.0.', '0.1.'];
 
 export interface JuliAlphaCleanupReport {
   removed: boolean;
@@ -41,15 +37,15 @@ export async function cleanupJuli3taAlphaIfPresent(
   const row = await getInstalledApp(db, 'juli3ta');
   if (!row) return { removed: false, reason: 'no juli3ta row' };
 
-  // Only touch alpha placeholders (0.0.x). A real v0.1+ install must
-  // never be deleted by this seed.
+  // Only touch incomplete standalone rows. A future real lift must ship
+  // as v0.2+ (or remove this guard in the same PR) after verified migration.
   const version = row.manifest.version ?? '';
-  if (!version.startsWith(ALPHA_VERSION_PREFIX)) {
-    return { removed: false, reason: `version ${version} is not alpha` };
+  if (!INCOMPLETE_VERSION_PREFIXES.some((prefix) => version.startsWith(prefix))) {
+    return { removed: false, reason: `version ${version} is not incomplete standalone` };
   }
 
   await deleteInstalledApp(db, 'juli3ta');
   removeFromInstalledAppsCache('juli3ta');
   notifyInstalledAppsChanged();
-  return { removed: true, reason: `removed alpha ${version}` };
+  return { removed: true, reason: `removed incomplete standalone ${version}` };
 }

@@ -120,15 +120,15 @@ describe('cleanupJuli3taAlphaIfPresent', () => {
     expect(listCachedInstalledApps().map((r) => r.id)).toEqual([]);
   });
 
-  it('preserves a non-alpha v0.1.x row (real release)', async () => {
+  it('removes the incomplete v0.1.x standalone row', async () => {
     const row = alphaRow('0.1.0');
     await insertInstalledApp(db, row);
     addToInstalledAppsCache(row);
     const report = await cleanupJuli3taAlphaIfPresent(db);
-    expect(report.removed).toBe(false);
-    expect(report.reason).toMatch(/0\.1\.0/);
-    expect((await listInstalledApps(db)).map((r) => r.id)).toEqual(['juli3ta']);
-    expect(listCachedInstalledApps().map((r) => r.id)).toEqual(['juli3ta']);
+    expect(report.removed).toBe(true);
+    expect(report.reason).toMatch(/incomplete standalone 0\.1\.0/);
+    expect((await listInstalledApps(db)).map((r) => r.id)).toEqual([]);
+    expect(listCachedInstalledApps().map((r) => r.id)).toEqual([]);
   });
 
   it('is a no-op when no juli3ta row exists', async () => {
@@ -148,3 +148,4 @@ describe('cleanupJuli3taAlphaIfPresent', () => {
     expect(second.reason).toBe('no juli3ta row');
   });
 });
+

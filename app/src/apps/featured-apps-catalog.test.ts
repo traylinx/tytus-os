@@ -159,12 +159,11 @@ describe('FEATURED_APPS hardcoded baseline', () => {
     }
   });
 
-  it('lists the 6 carved-out user apps including JULI3TA v0.1.0', () => {
+  it('lists the 5 carved-out user apps (standalone JULI3TA removed until real lift)', () => {
     const ids = FEATURED_APPS.map((a) => a.id).sort();
     expect(ids).toEqual([
       'api-tester',
       'code-editor',
-      'juli3ta',
       'markdown-preview',
       'photo-editor',
       'text-editor',
