@@ -1,23 +1,45 @@
 // ============================================================
 // API Tester — HTTP request builder similar to Postman
 // ============================================================
+//
+// Lifted from app/src/apps/ApiTester.tsx as part of
+// SPRINT-TYTUS-APP-SYSTEM-V1 Phase 5. The shell-internal hooks
+// (`useCurrentWindowArgs`, `useDaemonStateContext`,
+// `revealSecret`) and the `@/lib/repo/api*` modules are gone —
+// every persistence call now goes through the per-app
+// `host.storage.current()` AppDb handle, and pod state is read
+// from `host.daemon.state.included[0]`.
+//
+// Network: requests go through plain `fetch()`. The current
+// host-api `DaemonApi` only exposes a pod-targeted
+// `callPodEndpoint(podId, path, init)`; there is no general
+// pass-through proxy yet. AIL preset requests work because the
+// user includes the bearer + base URL pulled from the pod state,
+// not because the request itself is daemon-routed. CORS-bound
+// arbitrary URLs are still subject to browser policy. A
+// follow-up should add `daemon.network.proxyFetch(url, init)`
+// (see report).
+//
+// Pod-state: AIL collection is rendered when the daemon reports
+// at least one included pod. The user's pod key is read from
+// the `Pod.meta` payload — the legacy `revealSecret(... ,
+// 'user_gesture')` capability isn't part of host-api yet, so
+// apps simply receive the materialised string the shell decides
+// to expose. Until host-api ships a typed `PodCredentials` shape,
+// we read `meta.userKey` (string) defensively.
 
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import {
   Send, Plus, Trash2, Save, Star, Clock,
-  Copy, Globe, Sparkles, Terminal, Folder, FolderPlus,
+  Copy, Globe, Terminal, Folder, FolderPlus,
   ChevronRight, ChevronDown, Pencil, Check, X,
   PanelRight, PanelBottom, AlertTriangle,
 } from 'lucide-react';
-import { useCurrentWindowArgs } from '@/hooks/useCurrentWindow';
-import { useDaemonStateContext } from '@/hooks/useDaemonStateContext';
-import { revealSecret } from '@/lib/secrets';
+import type { HostClient, AppDb, Pod } from '@tytus/host-api';
 import {
   listHistory,
   addHistory,
   clearHistory as clearHistoryRepo,
-} from '@/lib/repo/apiHistory';
-import {
   listCollections,
   upsertCollection,
   deleteCollection as deleteCollectionRepo,
@@ -25,8 +47,12 @@ import {
   deleteItem as deleteItemRepo,
   renameCollection as renameCollectionRepo,
   renameItem as renameItemRepo,
-} from '@/lib/repo/apiCollections';
-import { importLegacyApiTesterIfNeeded } from '@/lib/repo/apiTesterMigration';
+} from './repo';
+
+interface Props {
+  host: HostClient;
+  db: AppDb;
+}
 
 type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'HEAD' | 'OPTIONS';
 
@@ -256,11 +282,8 @@ const AIL_ENDPOINTS: AilEndpoint[] = [
 // User-editable collections
 // ============================================================
 //
-// Backed by SQLite (lib/repo/apiCollections + apiHistory). Layout
-// preference still rides localStorage — it's a single boolean, not
-// worth a row. The legacy localStorage shapes for collections /
-// history are imported once at first mount via
-// `importLegacyApiTesterIfNeeded`.
+// Backed by the per-app SQLite handle (./repo). Layout preference still
+// rides localStorage — it's a single boolean, not worth a row.
 
 interface CollectionItem {
   id: string;
@@ -345,18 +368,50 @@ const persistSplit = (layout: Layout, frac: number): void => {
 
 const newId = () => Math.random().toString(36).slice(2) + Date.now().toString(36);
 
-export default function ApiTester() {
-  const args = useCurrentWindowArgs();
-  const daemon = useDaemonStateContext();
-  const ail = useMemo(() => {
-    const inc = daemon.state?.included[0];
-    if (!inc) return null;
-    return {
-      baseUrl: `${inc.endpoint}/v1`,
-      apiKey: revealSecret(inc.user_key, 'user_gesture'),
-      podId: inc.pod_id,
-    };
-  }, [daemon.state]);
+// Local shape for the optional window-args payload. The shared
+// `WindowArgsByApp` map does not yet include an `'api-tester'` entry —
+// keeping the shape app-local until the contract is bumped.
+interface ApiTesterArgs {
+  apiTester?: {
+    collection?: 'ail';
+  };
+}
+
+// Pull the AIL pod base URL + key out of the daemon state. The shell
+// is responsible for materialising any secret into a plain string at
+// host-api boundary; if nothing is there we just skip the AIL panel.
+interface AilGateway {
+  baseUrl: string;
+  apiKey: string;
+  podId: string;
+}
+const ailFromPod = (pod: Pod | undefined): AilGateway | null => {
+  if (!pod) return null;
+  if (!pod.publicUrl) return null;
+  const meta = pod.meta as Record<string, unknown> | undefined;
+  const userKey = meta && typeof meta.userKey === 'string' ? meta.userKey : '';
+  if (!userKey) return null;
+  return {
+    baseUrl: `${pod.publicUrl}/v1`,
+    apiKey: userKey,
+    podId: pod.id,
+  };
+};
+
+export function ApiTester({ host, db }: Props) {
+  const args = host.windows.current.args as ApiTesterArgs | undefined;
+
+  // Subscribe to daemon state. The daemon's `state` is a snapshot —
+  // we mirror it into local state so React re-renders when the shell
+  // pushes a new included[] (pod allocated/revoked).
+  const [daemonState, setDaemonState] = useState(host.daemon.state);
+  useEffect(() => {
+    return host.daemon.onStateChange(setDaemonState);
+  }, [host.daemon]);
+  const ail = useMemo(
+    () => ailFromPod(daemonState.included[0]),
+    [daemonState.included],
+  );
 
   const [method, setMethod] = useState<HttpMethod>('GET');
   const [url, setUrl] = useState('');
@@ -401,9 +456,9 @@ export default function ApiTester() {
   const [copied, setCopied] = useState(false);
 
   // Editable user collections + sidebar visibility + layout. Collections
-  // and history are SQLite-backed via lib/repo/*. Layout is a single
-  // boolean preference and stays on localStorage. Sidebar defaults open
-  // when collections exist OR an AIL gateway is available.
+  // and history are SQLite-backed via ./repo. Layout is a single boolean
+  // preference and stays on localStorage. Sidebar defaults open when
+  // collections exist OR an AIL gateway is available.
   const [collections, setCollections] = useState<Collection[]>([]);
   const [layout, setLayout] = useState<Layout>(loadLayout);
   const [splitFraction, setSplitFraction] = useState<number>(() => loadLayout() === 'right' ? loadSplit('right') : loadSplit('bottom'));
@@ -432,12 +487,16 @@ export default function ApiTester() {
 
   useEffect(() => persistLayout(layout), [layout]);
 
-  // First-mount: import any pre-SQLite localStorage state, then load
-  // collections + history from SQLite. Idempotent — the migration
-  // marker means the import runs at most once per browser.
+  // First-mount: load collections + history from the per-app DB. The
+  // legacy localStorage migration is intentionally NOT carried over
+  // here — that import only runs in the in-tree path; new app
+  // installs start clean.
   const refreshFromDb = useCallback(async () => {
     try {
-      const [rawCols, rawHist] = await Promise.all([listCollections(), listHistory()]);
+      const [rawCols, rawHist] = await Promise.all([
+        listCollections(db),
+        listHistory(db),
+      ]);
       setCollections(
         rawCols.map((c) => ({
           id: c.id,
@@ -465,12 +524,11 @@ export default function ApiTester() {
     } catch (err) {
       console.warn('[ApiTester] failed to read collections/history from db', err);
     }
-  }, []);
+  }, [db]);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      await importLegacyApiTesterIfNeeded();
       if (cancelled) return;
       await refreshFromDb();
     })();
@@ -547,11 +605,11 @@ export default function ApiTester() {
       return { body: null, contentType: null };
     }
     if (bodyMode === 'form-urlencoded') {
-      const params = new URLSearchParams();
+      const sp = new URLSearchParams();
       for (const f of formFields) {
-        if (f.enabled && f.key) params.append(f.key, f.value);
+        if (f.enabled && f.key) sp.append(f.key, f.value);
       }
-      return { body: params.toString(), contentType: CONTENT_TYPE_FOR['form-urlencoded'] ?? null };
+      return { body: sp.toString(), contentType: CONTENT_TYPE_FOR['form-urlencoded'] ?? null };
     }
     if (bodyMode === 'form-data') {
       const fd = new FormData();
@@ -612,6 +670,11 @@ export default function ApiTester() {
         opts.body = built.body;
       }
 
+      // FETCH NOTE: host-api currently exposes only
+      // `host.daemon.callPodEndpoint(podId, path, init)` for
+      // pod-routed traffic — there is no general-purpose proxy
+      // method. Until one lands, we use the browser's `fetch`
+      // directly. CORS rules apply.
       const res = await fetch(finalUrl, opts);
       const resBody = await res.text();
       const time = Math.round(performance.now() - startTime);
@@ -638,7 +701,7 @@ export default function ApiTester() {
       // Optimistic UI + persist to SQLite. The repo trims to HISTORY_CAP
       // server-side, so the in-memory cap is just for the UI.
       setHistory((prev) => [newRow, ...prev].slice(0, HISTORY_CAP));
-      void addHistory({
+      void addHistory(db, {
         id: newRow.id,
         method: newRow.method,
         url: newRow.url,
@@ -659,7 +722,7 @@ export default function ApiTester() {
       setLoading(false);
       abortRef.current = null;
     }
-  }, [buildUrl, method, headers, body, auth, buildRequestBody]);
+  }, [buildUrl, method, headers, auth, buildRequestBody, db]);
 
   // Cmd/Ctrl+Enter sends the request from anywhere in the app shell
   // (Bruno, Postman, Insomnia all bind this). Shortcuts that depend on
@@ -730,7 +793,7 @@ export default function ApiTester() {
 
       if (opts?.newCollectionName) {
         const newColId = newId();
-        await upsertCollection({
+        await upsertCollection(db, {
           id: newColId,
           name: opts.newCollectionName.trim() || 'Untitled',
           pos: collections.length,
@@ -742,7 +805,7 @@ export default function ApiTester() {
       const target = collections.find((c) => c.id === targetId);
       const pos = target ? target.items.length : 0;
 
-      await upsertItem({
+      await upsertItem(db, {
         id: itemId,
         collection_id: targetId,
         name: itemName,
@@ -755,7 +818,7 @@ export default function ApiTester() {
       await refreshFromDb();
       setSavingTo(null);
     },
-    [method, url, headers, body, collections, refreshFromDb],
+    [method, url, headers, body, collections, refreshFromDb, db],
   );
 
   const loadCollectionItem = useCallback((item: CollectionItem) => {
@@ -771,21 +834,21 @@ export default function ApiTester() {
 
   const createCollection = useCallback(async () => {
     const id = newId();
-    await upsertCollection({ id, name: 'New Collection', pos: collections.length });
+    await upsertCollection(db, { id, name: 'New Collection', pos: collections.length });
     await refreshFromDb();
     setExpanded((e) => ({ ...e, [id]: true }));
     setRenaming({ kind: 'collection', collectionId: id, draft: 'New Collection' });
-  }, [collections.length, refreshFromDb]);
+  }, [collections.length, refreshFromDb, db]);
 
   const deleteCollection = useCallback(async (id: string) => {
-    await deleteCollectionRepo(id);
+    await deleteCollectionRepo(db, id);
     await refreshFromDb();
-  }, [refreshFromDb]);
+  }, [refreshFromDb, db]);
 
   const deleteItem = useCallback(async (_collectionId: string, itemId: string) => {
-    await deleteItemRepo(itemId);
+    await deleteItemRepo(db, itemId);
     await refreshFromDb();
-  }, [refreshFromDb]);
+  }, [refreshFromDb, db]);
 
   const commitRename = useCallback(async () => {
     if (!renaming) return;
@@ -795,9 +858,9 @@ export default function ApiTester() {
       return;
     }
     if (renaming.kind === 'collection') {
-      await renameCollectionRepo(renaming.collectionId, trimmed);
+      await renameCollectionRepo(db, renaming.collectionId, trimmed);
     } else if (renaming.itemId) {
-      await renameItemRepo(renaming.itemId, trimmed);
+      await renameItemRepo(db, renaming.itemId, trimmed);
     }
     await refreshFromDb();
     // Also patch local state immediately so the UI doesn't flash.
@@ -814,7 +877,7 @@ export default function ApiTester() {
       }),
     );
     setRenaming(null);
-  }, [renaming, refreshFromDb]);
+  }, [renaming, refreshFromDb, db]);
 
   // Load an AIL preset into the form. Wires the bearer token + JSON
   // body + matching content-type so the user can hit Send immediately.
@@ -990,7 +1053,7 @@ export default function ApiTester() {
                   <button
                     onClick={() => {
                       setHistory([]);
-                      void clearHistoryRepo();
+                      void clearHistoryRepo(db);
                     }}
                     className="p-1 rounded-sm hover:bg-[var(--bg-hover)]"
                     title="Clear history"
@@ -1092,7 +1155,7 @@ export default function ApiTester() {
                   onStartRename={() => setRenaming({ kind: 'collection', collectionId: c.id, draft: c.name })}
                   onDelete={() => {
                     if (window.confirm(`Delete collection "${c.name}" and its ${c.items.length} item${c.items.length === 1 ? '' : 's'}?`)) {
-                      deleteCollection(c.id);
+                      void deleteCollection(c.id);
                     }
                   }}
                 >
@@ -1111,7 +1174,7 @@ export default function ApiTester() {
                       onRenameCommit={commitRename}
                       onRenameCancel={() => setRenaming(null)}
                       onStartRename={() => setRenaming({ kind: 'item', collectionId: c.id, itemId: item.id, draft: item.name })}
-                      onDelete={() => deleteItem(c.id, item.id)}
+                      onDelete={() => void deleteItem(c.id, item.id)}
                       onClick={() => loadCollectionItem(item)}
                     />
                   ))}
