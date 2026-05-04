@@ -1005,3 +1005,23 @@ export const useNotifications = () => {
     clearNotifications: useCallback(() => dispatch({ type: 'CLEAR_NOTIFICATIONS' }), [dispatch]),
   };
 };
+
+/**
+ * Provider-tolerant variant — returns a no-op `addNotification` when
+ * the consumer isn't wrapped in `OSProvider` (e.g. in unit tests that
+ * render a single component without a full OSStore). Production code
+ * paths always have a provider, so the no-op branch is test-only.
+ */
+export const useOptionalNotifications = () => {
+  const ctx = useContext(OSContext);
+  const dispatch = ctx?.dispatch;
+  return {
+    addNotification: useCallback(
+      (n: Omit<Notification, 'id' | 'timestamp'>) => {
+        if (!dispatch) return;
+        dispatch({ type: 'ADD_NOTIFICATION', notification: n });
+      },
+      [dispatch],
+    ),
+  };
+};

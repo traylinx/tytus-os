@@ -47,7 +47,7 @@ export const FEATURED_APPS: FeaturedApp[] = [
     description: 'Plain-text editor with multi-file tabs, syntax highlighting, search/replace, and word-wrap.',
     icon: 'FileText',
     category: 'Productivity',
-    manifestUrl: 'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-text-editor@v0.1.0/tytus-app.json',
+    manifestUrl: 'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-text-editor@v0.1.1/tytus-app.json',
   },
   {
     id: 'code-editor',
@@ -87,7 +87,7 @@ export const FEATURED_APPS: FeaturedApp[] = [
  *  catalog repo is independently versioned so featured-app additions
  *  don't require a Tytus OS rebuild. */
 export const FEATURED_CATALOG_URL =
-  'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-catalog@v0.2.0/featured.json';
+  'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-catalog@v0.3.0/featured.json';
 
 interface RemoteCatalogShape {
   version?: number;

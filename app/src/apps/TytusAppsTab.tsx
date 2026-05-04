@@ -37,7 +37,40 @@ import {
   reinstallApp,
   uninstallApp,
 } from '@/runtime/installer';
+import { useOptionalNotifications } from '@/hooks/useOSStore';
 import { FEATURED_APPS, type FeaturedApp, loadFeaturedApps } from './featured-apps-catalog';
+
+/** Map an InstallerError code to a user-facing toast message. */
+function installerErrorToast(action: 'install' | 'uninstall' | 'reinstall', err: unknown): {
+  title: string;
+  message: string;
+} {
+  const verb = action === 'install' ? 'install' : action;
+  if (err instanceof InstallerError) {
+    switch (err.code) {
+      case 'invalid_manifest':
+        return { title: `Couldn't ${verb} — invalid manifest`, message: "The app's tytus-app.json failed validation. The publisher needs to fix the manifest." };
+      case 'duplicate':
+        return { title: 'Already installed', message: 'An app with this id is already in your registry. Uninstall it first or use Reinstall.' };
+      case 'not_found':
+        return { title: `Couldn't ${verb} — not found`, message: 'No installed app with that id. It may have already been uninstalled.' };
+      case 'protected':
+        return { title: 'System apps are protected', message: 'This is a built-in app and cannot be uninstalled.' };
+      case 'fetch_failed':
+        return { title: `Couldn't ${verb} — network error`, message: 'The manifest URL is unreachable. Check your connection and retry.' };
+      case 'parse_failed':
+        return { title: `Couldn't ${verb} — bad response`, message: 'The manifest URL returned a non-JSON response.' };
+      case 'bad_transport':
+        return { title: `Couldn't ${verb} — bad manifest`, message: 'Installable apps must declare entry.url (https), not entry.module.' };
+      case 'cannot_reinstall':
+        return { title: 'Reinstall not supported', message: 'This app was bundled with the OS — there\'s no source URL to refetch from.' };
+    }
+  }
+  return {
+    title: `Couldn't ${verb}`,
+    message: err instanceof Error ? err.message : 'Unexpected error. Check the console for details.',
+  };
+}
 
 interface TytusAppsTabProps {
   /** Optional override — tests pass an in-memory db so the component
@@ -79,8 +112,26 @@ export const TytusAppsTab: FC<TytusAppsTabProps> = ({
   /** Per-row busy ids (uninstalling / reinstalling) — disables the
    *  buttons and shows a spinner without re-rendering the whole list. */
   const [busyId, setBusyId] = useState<string | null>(null);
+  const { addNotification } = useOptionalNotifications();
 
   const refresh = useCallback(() => setReloadKey((n) => n + 1), []);
+
+  const surfaceInstallerError = useCallback(
+    (action: 'install' | 'uninstall' | 'reinstall', appId: string, err: unknown) => {
+      const { title, message } = installerErrorToast(action, err);
+      addNotification({
+        appId: 'app-store',
+        appName: 'App Store',
+        appIcon: 'Store',
+        title,
+        message,
+        isRead: false,
+      });
+      // Keep the console diagnostic for power-user debugging.
+      console.error(`[AppStore] ${action} failed`, { appId, err });
+    },
+    [addNotification],
+  );
 
   // Default db-backed actions. When tests pass overrides, they short-
   // circuit these (so the worker is never touched in unit tests).
@@ -159,10 +210,7 @@ export const TytusAppsTab: FC<TytusAppsTabProps> = ({
       await doUninstall(row.id);
       refresh();
     } catch (err) {
-      // Error UX deferred to a follow-up: show the message inline near
-      // the row, or surface via a toast. v1 logs + leaves the row in
-      // place so the user can retry.
-      console.error('[AppStore] uninstall failed', err);
+      surfaceInstallerError('uninstall', row.id, err);
     } finally {
       setBusyId(null);
     }
@@ -199,7 +247,7 @@ export const TytusAppsTab: FC<TytusAppsTabProps> = ({
       await doInstall(featured.manifestUrl);
       refresh();
     } catch (err) {
-      console.error('[AppStore] featured install failed', { id: featured.id, err });
+      surfaceInstallerError('install', featured.id, err);
     } finally {
       setBusyId(null);
     }
@@ -211,7 +259,7 @@ export const TytusAppsTab: FC<TytusAppsTabProps> = ({
       await doReinstall(row.id);
       refresh();
     } catch (err) {
-      console.error('[AppStore] reinstall failed', err);
+      surfaceInstallerError('reinstall', row.id, err);
     } finally {
       setBusyId(null);
     }
