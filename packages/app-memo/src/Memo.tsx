@@ -46,6 +46,7 @@ import {
 } from './repo/memoRepo';
 import { slugifyTarget } from './repo/linkResolver';
 import type { BrainBridge } from './lib/brainBridge';
+import { importMarkdownMemos, mirrorMemoToMarkdown } from './lib/markdownMirror';
 
 // `Sparkles` is referenced here to keep the icon set imported even
 // when the Brain-mirror UI doesn't render the sparkle (e.g. when
@@ -134,6 +135,37 @@ export function Memo({ db, host, brain = null }: Props) {
   useEffect(() => {
     void refreshList();
   }, [refreshList]);
+
+  // ---- OS-visible Markdown mirror import ----
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const imported = await importMarkdownMemos(db, host);
+        if (!cancelled && imported > 0) await refreshList();
+      } catch {
+        // host.fs can be unavailable in tests/browser-only fallback. Memo's
+        // SQLite surface still works; mirror retries on next boot/save.
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [db, host, refreshList]);
+
+  const mirrorToMarkdown = useCallback(
+    async (row: MemoRow) => {
+      try {
+        await mirrorMemoToMarkdown(host, row);
+      } catch {
+        host.notifications.notify({
+          title: 'Markdown mirror unavailable',
+          body: 'Memo saved in SQLite; real Markdown file will retry later.',
+          level: 'warning',
+          unread: false,
+        });
+      }
+    },
+    [host],
+  );
 
   // ---- load active memo + its backlinks when selection changes ----
   useEffect(() => {
@@ -248,8 +280,11 @@ export function Memo({ db, host, brain = null }: Props) {
     await refreshList();
     const fresh = await getMemo(db, active.id);
     setActive(fresh);
-    if (fresh) await mirrorToBrain(fresh);
-  }, [active, draftTitle, db, host, refreshList, mirrorToBrain]);
+    if (fresh) {
+      await mirrorToMarkdown(fresh);
+      await mirrorToBrain(fresh);
+    }
+  }, [active, draftTitle, db, host, refreshList, mirrorToBrain, mirrorToMarkdown]);
 
   const saveBody = useCallback(async () => {
     if (!active) return;
@@ -258,15 +293,20 @@ export function Memo({ db, host, brain = null }: Props) {
     const fresh = await getMemo(db, active.id);
     setActive(fresh);
     setBacklinks(fresh ? await listBacklinks(db, fresh.id) : []);
-    if (fresh) await mirrorToBrain(fresh);
-  }, [active, draftBody, db, mirrorToBrain]);
+    if (fresh) {
+      await mirrorToMarkdown(fresh);
+      await mirrorToBrain(fresh);
+    }
+  }, [active, draftBody, db, mirrorToBrain, mirrorToMarkdown]);
 
   const toggleMirrorToBrain = useCallback(async () => {
     if (!active) return;
     const next = !active.mirrorToBrain;
     await updateMemo(db, active.id, { mirrorToBrain: next });
-    setActive({ ...active, mirrorToBrain: next });
-  }, [active, db]);
+    const updated = { ...active, mirrorToBrain: next, updatedAt: Date.now() };
+    setActive(updated);
+    await mirrorToMarkdown(updated);
+  }, [active, db, mirrorToMarkdown]);
 
   // ---- new memo ----
   const newMemo = useCallback(async () => {
@@ -280,9 +320,10 @@ export function Memo({ db, host, brain = null }: Props) {
     }
     const title = n === 1 ? baseTitle : `${baseTitle} ${n}`;
     const created = await createMemo(db, { slug, title });
+    await mirrorToMarkdown(created);
     await refreshList();
     setSelectedId(created.id);
-  }, [memos, db, refreshList]);
+  }, [memos, db, refreshList, mirrorToMarkdown]);
 
   const removeActive = useCallback(async () => {
     if (!active) return;

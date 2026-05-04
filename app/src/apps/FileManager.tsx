@@ -693,12 +693,12 @@ const FileBrowser: FC<{ agents: Agent[]; client: DaemonClient }> = ({
   const deleteEntry = async (entry: FileListEntry) => {
     if (!activeSource || activeSource.readonly) return;
     const ok = window.confirm(
-      `Delete ${entry.kind === "dir" ? "folder" : "file"} "${entry.name}"?\n\nFolders must be empty. This cannot be undone.`,
+      `Move ${entry.kind === "dir" ? "folder" : "file"} "${entry.name}" to Tytus Trash?`,
     );
     if (!ok) return;
     setMutationBusy(true);
     setErr(null);
-    const r = await client.postFilesDelete(mutationPayload(entry.path));
+    const r = await client.postFilesTrash(mutationPayload(entry.path));
     setMutationBusy(false);
     if (!r.ok) {
       setErr(r.error.message);

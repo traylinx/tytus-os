@@ -32,6 +32,7 @@ import type {
   DaemonState,
   EventsApi,
   FsApi,
+  FsChangeEvent,
   HostClient,
   I18nApi,
   Juli3taFileLibraryResponse,
@@ -64,6 +65,7 @@ import {
 } from '@tytus/host-api';
 
 import type { EntryUrls } from './loader';
+import { createDaemonFs } from './host-fs-daemon';
 import { createLocalStorageFs } from './host-fs-localstorage';
 import { createAppDb } from './storage-impl';
 import {
@@ -400,23 +402,21 @@ function makeNotificationsApi(boundAppId: string): NotificationsApi {
   };
 }
 
-/** Build the fs namespace. M1 PR5: localStorage-backed minimal real
- *  implementation (created in host-fs-localstorage.ts) so Notes-style
- *  proofs work end-to-end. M3 swaps in the FileRef-backed implementation
- *  wired to the existing useFileSystem context. */
+/** Build the fs namespace. Real daemon-backed files are preferred so
+ *  standalone apps write into OS-visible folders. localStorage remains a
+ *  fallback for browser-only tests/offline demos where the daemon is absent. */
 function makeFsApi(): FsApi {
-  return createLocalStorageFs({
-    onChange: (event) => {
-      // Bridge fs change events into the shell event bus so other apps
-      // listening on `vfs.changed` see them.
-      getShellEventBus().emit('vfs.changed', {
-        fileNodeId: event.fileNodeId,
-        parentId: event.parentId,
-        kind: event.kind,
-      });
-    },
-  });
+  const emitFsChange = (event: FsChangeEvent) => {
+    getShellEventBus().emit('vfs.changed', {
+      fileNodeId: event.fileNodeId,
+      parentId: event.parentId,
+      kind: event.kind,
+    });
+  };
+  const fallback = createLocalStorageFs({ onChange: emitFsChange });
+  return createDaemonFs({ fallback, onChange: emitFsChange });
 }
+
 
 /** Build the daemon namespace. Reads live state through the
  *  shell-injected DaemonStateProvider so the React side owns the polling

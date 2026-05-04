@@ -1219,6 +1219,22 @@ describe("daemon client — POSTs", () => {
     expect(calls[0]?.url).toBe("/api/files/delete");
   });
 
+  it("postFilesTrash targets /api/files/trash", async () => {
+    const { fetch, calls } = makeFakeFetch([
+      {
+        method: "POST",
+        path: "/api/files/trash",
+        body: { ok: true },
+      },
+    ]);
+    const r = await createDaemonClient({ fetch }).postFilesTrash({
+      source: "user-documents",
+      path: "Tytus/Memo/note.md",
+    });
+    expect(r.ok).toBe(true);
+    expect(calls[0]?.url).toBe("/api/files/trash");
+  });
+
   it("postFilesUpload sends browser-native upload payload", async () => {
     let observed: unknown = undefined;
     const { fetch } = makeFakeFetch([

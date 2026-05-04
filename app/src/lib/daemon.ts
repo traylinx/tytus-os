@@ -660,6 +660,11 @@ export interface DaemonClient {
     signal?: AbortSignal,
     idempotencyKey?: string,
   ): Promise<DaemonResult<null>>;
+  postFilesTrash(
+    params: FileMutationSource,
+    signal?: AbortSignal,
+    idempotencyKey?: string,
+  ): Promise<DaemonResult<null>>;
   postFilesCopy(
     params: FileCopyMoveBody,
     signal?: AbortSignal,
@@ -1259,6 +1264,14 @@ export const createDaemonClient = (
       runRequest(
         deps,
         "/api/files/delete",
+        { method: "POST", body: params, signal, idempotencyKey },
+        noBody,
+      ),
+
+    postFilesTrash: (params, signal, idempotencyKey) =>
+      runRequest(
+        deps,
+        "/api/files/trash",
         { method: "POST", body: params, signal, idempotencyKey },
         noBody,
       ),
