@@ -31,12 +31,13 @@ describe('resolveCanonicalAppId', () => {
     expect(resolveCanonicalAppId('texteditor')).toBe('text-editor');
     expect(resolveCanonicalAppId('codeeditor')).toBe('code-editor');
     expect(resolveCanonicalAppId('apitester')).toBe('api-tester');
+    expect(resolveCanonicalAppId('musiccreator')).toBe('juli3ta');
   });
 
   it('returns the input verbatim when no alias exists', () => {
     expect(resolveCanonicalAppId('memo')).toBe('memo');
     expect(resolveCanonicalAppId('sheet')).toBe('sheet');
-    expect(resolveCanonicalAppId('musiccreator')).toBe('musiccreator');
+    expect(resolveCanonicalAppId('juli3ta')).toBe('juli3ta');
     expect(resolveCanonicalAppId('totally-unknown')).toBe('totally-unknown');
   });
 
@@ -72,6 +73,16 @@ const legacyDef: AppDefinition = {
   minSize: { width: 480, height: 360 },
 };
 
+const legacyJulietaDef: AppDefinition = {
+  id: 'musiccreator',
+  name: 'JULI3TA',
+  icon: 'juli3ta:mark',
+  category: 'Media',
+  description: 'Where songs find their soul.',
+  defaultSize: { width: 880, height: 640 },
+  minSize: { width: 720, height: 520 },
+};
+
 describe('unifyAppDefinition', () => {
   beforeEach(() => __clearInstalledAppsCacheForTests());
   afterEach(() => __clearInstalledAppsCacheForTests());
@@ -101,5 +112,24 @@ describe('unifyAppDefinition', () => {
     expect(unified.id).toBe('markdown-preview');
     expect(unified.icon).toBe('Eye');
     expect(unified.name).toBe('Markdown Preview');
+  });
+
+
+  it('routes legacy JULI3TA launcher entry to the verified standalone when installed', () => {
+    addToInstalledAppsCache({
+      id: 'juli3ta',
+      kind: 'installed',
+      manifest: baseManifest('juli3ta', 'JULI3TA', 'juli3ta:mark'),
+      entryUrl: 'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-juli3ta@full-extract-0.2.1-dev/dist/index.js',
+      assetsUrl: null,
+      manifestUrl: 'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-juli3ta@full-extract-0.2.1-dev/tytus-app.json',
+      installedAt: 0,
+      enabled: true,
+      builtinProtected: false,
+    });
+    const unified = unifyAppDefinition(legacyJulietaDef);
+    expect(unified.id).toBe('juli3ta');
+    expect(unified.name).toBe('JULI3TA');
+    expect(unified.icon).toBe('juli3ta:mark');
   });
 });

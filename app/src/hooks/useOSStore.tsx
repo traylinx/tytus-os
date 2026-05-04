@@ -254,16 +254,33 @@ const defaultDesktopIcons: DesktopIcon[] = [
   { id: 'desk-help', name: 'Help', icon: 'LifeBuoy', appId: 'help', position: { x: 96, y: 466 }, isSelected: false },
 ];
 
+const createDockItem = (appId: string, overrides: Partial<DockItem> = {}): DockItem => ({
+  appId,
+  isPinned: false,
+  isOpen: false,
+  isFocused: false,
+  bounce: false,
+  ...overrides,
+});
+
 const createInitialDockItems = (): DockItem[] => {
   const pinned = getDefaultDockApps();
-  return APP_REGISTRY.map((app) => ({
-    appId: app.id,
+  return APP_REGISTRY.map((app) => createDockItem(app.id, {
     isPinned: pinned.includes(app.id),
-    isOpen: false,
-    isFocused: false,
-    bounce: false,
   }));
 };
+
+const ensureDockItem = (items: DockItem[], appId: string): DockItem[] => (
+  items.some((d) => d.appId === appId) ? items : [...items, createDockItem(appId)]
+);
+
+const markDockOpened = (items: DockItem[], appId: string): DockItem[] => (
+  ensureDockItem(items, appId).map((d) =>
+    d.appId === appId
+      ? { ...d, isOpen: true, isFocused: true, bounce: true }
+      : { ...d, isFocused: false }
+  )
+);
 
 const loadDesktopIcons = (): DesktopIcon[] => {
   try {
@@ -296,6 +313,9 @@ const buildInitialState = (): OSState => {
     }));
     nextZIndex = startingZ + restoredWindows.length;
     const openAppIds = new Set(restoredWindows.map((w) => w.appId));
+    for (const appId of openAppIds) {
+      dockItems = ensureDockItem(dockItems, appId);
+    }
     dockItems = dockItems.map((d) =>
       openAppIds.has(d.appId) ? { ...d, isOpen: true } : d
     );
@@ -379,9 +399,7 @@ function osReducer(state: OSState, action: OSAction): OSState {
     case 'OPEN_WINDOW': {
       const win = createWindow(state, action.appId, action.title, action.args);
       const newWindows = state.windows.map((w) => ({ ...w, isFocused: false }));
-      const updatedDock = state.dockItems.map((d) =>
-        d.appId === action.appId ? { ...d, isOpen: true, isFocused: true, bounce: true } : { ...d, isFocused: false }
-      );
+      const updatedDock = markDockOpened(state.dockItems, action.appId);
       return {
         ...state,
         windows: [...newWindows, win],
@@ -399,9 +417,7 @@ function osReducer(state: OSState, action: OSAction): OSState {
       if (!existing) {
         const win = createWindow(state, action.appId, action.title, action.args);
         const newWindows = state.windows.map((w) => ({ ...w, isFocused: false }));
-        const updatedDock = state.dockItems.map((d) =>
-          d.appId === action.appId ? { ...d, isOpen: true, isFocused: true, bounce: true } : { ...d, isFocused: false }
-        );
+        const updatedDock = markDockOpened(state.dockItems, action.appId);
         return {
           ...state,
           windows: [...newWindows, win],
@@ -432,9 +448,7 @@ function osReducer(state: OSState, action: OSAction): OSState {
         ),
         activeWindowId: existing.id,
         nextZIndex: nextZ,
-        dockItems: state.dockItems.map((d) =>
-          d.appId === action.appId ? { ...d, isOpen: true, isFocused: true, bounce: true } : { ...d, isFocused: false }
-        ),
+        dockItems: markDockOpened(state.dockItems, action.appId),
       };
     }
 
@@ -810,7 +824,7 @@ function osReducer(state: OSState, action: OSAction): OSState {
     case 'PIN_DOCK_ITEM': {
       return {
         ...state,
-        dockItems: state.dockItems.map((d) =>
+        dockItems: ensureDockItem(state.dockItems, action.appId).map((d) =>
           d.appId === action.appId ? { ...d, isPinned: true } : d
         ),
       };

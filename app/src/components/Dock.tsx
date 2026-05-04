@@ -5,6 +5,7 @@
 import { useCallback, memo, useEffect, useMemo, useState } from 'react';
 import { useOS } from '@/hooks/useOSStore';
 import { getAppById } from '@/apps/registry';
+import { unifyAppDefinition } from '@/apps/legacy-app-aliases';
 import { LayoutGrid, Trash2 } from 'lucide-react';
 import * as Icons from 'lucide-react';
 import type { LucideProps } from 'lucide-react';
@@ -200,7 +201,8 @@ const Dock = memo(function Dock() {
     const item = dockItems.find((d) => d.appId === appId);
     if (!item && !isTrash) return null;
 
-    const app = getAppById(appId);
+    const rawApp = getAppById(appId);
+    const app = rawApp ? unifyAppDefinition(rawApp) : undefined;
     const isBouncing = bouncingItems.has(appId);
     const isHovered = hoveredApp === appId;
     const isOpen = item?.isOpen || false;

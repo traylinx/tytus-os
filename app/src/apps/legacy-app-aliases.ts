@@ -28,12 +28,14 @@ export const LEGACY_APP_ID_ALIASES: Record<string, string> = {
   texteditor: 'text-editor',
   codeeditor: 'code-editor',
   apitester: 'api-tester',
-  // Pending Phase 5 lifts (re-enable per app once code is moved):
-  //   musiccreator → music-creator   (today the legacy in-tree app is
-  //                                    the working "JULI3TA" — keeping
-  //                                    the alias commented out lets it
-  //                                    stay routed via the static
-  //                                    AppRouter switch)
+  // JULI3TA transition: when the verified standalone app is installed
+  // under id `juli3ta`, the legacy launcher id (`musiccreator`) should
+  // surface/open that independent app. If the standalone row is absent,
+  // `unifyAppDefinition` returns the legacy definition and AppRouter's
+  // static `musiccreator` switch remains the fallback. Do NOT point this
+  // at `music-creator` — that bundled package is not Sebastian's full
+  // JULI3TA product.
+  musiccreator: 'juli3ta',
 };
 
 /**

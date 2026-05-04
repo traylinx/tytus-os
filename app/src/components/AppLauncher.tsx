@@ -181,7 +181,8 @@ const AppLauncher = memo(function AppLauncher() {
     : dockItems
         .filter((d) => d.isPinned)
         .map((d) => getAppById(d.appId))
-        .filter(Boolean) as AppDefinition[];
+        .filter(Boolean)
+        .map((app) => unifyAppDefinition(app as AppDefinition)) as AppDefinition[];
 
   if (!appLauncherOpen) return null;
 

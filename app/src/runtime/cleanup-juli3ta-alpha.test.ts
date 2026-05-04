@@ -131,6 +131,18 @@ describe('cleanupJuli3taAlphaIfPresent', () => {
     expect(listCachedInstalledApps().map((r) => r.id)).toEqual([]);
   });
 
+
+  it('keeps the verified v0.2+ standalone extraction row', async () => {
+    const row = alphaRow('0.2.1-dev');
+    await insertInstalledApp(db, row);
+    addToInstalledAppsCache(row);
+    const report = await cleanupJuli3taAlphaIfPresent(db);
+    expect(report.removed).toBe(false);
+    expect(report.reason).toBe('version 0.2.1-dev is not incomplete standalone');
+    expect((await listInstalledApps(db)).map((r) => r.id)).toEqual(['juli3ta']);
+    expect(listCachedInstalledApps().map((r) => r.id)).toEqual(['juli3ta']);
+  });
+
   it('is a no-op when no juli3ta row exists', async () => {
     const report = await cleanupJuli3taAlphaIfPresent(db);
     expect(report.removed).toBe(false);

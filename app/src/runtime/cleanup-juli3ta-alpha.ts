@@ -1,18 +1,20 @@
 /**
  * One-shot cleanup: uninstall incomplete standalone JULI3TA rows.
  *
- * `tytus-app-juli3ta@v0.0.2-alpha.1` was briefly auto-installed by
- * commit b08b794 as part of the Featured-apps boot seed. The alpha
- * version is a placeholder UI (purple landing + "MY DRAFTS" panel +
- * "Open Music Creator" button); it is NOT the real product. The real
- * working app is the legacy in-tree Music Creator (`musiccreator`
- * registry id with launcher label "JULI3TA").
+ * `tytus-app-juli3ta@v0.0.2-alpha.1` and `v0.1.x` were briefly
+ * auto-installed by early Featured-apps experiments. Those builds were
+ * placeholder UIs; they are NOT Sebastian's full JULI3TA product. The
+ * verified standalone extraction starts at v0.2.x and must survive this
+ * sweep.
  *
  * Shipping both leaves the launcher with two icons that look like the
  * same product, plus a duplicate row in Frequently Used. This module
- * deletes incomplete standalone rows on boot — safe because the standalone releases only wrote draft rows and the working product/data lives in legacy `musiccreator`.
+ * deletes incomplete standalone rows on boot — safe because those
+ * releases only wrote placeholder draft rows and never owned the verified
+ * JULI3TA track library.
  *
- * Idempotent. Remove this only after the real 9k LOC JULI3TA lift ships with verified data migration from legacy `musiccreator`.
+ * Idempotent. Keep the version guard until every user with a stale
+ * v0.0/v0.1 row has crossed one boot on a cleanup-capable build.
  */
 
 import {
