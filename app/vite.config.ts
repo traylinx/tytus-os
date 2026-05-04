@@ -1,5 +1,5 @@
 import http from 'node:http';
-import { readFileSync } from 'node:fs';
+import { readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
@@ -66,9 +66,53 @@ const daemonProxyPlugin = (): Plugin => ({
   },
 });
 
+// Vite's transform middleware intercepts `.js` URLs before the static
+// public-dir handler runs, which means files served from
+// `app/public/__tytus_externals/*.js` bounce off the SPA fallback and
+// come back as `text/html`. The importmap in `index.html` rewrites
+// `react` / `react-dom` / `@tytus/host-api` etc. to URLs under that
+// prefix — installed apps loaded via dynamic `import()` from jsDelivr
+// then fail to fetch their externals and the whole app load rejects.
+//
+// This plugin registers a middleware that runs BEFORE Vite's transform
+// pipeline and serves the shim files from disk verbatim. Production
+// builds don't need this — the static `public/` copy lands as-is in
+// `dist/`.
+const externalsServerPlugin = (): Plugin => {
+  const PREFIX = '/__tytus_externals/';
+  const PUBLIC_DIR = path.resolve(__dirname, 'public/__tytus_externals');
+  return {
+    name: 'tytus-externals-server',
+    configureServer(server) {
+      server.middlewares.use((req, res, next) => {
+        if (!req.url || !req.url.startsWith(PREFIX)) return next();
+        const rel = req.url.slice(PREFIX.length).split('?')[0].split('#')[0];
+        // Reject path traversal — the shim filenames are flat (no slashes).
+        if (rel.includes('/') || rel.includes('\\') || rel.includes('..')) {
+          res.statusCode = 400;
+          res.end('bad path');
+          return;
+        }
+        const filePath = path.join(PUBLIC_DIR, rel);
+        try {
+          const stat = statSync(filePath);
+          if (!stat.isFile()) return next();
+          const body = readFileSync(filePath);
+          res.statusCode = 200;
+          res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+          res.setHeader('Cache-Control', 'no-store');
+          res.end(body);
+        } catch {
+          next();
+        }
+      });
+    },
+  };
+};
+
 export default defineConfig({
   base: './',
-  plugins: [react(), daemonProxyPlugin()],
+  plugins: [react(), daemonProxyPlugin(), externalsServerPlugin()],
   server: {
     host: 'localhost',
     port: 4242,

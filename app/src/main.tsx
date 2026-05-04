@@ -4,6 +4,7 @@ import './styles/window-animations.css'
 import App from './App.tsx'
 import { initDb, getDbMeta } from '@/lib/db'
 import { seedBundledAppsAtBoot } from '@/runtime/seed-bundled-apps'
+import { autoInstallFeaturedAtBoot } from '@/runtime/auto-install-featured'
 import { migrateLegacyMusicCreatorTables } from '@/runtime/legacy-migrations'
 import { installHostExternals } from '@/runtime/externals/install-host-externals'
 import { notifyInstalledAppsChanged } from '@/runtime/installed-apps-events'
@@ -59,6 +60,19 @@ initDb()
       await seedBundledAppsAtBoot(db)
     } catch (err) {
       console.warn('[tytusos] bundled-apps seed failed', err)
+    }
+    // Auto-install every Featured catalog entry that isn't already
+    // present. JULI3TA + the 5 carved-out user apps (text-editor,
+    // code-editor, markdown-preview, photo-editor, api-tester) are
+    // treated as default-installed: the launcher should show them with
+    // an Open button on first boot, not an empty placeholder. Network
+    // failures are tolerated — the next boot retries any still-missing
+    // apps. Runs BEFORE populateInstalledAppsCache so the cache picks
+    // up the freshly installed rows on its first read.
+    try {
+      await autoInstallFeaturedAtBoot(db)
+    } catch (err) {
+      console.warn('[tytusos] featured auto-install failed', err)
     }
     // Prime the synchronous installed-apps cache with every row
     // (system + previously-installed third-party). registry.getAppById
