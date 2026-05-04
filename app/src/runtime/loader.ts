@@ -1,10 +1,26 @@
 /**
- * Dynamic ESM loader for workspace-package apps.
+ * Dynamic ESM loader for workspace-package apps — the M3.5 mount path
+ * used by tests and as the lower-level CSS-aware loader. The PRODUCTION
+ * window-mount path is `runtime/dynamic-loader.ts` (M3.6); this module
+ * survives because its CSS fetch + style-isolator + inline-`<style>`
+ * injection logic isn't yet duplicated in dynamic-loader.
  *
- * The loader takes a manifest, fetches the app's CSS, runs it through the
- * style-isolator, injects it as inline `<style>`, dynamically imports the
- * app's entry module, builds an AppBootEnv (HostClient + createSession),
- * and hands the React component back to the shell to mount.
+ * Dual-loader split (post audit 2026-05-04)
+ * -----------------------------------------
+ *   - This file (`loader.ts`): style isolation + transport-A bundled
+ *     import + a transport-B branch via `loadRemoteApp`. Used by
+ *     loader.test.ts and any future per-window wrapper that wants
+ *     style isolation without going through the SQLite-row path.
+ *   - `dynamic-loader.ts`: SQLite-row → entryUrl → native import or
+ *     `loadRemoteApp`. The path WorkspaceAppHost uses today. As of
+ *     the 2026-05-04 audit it ALSO routes `https://` entry URLs
+ *     through `loadRemoteApp` for dedupe, so the two files now agree
+ *     on transport-B behaviour.
+ *
+ * Cleanup post-Phase-5: fold the style-isolator path into a per-window
+ * wrapper component and delete this file. Until then, both loaders
+ * call `loadRemoteApp` for transport-B (keeping the dedupe / error
+ * shaping consistent).
  *
  * In M1 the HostClient and createSession come from STUB factories — the
  * full implementations land in PR4 (registry + useHost + makeHostForApp)
@@ -20,6 +36,7 @@ import type {
 } from '@tytus/host-api';
 
 import { makeAppBootEnv } from './host-impl';
+import { loadRemoteApp } from './remote-loader';
 import { transformCss, type StyleIsolationOptions } from './style-isolator';
 
 /** Resolved URLs for an app's bundle. The shell's registry computes these
@@ -134,14 +151,26 @@ export async function loadApp(opts: LoadAppOptions): Promise<LoadedApp> {
   // attempt for the same app id stacks a second <style> on top.
   let component: unknown;
   try {
-    const mod = await importModule(entryUrls.module);
-    if (typeof mod.default !== 'function') {
-      throw new Error(
-        `App "${appId}" entry "${entryUrls.module}" did not export a default function.`,
-      );
+    // Transport B (installed): manifest.entry.url is a fully-qualified
+    // https:// CDN URL. Delegate to the remote loader, which manages
+    // the per-session module cache + RemoteAppLoadError shaping. The
+    // bundled transport A path (entryUrls.module) is unchanged below.
+    let bootApp: (env: AppBootEnv) => unknown;
+    if (manifest.entry?.url) {
+      bootApp = (await loadRemoteApp(manifest, { importModule })) as (
+        env: AppBootEnv,
+      ) => unknown;
+    } else {
+      const mod = await importModule(entryUrls.module);
+      if (typeof mod.default !== 'function') {
+        throw new Error(
+          `App "${appId}" entry "${entryUrls.module}" did not export a default function.`,
+        );
+      }
+      bootApp = mod.default;
     }
     const env: AppBootEnv = makeAppBootEnv(appId, manifest, entryUrls);
-    component = mod.default(env);
+    component = bootApp(env);
   } catch (err) {
     disposeStyles();
     throw err;

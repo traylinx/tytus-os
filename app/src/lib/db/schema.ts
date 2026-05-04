@@ -10,7 +10,7 @@
 //
 // Phase 2 ships the API Tester migration: history + collections.
 
-export const SCHEMA_VERSION = 12;
+export const SCHEMA_VERSION = 13;
 
 export const SCHEMA_V1 = `
 CREATE TABLE IF NOT EXISTS api_history (
@@ -316,4 +316,19 @@ CREATE TABLE IF NOT EXISTS installed_apps (
   builtin_protected  INTEGER NOT NULL DEFAULT 0                                 -- 0/1; bundled apps that can't be uninstalled in v1
 );
 CREATE INDEX IF NOT EXISTS idx_installed_apps_kind ON installed_apps(kind);
+`;
+
+// Schema V13: installed_apps.manifest_url — Apps Platform Phase 2/3.
+//
+// Adds a nullable column that remembers WHERE the manifest was fetched
+// from on first install, so the App Store's "Reinstall" affordance can
+// re-fetch the same `tytus-app.json` URL without making the user
+// re-paste it. Only set for kind='installed' rows; bundled / legacy /
+// alias rows leave it NULL.
+//
+// The migration is gated through the same column-presence check the
+// V5–V8 ALTERs use (PRAGMA table_info), so a partially-applied schema
+// (HMR reload mid-migration, etc.) self-heals on the next boot.
+export const SCHEMA_V13 = `
+ALTER TABLE installed_apps ADD COLUMN manifest_url TEXT;
 `;

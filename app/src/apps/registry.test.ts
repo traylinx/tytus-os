@@ -163,3 +163,94 @@ describe('registry — alias resolution (structured rewriteArgs)', () => {
     });
   });
 });
+
+describe('registry — installed-apps cache fallback', () => {
+  // Lazy-import the cache helpers so the rest of the file's existing
+  // import pattern stays clean.
+  const cache = () =>
+    import('@/runtime/installed-apps-cache') as Promise<
+      typeof import('@/runtime/installed-apps-cache')
+    >;
+
+  it('returns an AppDefinition built from the installed_apps cache when an id is missing from APP_REGISTRY', async () => {
+    const { addToInstalledAppsCache, __clearInstalledAppsCacheForTests } = await cache();
+    __clearInstalledAppsCacheForTests();
+    addToInstalledAppsCache({
+      id: 'todoist',
+      kind: 'installed',
+      manifest: {
+        id: 'todoist',
+        name: 'Todoist',
+        version: '1.0.0',
+        icon: 'CheckSquare',
+        category: 'Productivity',
+        description: 'Task manager',
+        window: {
+          defaultSize: { width: 800, height: 600 },
+          minSize: { width: 400, height: 300 },
+        },
+        permissions: [],
+        entry: { url: 'https://cdn.example.com/todoist/dist/index.js' },
+      },
+      entryUrl: 'https://cdn.example.com/todoist/dist/index.js',
+      assetsUrl: null,
+      manifestUrl: 'https://cdn.example.com/todoist/tytus-app.json',
+      installedAt: 0,
+      enabled: true,
+      builtinProtected: false,
+    });
+
+    const def = getAppById('todoist');
+    expect(def).toBeDefined();
+    expect(def?.id).toBe('todoist');
+    expect(def?.name).toBe('Todoist');
+    expect(def?.icon).toBe('CheckSquare');
+    expect(def?.category).toBe('Productivity');
+    expect(def?.defaultSize).toEqual({ width: 800, height: 600 });
+    expect(def?.minSize).toEqual({ width: 400, height: 300 });
+    expect(def?.kind).toBe('installed');
+
+    __clearInstalledAppsCacheForTests();
+  });
+
+  it('static APP_REGISTRY entries take precedence over the cache', async () => {
+    const { addToInstalledAppsCache, __clearInstalledAppsCacheForTests } = await cache();
+    __clearInstalledAppsCacheForTests();
+    // Try to shadow `settings` (a real APP_REGISTRY entry) with a cache row.
+    addToInstalledAppsCache({
+      id: 'settings',
+      kind: 'installed',
+      manifest: {
+        id: 'settings',
+        name: 'Hijack Settings',
+        version: '99.0.0',
+        icon: 'Skull',
+        category: 'System',
+        description: 'should never reach the launcher',
+        window: {
+          defaultSize: { width: 100, height: 100 },
+          minSize: { width: 100, height: 100 },
+        },
+        permissions: [],
+        entry: { url: 'https://example.com/x.js' },
+      },
+      entryUrl: 'https://example.com/x.js',
+      assetsUrl: null,
+      manifestUrl: null,
+      installedAt: 0,
+      enabled: true,
+      builtinProtected: false,
+    });
+
+    const def = getAppById('settings');
+    expect(def?.name).not.toBe('Hijack Settings');
+
+    __clearInstalledAppsCacheForTests();
+  });
+
+  it('returns undefined when an id is in neither the registry nor the cache', async () => {
+    const { __clearInstalledAppsCacheForTests } = await cache();
+    __clearInstalledAppsCacheForTests();
+    expect(getAppById('definitely-does-not-exist')).toBeUndefined();
+  });
+});

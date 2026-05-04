@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { SCHEMA_V12, SCHEMA_VERSION } from './schema';
+import { SCHEMA_V12, SCHEMA_V13, SCHEMA_VERSION } from './schema';
 
 describe('SQLite schema — V12 (installed_apps)', () => {
-  it('SCHEMA_VERSION is bumped to 12', () => {
-    expect(SCHEMA_VERSION).toBe(12);
+  it('SCHEMA_VERSION is bumped to 13', () => {
+    expect(SCHEMA_VERSION).toBe(13);
   });
 
   it('SCHEMA_V12 creates installed_apps with the right columns', () => {
@@ -42,5 +42,16 @@ describe('SQLite schema — V12 (installed_apps)', () => {
 
   it('uses CREATE TABLE IF NOT EXISTS so it is idempotent on every boot', () => {
     expect(SCHEMA_V12).toContain('CREATE TABLE IF NOT EXISTS');
+  });
+});
+
+describe('SQLite schema — V13 (installed_apps.manifest_url)', () => {
+  it('adds a nullable manifest_url column to installed_apps', () => {
+    // Nullable: no NOT NULL on the column. The worker gates the ALTER on
+    // PRAGMA table_info so a partially-applied schema self-heals.
+    expect(SCHEMA_V13).toMatch(
+      /ALTER\s+TABLE\s+installed_apps\s+ADD\s+COLUMN\s+manifest_url\s+TEXT/i,
+    );
+    expect(SCHEMA_V13).not.toMatch(/manifest_url\s+TEXT\s+NOT\s+NULL/i);
   });
 });

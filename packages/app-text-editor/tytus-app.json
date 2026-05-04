@@ -1,0 +1,37 @@
+{
+  "$schema": "https://tytus.traylinx.com/schema/app/v1.json",
+  "id": "text-editor",
+  "name": "Text Editor",
+  "version": "1.0.0",
+  "icon": "FileText",
+  "category": "Productivity",
+  "description": "Plain-text editor with multi-file tabs, syntax highlighting, search/replace, and word-wrap. The classic 'TextEdit' surface for quick edits.",
+
+  "window": {
+    "defaultSize": { "width": 900, "height": 640 },
+    "minSize": { "width": 480, "height": 360 }
+  },
+
+  "permissions": [
+    "vfs.user.documents",
+    "shell.notifications",
+    "storage.app"
+  ],
+
+  "storage": {
+    "tables": []
+  },
+
+  "entry": {
+    "module": "./dist/index.js",
+    "assets": "./dist/assets/"
+  },
+
+  "contributes": {
+    "fileAssociations": [
+      { "extension": ".txt", "mimeType": "text/plain" },
+      { "extension": ".log", "mimeType": "text/plain" },
+      { "extension": ".csv", "mimeType": "text/csv" }
+    ]
+  }
+}

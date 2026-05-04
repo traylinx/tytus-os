@@ -1,6 +1,6 @@
 {
   "name": "@tytus/contracts",
-  "version": "0.1.0-m1",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
   "description": "Shared MIME types, drag payloads, FileRef extensions, and WindowArgs across Tytus apps.",

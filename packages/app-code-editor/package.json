@@ -1,0 +1,30 @@
+{
+  "name": "@tytus/app-code-editor",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Code Editor — user-installable Tytus app. Multi-language code editor with syntax highlighting, file tree, and search. Will be carved into its own git repo (tytus-app-code-editor) post-skeleton.",
+  "main": "./src/index.tsx",
+  "types": "./src/index.tsx",
+  "exports": {
+    ".": {
+      "types": "./src/index.tsx",
+      "import": "./src/index.tsx"
+    }
+  },
+  "scripts": {
+    "build": "vite build --config ../../vite.lib.config.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@tytus/host-api": "*",
+    "lucide-react": "^0.562.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.5",
+    "@types/react-dom": "^19.2.3",
+    "typescript": "~5.9.3"
+  }
+}

@@ -20,6 +20,7 @@ class MemoryDb implements Db {
         manifest_json,
         entry_url,
         assets_url,
+        manifest_url,
         installed_at,
         enabled,
         builtin_protected,
@@ -36,6 +37,7 @@ class MemoryDb implements Db {
           manifest_json,
           entry_url,
           assets_url,
+          manifest_url,
           installed_at,
           enabled,
           builtin_protected,
@@ -48,17 +50,19 @@ class MemoryDb implements Db {
   }
 }
 
+const SYSTEM_APP_IDS = [
+  'memo',
+  'music-creator',
+  'music-player',
+  'sheet',
+  'studio',
+  'voice-recorder',
+];
+
 describe('BUNDLED_APP_MANIFESTS', () => {
-  it('contains the music-suite + sheet + studio + memo manifests', () => {
+  it('contains only the 6 system-app manifests (user apps install via URL)', () => {
     const ids = BUNDLED_APP_MANIFESTS.map((b) => b.manifest.id).sort();
-    expect(ids).toEqual([
-      'memo',
-      'music-creator',
-      'music-player',
-      'sheet',
-      'studio',
-      'voice-recorder',
-    ]);
+    expect(ids).toEqual(SYSTEM_APP_IDS);
   });
 
   it('every manifest has the required fields', () => {
@@ -77,17 +81,10 @@ describe('seedBundledAppsAtBoot', () => {
     const db = new MemoryDb();
     await seedBundledAppsAtBoot(db);
     const installed = await listInstalledApps(db);
-    expect(installed.map((r) => r.id).sort()).toEqual([
-      'memo',
-      'music-creator',
-      'music-player',
-      'sheet',
-      'studio',
-      'voice-recorder',
-    ]);
-    // Every row is bundled + builtin-protected (system apps).
+    expect(installed.map((r) => r.id).sort()).toEqual(SYSTEM_APP_IDS);
     for (const row of installed) {
       expect(row.kind).toBe('bundled');
+      // All bundled rows are now system apps — every one is protected.
       expect(row.builtinProtected).toBe(true);
     }
   });
@@ -97,6 +94,6 @@ describe('seedBundledAppsAtBoot', () => {
     await seedBundledAppsAtBoot(db);
     await seedBundledAppsAtBoot(db);
     await seedBundledAppsAtBoot(db);
-    expect((await listInstalledApps(db)).length).toBe(6);
+    expect((await listInstalledApps(db)).length).toBe(SYSTEM_APP_IDS.length);
   });
 });

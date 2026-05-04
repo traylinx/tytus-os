@@ -75,7 +75,7 @@ const AdjustmentSlider = memo(function AdjustmentSlider({
 });
 
 // ---- Main Photo Editor ----
-export default function PhotoEditor() {
+export function PhotoEditor() {
   const imageSrc = 'https://picsum.photos/seed/edit/800/600';
   const [adjustments, setAdjustments] = useState<Adjustments>(DEFAULT_ADJUSTMENTS);
   const [activeFilter, setActiveFilter] = useState<string>('None');

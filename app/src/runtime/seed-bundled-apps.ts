@@ -18,6 +18,12 @@
  */
 
 import type { Manifest } from '@tytus/host-api';
+// System apps — bundled with the shell, kind='bundled', builtin_protected=1.
+// User apps (text-editor, markdown-preview, api-tester, photo-editor,
+// code-editor) carved to standalone repos at github.com/traylinx/tytus-app-*
+// + published to jsDelivr. Discovered via App Store's Featured section,
+// installed via "Install from URL" → kind='installed' rows. Seeding them
+// as bundled would collide with the install-from-URL path on duplicate id.
 import musicCreatorManifest from '../../../packages/app-music-creator/tytus-app.json';
 import musicPlayerManifest from '../../../packages/app-music-player/tytus-app.json';
 import voiceRecorderManifest from '../../../packages/app-voice-recorder/tytus-app.json';
@@ -54,6 +60,8 @@ function manifestEntry(id: string, raw: unknown): BundledManifestSpec {
  * dev/prod boot loops re-assert manifest_json on every run.
  */
 export const BUNDLED_APP_MANIFESTS: BundledManifestSpec[] = [
+  // System apps (built-in, builtin_protected=1). Carve targets stay
+  // bundled with the shell — they ship in lockstep with the OS.
   manifestEntry('music-creator', musicCreatorManifest),
   manifestEntry('music-player', musicPlayerManifest),
   manifestEntry('voice-recorder', voiceRecorderManifest),
