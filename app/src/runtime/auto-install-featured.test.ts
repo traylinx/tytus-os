@@ -175,16 +175,16 @@ describe('autoInstallFeaturedAtBoot', () => {
     expect(report.failed[0].reason).toMatch(/fetch_failed/);
   });
 
-  it('skips JULI3TA standalone rows until the real lift ships', async () => {
+  it('auto-installs verified standalone JULI3TA now that the real lift shipped', async () => {
     const db = new MemoryDb();
     const catalog = [
       {
         id: 'juli3ta',
         name: 'JULI3TA',
-        description: 'incomplete standalone',
-        icon: 'Music',
+        description: 'verified standalone',
+        icon: 'juli3ta:mark',
         category: 'Creative',
-        manifestUrl: 'https://cdn.example.com/juli3ta-v010/tytus-app.json',
+        manifestUrl: 'https://cdn.example.com/juli3ta-0.2.1/tytus-app.json',
       },
       {
         id: 'text-editor',
@@ -204,12 +204,12 @@ describe('autoInstallFeaturedAtBoot', () => {
       install,
       logger: { info: () => undefined, warn: () => undefined },
     });
-    expect(report.installed).toEqual(['text-editor']);
-    expect(report.skipped).toContain('juli3ta');
-    expect(install).toHaveBeenCalledTimes(1);
-    expect(install).not.toHaveBeenCalledWith(
+    expect(report.installed.sort()).toEqual(['juli3ta', 'text-editor']);
+    expect(report.skipped).toEqual([]);
+    expect(install).toHaveBeenCalledTimes(2);
+    expect(install).toHaveBeenCalledWith(
       expect.objectContaining({
-        manifestUrl: 'https://cdn.example.com/juli3ta-v010/tytus-app.json',
+        manifestUrl: 'https://cdn.example.com/juli3ta-0.2.1/tytus-app.json',
       }),
     );
   });

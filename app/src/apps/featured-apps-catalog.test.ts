@@ -159,14 +159,17 @@ describe('FEATURED_APPS hardcoded baseline', () => {
     }
   });
 
-  it('lists the 5 carved-out user apps (standalone JULI3TA removed until real lift)', () => {
+  it('lists the 5 carved-out user apps plus verified standalone JULI3TA', () => {
     const ids = FEATURED_APPS.map((a) => a.id).sort();
     expect(ids).toEqual([
       'api-tester',
       'code-editor',
+      'juli3ta',
       'markdown-preview',
       'photo-editor',
       'text-editor',
     ]);
+    const juli3ta = FEATURED_APPS.find((a) => a.id === 'juli3ta');
+    expect(juli3ta?.manifestUrl).toContain('@juli3ta-0.2.1/tytus-app.json');
   });
 });

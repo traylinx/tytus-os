@@ -73,21 +73,30 @@ export const FEATURED_APPS: FeaturedApp[] = [
     category: 'DevTools',
     manifestUrl: 'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-api-tester@v0.1.0/tytus-app.json',
   },
+  {
+    id: 'juli3ta',
+    name: 'JULI3TA',
+    description: 'Full AI-native music creator for Tytus OS. Create songs, lyrics, covers, and manage your local music workbench.',
+    icon: 'juli3ta:mark',
+    category: 'Creative',
+    manifestUrl: 'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-juli3ta@juli3ta-0.2.1/tytus-app.json',
+  },
 ];
 
 /** URL of the remote Featured catalog. Bumped per OS release; the
  *  catalog repo is independently versioned so featured-app additions
- *  don't require a Tytus OS rebuild. v0.6.1 removes incomplete standalone JULI3TA and keeps legacy in-tree JULI3TA as source of truth. */
+ *  don't require a Tytus OS rebuild. v0.7.0 publishes verified standalone
+ *  JULI3TA v0.2.1. */
 export const FEATURED_CATALOG_URL =
-  'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-catalog@v0.6.1/featured.json';
+  'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-catalog@v0.7.0/featured.json';
 
 /**
  * Denylist of catalog ids the OS will refuse to auto-install at boot,
- * regardless of what the remote catalog says. Contains `juli3ta` until the real 9k LOC JULI3TA app is lifted. The published v0.1.0 standalone was incomplete and must not auto-install over the working legacy app.
+ * regardless of what the remote catalog says. Empty now that stale
+ * JULI3TA v0.0/v0.1 rows are handled by `cleanupJuli3taAlphaIfPresent`
+ * and verified standalone JULI3TA starts at v0.2.x.
  */
-export const AUTO_INSTALL_DENYLIST: ReadonlySet<string> = new Set([
-  'juli3ta',
-]);
+export const AUTO_INSTALL_DENYLIST: ReadonlySet<string> = new Set();
 
 interface RemoteCatalogShape {
   version?: number;
