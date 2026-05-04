@@ -6,6 +6,8 @@ import { initDb, getDbMeta } from '@/lib/db'
 import { seedBundledAppsAtBoot } from '@/runtime/seed-bundled-apps'
 import { migrateLegacyMusicCreatorTables } from '@/runtime/legacy-migrations'
 import { installHostExternals } from '@/runtime/externals/install-host-externals'
+import { notifyInstalledAppsChanged } from '@/runtime/installed-apps-events'
+import { populateInstalledAppsCache } from '@/runtime/installed-apps-cache'
 import { I18nProvider } from '@/i18n'
 
 // Publish React + host-api singletons on window.__TYTUS_EXTERNALS__
@@ -58,6 +60,21 @@ initDb()
     } catch (err) {
       console.warn('[tytusos] bundled-apps seed failed', err)
     }
+    // Prime the synchronous installed-apps cache with every row
+    // (system + previously-installed third-party). registry.getAppById
+    // falls back to this cache when an id isn't in the build-time
+    // APP_REGISTRY — without it, useOSStore.createWindow throws
+    // "Unknown app: <id>" the first time a user clicks Open on a
+    // third-party app installed in a previous session. Must run AFTER
+    // the seed so the system rows are visible too.
+    await populateInstalledAppsCache(db)
+    // Notify the AppRouter `useInstalledAppIds` hook (and any other
+    // subscriber) that installed_apps is now loadable — closes the
+    // boot race where React mounts before the SQLite worker resolves
+    // and the hook's first `listInstalledApps()` runs against an
+    // empty/missing table. Without this fire, previously-installed
+    // user apps stay invisible to AppRouter for the whole session.
+    notifyInstalledAppsChanged()
     // Dev-only debug handle. Lets you poke at the DB from DevTools:
     //   await window.tytusDb.query('SELECT * FROM installed_apps')
     //   await window.tytusDb.query('SELECT * FROM music_library')

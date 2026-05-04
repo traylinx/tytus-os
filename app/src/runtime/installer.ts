@@ -31,6 +31,10 @@ import {
   updateInstalledApp,
   type InstalledAppRow,
 } from './installed-apps-repo';
+import {
+  addToInstalledAppsCache,
+  removeFromInstalledAppsCache,
+} from './installed-apps-cache';
 import { notifyInstalledAppsChanged } from './installed-apps-events';
 import type { Db } from '@/lib/db/types';
 
@@ -184,6 +188,10 @@ export async function installAppFromManifestUrl(
     builtinProtected: false,
   };
   await insertInstalledApp(db, row);
+  // Write through to the synchronous cache BEFORE dispatching the event
+  // so any consumer that reads in the same tick (App Store re-render,
+  // launcher click) sees the new row immediately.
+  addToInstalledAppsCache(row);
   notifyInstalledAppsChanged();
   return row;
 }
@@ -209,6 +217,7 @@ export async function uninstallApp(opts: UninstallAppOptions): Promise<void> {
     throw new InstallerError('protected', { id: appId });
   }
   await deleteInstalledApp(db, appId);
+  removeFromInstalledAppsCache(appId);
   notifyInstalledAppsChanged();
 }
 
@@ -275,14 +284,16 @@ export async function reinstallApp(
     assetsUrl: manifest.entry?.assets ?? null,
     manifestUrl: existing.manifestUrl,
   });
-  notifyInstalledAppsChanged();
 
   // Return the freshly-fetched row so the UI can update without a
   // round-trip back to listInstalledApps.
-  return {
+  const updated: InstalledAppRow = {
     ...existing,
     manifest,
     entryUrl: manifest.entry?.url ?? null,
     assetsUrl: manifest.entry?.assets ?? null,
   };
+  addToInstalledAppsCache(updated);
+  notifyInstalledAppsChanged();
+  return updated;
 }

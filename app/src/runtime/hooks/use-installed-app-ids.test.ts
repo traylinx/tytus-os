@@ -98,6 +98,58 @@ describe('useInstalledAppIds', () => {
     });
   });
 
+  it('awaits initDb() when getDb() returns null on first render (boot-race regression)', async () => {
+    // The bug surfaced 2026-05-04: React's createRoot.render() runs
+    // synchronously while initDb() resolves asynchronously, so the
+    // hook's first reload found getDb() === null and silently bailed.
+    // Previously-installed apps stayed invisible to AppRouter for the
+    // whole session. The fix: await initDb() (idempotent) before
+    // listing rows.
+    vi.resetModules();
+    let dbResolve: (db: unknown) => void = () => {};
+    const dbPromise = new Promise((r) => {
+      dbResolve = r;
+    });
+    const fakeDb = { __fake: true };
+    vi.doMock('@/lib/db', () => ({
+      getDb: () => null,
+      initDb: () => dbPromise,
+    }));
+    const fakeRows = [
+      row('memo', 'bundled'),
+      row('text-editor', 'installed'),
+    ];
+    vi.doMock('../installed-apps-repo', async () => {
+      const actual = await vi.importActual<typeof import('../installed-apps-repo')>(
+        '../installed-apps-repo',
+      );
+      return {
+        ...actual,
+        listInstalledApps: vi.fn(async () => fakeRows),
+      };
+    });
+
+    const { useInstalledAppIds: hookUnderTest } = await import('./use-installed-app-ids');
+    const { result } = renderHook(() => hookUnderTest());
+
+    // Before the DB promise resolves, the map is empty.
+    expect(result.current.size).toBe(0);
+
+    // Simulate initDb() resolving (e.g. the SQLite worker just booted).
+    await act(async () => {
+      dbResolve(fakeDb);
+    });
+
+    await waitFor(() => {
+      expect(result.current.size).toBe(2);
+    });
+    expect(result.current.get('memo')).toBe('bundled');
+    expect(result.current.get('text-editor')).toBe('installed');
+
+    vi.doUnmock('@/lib/db');
+    vi.doUnmock('../installed-apps-repo');
+  });
+
   it('unsubscribes on unmount (subsequent events do not call the loader)', async () => {
     const loader = vi.fn(async () => [row('memo', 'bundled')]);
     const { result, unmount } = renderHook(() =>

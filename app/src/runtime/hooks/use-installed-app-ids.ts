@@ -33,7 +33,7 @@
  */
 
 import { useEffect, useState } from 'react';
-import { getDb } from '@/lib/db';
+import { getDb, initDb } from '@/lib/db';
 import {
   listInstalledApps,
   type InstalledAppRow,
@@ -63,11 +63,19 @@ export function useInstalledAppIds(
         if (loader) {
           rows = await loader();
         } else {
-          const db = getDb();
+          // initDb() is idempotent and shares an in-flight promise so
+          // every consumer of the hook collapses to a single boot. We
+          // MUST await here on first call: React mounts synchronously
+          // but `initDb()` resolves async in `main.tsx`, so the
+          // previous `getDb()`-only check would silently return an
+          // empty map and `AppRouter` would route every app id to
+          // AppPlaceholder until the next install. (The bug Sebastian
+          // surfaced 2026-05-04: previously-installed apps were
+          // unopenable across a fresh page load.)
+          let db = getDb();
           if (!db) {
-            // DB not booted yet — leave map empty; the next 'changed'
-            // event (or a re-render once the DB is up) will refresh.
-            return;
+            db = await initDb();
+            if (cancelled) return;
           }
           rows = await listInstalledApps(db);
         }

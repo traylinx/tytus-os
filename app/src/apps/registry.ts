@@ -1,5 +1,7 @@
-import type { AliasRewriteDescriptor } from '@tytus/host-api';
-import type { AppDefinition, AppKind } from '@/types';
+import type { AliasRewriteDescriptor, AppCategory as ManifestAppCategory } from '@tytus/host-api';
+import type { AppDefinition, AppKind, AppCategory } from '@/types';
+import { getInstalledAppRow } from '@/runtime/installed-apps-cache';
+import type { InstalledAppRow } from '@/runtime/installed-apps-repo';
 
 // 50 apps total in v1.
 // 8 Tytus product surfaces + 42 OS-feel utilities (kept from the original Kimi seed).
@@ -280,8 +282,59 @@ export const getAppById = (id: string): AppDefinition | undefined => {
   if (direct?.kind === 'alias' && direct.aliasOf) {
     return APP_REGISTRY.find((a) => a.id === direct.aliasOf);
   }
-  return direct;
+  if (direct) return direct;
+
+  // Fallback: the live `installed_apps` cache (kept in sync by
+  // installer.ts on install / uninstall / reinstall, and primed once at
+  // boot from main.tsx). This is what makes third-party apps installed
+  // at runtime — e.g. the App Store's Featured catalog —
+  // openable. Without this fallback `useOSStore.createWindow` throws
+  // "Unknown app: <id>" for any id missing from the build-time
+  // APP_REGISTRY, killing the click before AppRouter ever renders.
+  const row = getInstalledAppRow(id);
+  if (row) return appDefinitionFromInstalledRow(row);
+
+  return undefined;
 };
+
+/** Map an `installed_apps` row's manifest into the static `AppDefinition`
+ *  shape `useOSStore.createWindow` expects. The manifest's `window`
+ *  block carries the geometry; everything else maps 1:1. */
+function appDefinitionFromInstalledRow(row: InstalledAppRow): AppDefinition {
+  const m = row.manifest;
+  return {
+    id: row.id,
+    name: m.name,
+    icon: m.icon,
+    category: manifestCategoryToAppCategory(m.category),
+    description: m.description,
+    defaultSize: m.window.defaultSize,
+    minSize: m.window.minSize,
+    kind: row.kind,
+  };
+}
+
+/** The host-api manifest enum and the in-tree `AppCategory` enum are
+ *  intentionally separate (the in-tree one was the original; host-api
+ *  was extracted later). They overlap on every value except 'Utilities'
+ *  which only the host-api side defines. Any unknown value collapses to
+ *  'System' so launcher rendering never crashes. */
+function manifestCategoryToAppCategory(c: ManifestAppCategory): AppCategory {
+  switch (c) {
+    case 'System':
+    case 'Internet':
+    case 'Productivity':
+    case 'Creative':
+    case 'Games':
+    case 'Media':
+    case 'DevTools':
+      return c;
+    case 'Utilities':
+      return 'System';
+    default:
+      return 'System';
+  }
+}
 
 export const getAppsByCategory = (category: string): AppDefinition[] =>
   APP_REGISTRY.filter((a) => a.category === category && !a.hidden);
