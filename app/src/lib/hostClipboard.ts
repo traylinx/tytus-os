@@ -83,8 +83,42 @@ export async function probePermission(): Promise<ClipboardPermissionState> {
  * the read succeeds, we return permission='granted' so the caller can
  * upgrade its cached state.
  */
+
+async function readNativeClipboardText(): Promise<string | null> {
+  try {
+    const res = await fetch('/api/clipboard/text', {
+      method: 'GET',
+      headers: { Accept: 'application/json' },
+      credentials: 'same-origin',
+    });
+    if (!res.ok) return null;
+    const body = (await res.json()) as { text?: unknown };
+    return typeof body.text === 'string' ? body.text : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function readClipboard(): Promise<ClipboardReadResult> {
   const browserName = detectBrowserName();
+  const nativeText = await readNativeClipboardText();
+  if (nativeText !== null) {
+    if (nativeText.length > 0) {
+      return {
+        ok: true,
+        permission: 'granted',
+        payload: { kind: 'text', text: nativeText },
+        browserName,
+      };
+    }
+    return {
+      ok: false,
+      permission: 'granted',
+      payload: { kind: 'empty' },
+      reason: 'empty',
+      browserName,
+    };
+  }
   if (typeof navigator === 'undefined' || !navigator.clipboard) {
     return {
       ok: false,

@@ -1,5 +1,12 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { detectBrowserName, probePermission, readClipboard } from "./hostClipboard";
+
+beforeEach(() => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn().mockResolvedValue(new Response(JSON.stringify({ error: "no daemon" }), { status: 404 })),
+  );
+});
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -61,6 +68,26 @@ describe("probePermission", () => {
 });
 
 describe("readClipboard", () => {
+  it("prefers daemon-native text clipboard when available", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ text: "native text" }), { status: 200 })));
+    vi.stubGlobal("navigator", { userAgent: "Mozilla/5.0 Chrome/124" } as Navigator);
+    const r = await readClipboard();
+    expect(r.ok).toBe(true);
+    expect(r.permission).toBe("granted");
+    expect(r.payload).toEqual({ kind: "text", text: "native text" });
+  });
+
+  it("falls back to browser clipboard when daemon-native clipboard is unavailable", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ error: "missing" }), { status: 404 })));
+    vi.stubGlobal("navigator", {
+      userAgent: "Mozilla/5.0 Firefox/124",
+      clipboard: { readText: vi.fn().mockResolvedValue("browser text") },
+    } as unknown as Navigator);
+    const r = await readClipboard();
+    expect(r.ok).toBe(true);
+    expect(r.payload).toEqual({ kind: "text", text: "browser text" });
+  });
+
   it("returns unavailable when navigator.clipboard is missing", async () => {
     vi.stubGlobal("navigator", { userAgent: "Mozilla/5.0 Chrome/124" } as Navigator);
     const r = await readClipboard();
