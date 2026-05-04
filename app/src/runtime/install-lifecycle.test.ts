@@ -111,9 +111,10 @@ beforeEach(() => {
 
 describe('install lifecycle (Phase 8 smoke)', () => {
   it('seed → install 5 → list → uninstall 3 → reinstall 1', async () => {
-    // 1. Boot seed: 11 bundled rows (6 system + 5 user-app skeletons).
+    // 1. Boot seed: 6 bundled rows (system apps only — user apps are
+    //    distributed via CDN and discovered through App Store Featured).
     await seedBundledAppsAtBoot(db);
-    expect((await listInstalledApps(db)).length).toBe(11);
+    expect((await listInstalledApps(db)).length).toBe(6);
     for (const row of await listInstalledApps(db)) {
       expect(row.kind).toBe('bundled');
     }
@@ -145,9 +146,9 @@ describe('install lifecycle (Phase 8 smoke)', () => {
       expect(row.manifestUrl).toBe(manifestUrlFor(id));
     }
 
-    // 3. List: now 11 bundled + 5 installed = 16 total.
+    // 3. List: now 6 bundled + 5 installed = 11 total.
     const afterInstall = await listInstalledApps(db);
-    expect(afterInstall.length).toBe(16);
+    expect(afterInstall.length).toBe(11);
     expect(afterInstall.filter((r) => r.kind === 'installed').length).toBe(5);
 
     // 4. Uninstall 3 of the 5 installed apps.
@@ -156,7 +157,7 @@ describe('install lifecycle (Phase 8 smoke)', () => {
       await uninstallApp({ appId: id, db });
     }
     const afterUninstall = await listInstalledApps(db);
-    expect(afterUninstall.length).toBe(13);
+    expect(afterUninstall.length).toBe(8);
     expect(afterUninstall.filter((r) => r.kind === 'installed').map((r) => r.id).sort())
       .toEqual(['json-tree', 'kanban']);
 
@@ -175,9 +176,9 @@ describe('install lifecycle (Phase 8 smoke)', () => {
     expect(reinstalledRow.kind).toBe('installed');
     expect(reinstalledRow.manifest.version).toBe('2.0.0');
 
-    // 6. Final shape: 11 bundled + 2 installed = 13. json-tree is v2.0.0.
+    // 6. Final shape: 6 bundled + 2 installed = 8. json-tree is v2.0.0.
     const final = await listInstalledApps(db);
-    expect(final.length).toBe(13);
+    expect(final.length).toBe(8);
     expect(final.filter((r) => r.kind === 'installed').map((r) => r.id).sort())
       .toEqual(['json-tree', 'kanban']);
   });
@@ -193,22 +194,22 @@ describe('install lifecycle (Phase 8 smoke)', () => {
       });
     }
     // Bundled count unchanged.
-    expect((await listInstalledApps(db)).length).toBe(11);
+    expect((await listInstalledApps(db)).length).toBe(6);
   });
 
-  it('rejects duplicate install of an id that already exists from seed', async () => {
+  it('rejects duplicate install of a system-app id (e.g. memo)', async () => {
     await seedBundledAppsAtBoot(db);
-    // text-editor is one of the user-app skeletons seeded at boot
-    // (kind='bundled', builtin_protected=0). A fresh install attempt
-    // under the same id should fail with code 'duplicate'.
+    // memo is a system app seeded at boot (kind='bundled',
+    // builtin_protected=1). A fresh install under the same id fails
+    // with code 'duplicate' before the protected check fires.
     const fetchImpl = vi.fn(async () => ({
       ok: true,
       status: 200,
-      json: async () => userAppManifest('text-editor'),
+      json: async () => userAppManifest('memo'),
     }));
     await expect(
       installAppFromManifestUrl({
-        manifestUrl: manifestUrlFor('text-editor'),
+        manifestUrl: manifestUrlFor('memo'),
         db,
         fetchImpl,
       }),

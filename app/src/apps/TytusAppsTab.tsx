@@ -24,8 +24,8 @@
  *     `reloadKey` state-bump pattern (no separate hook needed).
  */
 
-import { type FC, useCallback, useEffect, useState } from 'react';
-import { Box, Layers, ChevronDown, ChevronRight, Download, Loader2, X } from 'lucide-react';
+import { type FC, useCallback, useEffect, useMemo, useState } from 'react';
+import { Box, Layers, ChevronDown, ChevronRight, Download, Loader2, Sparkles, X } from 'lucide-react';
 import { getDb } from '@/lib/db';
 import {
   listInstalledApps,
@@ -37,6 +37,7 @@ import {
   reinstallApp,
   uninstallApp,
 } from '@/runtime/installer';
+import { FEATURED_APPS, type FeaturedApp } from './featured-apps-catalog';
 
 interface TytusAppsTabProps {
   /** Optional override — tests pass an in-memory db so the component
@@ -159,6 +160,24 @@ export const TytusAppsTab: FC<TytusAppsTabProps> = ({
     }
   };
 
+  /** Featured apps NOT yet installed — surface in the catalog section. */
+  const availableFeatured = useMemo(() => {
+    const knownIds = new Set(rows.map((r) => r.id));
+    return FEATURED_APPS.filter((f) => !knownIds.has(f.id));
+  }, [rows]);
+
+  const handleFeaturedInstall = async (featured: FeaturedApp) => {
+    setBusyId(featured.id);
+    try {
+      await doInstall(featured.manifestUrl);
+      refresh();
+    } catch (err) {
+      console.error('[AppStore] featured install failed', { id: featured.id, err });
+    } finally {
+      setBusyId(null);
+    }
+  };
+
   const handleReinstall = async (row: InstalledAppRow) => {
     setBusyId(row.id);
     try {
@@ -228,6 +247,30 @@ export const TytusAppsTab: FC<TytusAppsTabProps> = ({
               onOpen={() => onOpen?.(row.id)}
             />
           ))}
+        </div>
+      )}
+
+      {/* Featured apps — curated catalog of installable user apps */}
+      {availableFeatured.length > 0 && (
+        <div style={{ marginTop: 24 }} data-testid="tytus-apps-featured">
+          <SectionHeader
+            title="Featured apps"
+            subtitle="One-click install from the official tytus-app catalog."
+            count={availableFeatured.length}
+          />
+          <div
+            className="grid gap-3"
+            style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}
+          >
+            {availableFeatured.map((f) => (
+              <FeaturedAppCard
+                key={f.id}
+                featured={f}
+                busy={busyId === f.id}
+                onInstall={() => handleFeaturedInstall(f)}
+              />
+            ))}
+          </div>
         </div>
       )}
 
@@ -853,5 +896,79 @@ const AliasRow: FC<{
     </div>
   );
 };
+
+const FeaturedAppCard: FC<{
+  featured: FeaturedApp;
+  busy: boolean;
+  onInstall: () => void;
+}> = ({ featured, busy, onInstall }) => (
+  <div
+    data-testid={`tytus-featured-card-${featured.id}`}
+    className="flex items-start gap-3 rounded-lg p-3"
+    style={{
+      border: '1px solid var(--border-subtle)',
+      background: 'var(--bg-tertiary)',
+    }}
+  >
+    <Sparkles size={20} style={{ color: 'var(--accent-primary)', flexShrink: 0, marginTop: 2 }} />
+    <div className="flex-1 min-w-0">
+      <div className="flex items-center gap-2" style={{ marginBottom: 2 }}>
+        <span
+          style={{
+            fontSize: 13,
+            fontWeight: 600,
+            color: 'var(--text-primary)',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {featured.name}
+        </span>
+        <span
+          style={{
+            fontSize: 10,
+            color: 'var(--text-secondary)',
+            padding: '1px 6px',
+            border: '1px solid var(--border-subtle)',
+            borderRadius: 4,
+          }}
+        >
+          {featured.category}
+        </span>
+      </div>
+      <div
+        style={{
+          fontSize: 12,
+          color: 'var(--text-secondary)',
+          marginBottom: 8,
+          display: '-webkit-box',
+          WebkitLineClamp: 2,
+          WebkitBoxOrient: 'vertical',
+          overflow: 'hidden',
+        }}
+      >
+        {featured.description}
+      </div>
+      <button
+        data-testid={`tytus-featured-install-${featured.id}`}
+        onClick={onInstall}
+        disabled={busy}
+        className="flex items-center gap-1.5 rounded px-2 py-1"
+        style={{
+          fontSize: 11,
+          fontWeight: 600,
+          background: busy ? 'var(--bg-secondary)' : 'var(--accent-primary)',
+          color: busy ? 'var(--text-secondary)' : 'var(--text-on-accent)',
+          border: 'none',
+          cursor: busy ? 'not-allowed' : 'pointer',
+        }}
+      >
+        {busy ? <Loader2 size={11} className="animate-spin" /> : <Download size={11} />}
+        {busy ? 'Installing…' : 'Install'}
+      </button>
+    </div>
+  </div>
+);
 
 export default TytusAppsTab;

@@ -92,19 +92,16 @@ interface AppRouterProps {
  * PR removes the in-tree files.
  */
 const WORKSPACE_APP_IDS_HINT = new Set([
-  // System apps (bundled with shell)
+  // System apps (bundled with shell). User apps live at
+  // github.com/traylinx/tytus-app-* and ship as kind='installed' rows
+  // via App Store → Featured (or Install from URL); they do NOT
+  // appear in the boot seed and don't need a hint here.
   'memo',
   'music-creator',
   'music-player',
   'sheet',
   'studio',
   'voice-recorder',
-  // User apps (own-repo carve targets — SPRINT-TYTUS-APP-SYSTEM-V1)
-  'text-editor',
-  'markdown-preview',
-  'api-tester',
-  'photo-editor',
-  'code-editor',
 ]);
 
 // Legacy non-hyphenated id → canonical workspace id. Aliases route old

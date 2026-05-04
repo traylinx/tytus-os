@@ -335,6 +335,66 @@ describe('TytusAppsTab', () => {
     expect(screen.queryByTestId('tytus-app-reinstall-shiny')).toBeNull();
   });
 
+  it('renders Featured apps catalog when no entries are installed yet', async () => {
+    render(<TytusAppsTab loadInstalledApps={async () => []} />);
+    await waitFor(() => {
+      expect(screen.getByTestId('tytus-apps-featured')).toBeTruthy();
+      expect(screen.getByTestId('tytus-featured-card-text-editor')).toBeTruthy();
+      expect(screen.getByTestId('tytus-featured-card-code-editor')).toBeTruthy();
+      expect(screen.getByTestId('tytus-featured-card-api-tester')).toBeTruthy();
+    });
+  });
+
+  it('hides Featured cards whose id is already in installed_apps', async () => {
+    render(
+      <TytusAppsTab
+        loadInstalledApps={async () => [
+          row('text-editor', 'installed', { manifestUrl: 'x' }),
+        ]}
+      />,
+    );
+    await waitFor(() => {
+      expect(screen.queryByTestId('tytus-featured-card-text-editor')).toBeNull();
+      // Other featured entries still show.
+      expect(screen.getByTestId('tytus-featured-card-code-editor')).toBeTruthy();
+    });
+  });
+
+  it('drives doInstall with the Featured manifest URL on Install click', async () => {
+    const onInstallFromUrl = vi.fn(async (manifestUrl: string) =>
+      row('code-editor', 'installed', { manifestUrl }),
+    );
+    render(
+      <TytusAppsTab
+        loadInstalledApps={async () => []}
+        onInstallFromUrl={onInstallFromUrl}
+      />,
+    );
+    await waitFor(() => screen.getByTestId('tytus-featured-install-code-editor'));
+    fireEvent.click(screen.getByTestId('tytus-featured-install-code-editor'));
+    await waitFor(() => {
+      expect(onInstallFromUrl).toHaveBeenCalledWith(
+        expect.stringContaining('cdn.jsdelivr.net/gh/traylinx/tytus-app-code-editor@v0.1.0/tytus-app.json'),
+      );
+    });
+  });
+
+  it('hides the entire Featured section when every catalog entry is installed', async () => {
+    render(
+      <TytusAppsTab
+        loadInstalledApps={async () => [
+          row('text-editor', 'installed', { manifestUrl: 'x' }),
+          row('code-editor', 'installed', { manifestUrl: 'x' }),
+          row('markdown-preview', 'installed', { manifestUrl: 'x' }),
+          row('photo-editor', 'installed', { manifestUrl: 'x' }),
+          row('api-tester', 'installed', { manifestUrl: 'x' }),
+        ]}
+      />,
+    );
+    await waitFor(() => screen.getByTestId('tytus-app-card-text-editor'));
+    expect(screen.queryByTestId('tytus-apps-featured')).toBeNull();
+  });
+
   it('sorts system apps alphabetically by name', async () => {
     const { container } = render(
       <TytusAppsTab

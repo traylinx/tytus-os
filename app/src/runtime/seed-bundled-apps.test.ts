@@ -58,19 +58,11 @@ const SYSTEM_APP_IDS = [
   'studio',
   'voice-recorder',
 ];
-const USER_APP_IDS = [
-  'api-tester',
-  'code-editor',
-  'markdown-preview',
-  'photo-editor',
-  'text-editor',
-];
-const ALL_BUNDLED_IDS = [...SYSTEM_APP_IDS, ...USER_APP_IDS].sort();
 
 describe('BUNDLED_APP_MANIFESTS', () => {
-  it('contains every system + user-app skeleton manifest', () => {
+  it('contains only the 6 system-app manifests (user apps install via URL)', () => {
     const ids = BUNDLED_APP_MANIFESTS.map((b) => b.manifest.id).sort();
-    expect(ids).toEqual(ALL_BUNDLED_IDS);
+    expect(ids).toEqual(SYSTEM_APP_IDS);
   });
 
   it('every manifest has the required fields', () => {
@@ -89,22 +81,11 @@ describe('seedBundledAppsAtBoot', () => {
     const db = new MemoryDb();
     await seedBundledAppsAtBoot(db);
     const installed = await listInstalledApps(db);
-    expect(installed.map((r) => r.id).sort()).toEqual(ALL_BUNDLED_IDS);
+    expect(installed.map((r) => r.id).sort()).toEqual(SYSTEM_APP_IDS);
     for (const row of installed) {
       expect(row.kind).toBe('bundled');
-    }
-  });
-
-  it('marks system apps protected and user-app skeletons unprotected', async () => {
-    const db = new MemoryDb();
-    await seedBundledAppsAtBoot(db);
-    const installed = await listInstalledApps(db);
-    const byId = new Map(installed.map((r) => [r.id, r]));
-    for (const id of SYSTEM_APP_IDS) {
-      expect(byId.get(id)?.builtinProtected).toBe(true);
-    }
-    for (const id of USER_APP_IDS) {
-      expect(byId.get(id)?.builtinProtected).toBe(false);
+      // All bundled rows are now system apps — every one is protected.
+      expect(row.builtinProtected).toBe(true);
     }
   });
 
@@ -113,6 +94,6 @@ describe('seedBundledAppsAtBoot', () => {
     await seedBundledAppsAtBoot(db);
     await seedBundledAppsAtBoot(db);
     await seedBundledAppsAtBoot(db);
-    expect((await listInstalledApps(db)).length).toBe(ALL_BUNDLED_IDS.length);
+    expect((await listInstalledApps(db)).length).toBe(SYSTEM_APP_IDS.length);
   });
 });
