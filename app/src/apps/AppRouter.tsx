@@ -33,7 +33,7 @@ import DocumentViewer from './DocumentViewer';
 // Media
 import ImageViewer from './ImageViewer';
 import ImageGallery from './ImageGallery';
-import PhotoEditor from './PhotoEditor';
+// PhotoEditor lifted to @tytus/app-photo-editor workspace package (Phase 5).
 import MusicCreator from './MusicCreator';
 import VideoPlayer from './VideoPlayer';
 import ScreenRecorder from './ScreenRecorder';
@@ -119,10 +119,10 @@ const LEGACY_APP_ID_ALIASES: Record<string, string> = {
   musicplayer: 'music-player',
   voicerecorder: 'voice-recorder',
   markdownpreview: 'markdown-preview',
+  photoeditor: 'photo-editor',
   // Pending Phase 5 lifts (re-enable per app once code is moved):
   //   texteditor   → text-editor
   //   apitester    → api-tester
-  //   photoeditor  → photo-editor
   //   codeeditor   → code-editor
   //   musiccreator → music-creator
 };
@@ -170,7 +170,7 @@ const AppRouter: FC<AppRouterProps> = ({ appId }) => {
     // Media
     case 'imageviewer': return <ImageViewer />;
     case 'imagegallery': return <ImageGallery />;
-    case 'photoeditor': return <PhotoEditor />;
+    // 'photoeditor' aliased to 'photo-editor' workspace package (Phase 5)
     // 'musicplayer' aliased to 'music-player' above
     case 'musiccreator': return <MusicCreator />;
     case 'videoplayer': return <VideoPlayer />;
