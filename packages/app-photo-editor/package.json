@@ -1,6 +1,6 @@
 {
   "name": "@tytus/app-photo-editor",
-  "version": "0.1.0-skeleton",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
   "description": "Photo Editor — user-installable Tytus app. Crop, rotate, filter, and basic adjustment tools for raster images. Will be carved into its own git repo (tytus-app-photo-editor) post-skeleton.",

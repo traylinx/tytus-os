@@ -35,6 +35,7 @@ import {
   updateInstalledApp,
   type InstalledAppRow,
 } from './installed-apps-repo';
+import { notifyInstalledAppsChanged } from './installed-apps-events';
 import type { Db } from '@/lib/db/types';
 
 /**
@@ -182,6 +183,7 @@ export async function installAppFromManifestUrl(
     builtinProtected: false,
   };
   await insertInstalledApp(db, row);
+  notifyInstalledAppsChanged();
   return row;
 }
 
@@ -206,6 +208,7 @@ export async function uninstallApp(opts: UninstallAppOptions): Promise<void> {
     throw new InstallerError('protected', { id: appId });
   }
   await deleteInstalledApp(db, appId);
+  notifyInstalledAppsChanged();
 }
 
 export interface ReinstallAppOptions {
@@ -270,6 +273,7 @@ export async function reinstallApp(
     assetsUrl: manifest.entry?.assets ?? null,
     manifestUrl: existing.manifestUrl,
   });
+  notifyInstalledAppsChanged();
 
   // Return the freshly-fetched row so the UI can update without a
   // round-trip back to listInstalledApps.

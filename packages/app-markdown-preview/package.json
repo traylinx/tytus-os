@@ -1,6 +1,6 @@
 {
   "name": "@tytus/app-markdown-preview",
-  "version": "0.1.0-skeleton",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
   "description": "Markdown Preview — user-installable Tytus app. Live-rendered Markdown viewer with reading-flow stylesheet. Will be carved into its own git repo (tytus-app-markdown-preview) post-skeleton.",

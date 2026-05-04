@@ -260,3 +260,62 @@ describe('loadAppById', () => {
     );
   });
 });
+
+describe('loadApp — transport-B (https) delegates to remote-loader', () => {
+  // Audit decision (2026-05-04): the dynamic-loader's loadApp now
+  // detects fully-qualified `https://` entry URLs and routes them
+  // through `loadRemoteApp` so installed third-party apps get the
+  // per-URL module-promise dedupe + RemoteAppLoadError shaping.
+  // NOTE: remote-loader caches successful imports per-URL across the
+  // test suite, so each test below uses a unique URL to avoid the
+  // cache leaking across cases.
+
+  it('imports a Component via the remote-loader code path', async () => {
+    const url = 'https://cdn.jsdelivr.net/gh/example/app-success/dist/index.js';
+    const remoteManifest: Manifest = { ...fakeManifest, entry: { url } };
+    const remoteRow: InstalledAppRow = {
+      ...fakeRow,
+      kind: 'installed',
+      entryUrl: url,
+      manifest: remoteManifest,
+      builtinProtected: false,
+    };
+    const FakeComponent = () => null;
+    const importModule = vi.fn(async () => ({
+      default: () => FakeComponent,
+    }));
+    const result = await loadApp(remoteRow, fakeEnv, { importModule });
+
+    expect(importModule).toHaveBeenCalledWith(url);
+    expect(result.Component).toBe(FakeComponent);
+  });
+
+  it('wraps a remote import rejection in AppLoadError preserving cause', async () => {
+    const url = 'https://cdn.jsdelivr.net/gh/example/app-fail/dist/index.js';
+    const remoteManifest: Manifest = { ...fakeManifest, entry: { url } };
+    const remoteRow: InstalledAppRow = {
+      ...fakeRow,
+      kind: 'installed',
+      entryUrl: url,
+      manifest: remoteManifest,
+      builtinProtected: false,
+    };
+    const cause = new Error('CDN 404');
+    let caught: AppLoadError | null = null;
+    try {
+      await loadApp(remoteRow, fakeEnv, {
+        importModule: async () => {
+          throw cause;
+        },
+      });
+    } catch (err) {
+      caught = err as AppLoadError;
+    }
+    expect(caught).toBeInstanceOf(AppLoadError);
+    expect(caught?.appId).toBe('demo');
+    // The remote-loader wraps the bare error in a RemoteAppLoadError;
+    // the dynamic-loader then re-wraps as AppLoadError with the
+    // RemoteAppLoadError as `cause`.
+    expect(caught?.cause).toBeDefined();
+  });
+});

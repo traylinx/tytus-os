@@ -1,6 +1,7 @@
 import type { FC } from 'react';
 import AppPlaceholder from './AppPlaceholder';
 import WorkspaceAppHost from './WorkspaceAppHost';
+import { useInstalledAppIds } from '@/runtime/hooks/use-installed-app-ids';
 
 // Tytus product surfaces
 import PodInspector from './PodInspector';
@@ -73,11 +74,16 @@ interface AppRouterProps {
 }
 
 /**
- * App ids whose entry lives in a workspace package (loaded via the
- * dynamic loader → installed_apps row → @tytus/app-<id> import). When
- * the App Store / launcher opens one of these ids, AppRouter mounts
- * `WorkspaceAppHost` which handles the async import + bootApp call +
- * Suspense + error boundary.
+ * Boot-time hint of app ids whose entry lives in a workspace package
+ * (loaded via the dynamic loader → installed_apps row → @tytus/app-<id>
+ * import). The runtime source of truth is the live `installed_apps`
+ * table, consulted via `useInstalledAppIds()` below — this Set only
+ * exists as a SSR / pre-DB-init fast path so a freshly opened window
+ * doesn't flash a placeholder while the SQLite worker boots.
+ *
+ * Adding an id here is optional once the row is being seeded; the
+ * router will still mount `WorkspaceAppHost` for any kind∈{bundled,
+ * installed} row regardless of whether its id appears here.
  *
  * The legacy in-tree apps under different ids (e.g. `musiccreator`,
  * `musicplayer`, `voicerecorder`, `spreadsheet`, `notes`,
@@ -85,7 +91,7 @@ interface AppRouterProps {
  * below — this is the dual-source transition path until the cleanup
  * PR removes the in-tree files.
  */
-const WORKSPACE_APP_IDS = new Set([
+const WORKSPACE_APP_IDS_HINT = new Set([
   // System apps (bundled with shell)
   'memo',
   'music-creator',
@@ -129,8 +135,23 @@ const LEGACY_APP_ID_ALIASES: Record<string, string> = {
 
 const AppRouter: FC<AppRouterProps> = ({ appId }) => {
   const canonical = LEGACY_APP_ID_ALIASES[appId] ?? appId;
-  // Dynamic-loader path — workspace packages keyed by their installed_apps id.
-  if (WORKSPACE_APP_IDS.has(canonical)) {
+
+  // Dynamic-loader path — source of truth is the live installed_apps
+  // table. A row with kind ∈ {'bundled', 'installed'} mounts via
+  // WorkspaceAppHost regardless of whether the id is in the hint Set.
+  // This makes third-party apps installed at runtime ("Install from
+  // URL" → e.g. `todoist`) openable, which the Phase-3 v1 was missing
+  // (the static Set only knew the 11 build-time ids).
+  const installedIds = useInstalledAppIds();
+  const installedKind = installedIds.get(canonical);
+  if (installedKind === 'bundled' || installedKind === 'installed') {
+    return <WorkspaceAppHost appId={canonical} />;
+  }
+
+  // Fast path for first-render before the DB load resolves (the hint
+  // Set encodes the build-time bundled ids, so we don't flash an
+  // AppPlaceholder for them while the live map is still empty).
+  if (installedIds.size === 0 && WORKSPACE_APP_IDS_HINT.has(canonical)) {
     return <WorkspaceAppHost appId={canonical} />;
   }
 
