@@ -287,3 +287,88 @@ describe('resolveSharedTableNames', () => {
     expect(tables).toEqual(['app_owner_table']);
   });
 });
+
+describe('insertInstalledApp / deleteInstalledApp / updateInstalledApp', () => {
+  // Direct coverage for the CRUD helpers added in Phase 2
+  // (SPRINT-TYTUS-APP-SYSTEM-V1). Today these are also exercised
+  // transitively via installer.test.ts, but a regression in the SQL
+  // shape would be invisible at the installer layer.
+
+  // Lazy-import keeps the existing test imports unchanged above.
+  const repo = () =>
+    import('./installed-apps-repo') as Promise<typeof import('./installed-apps-repo')>;
+
+  it('insertInstalledApp writes a kind=installed row with manifestUrl', async () => {
+    const { insertInstalledApp } = await repo();
+    await insertInstalledApp(db, {
+      id: 'todoist',
+      kind: 'installed',
+      manifest: baseManifest('todoist'),
+      entryUrl: 'https://cdn.example.com/todoist/index.js',
+      assetsUrl: null,
+      manifestUrl: 'https://cdn.example.com/todoist/tytus-app.json',
+      installedAt: 1700000000000,
+      enabled: true,
+      builtinProtected: false,
+    });
+    const row = await getInstalledApp(db, 'todoist');
+    expect(row).not.toBeNull();
+    expect(row!.id).toBe('todoist');
+    expect(row!.kind).toBe('installed');
+    expect(row!.manifestUrl).toBe('https://cdn.example.com/todoist/tytus-app.json');
+    expect(row!.builtinProtected).toBe(false);
+    expect(row!.enabled).toBe(true);
+  });
+
+  it('deleteInstalledApp removes the row by id', async () => {
+    const { insertInstalledApp, deleteInstalledApp } = await repo();
+    await insertInstalledApp(db, {
+      id: 'todoist',
+      kind: 'installed',
+      manifest: baseManifest('todoist'),
+      entryUrl: 'https://cdn.example.com/todoist/index.js',
+      assetsUrl: null,
+      manifestUrl: 'https://cdn.example.com/todoist/tytus-app.json',
+      installedAt: 1700000000000,
+      enabled: true,
+      builtinProtected: false,
+    });
+    expect(await getInstalledApp(db, 'todoist')).not.toBeNull();
+    await deleteInstalledApp(db, 'todoist');
+    expect(await getInstalledApp(db, 'todoist')).toBeNull();
+  });
+
+  it('deleteInstalledApp on non-existent id is a no-op (does not throw)', async () => {
+    const { deleteInstalledApp } = await repo();
+    await expect(deleteInstalledApp(db, 'never-existed')).resolves.toBeUndefined();
+  });
+
+  it('updateInstalledApp swaps manifest + entry + manifestUrl in place', async () => {
+    const { insertInstalledApp, updateInstalledApp } = await repo();
+    await insertInstalledApp(db, {
+      id: 'todoist',
+      kind: 'installed',
+      manifest: baseManifest('todoist', { version: '1.0.0' }),
+      entryUrl: 'https://cdn.example.com/todoist@v1/index.js',
+      assetsUrl: null,
+      manifestUrl: 'https://cdn.example.com/todoist@v1/tytus-app.json',
+      installedAt: 1700000000000,
+      enabled: true,
+      builtinProtected: false,
+    });
+    await updateInstalledApp(db, 'todoist', {
+      manifest: baseManifest('todoist', { version: '2.0.0' }),
+      entryUrl: 'https://cdn.example.com/todoist@v2/index.js',
+      assetsUrl: null,
+      manifestUrl: 'https://cdn.example.com/todoist@v2/tytus-app.json',
+    });
+    const row = await getInstalledApp(db, 'todoist');
+    expect(row).not.toBeNull();
+    expect(row!.manifest.version).toBe('2.0.0');
+    expect(row!.entryUrl).toBe('https://cdn.example.com/todoist@v2/index.js');
+    expect(row!.manifestUrl).toBe('https://cdn.example.com/todoist@v2/tytus-app.json');
+    // Other fields preserved.
+    expect(row!.installedAt).toBe(1700000000000);
+    expect(row!.builtinProtected).toBe(false);
+  });
+});
