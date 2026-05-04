@@ -39,7 +39,7 @@ export const FEATURED_APPS: FeaturedApp[] = [
     description: 'AI-native music creator. Currently alpha — full Music Creator UI lift in progress.',
     icon: 'Music',
     category: 'Creative',
-    manifestUrl: 'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-juli3ta@v0.0.1-alpha.1/tytus-app.json',
+    manifestUrl: 'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-juli3ta@v0.0.2-alpha.1/tytus-app.json',
   },
   {
     id: 'text-editor',
@@ -87,7 +87,7 @@ export const FEATURED_APPS: FeaturedApp[] = [
  *  catalog repo is independently versioned so featured-app additions
  *  don't require a Tytus OS rebuild. */
 export const FEATURED_CATALOG_URL =
-  'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-catalog@v0.3.0/featured.json';
+  'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-catalog@v0.4.0/featured.json';
 
 interface RemoteCatalogShape {
   version?: number;
