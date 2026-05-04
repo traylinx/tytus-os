@@ -43,6 +43,9 @@ export const LEGACY_APP_ID_ALIASES: Record<string, string> = {
  *   - AppLauncher (collapse legacy + canonical recents into one).
  */
 export function resolveCanonicalAppId(id: string): string {
+  if (id === 'musiccreator' && getInstalledAppRow('juli3ta')) {
+    return 'juli3ta';
+  }
   return LEGACY_APP_ID_ALIASES[id] ?? id;
 }
 
@@ -66,6 +69,16 @@ import { appDefinitionFromInstalledRow } from './registry';
  *     the auto-install hasn't completed on first boot).
  */
 export function unifyAppDefinition(app: AppDefinition): AppDefinition {
+  // JULI3TA exception: keep the legacy in-tree `musiccreator` app
+  // routable as a protected migration fallback, but once standalone
+  // `juli3ta` v0.1+ is installed the launcher/recents should show the
+  // canonical app face instead of two JULI3TA icons. Do NOT put this in
+  // LEGACY_APP_ID_ALIASES yet — AppRouter imports that map and would
+  // stop routing direct `musiccreator` windows to the legacy fallback.
+  if (app.id === 'musiccreator') {
+    const row = getInstalledAppRow('juli3ta');
+    if (row) return appDefinitionFromInstalledRow(row);
+  }
   const canonical = LEGACY_APP_ID_ALIASES[app.id];
   if (!canonical) return app;
   const row = getInstalledAppRow(canonical);

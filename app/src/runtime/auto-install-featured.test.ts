@@ -175,19 +175,16 @@ describe('autoInstallFeaturedAtBoot', () => {
     expect(report.failed[0].reason).toMatch(/fetch_failed/);
   });
 
-  it('skips ids in AUTO_INSTALL_DENYLIST (juli3ta alpha guard)', async () => {
+  it('auto-installs JULI3TA now that v0.1.0 is non-alpha', async () => {
     const db = new MemoryDb();
-    const denylistedCatalog = [
-      // The real denylist contains 'juli3ta'; if the catalog ever
-      // surfaces it again (stale CDN tag, race), the OS must NOT
-      // auto-install it.
+    const catalog = [
       {
         id: 'juli3ta',
         name: 'JULI3TA',
-        description: 'alpha placeholder',
+        description: 'music creator',
         icon: 'Music',
         category: 'Creative',
-        manifestUrl: 'https://cdn.example.com/juli3ta/tytus-app.json',
+        manifestUrl: 'https://cdn.example.com/juli3ta-v010/tytus-app.json',
       },
       {
         id: 'text-editor',
@@ -203,16 +200,16 @@ describe('autoInstallFeaturedAtBoot', () => {
       db.__seedRow(id);
     });
     const report = await autoInstallFeaturedAtBoot(db, {
-      loadCatalog: async () => denylistedCatalog,
+      loadCatalog: async () => catalog,
       install,
       logger: { info: () => undefined, warn: () => undefined },
     });
-    expect(report.installed).toEqual(['text-editor']);
-    expect(report.skipped).toContain('juli3ta');
-    expect(install).toHaveBeenCalledTimes(1);
-    expect(install).not.toHaveBeenCalledWith(
+    expect(report.installed.sort()).toEqual(['juli3ta', 'text-editor']);
+    expect(report.skipped).not.toContain('juli3ta');
+    expect(install).toHaveBeenCalledTimes(2);
+    expect(install).toHaveBeenCalledWith(
       expect.objectContaining({
-        manifestUrl: 'https://cdn.example.com/juli3ta/tytus-app.json',
+        manifestUrl: 'https://cdn.example.com/juli3ta-v010/tytus-app.json',
       }),
     );
   });
