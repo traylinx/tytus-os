@@ -399,6 +399,7 @@ describe('TytusAppsTab', () => {
     render(
       <TytusAppsTab
         loadInstalledApps={async () => [
+          row('juli3ta', 'installed', { manifestUrl: 'x' }),
           row('text-editor', 'installed', { manifestUrl: 'x' }),
           row('code-editor', 'installed', { manifestUrl: 'x' }),
           row('markdown-preview', 'installed', { manifestUrl: 'x' }),

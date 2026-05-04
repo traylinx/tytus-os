@@ -34,6 +34,14 @@ export interface FeaturedApp {
 
 export const FEATURED_APPS: FeaturedApp[] = [
   {
+    id: 'juli3ta',
+    name: 'JULI3TA',
+    description: 'AI-native music creator. Currently alpha — full Music Creator UI lift in progress.',
+    icon: 'Music',
+    category: 'Creative',
+    manifestUrl: 'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-juli3ta@v0.0.1-alpha.1/tytus-app.json',
+  },
+  {
     id: 'text-editor',
     name: 'Text Editor',
     description: 'Plain-text editor with multi-file tabs, syntax highlighting, search/replace, and word-wrap.',
@@ -79,7 +87,7 @@ export const FEATURED_APPS: FeaturedApp[] = [
  *  catalog repo is independently versioned so featured-app additions
  *  don't require a Tytus OS rebuild. */
 export const FEATURED_CATALOG_URL =
-  'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-catalog@v0.1.0/featured.json';
+  'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-catalog@v0.2.0/featured.json';
 
 interface RemoteCatalogShape {
   version?: number;
