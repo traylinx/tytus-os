@@ -1703,6 +1703,12 @@ interface PlayerState {
    *  ends; 'one' replays the current track indefinitely. Persisted
    *  in localStorage('juli3ta:repeatMode'). */
   repeatMode: RepeatMode;
+  /** When true, next/prev/auto-advance pick a random track (excluding
+   *  the current one) instead of walking the queue sequentially. Has
+   *  no effect when repeatMode === 'one' — repeat-one wins because
+   *  the user explicitly asked for the current track to loop.
+   *  Persisted in localStorage('juli3ta:shuffle'). */
+  shuffle: boolean;
 }
 
 interface PlayerControls {
@@ -1720,6 +1726,7 @@ interface PlayerControls {
   seek: (ms: number) => void;
   setVolume: (v: number) => void;
   setRepeatMode: (m: RepeatMode) => void;
+  setShuffle: (on: boolean) => void;
   next: () => void;
   prev: () => void;
 }
@@ -1741,12 +1748,20 @@ function usePlayer(
       const raw = localStorage.getItem('juli3ta:repeatMode');
       if (raw === 'off' || raw === 'all' || raw === 'one') repeatMode = raw;
     } catch {}
-    return { trackId: null, playing: false, loadingTrackId: null, positionMs: 0, durationMs: 0, volume: 1, repeatMode };
+    let shuffle = false;
+    try {
+      shuffle = localStorage.getItem('juli3ta:shuffle') === '1';
+    } catch {}
+    return { trackId: null, playing: false, loadingTrackId: null, positionMs: 0, durationMs: 0, volume: 1, repeatMode, shuffle };
   });
   const errorRetryRef = useRef<string | null>(null);
   const setRepeatMode = useCallback((m: RepeatMode) => {
     setState((s) => ({ ...s, repeatMode: m }));
     try { localStorage.setItem('juli3ta:repeatMode', m); } catch {}
+  }, []);
+  const setShuffle = useCallback((on: boolean) => {
+    setState((s) => ({ ...s, shuffle: on }));
+    try { localStorage.setItem('juli3ta:shuffle', on ? '1' : '0'); } catch {}
   }, []);
 
   // Pre-load a track without starting playback. The bottom MiniPlayer
@@ -1866,21 +1881,45 @@ function usePlayer(
 
   const playable = useMemo(() => queue.filter(hasPlayableAudio), [queue]);
 
+  // Pick a random track from `playable` excluding the current one. We
+  // bias against repeating the same track twice in a row when the
+  // queue has ≥2 tracks; with 1 track there's no other choice. Used
+  // by next/prev/onEnd when shuffle is on (and repeat-one isn't).
+  const pickRandomNext = useCallback((): SavedTrack | null => {
+    if (playable.length === 0) return null;
+    if (playable.length === 1) return playable[0];
+    const others = playable.filter((t) => t.id !== state.trackId);
+    return others[Math.floor(Math.random() * others.length)];
+  }, [playable, state.trackId]);
+
   const next = useCallback(() => {
     if (!state.trackId || playable.length === 0) return;
+    if (state.shuffle) {
+      const r = pickRandomNext();
+      if (r) play(r);
+      return;
+    }
     const idx = playable.findIndex((t) => t.id === state.trackId);
     if (idx < 0) return;
     const n = playable[(idx + 1) % playable.length];
     if (n) play(n);
-  }, [state.trackId, playable, play]);
+  }, [state.trackId, state.shuffle, playable, play, pickRandomNext]);
 
   const prev = useCallback(() => {
     if (!state.trackId || playable.length === 0) return;
+    if (state.shuffle) {
+      // No play history stack yet — prev under shuffle picks another
+      // random track, matching Spotify's mobile behavior when there's
+      // no prior context. A future ship could add a real history stack.
+      const r = pickRandomNext();
+      if (r) play(r);
+      return;
+    }
     const idx = playable.findIndex((t) => t.id === state.trackId);
     if (idx < 0) return;
     const p = playable[(idx - 1 + playable.length) % playable.length];
     if (p) play(p);
-  }, [state.trackId, playable, play]);
+  }, [state.trackId, state.shuffle, playable, play, pickRandomNext]);
 
   // Bridge audio element events back into React state. The element
   // is mounted by the consumer (MusicCreator workspace) — we attach
@@ -1915,13 +1954,28 @@ function usePlayer(
         .catch(() => setState((s) => ({ ...s, playing: false, loadingTrackId: null })));
     };
     const onEnd = () => {
-      // Repeat-one: replay the current track. We re-resolve via play()
-      // (rather than a.currentTime=0) so streamed tracks re-warm if
-      // the proxy URL has expired, and so loadingTrackId / spinner
-      // surfaces while the audio re-buffers.
+      // Repeat-one wins over shuffle. The user explicitly asked for
+      // the current track to loop — don't betray that with a random
+      // jump. We re-resolve via play() (rather than a.currentTime=0)
+      // so streamed tracks re-warm if the proxy URL has expired, and
+      // so loadingTrackId / spinner surfaces while the audio re-buffers.
       if (state.repeatMode === 'one' && state.trackId) {
         const cur = playable.find((t) => t.id === state.trackId);
         if (cur) { play(cur); return; }
+      }
+      // Shuffle: pick a random track. With repeatMode === 'off' we
+      // never run out — there's always another random track unless
+      // the queue is empty. With 1 track + shuffle, replays it.
+      if (state.shuffle && playable.length >= 1) {
+        if (playable.length === 1) {
+          // Edge case: single-track queue with shuffle on.
+          // Stop unless repeatMode says otherwise.
+          if (state.repeatMode === 'all') { play(playable[0]); return; }
+        } else {
+          const others = playable.filter((t) => t.id !== state.trackId);
+          const r = others[Math.floor(Math.random() * others.length)];
+          if (r) { play(r); return; }
+        }
       }
       // Sequential auto-advance through the queue. Default behavior
       // for any non-empty queue. When at the LAST track, branch on
@@ -1957,9 +2011,9 @@ function usePlayer(
       a.removeEventListener('error', onError);
       a.removeEventListener('ended', onEnd);
     };
-  }, [playable, state.trackId, state.repeatMode, play, audioRef, resolveTrackSrc]);
+  }, [playable, state.trackId, state.repeatMode, state.shuffle, play, audioRef, resolveTrackSrc]);
 
-  return { state, queue, play, pause, toggle, select, seek, setVolume, setRepeatMode, next, prev };
+  return { state, queue, play, pause, toggle, select, seek, setVolume, setRepeatMode, setShuffle, next, prev };
 }
 
 // ──────────────────────────────────────────────────────────
@@ -2161,11 +2215,22 @@ function MiniPlayer({ player, allTracks }: { player: PlayerControls; allTracks: 
         </div>
       </div>
 
-      {/* Transport — prev / play-pause / next + repeat-mode toggle.
+      {/* Transport — shuffle / prev / play-pause / next / repeat.
           Play-pause is the accent gradient pill; others are subtle.
-          Repeat cycles off → all → one → off (Spotify pattern) and
-          highlights with the accent color when active. */}
+          Shuffle and Repeat both highlight with the accent color when
+          active. Repeat cycles off → all → one → off (Spotify pattern). */}
       <div className="flex items-center gap-1 flex-shrink-0">
+        <button
+          onClick={() => player.setShuffle(!state.shuffle)}
+          className="flex items-center justify-center rounded-md transition-all hover:bg-[var(--bg-hover)]"
+          style={{
+            width: 28, height: 28,
+            color: state.shuffle ? 'var(--accent-primary)' : 'var(--text-secondary)',
+          }}
+          title={state.shuffle ? 'Shuffle on' : 'Shuffle off'}
+        >
+          <Shuffle size={12} />
+        </button>
         <button
           onClick={prev}
           className="flex items-center justify-center rounded-md transition-all hover:bg-[var(--bg-hover)]"
