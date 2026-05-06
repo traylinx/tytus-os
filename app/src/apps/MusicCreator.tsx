@@ -5522,6 +5522,37 @@ function PlayerView({ track, player, restyleOriginal, onEditInCreator, onSwitchT
                 <Wand2 size={13} />
                 {t('musiccreator.player.remixInRestyle')}
               </button>
+              {/* Download to disk — browser-native download via <a download>.
+                  Renders only when the track has a directly-fetchable
+                  audio source (data URL or app-served URL). Streamed
+                  Library tracks have no audioDataUrl, so the button
+                  hides — yt-dlp / equivalent is the right tool there. */}
+              {track.audioDataUrl && hasAudio && (
+                <button
+                  onClick={() => {
+                    const a = document.createElement('a');
+                    a.href = track.audioDataUrl;
+                    a.download = `${(track.title || 'track').replace(/[\\/:*?"<>|]/g, '_')}.mp3`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                  }}
+                  className="flex items-center gap-1.5 px-4 rounded-full transition-all"
+                  style={{
+                    height: 38,
+                    fontSize: 12,
+                    fontWeight: 600,
+                    color: 'rgba(255,255,255,0.95)',
+                    background: 'rgba(255,255,255,0.10)',
+                    backdropFilter: 'blur(8px)',
+                    border: '1px solid rgba(255,255,255,0.18)',
+                  }}
+                  title="Download MP3 to your computer"
+                >
+                  <Download size={13} />
+                  Download
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -9152,8 +9183,8 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
           }}
         >
           {([
-            { id: 'mywork' as const, label: 'My Work' },
-            { id: 'library' as const, label: 'Library' },
+            { id: 'mywork' as const, label: 'My Work', count: myWorkTracks.length },
+            { id: 'library' as const, label: 'Library', count: libraryTracks.length },
           ]).map((tab) => (
             <button
               key={tab.id}
@@ -9171,6 +9202,18 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
               }}
             >
               {tab.label}
+              {tab.count > 0 && (
+                <span
+                  style={{
+                    marginLeft: 6,
+                    fontSize: 10,
+                    fontWeight: 700,
+                    opacity: sidebarTab === tab.id ? 0.85 : 0.55,
+                  }}
+                >
+                  {tab.count}
+                </span>
+              )}
             </button>
           ))}
         </div>
