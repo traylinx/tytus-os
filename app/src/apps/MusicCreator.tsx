@@ -5407,6 +5407,8 @@ interface MusicSearchPaneProps {
   onTabChange: (tab: MusicPaneTab) => void;
   query: string;
   onQueryChange: (query: string) => void;
+  searchHistory: string[];
+  onClearSearchHistory: () => void;
   resultType: 'tracks' | 'playlists';
   onResultTypeChange: (type: 'tracks' | 'playlists') => void;
   results: MusicSearchResult[];
@@ -5446,6 +5448,8 @@ function MusicSearchPane({
   onTabChange,
   query,
   onQueryChange,
+  searchHistory,
+  onClearSearchHistory,
   resultType,
   onResultTypeChange,
   results,
@@ -5763,6 +5767,46 @@ function MusicSearchPane({
                 </button>
               ))}
             </div>
+          </div>
+        )}
+        {tab === 'search' && query.trim().length < 2 && searchHistory.length > 0 && (
+          <div className="mt-3 flex items-center gap-2 flex-wrap">
+            <span style={{ fontSize: 10, color: 'var(--text-disabled)', textTransform: 'uppercase', letterSpacing: 0.7, fontWeight: 800 }}>
+              Recent
+            </span>
+            {searchHistory.map((q) => (
+              <button
+                key={q}
+                type="button"
+                onClick={() => onQueryChange(q)}
+                className="rounded-lg px-3 transition-all hover:bg-[var(--bg-hover)]"
+                style={{
+                  height: 26,
+                  fontSize: 11,
+                  fontWeight: 700,
+                  color: 'var(--text-secondary)',
+                  background: 'var(--bg-titlebar)',
+                  border: '1px solid var(--border-subtle)',
+                }}
+                title={`Search for "${q}"`}
+              >
+                {q}
+              </button>
+            ))}
+            <button
+              type="button"
+              onClick={onClearSearchHistory}
+              className="flex items-center justify-center rounded-lg transition-all hover:bg-[var(--bg-hover)]"
+              style={{
+                width: 26, height: 26,
+                color: 'var(--text-disabled)',
+                background: 'var(--bg-titlebar)',
+                border: '1px solid var(--border-subtle)',
+              }}
+              title="Clear recent searches"
+            >
+              <X size={11} />
+            </button>
           </div>
         )}
         {error && <div className="mt-3" style={{ fontSize: 12, color: 'var(--status-danger)' }}>{error}</div>}
@@ -6408,6 +6452,27 @@ export default function MusicCreator() {
   const [musicSearchOpen, setMusicSearchOpen] = useState(false);
   const [musicPaneTab, setMusicPaneTab] = useState<MusicPaneTab>('search');
   const [musicQuery, setMusicQuery] = useState('');
+  // Last 5 successful search queries, persisted in localStorage so the
+  // user can replay yesterday's lookups in one click. Hydrated lazily
+  // — the first useState callback runs once at mount.
+  const [musicSearchHistory, setMusicSearchHistory] = useState<string[]>(() => {
+    try {
+      const raw = localStorage.getItem('juli3ta:searchHistory');
+      const parsed = raw ? JSON.parse(raw) as unknown : null;
+      return Array.isArray(parsed) ? parsed.filter((s): s is string => typeof s === 'string').slice(0, 5) : [];
+    } catch {
+      return [];
+    }
+  });
+  const recordSearchHistory = useCallback((q: string) => {
+    const trimmed = q.trim();
+    if (trimmed.length < 2) return;
+    setMusicSearchHistory((prev) => {
+      const next = [trimmed, ...prev.filter((p) => p.toLowerCase() !== trimmed.toLowerCase())].slice(0, 5);
+      try { localStorage.setItem('juli3ta:searchHistory', JSON.stringify(next)); } catch {}
+      return next;
+    });
+  }, []);
   const [musicResultType, setMusicResultType] = useState<'tracks' | 'playlists'>('tracks');
   const [musicResults, setMusicResults] = useState<MusicSearchResult[]>([]);
   const [musicSearchBusy, setMusicSearchBusy] = useState(false);
@@ -8240,6 +8305,7 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
           musicSearchCacheRef.current.set(cacheKey, rows);
           setMusicResults(rows);
           warmMusicResults(rows);
+          if (rows.length > 0) recordSearchHistory(q);
         })
         .catch((e) => {
           if (controller.signal.aborted) return;
@@ -8253,7 +8319,7 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
       controller.abort();
       clearTimeout(handle);
     };
-  }, [musicQuery, musicResultType, musicSearchOpen, warmMusicResults]);
+  }, [musicQuery, musicResultType, musicSearchOpen, warmMusicResults, recordSearchHistory]);
 
   const refreshMusicSources = useCallback(async () => {
     const [providersResult, connectorsResult] = await Promise.allSettled([
@@ -8346,6 +8412,51 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
   // currently sees — search-filtered or not.
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const player = usePlayer(allPlayerTracks, audioRef, resolveTrackAudioSrc);
+
+  // Keyboard shortcuts when Player view is active. Standard music-app
+  // bindings: Space=play/pause, ←/→=seek ±5s, ↑/↓=volume ±10%. We skip
+  // when the user is typing into an input/textarea/contenteditable so
+  // the bindings never steal characters from the search bar, theme
+  // box, or lyrics editor. We also bail when no track is loaded.
+  useEffect(() => {
+    if (view !== 'player') return;
+    const onKey = (e: KeyboardEvent) => {
+      const tgt = e.target as HTMLElement | null;
+      if (tgt) {
+        const tag = tgt.tagName;
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+        if (tgt.isContentEditable) return;
+      }
+      const trackId = player.state.trackId;
+      if (!trackId) return;
+      const track = allPlayerTracks.find((t) => t.id === trackId);
+      if (!track) return;
+      switch (e.key) {
+        case ' ': // Space
+          e.preventDefault();
+          player.toggle(track);
+          break;
+        case 'ArrowLeft':
+          e.preventDefault();
+          player.seek(Math.max(0, player.state.positionMs - 5000));
+          break;
+        case 'ArrowRight':
+          e.preventDefault();
+          player.seek(Math.min(player.state.durationMs || 0, player.state.positionMs + 5000));
+          break;
+        case 'ArrowUp':
+          e.preventDefault();
+          player.setVolume(Math.min(1, player.state.volume + 0.1));
+          break;
+        case 'ArrowDown':
+          e.preventDefault();
+          player.setVolume(Math.max(0, player.state.volume - 0.1));
+          break;
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [view, player, allPlayerTracks]);
 
   const playMusicPlaylist = useCallback((playlist: MusicPlaylist) => {
     const first = playlist.items.find(hasPlayableAudio);
@@ -8770,6 +8881,19 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
               <div style={{ fontSize: 10, color: 'var(--text-disabled)', marginTop: 4, maxWidth: 220, lineHeight: 1.4 }}>
                 {t('musiccreator.gallery.empty.body')}
               </div>
+              <button
+                onClick={() => setView('creator')}
+                className="mt-3 flex items-center gap-1.5 rounded-lg px-3"
+                style={{
+                  height: 28,
+                  fontSize: 11,
+                  fontWeight: 700,
+                  color: 'white',
+                  background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))',
+                }}
+              >
+                <Sparkles size={11} /> Start a song
+              </button>
               <div className="flex items-center gap-1 mt-3" style={{ fontSize: 9, color: 'var(--text-disabled)' }}>
                 <Mic size={10} />
                 {t('musiccreator.gallery.empty.footer')}
@@ -9049,6 +9173,11 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
               onTabChange={setMusicPaneTab}
               query={musicQuery}
               onQueryChange={setMusicQuery}
+              searchHistory={musicSearchHistory}
+              onClearSearchHistory={() => {
+                setMusicSearchHistory([]);
+                try { localStorage.removeItem('juli3ta:searchHistory'); } catch {}
+              }}
               resultType={musicResultType}
               onResultTypeChange={setMusicResultType}
               results={musicResults}
