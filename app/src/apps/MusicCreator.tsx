@@ -9068,27 +9068,44 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
                 <Loader2 size={12} className="animate-spin" />
                 {t('musiccreator.button.cancel')}
               </button>
-            ) : (
-              <button
-                onClick={generate}
-                className="flex items-center gap-1.5 px-4 rounded-lg transition-all hover:scale-[1.02] active:scale-[0.99]"
-                style={{
-                  height: 32,
-                  fontSize: 12,
-                  fontWeight: 600,
-                  color: 'white',
-                  background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))',
-                  boxShadow: 'var(--shadow-md)',
-                }}
-              >
-                <Wand2 size={13} />
-                {mode === 'restyle'
-                  ? 'Restyle Song'
-                  : mode === 'lyricsOnly'
-                    ? 'Write Lyrics'
-                    : t('musiccreator.button.create')}
-              </button>
-            )}
+            ) : (() => {
+              // Restyle requires a fully-decoded reference. While the
+              // YouTube branch of loadTrack is resolving the proxy URL
+              // and Web-Audio decoding the buffer, `extracting` is
+              // true and `refAudioBase64` is still null. Disable the
+              // primary action during that window so the user can't
+              // submit prematurely + relabel to make the wait obvious.
+              const restyleNotReady = mode === 'restyle' && (extracting || !refAudioBase64);
+              return (
+                <button
+                  onClick={generate}
+                  disabled={restyleNotReady}
+                  className="flex items-center gap-1.5 px-4 rounded-lg transition-all hover:scale-[1.02] active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+                  style={{
+                    height: 32,
+                    fontSize: 12,
+                    fontWeight: 600,
+                    color: 'white',
+                    background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))',
+                    boxShadow: 'var(--shadow-md)',
+                  }}
+                  title={restyleNotReady
+                    ? (extracting
+                        ? 'Analyzing reference audio — hold on…'
+                        : 'Drop a reference audio file in the Restyle panel below')
+                    : undefined}
+                >
+                  {restyleNotReady && extracting
+                    ? <Loader2 size={13} className="animate-spin" />
+                    : <Wand2 size={13} />}
+                  {mode === 'restyle'
+                    ? (extracting ? 'Analyzing audio…' : 'Restyle Song')
+                    : mode === 'lyricsOnly'
+                      ? 'Write Lyrics'
+                      : t('musiccreator.button.create')}
+                </button>
+              );
+            })()}
           </div>
         </div>
 
