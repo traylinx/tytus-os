@@ -6839,9 +6839,41 @@ export default function MusicCreator() {
   // sidebar (My Work only) and the main Music pane (Library tab).
   // Each scope owns its own sub-filter chip row so the user has one
   // navigation map regardless of which side of the app they're in.
-  const [sidebarTab, setSidebarTab] = useState<'mywork' | 'library'>('mywork');
-  const [myWorkChip, setMyWorkChip] = useState<'all' | 'songs' | 'restyles' | 'lyrics'>('all');
-  const [libraryChip, setLibraryChip] = useState<'all' | 'favorites'>('all');
+  // Sidebar filter state. Persisted in localStorage so a reload
+  // returns the user to the tab + chip they were on. Each useState
+  // initializer runs exactly once on mount; we don't need a separate
+  // hydration effect, and lazy-reading from localStorage avoids a
+  // first-render flicker.
+  const [sidebarTab, setSidebarTab] = useState<'mywork' | 'library'>(() => {
+    try {
+      const raw = localStorage.getItem('juli3ta:sidebarTab');
+      return raw === 'library' ? 'library' : 'mywork';
+    } catch { return 'mywork'; }
+  });
+  const [myWorkChip, setMyWorkChip] = useState<'all' | 'songs' | 'restyles' | 'lyrics'>(() => {
+    try {
+      const raw = localStorage.getItem('juli3ta:myWorkChip');
+      if (raw === 'all' || raw === 'songs' || raw === 'restyles' || raw === 'lyrics') return raw;
+    } catch {}
+    return 'all';
+  });
+  const [libraryChip, setLibraryChip] = useState<'all' | 'favorites'>(() => {
+    try {
+      const raw = localStorage.getItem('juli3ta:libraryChip');
+      return raw === 'favorites' ? 'favorites' : 'all';
+    } catch { return 'all'; }
+  });
+  // Persist whenever any of the three changes. Cheap — only fires on
+  // user-initiated tab/chip changes, so localStorage churn is bounded.
+  useEffect(() => {
+    try { localStorage.setItem('juli3ta:sidebarTab', sidebarTab); } catch {}
+  }, [sidebarTab]);
+  useEffect(() => {
+    try { localStorage.setItem('juli3ta:myWorkChip', myWorkChip); } catch {}
+  }, [myWorkChip]);
+  useEffect(() => {
+    try { localStorage.setItem('juli3ta:libraryChip', libraryChip); } catch {}
+  }, [libraryChip]);
   // Multi-select mode for the Library sidebar tab. When on, rows show
   // a checkbox + clicking selects/deselects (instead of opening in
   // player). A footer action bar offers batch Toggle-favorite and
