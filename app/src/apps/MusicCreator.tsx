@@ -31,7 +31,7 @@ import {
   Settings2, X, Monitor, MoreVertical, NotebookText, Music2, Search,
   Pencil, Image as ImageIcon, Upload, RefreshCw, ChevronUp,
   Heart, Radio, UserRound, ListMusic, Album, ExternalLink, FolderOpen,
-  ChevronLeft,
+  ChevronLeft, Repeat, Repeat1,
 } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import JulietaHelp from './JulietaHelp';
@@ -1689,6 +1689,8 @@ const FUN_MUSIC_TIPS = [
 // transport stays consistent across UI surfaces.
 // ──────────────────────────────────────────────────────────
 
+type RepeatMode = 'off' | 'all' | 'one';
+
 interface PlayerState {
   trackId: string | null;
   playing: boolean;
@@ -1696,6 +1698,11 @@ interface PlayerState {
   positionMs: number;
   durationMs: number;
   volume: number;
+  /** Auto-advance behavior at end-of-track. 'off' stops at the last
+   *  track in the queue; 'all' wraps to track 0 so playback never
+   *  ends; 'one' replays the current track indefinitely. Persisted
+   *  in localStorage('juli3ta:repeatMode'). */
+  repeatMode: RepeatMode;
 }
 
 interface PlayerControls {
@@ -1712,6 +1719,7 @@ interface PlayerControls {
   select: (track: SavedTrack) => void;
   seek: (ms: number) => void;
   setVolume: (v: number) => void;
+  setRepeatMode: (m: RepeatMode) => void;
   next: () => void;
   prev: () => void;
 }
@@ -1727,10 +1735,19 @@ function usePlayer(
   audioRef: React.MutableRefObject<HTMLAudioElement | null>,
   resolveTrackSrc?: ResolveTrackSrc,
 ): PlayerControls {
-  const [state, setState] = useState<PlayerState>({
-    trackId: null, playing: false, loadingTrackId: null, positionMs: 0, durationMs: 0, volume: 1,
+  const [state, setState] = useState<PlayerState>(() => {
+    let repeatMode: RepeatMode = 'off';
+    try {
+      const raw = localStorage.getItem('juli3ta:repeatMode');
+      if (raw === 'off' || raw === 'all' || raw === 'one') repeatMode = raw;
+    } catch {}
+    return { trackId: null, playing: false, loadingTrackId: null, positionMs: 0, durationMs: 0, volume: 1, repeatMode };
   });
   const errorRetryRef = useRef<string | null>(null);
+  const setRepeatMode = useCallback((m: RepeatMode) => {
+    setState((s) => ({ ...s, repeatMode: m }));
+    try { localStorage.setItem('juli3ta:repeatMode', m); } catch {}
+  }, []);
 
   // Pre-load a track without starting playback. The bottom MiniPlayer
   // reads `state.trackId` to decide what to show, so `select` flips
@@ -1898,13 +1915,27 @@ function usePlayer(
         .catch(() => setState((s) => ({ ...s, playing: false, loadingTrackId: null })));
     };
     const onEnd = () => {
-      // Auto-advance when there are >= 2 playable tracks; otherwise
-      // stop at the end without resetting trackId so the MiniPlayer
-      // stays visible with a "0:00" cursor for replay.
+      // Repeat-one: replay the current track. We re-resolve via play()
+      // (rather than a.currentTime=0) so streamed tracks re-warm if
+      // the proxy URL has expired, and so loadingTrackId / spinner
+      // surfaces while the audio re-buffers.
+      if (state.repeatMode === 'one' && state.trackId) {
+        const cur = playable.find((t) => t.id === state.trackId);
+        if (cur) { play(cur); return; }
+      }
+      // Sequential auto-advance through the queue. Default behavior
+      // for any non-empty queue. When at the LAST track, branch on
+      // repeatMode: 'all' wraps to track 0 (continuous loop); 'off'
+      // stops cleanly so the MiniPlayer keeps showing the just-played
+      // track with a "0:00" cursor for replay.
       if (playable.length >= 2) {
         const idx = playable.findIndex((t) => t.id === state.trackId);
         if (idx >= 0 && idx + 1 < playable.length) {
           play(playable[idx + 1]);
+          return;
+        }
+        if (idx >= 0 && state.repeatMode === 'all') {
+          play(playable[0]);
           return;
         }
       }
@@ -1926,9 +1957,9 @@ function usePlayer(
       a.removeEventListener('error', onError);
       a.removeEventListener('ended', onEnd);
     };
-  }, [playable, state.trackId, play, audioRef, resolveTrackSrc]);
+  }, [playable, state.trackId, state.repeatMode, play, audioRef, resolveTrackSrc]);
 
-  return { state, queue, play, pause, toggle, select, seek, setVolume, next, prev };
+  return { state, queue, play, pause, toggle, select, seek, setVolume, setRepeatMode, next, prev };
 }
 
 // ──────────────────────────────────────────────────────────
@@ -2130,8 +2161,10 @@ function MiniPlayer({ player, allTracks }: { player: PlayerControls; allTracks: 
         </div>
       </div>
 
-      {/* Transport — prev / play-pause / next. Play-pause is the
-          accent gradient pill; others are subtle. */}
+      {/* Transport — prev / play-pause / next + repeat-mode toggle.
+          Play-pause is the accent gradient pill; others are subtle.
+          Repeat cycles off → all → one → off (Spotify pattern) and
+          highlights with the accent color when active. */}
       <div className="flex items-center gap-1 flex-shrink-0">
         <button
           onClick={prev}
@@ -2163,6 +2196,25 @@ function MiniPlayer({ player, allTracks }: { player: PlayerControls; allTracks: 
           title="Next"
         >
           <Play size={12} />
+        </button>
+        <button
+          onClick={() => {
+            const cur = state.repeatMode;
+            const nextMode: RepeatMode = cur === 'off' ? 'all' : cur === 'all' ? 'one' : 'off';
+            player.setRepeatMode(nextMode);
+          }}
+          className="flex items-center justify-center rounded-md transition-all hover:bg-[var(--bg-hover)]"
+          style={{
+            width: 28, height: 28,
+            color: state.repeatMode === 'off' ? 'var(--text-secondary)' : 'var(--accent-primary)',
+          }}
+          title={
+            state.repeatMode === 'off' ? 'Repeat off' :
+            state.repeatMode === 'all' ? 'Repeating queue' :
+            'Repeating this track'
+          }
+        >
+          {state.repeatMode === 'one' ? <Repeat1 size={12} /> : <Repeat size={12} />}
         </button>
       </div>
 
