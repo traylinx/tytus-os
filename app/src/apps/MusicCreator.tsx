@@ -6733,7 +6733,22 @@ export default function MusicCreator() {
   // Which saved track the player view is showing. null = "no track
   // selected yet" → the player falls back to the currently playing one
   // (or the most recent in the gallery) so the pane is never empty.
-  const [selectedPlayerTrackId, setSelectedPlayerTrackId] = useState<string | null>(null);
+  // Persisted in localStorage so reload returns to the user's last
+  // viewed track. If the persisted id no longer exists when tracks
+  // hydrate, the validation effect below clears it so we don't pin
+  // an empty state on a deleted track.
+  const [selectedPlayerTrackId, setSelectedPlayerTrackId] = useState<string | null>(() => {
+    try {
+      const raw = localStorage.getItem('juli3ta:selectedPlayerTrackId');
+      return raw && raw.length > 0 ? raw : null;
+    } catch { return null; }
+  });
+  useEffect(() => {
+    try {
+      if (selectedPlayerTrackId) localStorage.setItem('juli3ta:selectedPlayerTrackId', selectedPlayerTrackId);
+      else localStorage.removeItem('juli3ta:selectedPlayerTrackId');
+    } catch {}
+  }, [selectedPlayerTrackId]);
 
   // Form state
   const [theme, setTheme] = useState('');
@@ -8834,6 +8849,20 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
     () => [...previewTracks, ...libraryTracks, ...visibleGallery],
     [previewTracks, libraryTracks, visibleGallery],
   );
+
+  // Clear a persisted selectedPlayerTrackId that points at a deleted
+  // track. We only run this AFTER the hydration sources have settled
+  // (≥1 track loaded somewhere) — running it eagerly on first paint
+  // would clear the persisted id while data is still loading. The
+  // allPlayerTracks.length > 0 check is a heuristic: when at least
+  // one row is loaded, we're past initial hydration and can trust
+  // the lookup.
+  useEffect(() => {
+    if (!selectedPlayerTrackId) return;
+    if (allPlayerTracks.length === 0) return;
+    const exists = allPlayerTracks.some((t) => t.id === selectedPlayerTrackId);
+    if (!exists) setSelectedPlayerTrackId(null);
+  }, [selectedPlayerTrackId, allPlayerTracks]);
 
   // Player owns one <audio> element shared by every play surface
   // (TrackCard, TrackTable row, MiniPlayer). The ref is created here
