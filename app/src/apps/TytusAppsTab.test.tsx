@@ -404,6 +404,7 @@ describe('TytusAppsTab', () => {
           row('forge', 'installed', { manifestUrl: 'x' }),
           row('juli3ta', 'installed', { manifestUrl: 'x' }),
           row('markdown-preview', 'installed', { manifestUrl: 'x' }),
+          row('openhouse', 'installed', { manifestUrl: 'x' }),
           row('photo-editor', 'installed', { manifestUrl: 'x' }),
           row('text-editor', 'installed', { manifestUrl: 'x' }),
           row('api-tester', 'installed', { manifestUrl: 'x' }),

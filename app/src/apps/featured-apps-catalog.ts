@@ -82,6 +82,14 @@ const ALL_FEATURED_APPS: FeaturedApp[] = [
     manifestUrl: 'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-api-tester@v0.1.0/tytus-app.json',
   },
   {
+    id: 'openhouse',
+    name: 'OpenHouse',
+    description: 'Visual agent house for Tytus pods and third-party AI agents — rooms, bodies, moods, probes, and safe status diagnostics.',
+    icon: 'Building2',
+    category: 'Productivity',
+    manifestUrl: 'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-openhouse@v1.0.1/tytus-app.json',
+  },
+  {
     id: 'juli3ta',
     name: 'JULI3TA',
     description: 'Full AI-native music creator for Tytus OS. Create songs, lyrics, covers, and manage your local music workbench.',

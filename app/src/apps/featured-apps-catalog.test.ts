@@ -166,10 +166,12 @@ describe('FEATURED_APPS hardcoded baseline', () => {
       'forge',
       'juli3ta',
       'markdown-preview',
+      'openhouse',
       'photo-editor',
       'text-editor',
     ]);
     expect(FEATURED_APPS.find((a) => a.id === 'markdown-preview')?.name).toBe('Markdown Editor');
+    expect(FEATURED_APPS.find((a) => a.id === 'openhouse')?.manifestUrl).toContain('tytus-app-openhouse@v1.0.1');
     expect(ids).not.toContain('code-editor');
   });
 });
