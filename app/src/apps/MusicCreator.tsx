@@ -6617,7 +6617,9 @@ export default function MusicCreator() {
     // post-lyrics for defence-in-depth, but this one is the first
     // gate.)
     if (mode === 'restyle' && !refAudioBase64) {
-      setError('Restyle needs a reference audio file. Drop one in below.');
+      setError(extracting
+        ? 'Still analyzing the reference audio — try again in a moment.'
+        : 'Restyle needs a reference audio file. Drop one in below.');
       return;
     }
     // In-flight guard: drop duplicate clicks before phase flips.
@@ -6772,7 +6774,9 @@ export default function MusicCreator() {
 
       // Restyle mode requires a reference-audio upload.
       if (mode === 'restyle' && !refAudioBase64) {
-        setError('Restyle needs a reference audio file. Drop one in below.');
+        setError(extracting
+          ? 'Still analyzing the reference audio — try again in a moment.'
+          : 'Restyle needs a reference audio file. Drop one in below.');
         setPhase('idle');
         return;
       }
@@ -7734,10 +7738,16 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
       // uploads. ingestSourceAudio's underlying buildCoverSample
       // accepts a string source: it does `fetch(url).blob()` then
       // decodes via Web Audio. Same-origin proxy means no CORS.
+      // We flip `extracting` true upfront so the Generate button's
+      // validation message and any wired-up disable logic see the
+      // in-flight state during the URL-resolve phase too — without
+      // this, there's a window where the row shows the file name but
+      // the form looks ready to submit.
       setMode('restyle');
       setRefAudioBase64(null);
       setRefAudioName(`${cleanTitle}.mp3`);
       setRefSampleInfo('Resolving streamed audio…');
+      setExtracting(true);
       const resolveAndIngest = async () => {
         try {
           const externalId = track.externalId || '';
@@ -7749,6 +7759,7 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
             : (await getMusicStream(externalId)).proxyUrl;
           await ingestSourceAudio(src, `${cleanTitle}.mp3`);
         } catch (e) {
+          setExtracting(false);
           setRefAudioBase64(null);
           setRefAudioName(null);
           setRefSampleInfo(null);
