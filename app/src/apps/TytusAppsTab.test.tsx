@@ -69,25 +69,25 @@ describe('TytusAppsTab', () => {
     render(
       <TytusAppsTab
         loadInstalledApps={async () => [
-          row('sheet', 'bundled'),
-          row('memo', 'bundled'),
+          row('forge', 'bundled'),
+          row('music-player', 'bundled'),
         ]}
       />,
     );
     await waitFor(() => {
-      expect(screen.getByTestId('tytus-app-card-sheet')).toBeTruthy();
-      expect(screen.getByTestId('tytus-app-card-memo')).toBeTruthy();
+      expect(screen.getByTestId('tytus-app-card-forge')).toBeTruthy();
+      expect(screen.getByTestId('tytus-app-card-music-player')).toBeTruthy();
     });
   });
 
   it('disables the Uninstall button for builtin-protected system apps with the spec tooltip', async () => {
     render(
       <TytusAppsTab
-        loadInstalledApps={async () => [row('sheet', 'bundled')]}
+        loadInstalledApps={async () => [row('forge', 'bundled')]}
       />,
     );
-    await waitFor(() => screen.getByTestId('tytus-app-card-sheet'));
-    const btn = screen.getByTestId('tytus-app-uninstall-sheet') as HTMLButtonElement;
+    await waitFor(() => screen.getByTestId('tytus-app-card-forge'));
+    const btn = screen.getByTestId('tytus-app-uninstall-forge') as HTMLButtonElement;
     expect(btn.disabled).toBe(true);
     expect(btn.title).toContain('System app — auto-updated with Tytus OS');
   });
@@ -113,10 +113,10 @@ describe('TytusAppsTab', () => {
   it('hides the System apps history section when there are no aliases', async () => {
     render(
       <TytusAppsTab
-        loadInstalledApps={async () => [row('sheet', 'bundled')]}
+        loadInstalledApps={async () => [row('forge', 'bundled')]}
       />,
     );
-    await waitFor(() => screen.getByTestId('tytus-app-card-sheet'));
+    await waitFor(() => screen.getByTestId('tytus-app-card-forge'));
     expect(screen.queryByTestId('tytus-apps-history-toggle')).toBeNull();
   });
 
@@ -124,8 +124,8 @@ describe('TytusAppsTab', () => {
     render(
       <TytusAppsTab
         loadInstalledApps={async () => [
-          row('spreadsheet', 'alias', {
-            manifest: { aliasOf: 'sheet' } as Manifest,
+          row('old-weather', 'alias', {
+            manifest: { aliasOf: 'weather' } as Manifest,
           }),
         ]}
       />,
@@ -134,15 +134,15 @@ describe('TytusAppsTab', () => {
       expect(screen.getByTestId('tytus-apps-history-toggle')).toBeTruthy();
     });
     // Collapsed: alias row is NOT rendered yet.
-    expect(screen.queryByTestId('tytus-app-alias-spreadsheet')).toBeNull();
+    expect(screen.queryByTestId('tytus-app-alias-old-weather')).toBeNull();
   });
 
   it('expands the System apps history section on click', async () => {
     render(
       <TytusAppsTab
         loadInstalledApps={async () => [
-          row('spreadsheet', 'alias', {
-            manifest: { aliasOf: 'sheet' } as Manifest,
+          row('old-weather', 'alias', {
+            manifest: { aliasOf: 'weather' } as Manifest,
           }),
         ]}
       />,
@@ -150,7 +150,7 @@ describe('TytusAppsTab', () => {
     await waitFor(() => screen.getByTestId('tytus-apps-history-toggle'));
     fireEvent.click(screen.getByTestId('tytus-apps-history-toggle'));
     await waitFor(() => {
-      expect(screen.getByTestId('tytus-app-alias-spreadsheet')).toBeTruthy();
+      expect(screen.getByTestId('tytus-app-alias-old-weather')).toBeTruthy();
     });
   });
 
@@ -158,13 +158,13 @@ describe('TytusAppsTab', () => {
     const onOpen = vi.fn();
     render(
       <TytusAppsTab
-        loadInstalledApps={async () => [row('sheet', 'bundled')]}
+        loadInstalledApps={async () => [row('forge', 'bundled')]}
         onOpen={onOpen}
       />,
     );
-    await waitFor(() => screen.getByTestId('tytus-app-card-sheet'));
-    fireEvent.click(screen.getByTestId('tytus-app-open-sheet'));
-    expect(onOpen).toHaveBeenCalledWith('sheet');
+    await waitFor(() => screen.getByTestId('tytus-app-card-forge'));
+    fireEvent.click(screen.getByTestId('tytus-app-open-forge'));
+    expect(onOpen).toHaveBeenCalledWith('forge');
   });
 
   it('fires onOpen with the alias TARGET id (not the alias id) when opening from history', async () => {
@@ -172,8 +172,8 @@ describe('TytusAppsTab', () => {
     render(
       <TytusAppsTab
         loadInstalledApps={async () => [
-          row('spreadsheet', 'alias', {
-            manifest: { aliasOf: 'sheet' } as Manifest,
+          row('old-weather', 'alias', {
+            manifest: { aliasOf: 'weather' } as Manifest,
           }),
         ]}
         onOpen={onOpen}
@@ -181,12 +181,12 @@ describe('TytusAppsTab', () => {
     );
     await waitFor(() => screen.getByTestId('tytus-apps-history-toggle'));
     fireEvent.click(screen.getByTestId('tytus-apps-history-toggle'));
-    await waitFor(() => screen.getByTestId('tytus-app-alias-spreadsheet'));
-    const aliasRow = screen.getByTestId('tytus-app-alias-spreadsheet');
+    await waitFor(() => screen.getByTestId('tytus-app-alias-old-weather'));
+    const aliasRow = screen.getByTestId('tytus-app-alias-old-weather');
     const openBtn = aliasRow.querySelector('button');
     if (!openBtn) throw new Error('open button missing');
     fireEvent.click(openBtn);
-    expect(onOpen).toHaveBeenCalledWith('sheet');
+    expect(onOpen).toHaveBeenCalledWith('weather');
   });
 
   it('survives a loader that throws (degrades to empty)', async () => {
@@ -355,9 +355,10 @@ describe('TytusAppsTab', () => {
     render(<TytusAppsTab loadInstalledApps={async () => []} />);
     await waitFor(() => {
       expect(screen.getByTestId('tytus-apps-featured')).toBeTruthy();
-      expect(screen.getByTestId('tytus-featured-card-text-editor')).toBeTruthy();
-      expect(screen.getByTestId('tytus-featured-card-code-editor')).toBeTruthy();
+      expect(screen.getByTestId('tytus-featured-card-photo-editor')).toBeTruthy();
       expect(screen.getByTestId('tytus-featured-card-api-tester')).toBeTruthy();
+      expect(screen.queryByTestId('tytus-featured-card-text-editor')).toBeNull();
+      expect(screen.queryByTestId('tytus-featured-card-code-editor')).toBeNull();
     });
   });
 
@@ -365,20 +366,19 @@ describe('TytusAppsTab', () => {
     render(
       <TytusAppsTab
         loadInstalledApps={async () => [
-          row('text-editor', 'installed', { manifestUrl: 'x' }),
+          row('photo-editor', 'installed', { manifestUrl: 'x' }),
         ]}
       />,
     );
     await waitFor(() => {
-      expect(screen.queryByTestId('tytus-featured-card-text-editor')).toBeNull();
-      // Other featured entries still show.
-      expect(screen.getByTestId('tytus-featured-card-code-editor')).toBeTruthy();
+      expect(screen.queryByTestId('tytus-featured-card-photo-editor')).toBeNull();
+      expect(screen.getByTestId('tytus-featured-card-api-tester')).toBeTruthy();
     });
   });
 
   it('drives doInstall with the Featured manifest URL on Install click', async () => {
     const onInstallFromUrl = vi.fn(async (manifestUrl: string) =>
-      row('code-editor', 'installed', { manifestUrl }),
+      row('photo-editor', 'installed', { manifestUrl }),
     );
     render(
       <TytusAppsTab
@@ -386,11 +386,11 @@ describe('TytusAppsTab', () => {
         onInstallFromUrl={onInstallFromUrl}
       />,
     );
-    await waitFor(() => screen.getByTestId('tytus-featured-install-code-editor'));
-    fireEvent.click(screen.getByTestId('tytus-featured-install-code-editor'));
+    await waitFor(() => screen.getByTestId('tytus-featured-install-photo-editor'));
+    fireEvent.click(screen.getByTestId('tytus-featured-install-photo-editor'));
     await waitFor(() => {
       expect(onInstallFromUrl).toHaveBeenCalledWith(
-        expect.stringContaining('cdn.jsdelivr.net/gh/traylinx/tytus-app-code-editor@v0.1.0/tytus-app.json'),
+        expect.stringContaining('cdn.jsdelivr.net/gh/traylinx/tytus-app-photo-editor@v0.1.0/tytus-app.json'),
       );
     });
   });
@@ -400,15 +400,12 @@ describe('TytusAppsTab', () => {
       <TytusAppsTab
         loadInstalledApps={async () => [
           row('juli3ta', 'installed', { manifestUrl: 'x' }),
-          row('text-editor', 'installed', { manifestUrl: 'x' }),
-          row('code-editor', 'installed', { manifestUrl: 'x' }),
-          row('markdown-preview', 'installed', { manifestUrl: 'x' }),
           row('photo-editor', 'installed', { manifestUrl: 'x' }),
           row('api-tester', 'installed', { manifestUrl: 'x' }),
         ]}
       />,
     );
-    await waitFor(() => screen.getByTestId('tytus-app-card-text-editor'));
+    await waitFor(() => screen.getByTestId('tytus-app-card-photo-editor'));
     expect(screen.queryByTestId('tytus-apps-featured')).toBeNull();
   });
 

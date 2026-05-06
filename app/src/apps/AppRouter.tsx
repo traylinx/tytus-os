@@ -99,6 +99,7 @@ const WORKSPACE_APP_IDS_HINT = new Set([
   // github.com/traylinx/tytus-app-* and ship as kind='installed' rows
   // via App Store → Featured (or Install from URL); they do NOT
   // appear in the boot seed and don't need a hint here.
+  'forge',
   'memo',
   'music-player',
   'sheet',

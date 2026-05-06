@@ -5,7 +5,7 @@
 import { useCallback, memo, useEffect, useMemo, useState } from 'react';
 import { useOS } from '@/hooks/useOSStore';
 import { getAppById } from '@/apps/registry';
-import { unifyAppDefinition } from '@/apps/legacy-app-aliases';
+import { resolveCanonicalAppId, unifyAppDefinition } from '@/apps/legacy-app-aliases';
 import { LayoutGrid, Trash2 } from 'lucide-react';
 import * as Icons from 'lucide-react';
 import type { LucideProps } from 'lucide-react';
@@ -14,6 +14,7 @@ import { localizedAppName } from '@/i18n/app-name';
 import { BrandIcon, isBrandIconName } from './BrandIcon';
 import { parsePayload, serializePayload } from '@/lib/dnd';
 import * as trashRepo from '@/lib/repo/trash';
+import { isReplacedByForge } from '@/apps/product-replacements';
 
 // Phase 1.2 — pixel sizes per Dock size variant. Used both for icon
 // dimensions and for the auto-hide reveal zone height/width.
@@ -153,8 +154,8 @@ const Dock = memo(function Dock() {
     [dispatch],
   );
 
-  const pinnedItemsRaw = dockItems.filter((d) => d.isPinned);
-  const openUnpinned = dockItems.filter((d) => !d.isPinned && d.isOpen);
+  const pinnedItemsRaw = dockItems.filter((d) => d.isPinned && !isReplacedByForge(resolveCanonicalAppId(d.appId)));
+  const openUnpinned = dockItems.filter((d) => !d.isPinned && d.isOpen && !isReplacedByForge(resolveCanonicalAppId(d.appId)));
 
   // Phase 1.6 — apply user-configured dock order. Apps not present
   // in `theme.dock.order` keep their default registry position

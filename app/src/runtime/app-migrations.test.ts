@@ -4,6 +4,7 @@ import type { Manifest } from '@tytus/host-api';
 import sheetManifest from '../../../packages/app-sheet/tytus-app.json';
 import studioManifest from '../../../packages/app-studio/tytus-app.json';
 import apiTesterManifest from '../../../packages/app-api-tester/tytus-app.json';
+import forgeManifest from '../../../packages/app-forge/tytus-app.json';
 import { resolveManifestMigrations } from './app-migrations';
 
 describe('resolveManifestMigrations', () => {
@@ -23,6 +24,12 @@ describe('resolveManifestMigrations', () => {
       '0002_documents.sql',
     ]);
     expect(migrations[1].sql).toContain('CREATE TABLE IF NOT EXISTS app_studio_documents');
+  });
+
+  it('resolves Forge workspace migrations', () => {
+    const migrations = resolveManifestMigrations(forgeManifest as Manifest);
+    expect(migrations.map((m) => m.name)).toEqual(['0001_forge.sql']);
+    expect(migrations[0].sql).toContain('CREATE TABLE IF NOT EXISTS app_forge_workspaces');
   });
 
   it('resolves installed-app package migrations such as API Tester', () => {

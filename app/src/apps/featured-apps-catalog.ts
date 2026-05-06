@@ -32,7 +32,7 @@ export interface FeaturedApp {
   manifestUrl: string;
 }
 
-export const FEATURED_APPS: FeaturedApp[] = [
+const ALL_FEATURED_APPS: FeaturedApp[] = [
   {
     id: 'text-editor',
     name: 'Text Editor',
@@ -82,6 +82,16 @@ export const FEATURED_APPS: FeaturedApp[] = [
     manifestUrl: 'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-juli3ta@juli3ta-0.2.1/tytus-app.json',
   },
 ];
+
+const REPLACED_BY_FORGE_FALLBACK_IDS = new Set([
+  'text-editor',
+  'code-editor',
+  'markdown-preview',
+]);
+
+export const FEATURED_APPS: FeaturedApp[] = ALL_FEATURED_APPS.filter(
+  (app) => !REPLACED_BY_FORGE_FALLBACK_IDS.has(app.id),
+);
 
 /** URL of the remote Featured catalog. Bumped per OS release; the
  *  catalog repo is independently versioned so featured-app additions

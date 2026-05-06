@@ -1,0 +1,41 @@
+{
+  "$schema": "https://tytus.traylinx.com/schema/app/v1.json",
+  "id": "forge",
+  "name": "Tytus Forge",
+  "version": "1.0.0",
+  "icon": "Sparkles",
+  "category": "Productivity",
+  "description": "Tytus-native Monaco workbench for local files, artifacts, and future agent/Cortex workflows.",
+  "window": {
+    "defaultSize": { "width": 1200, "height": 780 },
+    "minSize": { "width": 760, "height": 520 }
+  },
+  "permissions": [
+    "daemon.read",
+    "daemon.network",
+    "vfs.user.documents",
+    "shell.notifications",
+    "shell.dock",
+    "storage.app"
+  ],
+  "storage": {
+    "tables": [
+      { "name": "workspaces", "schema": "migrations/0001_forge.sql" },
+      { "name": "cards", "schema": "migrations/0001_forge.sql" },
+      { "name": "outputs", "schema": "migrations/0001_forge.sql" }
+    ]
+  },
+  "entry": {
+    "module": "./dist/index.js",
+    "assets": "./dist/assets/"
+  },
+  "contributes": {
+    "fileAssociations": [
+      { "extension": ".tytus-forge.json", "mimeType": "application/x-tytus-forge" },
+      { "extension": ".md", "mimeType": "text/markdown" },
+      { "extension": ".txt", "mimeType": "text/plain" },
+      { "extension": ".json", "mimeType": "application/json" },
+      { "extension": ".csv", "mimeType": "text/csv" }
+    ]
+  }
+}

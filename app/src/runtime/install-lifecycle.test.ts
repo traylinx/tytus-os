@@ -109,12 +109,15 @@ beforeEach(() => {
   db = new MemoryDb();
 });
 
+const SYSTEM_APP_IDS = ['forge', 'memo', 'sheet', 'studio', 'music-player', 'voice-recorder'];
+const SYSTEM_APP_COUNT = SYSTEM_APP_IDS.length;
+
 describe('install lifecycle (Phase 8 smoke)', () => {
   it('seed → install 5 → list → uninstall 3 → reinstall 1', async () => {
-    // 1. Boot seed: 5 bundled rows (system apps only — user apps are
+    // 1. Boot seed: bundled rows (system apps only — user apps are
     //    distributed via CDN and discovered through App Store Featured).
     await seedBundledAppsAtBoot(db);
-    expect((await listInstalledApps(db)).length).toBe(5);
+    expect((await listInstalledApps(db)).length).toBe(SYSTEM_APP_COUNT);
     for (const row of await listInstalledApps(db)) {
       expect(row.kind).toBe('bundled');
     }
@@ -146,9 +149,9 @@ describe('install lifecycle (Phase 8 smoke)', () => {
       expect(row.manifestUrl).toBe(manifestUrlFor(id));
     }
 
-    // 3. List: now 5 bundled + 5 installed = 10 total.
+    // 3. List: bundled system apps + 5 installed user apps.
     const afterInstall = await listInstalledApps(db);
-    expect(afterInstall.length).toBe(10);
+    expect(afterInstall.length).toBe(SYSTEM_APP_COUNT + 5);
     expect(afterInstall.filter((r) => r.kind === 'installed').length).toBe(5);
 
     // 4. Uninstall 3 of the 5 installed apps.
@@ -157,7 +160,7 @@ describe('install lifecycle (Phase 8 smoke)', () => {
       await uninstallApp({ appId: id, db });
     }
     const afterUninstall = await listInstalledApps(db);
-    expect(afterUninstall.length).toBe(7);
+    expect(afterUninstall.length).toBe(SYSTEM_APP_COUNT + 2);
     expect(afterUninstall.filter((r) => r.kind === 'installed').map((r) => r.id).sort())
       .toEqual(['json-tree', 'kanban']);
 
@@ -176,25 +179,23 @@ describe('install lifecycle (Phase 8 smoke)', () => {
     expect(reinstalledRow.kind).toBe('installed');
     expect(reinstalledRow.manifest.version).toBe('2.0.0');
 
-    // 6. Final shape: 5 bundled + 2 installed = 7. json-tree is v2.0.0.
+    // 6. Final shape: bundled system apps + 2 installed. json-tree is v2.0.0.
     const final = await listInstalledApps(db);
-    expect(final.length).toBe(7);
+    expect(final.length).toBe(SYSTEM_APP_COUNT + 2);
     expect(final.filter((r) => r.kind === 'installed').map((r) => r.id).sort())
       .toEqual(['json-tree', 'kanban']);
   });
 
   it('protects system apps from uninstall even mid-lifecycle', async () => {
     await seedBundledAppsAtBoot(db);
-    // System apps (builtin_protected=1): memo, sheet, studio, music-player,
-    // voice-recorder. Try to uninstall each — all should throw.
-    const systemApps = ['memo', 'sheet', 'studio', 'music-player', 'voice-recorder'];
-    for (const id of systemApps) {
+    // System apps (builtin_protected=1). Try to uninstall each — all should throw.
+    for (const id of SYSTEM_APP_IDS) {
       await expect(uninstallApp({ appId: id, db })).rejects.toMatchObject({
         code: 'protected',
       });
     }
     // Bundled count unchanged.
-    expect((await listInstalledApps(db)).length).toBe(5);
+    expect((await listInstalledApps(db)).length).toBe(SYSTEM_APP_COUNT);
   });
 
   it('rejects duplicate install of a system-app id (e.g. memo)', async () => {

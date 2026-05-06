@@ -24,6 +24,10 @@ export const APP_REGISTRY: AppDefinition[] = [
     description: 'Browse and discover recommended apps. Check install status on your machine.',
     defaultSize: { width: 800, height: 600 }, minSize: { width: 560, height: 400 } },
 
+  { id: 'forge', name: 'Tytus Forge', icon: 'Sparkles', category: 'Productivity',
+    description: 'Tytus-native Monaco workbench for local files, artifacts, and future agent/Cortex workflows.',
+    defaultSize: { width: 1200, height: 780 }, minSize: { width: 760, height: 520 }, kind: 'bundled' },
+
   { id: 'pod-inspector', name: 'Pod Inspector', icon: 'Box', category: 'System',
     description: 'Inspect, restart, uninstall, revoke pods. Live job logs.',
     defaultSize: { width: 1100, height: 720 }, minSize: { width: 800, height: 480 }, phase: 3 },
@@ -408,6 +412,7 @@ export function resolveAlias(
 }
 
 export const getDefaultDockApps = (): string[] => [
+  'forge',
   'pod-inspector',
   'settings',
   'chat',
