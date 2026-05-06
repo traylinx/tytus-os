@@ -31,7 +31,7 @@ import {
   Settings2, X, Monitor, MoreVertical, NotebookText, Music2, Search,
   Pencil, Image as ImageIcon, Upload, RefreshCw, ChevronUp,
   Heart, Radio, UserRound, ListMusic, Album, ExternalLink, FolderOpen,
-  ChevronLeft, Repeat, Repeat1, CheckSquare,
+  ChevronLeft, Repeat, Repeat1, CheckSquare, Copy, Volume2, VolumeX,
 } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import JulietaHelp from './JulietaHelp';
@@ -2350,10 +2350,11 @@ function MiniPlayer({ player, allTracks }: { player: PlayerControls; allTracks: 
         {formatTime(dur)}
       </span>
 
-      {/* Volume — slim slider, doesn't crowd the transport.
-          Range input gets accent styling via accent-color. */}
+      {/* Volume — slim slider with click-to-mute speaker icon.
+          The icon stashes the pre-mute volume on a ref so toggling
+          back restores the user's level instead of jumping to 100%. */}
       <div className="flex items-center gap-1.5 flex-shrink-0" style={{ width: 100 }}>
-        <MonitorSpeaker size={12} style={{ color: 'var(--text-disabled)', flexShrink: 0 }} />
+        <MuteToggle volume={state.volume} setVolume={setVolume} />
         <input
           type="range"
           min={0}
@@ -2365,6 +2366,41 @@ function MiniPlayer({ player, allTracks }: { player: PlayerControls; allTracks: 
         />
       </div>
     </div>
+  );
+}
+
+// Mute toggle for the MiniPlayer volume row. Stashes the pre-mute
+// volume on a ref so toggling back restores the user's level instead
+// of jumping to 100% (the naive "set to 1" reflex). Falls back to 1
+// only when there's no prior level (first launch + immediately mute).
+function MuteToggle({
+  volume,
+  setVolume,
+}: {
+  volume: number;
+  setVolume: (v: number) => void;
+}) {
+  const lastNonZeroRef = useRef<number>(volume > 0 ? volume : 1);
+  useEffect(() => {
+    if (volume > 0) lastNonZeroRef.current = volume;
+  }, [volume]);
+  const muted = volume === 0;
+  const onClick = () => {
+    if (muted) setVolume(lastNonZeroRef.current || 1);
+    else setVolume(0);
+  };
+  return (
+    <button
+      onClick={onClick}
+      className="flex items-center justify-center flex-shrink-0 transition-all hover:bg-[var(--bg-hover)] rounded-md"
+      style={{
+        width: 18, height: 18,
+        color: muted ? 'var(--accent-primary)' : 'var(--text-disabled)',
+      }}
+      title={muted ? 'Unmute' : 'Mute'}
+    >
+      {muted ? <VolumeX size={12} /> : <Volume2 size={12} />}
+    </button>
   );
 }
 
@@ -5128,6 +5164,45 @@ function computeUpNext(
   return { kind: 'end' };
 }
 
+// Tiny "Copy lyrics" affordance for the PlayerView lyrics column.
+// Writes track.lyricsPreview verbatim to the clipboard so users can
+// reuse JULI3TA's generated lyrics in posts / DAW project notes /
+// edits. Swaps to a Check icon for 1.5 s on success so the user gets
+// confirmation without us mounting a full toast pipeline.
+function CopyLyricsButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+  const onCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // Clipboard write can fail when the document isn't focused or in
+      // restricted iframes. Fall through silently — the user can
+      // re-attempt; we don't want to crash the lyrics column.
+    }
+  };
+  return (
+    <button
+      onClick={onCopy}
+      className="flex items-center gap-1 rounded-md transition-all hover:bg-[var(--bg-hover)]"
+      style={{
+        height: 22, padding: '0 8px',
+        fontSize: 10, fontWeight: 700,
+        color: copied ? 'var(--accent-primary)' : 'var(--text-secondary)',
+        background: 'var(--bg-titlebar)',
+        border: '1px solid var(--border-subtle)',
+        textTransform: 'none',
+        letterSpacing: 0,
+      }}
+      title={copied ? 'Copied to clipboard' : 'Copy lyrics to clipboard'}
+    >
+      {copied ? <Check size={11} /> : <Copy size={11} />}
+      {copied ? 'Copied' : 'Copy'}
+    </button>
+  );
+}
+
 // Lyric-section markers like [Hook] / [Verse 1] / [Chorus] / [Bridge] /
 // [Pre-Chorus] / [Post-Hook / Outro] / [Intro] / [Outro] render as
 // muted neutral chips that match the flat Tytus chrome elsewhere —
@@ -5463,6 +5538,7 @@ function PlayerView({ track, player, restyleOriginal, onEditInCreator, onSwitchT
               the track is sparse — the info rail gets a fairer share. */}
           <div className="flex-1 min-w-0" style={{ minWidth: 320, maxWidth: 720 }}>
             <div
+              className="flex items-center justify-between"
               style={{
                 fontSize: 11, fontWeight: 700,
                 color: 'var(--text-disabled)',
@@ -5471,7 +5547,10 @@ function PlayerView({ track, player, restyleOriginal, onEditInCreator, onSwitchT
                 marginBottom: 16,
               }}
             >
-              {t('musiccreator.player.lyrics')}
+              <span>{t('musiccreator.player.lyrics')}</span>
+              {track.lyricsPreview && (
+                <CopyLyricsButton text={track.lyricsPreview} />
+              )}
             </div>
             {track.lyricsPreview ? (
               <LyricsRendered text={track.lyricsPreview} />
