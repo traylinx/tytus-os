@@ -426,6 +426,7 @@ export const en: TranslationMap = {
   'musiccreator.header.subtitle': 'Pod {podId} · ail-music',
   'musiccreator.header.surprise': 'Surprise',
   'musiccreator.header.surpriseTitle': 'Random theme',
+  'musiccreator.header.surpriseFromPlayerTitle': 'Remix this track with a random theme',
   'musiccreator.theme.label': 'Theme',
   'musiccreator.theme.placeholder': 'Describe the song: vibe, mood, story, era…',
   'musiccreator.theme.hint': "We'll write structured lyrics from this. Or paste your own below.",

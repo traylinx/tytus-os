@@ -31,6 +31,7 @@ import {
   Settings2, X, Monitor, MoreVertical, NotebookText, Music2, Search,
   Pencil, Image as ImageIcon, Upload, RefreshCw, ChevronUp,
   Heart, Radio, UserRound, ListMusic, Album, ExternalLink, FolderOpen,
+  ChevronLeft,
 } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import JulietaHelp from './JulietaHelp';
@@ -3915,6 +3916,217 @@ function TrackCard({
 }
 
 // ──────────────────────────────────────────────────────────
+// LibrarySidebarRow — slim Library track row in the sidebar
+// ──────────────────────────────────────────────────────────
+//
+// Mirrors TrackCard's exact visual chrome (36px cover with play
+// overlay, 12px title, 10px sub-line, single kebab on the right) so
+// My Work and Library rows feel identical. Click semantics match too:
+// the avatar toggles play (no view change), clicking the title block
+// opens the track in PlayerView, and the kebab exposes the
+// Library-specific actions (Open in player, Remix in Restyle, Toggle
+// favorite, Open source, Remove from Library).
+interface LibrarySidebarRowProps {
+  track: SavedTrack;
+  player: PlayerControls;
+  selected: boolean;
+  isFavorite: boolean;
+  onOpenInPlayer: (track: SavedTrack) => void;
+  onRemix: (track: SavedTrack) => void;
+  onToggleFavorite: (track: SavedTrack) => void;
+  onRemove: (track: SavedTrack) => void;
+}
+
+function LibrarySidebarRow({
+  track, player, selected, isFavorite,
+  onOpenInPlayer, onRemix, onToggleFavorite, onRemove,
+}: LibrarySidebarRowProps) {
+  const kebabRef = useRef<HTMLButtonElement | null>(null);
+  const [hover, setHover] = useState(false);
+  const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
+
+  const isActive = player.state.trackId === track.id;
+  const isLoading = isActive && player.state.loadingTrackId === track.id;
+  const isPlaying = isActive && player.state.playing;
+  const progress = isActive && player.state.durationMs > 0
+    ? player.state.positionMs / player.state.durationMs
+    : 0;
+
+  // Click-outside dismissal — same shape as TrackCard's menu.
+  useEffect(() => {
+    if (!menu) return;
+    const close = (e: MouseEvent) => {
+      const tgt = e.target as Node | null;
+      if (kebabRef.current && tgt && kebabRef.current.contains(tgt)) return;
+      if (tgt && (tgt as Element).closest?.('[data-track-menu]')) return;
+      setMenu(null);
+    };
+    const onScroll = () => setMenu(null);
+    setTimeout(() => window.addEventListener('mousedown', close), 0);
+    window.addEventListener('scroll', onScroll, true);
+    window.addEventListener('resize', onScroll);
+    return () => {
+      window.removeEventListener('mousedown', close);
+      window.removeEventListener('scroll', onScroll, true);
+      window.removeEventListener('resize', onScroll);
+    };
+  }, [menu]);
+
+  const openMenu = () => {
+    const rect = kebabRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const menuW = 220;
+    const x = Math.min(rect.right - menuW, window.innerWidth - menuW - 8);
+    const y = rect.bottom + 4;
+    setMenu({ x, y });
+  };
+
+  const callMenu = (fn: () => void) => () => { setMenu(null); fn(); };
+
+  const externalUrl = track.externalUrl;
+
+  return (
+    <div
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      className="rounded-lg px-2 py-2 transition-all"
+      style={{
+        background: selected ? 'var(--bg-selected)' : hover ? 'var(--bg-hover)' : 'transparent',
+        border: selected ? '1px solid var(--accent-primary)' : '1px solid transparent',
+        cursor: 'pointer',
+      }}
+      title="Click to open in player"
+    >
+      <div className="flex items-center gap-2">
+        <button
+          onClick={(e) => { e.stopPropagation(); player.toggle(track); }}
+          className="relative flex items-center justify-center flex-shrink-0 transition-transform hover:scale-105"
+          style={{ width: 36, height: 36 }}
+          title={isPlaying ? 'Pause' : 'Play'}
+        >
+          <TrackAvatar track={track} size={36} iconSize={14} radius={6} />
+          <span
+            className="absolute inset-0 flex items-center justify-center rounded-md transition-opacity"
+            style={{
+              background: trackArtwork(track) ? 'rgba(0, 0, 0, 0.35)' : 'transparent',
+              borderRadius: 'var(--radius-md)',
+            }}
+          >
+            {isLoading
+              ? <Loader2 size={14} className="animate-spin" style={{ color: 'white' }} />
+              : isPlaying
+              ? <Pause size={14} style={{ color: 'white' }} />
+              : <Play size={14} style={{ color: 'white', marginLeft: 1 }} />}
+          </span>
+        </button>
+        <button
+          type="button"
+          onClick={() => onOpenInPlayer(track)}
+          className="flex-1 min-w-0 text-left"
+        >
+          <div
+            className="truncate"
+            style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)' }}
+          >
+            {track.title || 'Untitled'}
+          </div>
+          <div className="truncate" style={{ fontSize: 10, color: 'var(--text-disabled)' }}>
+            {track.artist || 'Unknown'}
+            {track.durationMs > 0 ? ` · ${formatTime(track.durationMs)}` : ''}
+          </div>
+        </button>
+        <button
+          ref={kebabRef}
+          onClick={(e) => {
+            e.stopPropagation();
+            if (menu) setMenu(null);
+            else openMenu();
+          }}
+          className="flex items-center justify-center rounded-md flex-shrink-0 transition-all hover:bg-[var(--bg-selected)]"
+          style={{
+            width: 24, height: 24,
+            color: hover || menu ? 'var(--text-primary)' : 'var(--text-disabled)',
+          }}
+          aria-label="Track actions"
+          title="Track actions"
+        >
+          <MoreVertical size={14} />
+        </button>
+      </div>
+
+      {menu && createPortal(
+        <div
+          data-track-menu
+          className="fixed z-[3000] py-1.5 select-none"
+          style={{
+            left: menu.x,
+            top: menu.y,
+            width: 220,
+            background: 'var(--bg-context-menu)',
+            borderRadius: 'var(--radius-md)',
+            border: '1px solid var(--border-default)',
+            boxShadow: 'var(--shadow-lg)',
+          }}
+        >
+          <TrackMenuItem
+            icon={isPlaying ? <Pause size={14} /> : <Play size={14} />}
+            label={isPlaying ? 'Pause' : 'Play'}
+            onClick={callMenu(() => player.toggle(track))}
+          />
+          <TrackMenuItem
+            icon={<Music2 size={14} />}
+            label="Open in player"
+            onClick={callMenu(() => onOpenInPlayer(track))}
+          />
+          <TrackMenuItem
+            icon={<Wand2 size={14} />}
+            label="Remix in Restyle"
+            onClick={callMenu(() => onRemix(track))}
+          />
+          <div style={{ height: 1, background: 'var(--border-subtle)', margin: '4px 6px' }} />
+          <TrackMenuItem
+            icon={<Heart size={14} fill={isFavorite ? 'currentColor' : 'none'} />}
+            label={isFavorite ? 'Remove favorite' : 'Add to favorites'}
+            onClick={callMenu(() => onToggleFavorite(track))}
+          />
+          {externalUrl && (
+            <TrackMenuItem
+              icon={<ExternalLink size={14} />}
+              label="Open source"
+              onClick={callMenu(() => window.open(externalUrl, '_blank', 'noopener,noreferrer'))}
+            />
+          )}
+          <div style={{ height: 1, background: 'var(--border-subtle)', margin: '4px 6px' }} />
+          <TrackMenuItem
+            icon={<Trash2 size={14} />}
+            label="Remove from Library"
+            onClick={callMenu(() => onRemove(track))}
+            danger
+          />
+        </div>,
+        document.body,
+      )}
+
+      {isPlaying && (
+        <div
+          className="mt-1.5 rounded-full overflow-hidden"
+          style={{ height: 2, background: 'var(--bg-hover)' }}
+        >
+          <div
+            style={{
+              width: `${progress * 100}%`,
+              height: '100%',
+              background: 'linear-gradient(to right, var(--accent-primary), var(--accent-secondary))',
+              transition: 'width 0.25s linear',
+            }}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────
 // CoverArtModal — edit album-cover art for a saved track
 // ──────────────────────────────────────────────────────────
 //
@@ -4736,7 +4948,7 @@ function PlayerView({ track, player, onEditInCreator, onSwitchToCreator, onSearc
   const cleanTitle = track.title.replace(/\s*\((lyrics|cover|restyle)\)\s*$/, '') || 'Untitled';
   const hasAudio = hasPlayableAudio(track);
   const art = trackArtwork(track);
-  const sourceLabel = track.source === 'youtube' ? (track.artist || 'YouTube') : 'JULI3TA';
+  const sourceLabel = track.source === 'youtube' ? (track.artist || 'Music') : 'JULI3TA';
   const styleClean = track.styleTags && track.styleTags !== '—' ? track.styleTags : '';
   // True when the track being viewed is also the one currently in
   // the MiniPlayer. Drives the Play/Pause toggle on the cover + the
@@ -4746,7 +4958,6 @@ function PlayerView({ track, player, onEditInCreator, onSwitchToCreator, onSearc
   const playerPlaying = isViewingActive && player.state.playing;
   const playerLoading = isViewingActive && player.state.loadingTrackId === track.id;
   const isRemote = track.source === 'youtube';
-  const providerLabel = isRemote ? 'YouTube' : 'JULI3TA';
   const relatedTracks = player.queue
     .filter((t) => t.id !== track.id && (t.artist || '').trim() && t.artist === track.artist)
     .slice(0, 4);
@@ -4977,7 +5188,7 @@ function PlayerView({ track, player, onEditInCreator, onSwitchToCreator, onSearc
                     <Radio size={18} />
                   </div>
                   <div>
-                    <div style={{ fontSize: 15, fontWeight: 900, color: 'var(--text-primary)' }}>Streamed from {providerLabel}</div>
+                    <div style={{ fontSize: 15, fontWeight: 900, color: 'var(--text-primary)' }}>Streamed track</div>
                     <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>No lyrics stored. This area is now a live track dashboard instead of an empty lyrics box.</div>
                   </div>
                 </div>
@@ -4988,7 +5199,7 @@ function PlayerView({ track, player, onEditInCreator, onSwitchToCreator, onSearc
                   </div>
                   <div className="rounded-xl p-3" style={{ background: 'var(--bg-window)', border: '1px solid var(--border-subtle)' }}>
                     <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.8, color: 'var(--text-disabled)', fontWeight: 800 }}>Channel / Album</div>
-                    <div className="truncate" style={{ fontSize: 14, fontWeight: 900, color: 'var(--text-primary)', marginTop: 6 }}>{track.album || 'YouTube'}</div>
+                    <div className="truncate" style={{ fontSize: 14, fontWeight: 900, color: 'var(--text-primary)', marginTop: 6 }}>{track.album || track.artist || 'Unknown'}</div>
                   </div>
                   <div className="rounded-xl p-3" style={{ background: 'var(--bg-window)', border: '1px solid var(--border-subtle)' }}>
                     <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.8, color: 'var(--text-disabled)', fontWeight: 800 }}>Duration</div>
@@ -5060,9 +5271,9 @@ function PlayerView({ track, player, onEditInCreator, onSwitchToCreator, onSearc
                   </div>
                   <div className="min-w-0">
                     <div className="truncate" style={{ fontSize: 15, fontWeight: 900, color: 'var(--text-primary)' }}>{track.artist || 'Unknown artist'}</div>
-                    <div className="truncate" style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>{track.album || 'YouTube'} · streamed audio</div>
+                    <div className="truncate" style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>{track.album ? `${track.album} · streamed audio` : 'Streamed audio'}</div>
                     <div style={{ fontSize: 11, color: 'var(--text-disabled)', lineHeight: 1.45, marginTop: 8 }}>
-                      Spotify/Last.fm/Discogs connector slots are exposed in Sources; once credentials exist this card can expand with bios, listeners, releases and richer artwork.
+                      Spotify, Last.fm and Discogs slots are exposed in Sources; once credentials exist this card can expand with bios, listeners, releases and richer artwork.
                     </div>
                   </div>
                 </div>
@@ -5082,7 +5293,7 @@ function PlayerView({ track, player, onEditInCreator, onSwitchToCreator, onSearc
                       <TrackAvatar track={r} size={34} iconSize={14} radius={8} />
                       <div className="min-w-0 flex-1">
                         <div className="truncate" style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-primary)' }}>{r.title}</div>
-                        <div className="truncate" style={{ fontSize: 10, color: 'var(--text-disabled)' }}>{r.durationMs ? formatTime(r.durationMs) : providerLabel}</div>
+                        <div className="truncate" style={{ fontSize: 10, color: 'var(--text-disabled)' }}>{r.durationMs ? formatTime(r.durationMs) : 'Streamed'}</div>
                       </div>
                     </button>
                   ))}
@@ -5092,7 +5303,6 @@ function PlayerView({ track, player, onEditInCreator, onSwitchToCreator, onSearc
             <PlayerInfoCard label={t('musiccreator.player.about')}>
               <div className="flex flex-col gap-1.5">
                 <PlayerKVRow label={t('musiccreator.player.about.created')} value={formatCreatedAt(track.createdAt)} />
-                {track.source === 'youtube' && <PlayerKVRow label="Source" value="YouTube" />}
                 {track.source === 'youtube' && track.artist && <PlayerKVRow label="Artist" value={track.artist} />}
                 {track.source === 'youtube' && track.album && track.album !== track.artist && <PlayerKVRow label="Channel" value={track.album} />}
                 {hasAudio && track.durationMs > 0 && <PlayerKVRow label={t('musiccreator.player.about.duration')} value={formatTime(track.durationMs)} />}
@@ -5100,7 +5310,6 @@ function PlayerView({ track, player, onEditInCreator, onSwitchToCreator, onSearc
                 {track.source !== 'youtube' && hasAudio && track.sampleRate > 0 && <PlayerKVRow label={t('musiccreator.player.about.sampleRate')} value={formatHz(track.sampleRate)} />}
                 {track.source !== 'youtube' && hasAudio && track.sizeBytes > 0 && <PlayerKVRow label={t('musiccreator.player.about.size')} value={formatBytes(track.sizeBytes)} />}
                 {styleClean && <PlayerKVRow label={t('musiccreator.player.about.style')} value={styleClean} />}
-                {track.source === 'youtube' && track.externalId && <PlayerKVRow label="Video ID" value={track.externalId} />}
                 <PlayerKVRow label={t('musiccreator.player.about.format')} value={track.source === 'youtube' ? 'Streamed audio' : hasAudio ? t('musiccreator.player.about.format.mp3') : t('musiccreator.player.about.format.lyricSheet')} />
               </div>
             </PlayerInfoCard>
@@ -5111,7 +5320,13 @@ function PlayerView({ track, player, onEditInCreator, onSwitchToCreator, onSearc
   );
 }
 
-type MusicPaneTab = 'search' | 'library' | 'artists' | 'albums' | 'playlists' | 'favorites' | 'sources';
+// Library + Favorites tabs were removed in favor of the sidebar's
+// scope toggle (My Work / Library) — saving a track now lands in the
+// sidebar Library list, and the chip filter handles favorites. The
+// main Music pane keeps the richer multi-pane views (Artists, Albums,
+// Playlists) that don't fit a 260px sidebar plus discovery (Search)
+// and provider config (Sources).
+type MusicPaneTab = 'search' | 'artists' | 'albums' | 'playlists' | 'sources';
 
 interface MusicSearchPaneProps {
   tab: MusicPaneTab;
@@ -5202,13 +5417,22 @@ function MusicSearchPane({
   const [connectorValues, setConnectorValues] = useState<Record<string, string>>({});
   const [connectorBusy, setConnectorBusy] = useState(false);
   const [connectorError, setConnectorError] = useState<string | null>(null);
+  // Drilldown state for the Artists / Albums tabs. Clicking a tile
+  // sets the corresponding id and the pane swaps to a detail view
+  // (header + back button + flat list of that artist's/album's tracks
+  // rendered with the same trackRow as the Library list). Reset to
+  // null on tab change so switching tabs always lands on the index.
+  const [artistDetail, setArtistDetail] = useState<string | null>(null);
+  const [albumDetail, setAlbumDetail] = useState<string | null>(null);
+  useEffect(() => {
+    setArtistDetail(null);
+    setAlbumDetail(null);
+  }, [tab]);
   const tabs: { id: MusicPaneTab; label: string; count?: number }[] = [
     { id: 'search', label: 'Search' },
-    { id: 'library', label: 'Library', count: libraryTracks.length },
     { id: 'artists', label: 'Artists', count: new Set(libraryTracks.map((t) => t.artist || 'Unknown')).size },
-    { id: 'albums', label: 'Albums', count: new Set(libraryTracks.map((t) => t.album || t.artist || 'YouTube')).size },
+    { id: 'albums', label: 'Albums', count: new Set(libraryTracks.map((t) => t.album || t.artist || 'Unknown')).size },
     { id: 'playlists', label: 'Playlists', count: playlists.length },
-    { id: 'favorites', label: 'Favorites', count: libraryTracks.filter((t) => favoriteIds.has(t.id)).length },
     { id: 'sources', label: 'Sources', count: providers.length || 4 },
   ];
 
@@ -5228,7 +5452,7 @@ function MusicSearchPane({
             {track.title}
           </div>
           <div className="truncate" style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>
-            {(track.artist || 'YouTube')}{track.album ? ` · ${track.album}` : ''}{track.durationMs ? ` · ${formatTime(track.durationMs)}` : ''}
+            {(track.artist || 'Unknown')}{track.album ? ` · ${track.album}` : ''}{track.durationMs ? ` · ${formatTime(track.durationMs)}` : ''}
           </div>
         </button>
         <button
@@ -5284,7 +5508,7 @@ function MusicSearchPane({
 
   const albumGroups = Array.from(
     libraryTracks.reduce((m, t) => {
-      const key = (t.album || t.artist || 'YouTube collection').trim();
+      const key = (t.album || t.artist || 'Music collection').trim();
       m.set(key, [...(m.get(key) ?? []), t]);
       return m;
     }, new Map<string, SavedTrack[]>()),
@@ -5373,7 +5597,7 @@ function MusicSearchPane({
               Music
             </div>
             <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>
-              Search, artists, favorites and streamed tracks — separate from My Work.
+              Discover new music, browse by artist or album, manage playlists and sources.
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -5465,10 +5689,6 @@ function MusicSearchPane({
                 </button>
               ))}
             </div>
-            <div className="rounded-lg px-3 flex items-center gap-2" style={{ height: 28, fontSize: 11, color: 'var(--text-secondary)', background: 'var(--bg-titlebar)', border: '1px solid var(--border-subtle)' }}>
-              <span style={{ width: 7, height: 7, borderRadius: 'var(--radius-full)', background: 'var(--status-success)' }} />
-              Provider: Auto / YouTube
-            </div>
           </div>
         )}
         {error && <div className="mt-3" style={{ fontSize: 12, color: 'var(--status-danger)' }}>{error}</div>}
@@ -5523,7 +5743,7 @@ function MusicSearchPane({
                   <div className="flex-1 min-w-0">
                     <div className="truncate" style={{ fontSize: 13, fontWeight: 800, color: 'var(--text-primary)' }}>{meta.song}</div>
                     <div className="truncate" style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>
-                      {meta.artist || r.channel || 'YouTube'} · YouTube{r.durationMs ? ` · ${formatTime(r.durationMs)}` : ''}
+                      {meta.artist || r.channel || 'Music'}{r.durationMs ? ` · ${formatTime(r.durationMs)}` : ''}
                     </div>
                     <div className="truncate" style={{ fontSize: 10, color: 'var(--text-disabled)', marginTop: 2 }}>
                       {r.title}
@@ -5560,70 +5780,163 @@ function MusicSearchPane({
           </div>
         )}
 
-        {tab === 'library' && (
-          <div className="flex flex-col gap-2">
-            {libraryTracks.length === 0
-              ? <div className="rounded-2xl p-8 text-center" style={{ background: 'var(--bg-titlebar)', border: '1px solid var(--border-subtle)', color: 'var(--text-secondary)' }}>No streamed tracks saved yet.</div>
-              : libraryTracks.map(trackRow)}
-          </div>
-        )}
-
-        {tab === 'favorites' && (
-          <div className="flex flex-col gap-2">
-            {libraryTracks.filter((t) => favoriteIds.has(t.id)).length === 0
-              ? <div className="rounded-2xl p-8 text-center" style={{ background: 'var(--bg-titlebar)', border: '1px solid var(--border-subtle)', color: 'var(--text-secondary)' }}>No favorites yet.</div>
-              : libraryTracks.filter((t) => favoriteIds.has(t.id)).map(trackRow)}
-          </div>
-        )}
+        {/* Library + Favorites tabs moved to the sidebar — see the
+            scope toggle there. The trackRow renderer is kept because
+            Playlists below still uses similar row shapes. */}
 
         {tab === 'artists' && (
-          <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))' }}>
-            {artistGroups.length === 0 && (
-              <div className="rounded-2xl p-8 text-center" style={{ background: 'var(--bg-titlebar)', border: '1px solid var(--border-subtle)', color: 'var(--text-secondary)' }}>No artists yet.</div>
-            )}
-            {artistGroups.map(([artist, tracks]) => (
-              <button
-                key={artist}
-                type="button"
-                onClick={() => { if (tracks[0]) onOpenTrack(tracks[0]); }}
-                className="rounded-2xl p-4 text-left transition-all hover:scale-[1.01]"
-                style={{ background: 'var(--bg-titlebar)', border: '1px solid var(--border-subtle)' }}
-              >
-                <div style={{ fontSize: 16, fontWeight: 900, color: 'var(--text-primary)' }}>{artist}</div>
-                <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 6 }}>{tracks.length} track{tracks.length === 1 ? '' : 's'}</div>
-              </button>
-            ))}
-          </div>
+          artistDetail !== null
+            ? (() => {
+                const tracksForArtist = (artistGroups.find(([name]) => name === artistDetail)?.[1]) ?? [];
+                return (
+                  <div className="flex flex-col gap-3">
+                    <div className="flex items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setArtistDetail(null)}
+                        className="flex items-center gap-1.5 rounded-lg px-3"
+                        style={{
+                          height: 32, fontSize: 11, fontWeight: 700,
+                          color: 'var(--text-secondary)',
+                          background: 'var(--bg-titlebar)',
+                          border: '1px solid var(--border-subtle)',
+                        }}
+                        title="Back to all artists"
+                      >
+                        <ChevronLeft size={13} /> Artists
+                      </button>
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate" style={{ fontSize: 22, fontWeight: 900, color: 'var(--text-primary)', letterSpacing: '-0.02em' }}>
+                          {artistDetail}
+                        </div>
+                        <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>
+                          {tracksForArtist.length} track{tracksForArtist.length === 1 ? '' : 's'} in your Library
+                        </div>
+                      </div>
+                      {tracksForArtist[0] && (
+                        <button
+                          type="button"
+                          onClick={() => onOpenTrack(tracksForArtist[0])}
+                          className="flex items-center gap-1.5 rounded-lg px-3"
+                          style={{
+                            height: 32, fontSize: 11, fontWeight: 800, color: 'white',
+                            background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))',
+                          }}
+                        >
+                          <Play size={12} /> Play first
+                        </button>
+                      )}
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      {tracksForArtist.map(trackRow)}
+                    </div>
+                  </div>
+                );
+              })()
+            : (
+              <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))' }}>
+                {artistGroups.length === 0 && (
+                  <div className="rounded-2xl p-8 text-center" style={{ background: 'var(--bg-titlebar)', border: '1px solid var(--border-subtle)', color: 'var(--text-secondary)' }}>No artists yet.</div>
+                )}
+                {artistGroups.map(([artist, tracks]) => (
+                  <button
+                    key={artist}
+                    type="button"
+                    onClick={() => setArtistDetail(artist)}
+                    className="rounded-2xl p-4 text-left transition-all hover:scale-[1.01]"
+                    style={{ background: 'var(--bg-titlebar)', border: '1px solid var(--border-subtle)' }}
+                    title={`Open ${artist}`}
+                  >
+                    <div style={{ fontSize: 16, fontWeight: 900, color: 'var(--text-primary)' }}>{artist}</div>
+                    <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 6 }}>{tracks.length} track{tracks.length === 1 ? '' : 's'}</div>
+                  </button>
+                ))}
+              </div>
+            )
         )}
 
         {tab === 'albums' && (
-          <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))' }}>
-            {albumGroups.length === 0 && (
-              <div className="rounded-2xl p-8 text-center" style={{ background: 'var(--bg-titlebar)', border: '1px solid var(--border-subtle)', color: 'var(--text-secondary)' }}>No albums or source collections yet.</div>
-            )}
-            {albumGroups.map(([albumName, tracks]) => {
-              const first = tracks[0];
-              return (
-                <button
-                  key={albumName}
-                  type="button"
-                  onClick={() => { if (first) onOpenTrack(first); }}
-                  className="rounded-2xl p-4 text-left transition-all hover:scale-[1.01]"
-                  style={{ background: 'var(--bg-titlebar)', border: '1px solid var(--border-subtle)' }}
-                >
-                  <div className="flex items-center gap-3">
-                    {first && <TrackAvatar track={first} size={64} iconSize={24} radius={14} />}
-                    <div className="min-w-0">
-                      <div className="truncate" style={{ fontSize: 16, fontWeight: 900, color: 'var(--text-primary)' }}>{albumName}</div>
-                      <div className="truncate" style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 6 }}>
-                        {first?.artist || 'Mixed artists'} · {tracks.length} track{tracks.length === 1 ? '' : 's'}
+          albumDetail !== null
+            ? (() => {
+                const albumGroup = albumGroups.find(([name]) => name === albumDetail);
+                const tracksForAlbum = albumGroup?.[1] ?? [];
+                const firstAlbumTrack = tracksForAlbum[0];
+                return (
+                  <div className="flex flex-col gap-3">
+                    <div className="flex items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setAlbumDetail(null)}
+                        className="flex items-center gap-1.5 rounded-lg px-3"
+                        style={{
+                          height: 32, fontSize: 11, fontWeight: 700,
+                          color: 'var(--text-secondary)',
+                          background: 'var(--bg-titlebar)',
+                          border: '1px solid var(--border-subtle)',
+                        }}
+                        title="Back to all albums"
+                      >
+                        <ChevronLeft size={13} /> Albums
+                      </button>
+                      {firstAlbumTrack && <TrackAvatar track={firstAlbumTrack} size={64} iconSize={24} radius={14} />}
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate" style={{ fontSize: 22, fontWeight: 900, color: 'var(--text-primary)', letterSpacing: '-0.02em' }}>
+                          {albumDetail}
+                        </div>
+                        <div className="truncate" style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>
+                          {firstAlbumTrack?.artist || 'Mixed artists'} · {tracksForAlbum.length} track{tracksForAlbum.length === 1 ? '' : 's'}
+                        </div>
                       </div>
+                      {firstAlbumTrack && (
+                        <button
+                          type="button"
+                          onClick={() => onOpenTrack(firstAlbumTrack)}
+                          className="flex items-center gap-1.5 rounded-lg px-3"
+                          style={{
+                            height: 32, fontSize: 11, fontWeight: 800, color: 'white',
+                            background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))',
+                          }}
+                        >
+                          <Play size={12} /> Play first
+                        </button>
+                      )}
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      {tracksForAlbum.map(trackRow)}
                     </div>
                   </div>
-                </button>
-              );
-            })}
-          </div>
+                );
+              })()
+            : (
+              <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))' }}>
+                {albumGroups.length === 0 && (
+                  <div className="rounded-2xl p-8 text-center" style={{ background: 'var(--bg-titlebar)', border: '1px solid var(--border-subtle)', color: 'var(--text-secondary)' }}>No albums or source collections yet.</div>
+                )}
+                {albumGroups.map(([albumName, tracks]) => {
+                  const first = tracks[0];
+                  return (
+                    <button
+                      key={albumName}
+                      type="button"
+                      onClick={() => setAlbumDetail(albumName)}
+                      className="rounded-2xl p-4 text-left transition-all hover:scale-[1.01]"
+                      style={{ background: 'var(--bg-titlebar)', border: '1px solid var(--border-subtle)' }}
+                      title={`Open ${albumName}`}
+                    >
+                      <div className="flex items-center gap-3">
+                        {first && <TrackAvatar track={first} size={64} iconSize={24} radius={14} />}
+                        <div className="min-w-0">
+                          <div className="truncate" style={{ fontSize: 16, fontWeight: 900, color: 'var(--text-primary)' }}>{albumName}</div>
+                          <div className="truncate" style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 6 }}>
+                            {first?.artist || 'Mixed artists'} · {tracks.length} track{tracks.length === 1 ? '' : 's'}
+                          </div>
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )
         )}
 
         {tab === 'playlists' && (
@@ -5699,7 +6012,7 @@ function MusicSearchPane({
                       <TrackAvatar track={track} size={34} iconSize={14} radius={8} />
                       <button type="button" onClick={() => onOpenTrack(track)} className="min-w-0 flex-1 text-left">
                         <div className="truncate" style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-primary)' }}>{track.title}</div>
-                        <div className="truncate" style={{ fontSize: 10, color: 'var(--text-disabled)' }}>{track.artist || 'YouTube'}</div>
+                        <div className="truncate" style={{ fontSize: 10, color: 'var(--text-disabled)' }}>{track.artist || 'Unknown'}</div>
                       </button>
                       <button
                         type="button"
@@ -5996,6 +6309,14 @@ export default function MusicCreator() {
   const [gallerySearch, setGallerySearch] = useState('');
   // 'cards' (current rich rail) or 'list' (Apple-Music-style table).
   const [galleryView, setGalleryView] = useState<'cards' | 'list'>('cards');
+  // Sidebar IA: a single scope toggle (My Work / Library) replaces the
+  // duplicate "your stuff" surfaces that used to live in both the
+  // sidebar (My Work only) and the main Music pane (Library tab).
+  // Each scope owns its own sub-filter chip row so the user has one
+  // navigation map regardless of which side of the app they're in.
+  const [sidebarTab, setSidebarTab] = useState<'mywork' | 'library'>('mywork');
+  const [myWorkChip, setMyWorkChip] = useState<'all' | 'songs' | 'restyles' | 'lyrics'>('all');
+  const [libraryChip, setLibraryChip] = useState<'all' | 'favorites'>('all');
   const [musicSearchOpen, setMusicSearchOpen] = useState(false);
   const [musicPaneTab, setMusicPaneTab] = useState<MusicPaneTab>('search');
   const [musicQuery, setMusicQuery] = useState('');
@@ -7188,6 +7509,28 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
     setTheme(themes[Math.floor(Math.random() * themes.length)]);
   };
 
+  // Player-side surprise: take the track currently shown in the Player
+  // view, drop it into Creator > Restyle as the reference audio
+  // (loadTrack does the heavy lifting — audio ingest, lyrics, style,
+  // cover, specs), then re-randomize the theme on top. The user lands
+  // in a remix-ready form with a fresh creative direction, one click.
+  // Resolver mirrors the PlayerView track lookup at the render site so
+  // "what's currently playing/selected" always matches what the button
+  // operates on. Falls back to a plain creator-side surprise when the
+  // library is empty.
+  const surpriseFromPlayer = () => {
+    const candId =
+      selectedPlayerTrackId ??
+      player.state.trackId ??
+      visibleGallery[0]?.id ??
+      libraryTracks[0]?.id ??
+      null;
+    const track = candId ? allPlayerTracks.find((t) => t.id === candId) ?? null : null;
+    if (track) loadTrack(track);
+    setView('creator');
+    surpriseMe();
+  };
+
   const deleteTrack = useCallback((id: string) => {
     setGallery((g) => g.filter((track) => track.id !== id));
     void deleteTrackRow(id).catch((e: unknown) => console.warn('Track cache delete failed:', e));
@@ -7385,11 +7728,34 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
       setRefSampleInfo(null);
       setMode('lyricsOnly');
     } else if (track.source === 'youtube') {
+      // Streamed (YouTube) source — resolve the proxy URL via the
+      // existing stream cache (or fetch on demand) and feed it through
+      // the same audio decode/sample pipeline used for direct file
+      // uploads. ingestSourceAudio's underlying buildCoverSample
+      // accepts a string source: it does `fetch(url).blob()` then
+      // decodes via Web Audio. Same-origin proxy means no CORS.
       setMode('restyle');
       setRefAudioBase64(null);
-      setRefAudioName(null);
-      setRefSampleInfo(null);
-      setError('Remote reference extraction is not installed yet. Play/save works; restyle from online music is next.');
+      setRefAudioName(`${cleanTitle}.mp3`);
+      setRefSampleInfo('Resolving streamed audio…');
+      const resolveAndIngest = async () => {
+        try {
+          const externalId = track.externalId || '';
+          if (!externalId) throw new Error('Missing source identifier.');
+          const key = musicStreamKey(externalId);
+          const cached = runtimeStreams[key];
+          const src = cached && Date.now() - cached.resolvedAt < 90 * 60 * 1000
+            ? cached.src
+            : (await getMusicStream(externalId)).proxyUrl;
+          await ingestSourceAudio(src, `${cleanTitle}.mp3`);
+        } catch (e) {
+          setRefAudioBase64(null);
+          setRefAudioName(null);
+          setRefSampleInfo(null);
+          setError(`Could not load streamed track for restyle: ${(e as Error).message || 'unknown error'}`);
+        }
+      };
+      void resolveAndIngest();
     } else {
       // Audio track → land in Restyle and pre-load this track as the
       // reference so the user can change Theme/Style/Lyrics and hit
@@ -7397,7 +7763,7 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
       setMode('restyle');
       void ingestSourceAudio(track.audioDataUrl, `${cleanTitle}.mp3`);
     }
-  }, [ingestSourceAudio]);
+  }, [ingestSourceAudio, runtimeStreams]);
 
   const openLyricsInEditor = useCallback((track: SavedTrack) => {
     const nodeId = mirrorLyricsToVfs(track);
@@ -7636,12 +8002,43 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
   );
 
   const visibleGallery = useMemo(() => {
+    // Chip filter — narrow My Work to a category before the text search.
+    // 'songs'   = full audio tracks the user generated from the Compose form
+    // 'restyles'= remixes (loadTrack adds "(restyle)" to the title)
+    // 'lyrics'  = lyric-only sheets (no audio OR explicit "(lyrics)" suffix)
+    let pool = myWorkTracks;
+    if (myWorkChip === 'songs') {
+      pool = pool.filter((t) =>
+        hasPlayableAudio(t)
+        && !/\(restyle\)\s*$/i.test(t.title)
+        && !/\(lyrics\)\s*$/i.test(t.title));
+    } else if (myWorkChip === 'restyles') {
+      pool = pool.filter((t) => /\(restyle\)\s*$/i.test(t.title));
+    } else if (myWorkChip === 'lyrics') {
+      pool = pool.filter((t) => !hasPlayableAudio(t) || /\(lyrics\)\s*$/i.test(t.title));
+    }
     const q = gallerySearch.trim().toLowerCase();
-    if (!q) return myWorkTracks;
-    return myWorkTracks.filter((g) =>
+    if (!q) return pool;
+    return pool.filter((g) =>
       g.title.toLowerCase().includes(q)
       || g.styleTags.toLowerCase().includes(q));
-  }, [myWorkTracks, gallerySearch]);
+  }, [myWorkTracks, gallerySearch, myWorkChip]);
+
+  // Library tab content. Mirrors the sidebar's gallery shape so the same
+  // search input + list rendering can drive both. `libraryChip` narrows
+  // before the text search, same pattern as visibleGallery.
+  const visibleLibrary = useMemo(() => {
+    let pool = libraryTracks;
+    if (libraryChip === 'favorites') {
+      pool = pool.filter((t) => favoriteMusicIds.has(t.id));
+    }
+    const q = gallerySearch.trim().toLowerCase();
+    if (!q) return pool;
+    return pool.filter((t) =>
+      t.title.toLowerCase().includes(q)
+      || (t.artist || '').toLowerCase().includes(q)
+      || (t.album || '').toLowerCase().includes(q));
+  }, [libraryTracks, libraryChip, gallerySearch, favoriteMusicIds]);
 
   const warmMusicResults = useCallback((rows: MusicSearchResult[]) => {
     rows.slice(0, 4).forEach((row) => {
@@ -7794,7 +8191,7 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
     return {
       id: opts?.id ?? musicStreamKey(result.id),
       title: meta.song || result.title || 'Untitled',
-      styleTags: 'YouTube',
+      styleTags: '',
       lyricsPreview: '',
       durationMs: result.durationMs ?? 0,
       bitrate: 0,
@@ -7810,7 +8207,7 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
       externalId: result.id,
       externalUrl: `https://www.youtube.com/watch?v=${result.id}`,
       thumbnailUrl: result.thumbnailUrl || youtubeThumbnail(result.id),
-      artist: meta.artist || result.channel || 'YouTube',
+      artist: meta.artist || result.channel || 'Unknown',
       album: result.channel ?? '',
     };
   }, []);
@@ -7859,29 +8256,30 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
     setMusicPlaylists(await listPlaylists());
   }, []);
 
-  const previewMusicResult = useCallback(async (result: MusicSearchResult) => {
+  const previewMusicResult = useCallback((result: MusicSearchResult) => {
     setMusicSearchError(null);
     setPreviewBusyId(result.id);
-    try {
-      const key = musicStreamKey(result.id);
-      const cached = runtimeStreams[key];
-      const info = cached && Date.now() - cached.resolvedAt < 90 * 60 * 1000
-        ? { videoId: result.id, proxyUrl: cached.src, durationMs: result.durationMs }
-        : await getMusicStream(result.id);
-      const track = resultToTrack(
-        { ...result, durationMs: result.durationMs ?? info.durationMs ?? 0 },
-        { id: key, audioDataUrl: info.proxyUrl },
-      );
-      setPreviewTracks((rows) => [track, ...rows.filter((t) => t.id !== track.id)]);
-      setRuntimeStreams((m) => ({ ...m, [key]: { src: info.proxyUrl, resolvedAt: Date.now() } }));
-      setSelectedPlayerTrackId(track.id);
-      setView('player');
-      player.play(track);
-    } catch (e) {
-      setMusicSearchError((e as Error).message || 'Could not start preview.');
-    } finally {
-      setPreviewBusyId(null);
-    }
+    // Switch to the Player view INSTANTLY so the user sees the big
+    // primary "Loading…" pill (PlayerView already renders this when
+    // player.state.loadingTrackId === track.id) instead of staring at
+    // a tiny row spinner for 2-3s while YouTube's URL resolves. The
+    // stream URL resolves lazily inside player.play() →
+    // resolveTrackAudioSrc → getMusicStream, so there's no need to
+    // await it here.
+    const key = musicStreamKey(result.id);
+    const cached = runtimeStreams[key];
+    const stub = resultToTrack(
+      result,
+      cached ? { id: key, audioDataUrl: cached.src } : undefined,
+    );
+    setPreviewTracks((rows) => [stub, ...rows.filter((t) => t.id !== stub.id)]);
+    setSelectedPlayerTrackId(stub.id);
+    setView('player');
+    player.play(stub);
+    // The search-row spinner is no longer the primary loading affordance,
+    // but clear it so the row's button isn't permanently disabled if the
+    // user navigates back to the search pane.
+    setPreviewBusyId(null);
   }, [player, resultToTrack, runtimeStreams]);
 
   const addMusicResult = useCallback(async (result: MusicSearchResult) => {
@@ -7891,8 +8289,12 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
       await upsertLibraryTrack(track);
       setLibraryTracks((rows) => [track, ...rows.filter((t) => t.id !== track.id)]);
       setSelectedPlayerTrackId(track.id);
-      setMusicPaneTab('library');
-      setView('player');
+      // Surface the new addition in the sidebar's Library tab. Do NOT
+      // close the music pane — the search query + results stay visible
+      // so the user can keep adding more tracks from the same search.
+      // The user closes the pane explicitly when done.
+      setSidebarTab('library');
+      setLibraryChip('all');
       warmMusicResults([result]);
       if (musicPlaylists.length > 0) {
         // Keep the first user playlist useful: Add saves to library only;
@@ -7979,8 +8381,18 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
     // what's already playing. Playback only starts when the user hits
     // the explicit Play button in the Player view's track info.
     setSelectedPlayerTrackId(track.id);
+    setMusicSearchOpen(false);
     setView('player');
   }, []);
+
+  // Remix-from-Library: drop a saved streamed track into Creator >
+  // Restyle as the reference. loadTrack handles the heavy lift —
+  // YouTube branch resolves the proxy URL and ingests the audio.
+  const remixLibraryTrack = useCallback((track: SavedTrack) => {
+    loadTrack(track);
+    setMusicSearchOpen(false);
+    setView('creator');
+  }, [loadTrack]);
 
   // ─── Render ────────────────────────────────────────────
 
@@ -7988,10 +8400,11 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
 
   return (
     <div className="flex h-full overflow-hidden" style={{ background: 'var(--bg-window)' }}>
-      {/* ───────── LEFT: Slim "My Work" gallery rail ───────── */}
+      {/* ───────── LEFT: Sidebar with My Work / Library tabs ───────── */}
       {/* Compact 260px sidebar inspired by ApiTester's collection list.
-          The big workspace lives to the right; the rail is just for
-          navigation between past tracks. */}
+          One scope toggle (My Work / Library) at the top; everything
+          below is scoped to the active tab. The big workspace lives to
+          the right; the rail is just for navigation between tracks. */}
       <aside
         className="flex flex-col flex-shrink-0"
         style={{
@@ -8000,6 +8413,7 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
           background: 'var(--bg-titlebar)',
         }}
       >
+        {/* Header — brand + per-tab actions on the right */}
         <div
           className="flex items-center gap-2 px-3 flex-shrink-0"
           style={{
@@ -8009,162 +8423,352 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
         >
           <Sparkles size={13} style={{ color: 'var(--accent-primary)' }} />
           <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)' }}>
-            {t('musiccreator.gallery.title')}
+            JULI3TA
           </div>
           <div className="ml-auto flex items-center gap-2">
             <span style={{ fontSize: 10, color: 'var(--text-disabled)' }}>
-              {gallerySearch.trim()
-                ? `${visibleGallery.length} / ${myWorkTracks.length}`
-                : t(
-                  myWorkTracks.length === 1
-                    ? 'musiccreator.gallery.count.one'
-                    : 'musiccreator.gallery.count.other',
-                  { n: myWorkTracks.length },
-                )}
+              {sidebarTab === 'mywork'
+                ? (gallerySearch.trim() || myWorkChip !== 'all'
+                    ? `${visibleGallery.length} / ${myWorkTracks.length}`
+                    : t(
+                      myWorkTracks.length === 1
+                        ? 'musiccreator.gallery.count.one'
+                        : 'musiccreator.gallery.count.other',
+                      { n: myWorkTracks.length },
+                    ))
+                : (gallerySearch.trim() || libraryChip !== 'all'
+                    ? `${visibleLibrary.length} / ${libraryTracks.length}`
+                    : `${libraryTracks.length} saved`)}
             </span>
-            <button
-              onClick={openHostLibrary}
-              disabled={hostLibraryBusy}
-              className="flex items-center justify-center transition-all"
-              style={{
-                width: 22, height: 22,
-                border: '1px solid var(--border-subtle)',
-                borderRadius: 'var(--radius-sm)',
-                background: 'var(--bg-window)',
-                color: 'var(--text-secondary)',
-                opacity: hostLibraryBusy ? 0.5 : 1,
-              }}
-              title={hostLibraryRoot ? `Open real folder: ${hostLibraryRoot}` : 'Open real JULI3TA folder'}
-            >
-              <FolderOpen size={11} />
-            </button>
-            {/* View toggle — cards (default rich rail) vs list (Apple
-                Music-style table). Persists in component state only;
-                each open of the workspace starts in cards mode. */}
-            <div
-              className="flex rounded-md overflow-hidden flex-shrink-0"
-              style={{ border: '1px solid var(--border-subtle)' }}
-            >
+            {sidebarTab === 'mywork' && (
+              <>
+                <button
+                  onClick={openHostLibrary}
+                  disabled={hostLibraryBusy}
+                  className="flex items-center justify-center transition-all"
+                  style={{
+                    width: 22, height: 22,
+                    border: '1px solid var(--border-subtle)',
+                    borderRadius: 'var(--radius-sm)',
+                    background: 'var(--bg-window)',
+                    color: 'var(--text-secondary)',
+                    opacity: hostLibraryBusy ? 0.5 : 1,
+                  }}
+                  title={hostLibraryRoot ? `Open real folder: ${hostLibraryRoot}` : 'Open real JULI3TA folder'}
+                >
+                  <FolderOpen size={11} />
+                </button>
+                {/* View toggle — cards (default rich rail) vs list (Apple
+                    Music-style table). Only relevant on My Work since
+                    Library uses a single slim row layout. */}
+                <div
+                  className="flex rounded-md overflow-hidden flex-shrink-0"
+                  style={{ border: '1px solid var(--border-subtle)' }}
+                >
+                  <button
+                    onClick={() => setGalleryView('cards')}
+                    className="flex items-center justify-center transition-all"
+                    style={{
+                      width: 22, height: 22,
+                      background: galleryView === 'cards' ? 'var(--bg-hover)' : 'transparent',
+                      color: galleryView === 'cards' ? 'var(--text-primary)' : 'var(--text-disabled)',
+                    }}
+                    title="Cards"
+                  >
+                    <Layers size={11} />
+                  </button>
+                  <button
+                    onClick={() => setGalleryView('list')}
+                    className="flex items-center justify-center transition-all"
+                    style={{
+                      width: 22, height: 22,
+                      background: galleryView === 'list' ? 'var(--bg-hover)' : 'transparent',
+                      color: galleryView === 'list' ? 'var(--text-primary)' : 'var(--text-disabled)',
+                    }}
+                    title="List"
+                  >
+                    <FileMusic size={11} />
+                  </button>
+                </div>
+              </>
+            )}
+            {sidebarTab === 'library' && (
               <button
-                onClick={() => setGalleryView('cards')}
+                onClick={() => {
+                  setMusicSearchOpen(true);
+                  setMusicPaneTab('search');
+                }}
                 className="flex items-center justify-center transition-all"
                 style={{
                   width: 22, height: 22,
-                  background: galleryView === 'cards' ? 'var(--bg-hover)' : 'transparent',
-                  color: galleryView === 'cards' ? 'var(--text-primary)' : 'var(--text-disabled)',
+                  border: '1px solid var(--border-subtle)',
+                  borderRadius: 'var(--radius-sm)',
+                  background: 'var(--bg-window)',
+                  color: 'var(--text-secondary)',
                 }}
-                title="Cards"
+                title="Search streamed music"
               >
-                <Layers size={11} />
+                <Search size={11} />
               </button>
-              <button
-                onClick={() => setGalleryView('list')}
-                className="flex items-center justify-center transition-all"
-                style={{
-                  width: 22, height: 22,
-                  background: galleryView === 'list' ? 'var(--bg-hover)' : 'transparent',
-                  color: galleryView === 'list' ? 'var(--text-primary)' : 'var(--text-disabled)',
-                }}
-                title="List"
-              >
-                <FileMusic size={11} />
-              </button>
-            </div>
+            )}
           </div>
         </div>
 
-        {/* Search — visible only once the gallery has tracks. Filters
-            against title, style tags, and full lyric text so a melody
-            line you remember can find the song without scrolling. */}
-        {myWorkTracks.length > 0 && (
-          <div
-            className="flex items-center gap-1 px-2 flex-shrink-0"
-            style={{
-              height: 32,
-              borderBottom: '1px solid var(--border-subtle)',
-              background: 'var(--bg-window)',
-            }}
-          >
-            <Search size={11} style={{ color: 'var(--text-disabled)', marginLeft: 4 }} />
-            <input
-              value={gallerySearch}
-              onChange={(e) => setGallerySearch(e.target.value)}
-              placeholder={t('musiccreator.gallery.searchPlaceholder')}
-              className="flex-1 rounded-input bg-transparent outline-none px-1"
-              style={{ fontSize: 11, color: 'var(--text-primary)' }}
-            />
-            {gallerySearch && (
-              <button
-                onClick={() => setGallerySearch('')}
-                className="opacity-60 hover:opacity-100 px-1"
-                title="Clear search"
-              >
-                <X size={11} />
-              </button>
-            )}
-          </div>
-        )}
-
-        {myWorkTracks.length === 0 ? (
-          <div className="flex-1 flex flex-col items-center justify-center px-4 text-center">
-            <div
-              className="flex items-center justify-center rounded-2xl mb-2"
+        {/* Scope toggle — My Work vs Library. The single source of
+            navigation truth for "what's mine". */}
+        <div
+          className="flex flex-shrink-0 p-1 gap-1"
+          style={{
+            background: 'var(--bg-window)',
+            borderBottom: '1px solid var(--border-subtle)',
+          }}
+        >
+          {([
+            { id: 'mywork' as const, label: 'My Work' },
+            { id: 'library' as const, label: 'Library' },
+          ]).map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setSidebarTab(tab.id)}
+              className="flex-1 rounded-md transition-all"
               style={{
-                width: 44, height: 44,
-                background: 'var(--bg-hover)',
+                height: 26,
+                fontSize: 11,
+                fontWeight: sidebarTab === tab.id ? 700 : 600,
+                color: sidebarTab === tab.id ? 'white' : 'var(--text-secondary)',
+                background: sidebarTab === tab.id
+                  ? 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))'
+                  : 'transparent',
+                border: 'none',
               }}
             >
-              <FileMusic size={18} style={{ color: 'var(--text-disabled)' }} />
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Search — always visible so muscle memory works on either tab.
+            Disabled when the active tab has zero tracks. */}
+        <div
+          className="flex items-center gap-1 px-2 flex-shrink-0"
+          style={{
+            height: 32,
+            borderBottom: '1px solid var(--border-subtle)',
+            background: 'var(--bg-window)',
+            opacity: sidebarTab === 'mywork'
+              ? (myWorkTracks.length === 0 ? 0.4 : 1)
+              : (libraryTracks.length === 0 ? 0.4 : 1),
+          }}
+        >
+          <Search size={11} style={{ color: 'var(--text-disabled)', marginLeft: 4 }} />
+          <input
+            value={gallerySearch}
+            onChange={(e) => setGallerySearch(e.target.value)}
+            placeholder={sidebarTab === 'mywork'
+              ? t('musiccreator.gallery.searchPlaceholder')
+              : 'Search Library…'}
+            className="flex-1 rounded-input bg-transparent outline-none px-1"
+            style={{ fontSize: 11, color: 'var(--text-primary)' }}
+            disabled={sidebarTab === 'mywork'
+              ? myWorkTracks.length === 0
+              : libraryTracks.length === 0}
+          />
+          {gallerySearch && (
+            <button
+              onClick={() => setGallerySearch('')}
+              className="opacity-60 hover:opacity-100 px-1"
+              title="Clear search"
+            >
+              <X size={11} />
+            </button>
+          )}
+        </div>
+
+        {/* Sub-filter chips — scope-specific. Horizontal scroll inside
+            the row keeps the rail width fixed at 260px. */}
+        <div
+          className="flex items-center gap-1 px-2 flex-shrink-0 overflow-x-auto invisible-scrollbar"
+          style={{
+            height: 30,
+            borderBottom: '1px solid var(--border-subtle)',
+          }}
+        >
+          {sidebarTab === 'mywork'
+            ? (([
+                { id: 'all' as const, label: 'All' },
+                { id: 'songs' as const, label: 'Songs' },
+                { id: 'restyles' as const, label: 'Restyles' },
+                { id: 'lyrics' as const, label: 'Lyrics' },
+              ]).map((chip) => (
+                <button
+                  key={chip.id}
+                  onClick={() => setMyWorkChip(chip.id)}
+                  className="rounded-full px-2.5 flex-shrink-0 transition-all"
+                  style={{
+                    height: 22,
+                    fontSize: 10,
+                    fontWeight: myWorkChip === chip.id ? 800 : 600,
+                    color: myWorkChip === chip.id ? 'white' : 'var(--text-secondary)',
+                    background: myWorkChip === chip.id
+                      ? 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))'
+                      : 'var(--bg-window)',
+                    border: '1px solid var(--border-subtle)',
+                  }}
+                >
+                  {chip.label}
+                </button>
+              )))
+            : (([
+                { id: 'all' as const, label: 'All' },
+                { id: 'favorites' as const, label: 'Favorites' },
+              ]).map((chip) => (
+                <button
+                  key={chip.id}
+                  onClick={() => setLibraryChip(chip.id)}
+                  className="rounded-full px-2.5 flex-shrink-0 transition-all"
+                  style={{
+                    height: 22,
+                    fontSize: 10,
+                    fontWeight: libraryChip === chip.id ? 800 : 600,
+                    color: libraryChip === chip.id ? 'white' : 'var(--text-secondary)',
+                    background: libraryChip === chip.id
+                      ? 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))'
+                      : 'var(--bg-window)',
+                    border: '1px solid var(--border-subtle)',
+                  }}
+                >
+                  {chip.label}
+                </button>
+              )))}
+        </div>
+
+        {/* Content — conditional on active sidebar tab. */}
+        {sidebarTab === 'mywork' ? (
+          myWorkTracks.length === 0 ? (
+            <div className="flex-1 flex flex-col items-center justify-center px-4 text-center">
+              <div
+                className="flex items-center justify-center rounded-2xl mb-2"
+                style={{
+                  width: 44, height: 44,
+                  background: 'var(--bg-hover)',
+                }}
+              >
+                <FileMusic size={18} style={{ color: 'var(--text-disabled)' }} />
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
+                {t('musiccreator.gallery.empty.title')}
+              </div>
+              <div style={{ fontSize: 10, color: 'var(--text-disabled)', marginTop: 4, maxWidth: 220, lineHeight: 1.4 }}>
+                {t('musiccreator.gallery.empty.body')}
+              </div>
+              <div className="flex items-center gap-1 mt-3" style={{ fontSize: 9, color: 'var(--text-disabled)' }}>
+                <Mic size={10} />
+                {t('musiccreator.gallery.empty.footer')}
+              </div>
             </div>
-            <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
-              {t('musiccreator.gallery.empty.title')}
+          ) : visibleGallery.length === 0 ? (
+            <div className="flex-1 flex flex-col items-center justify-center px-4 text-center">
+              <Search size={18} style={{ color: 'var(--text-disabled)', opacity: 0.5 }} />
+              <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 8 }}>
+                {gallerySearch
+                  ? t('musiccreator.gallery.searchEmpty', { q: gallerySearch })
+                  : `No ${myWorkChip} yet.`}
+              </div>
             </div>
-            <div style={{ fontSize: 10, color: 'var(--text-disabled)', marginTop: 4, maxWidth: 220, lineHeight: 1.4 }}>
-              {t('musiccreator.gallery.empty.body')}
-            </div>
-            <div className="flex items-center gap-1 mt-3" style={{ fontSize: 9, color: 'var(--text-disabled)' }}>
-              <Mic size={10} />
-              {t('musiccreator.gallery.empty.footer')}
-            </div>
-          </div>
-        ) : visibleGallery.length === 0 ? (
-          <div className="flex-1 flex flex-col items-center justify-center px-4 text-center">
-            <Search size={18} style={{ color: 'var(--text-disabled)', opacity: 0.5 }} />
-            <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 8 }}>
-              {t('musiccreator.gallery.searchEmpty', { q: gallerySearch })}
-            </div>
-          </div>
-        ) : (
-          <div className="flex-1 overflow-y-auto invisible-scrollbar p-1.5 flex flex-col gap-0.5">
-            {galleryView === 'list' ? (
-              <TrackTable
-                tracks={visibleGallery}
-                player={player}
-                onLoad={loadTrack}
-                onOpenLyrics={openLyricsInEditor}
-                onDelete={deleteTrack}
-                onRename={renameTrack}
-              />
-            ) : (
-              visibleGallery.map((track) => (
-                <TrackCard
-                  key={track.id}
-                  track={track}
-                  onDelete={deleteTrack}
+          ) : (
+            <div className="flex-1 overflow-y-auto invisible-scrollbar p-1.5 flex flex-col gap-0.5">
+              {galleryView === 'list' ? (
+                <TrackTable
+                  tracks={visibleGallery}
+                  player={player}
                   onLoad={loadTrack}
                   onOpenLyrics={openLyricsInEditor}
-                  onSaveSongToDesktop={saveSongToDesktop}
-                  onSaveLyricsToDesktop={saveLyricsToDesktop}
-                  onPlayInPlayer={playTrackInPlayer}
+                  onDelete={deleteTrack}
                   onRename={renameTrack}
-                  onEditCover={setCoverEditTrack}
-                  onSelect={openInPlayer}
-                  selected={view === 'player' && selectedPlayerTrackId === track.id}
-                  player={player}
                 />
-              ))
-            )}
-          </div>
+              ) : (
+                visibleGallery.map((track) => (
+                  <TrackCard
+                    key={track.id}
+                    track={track}
+                    onDelete={deleteTrack}
+                    onLoad={loadTrack}
+                    onOpenLyrics={openLyricsInEditor}
+                    onSaveSongToDesktop={saveSongToDesktop}
+                    onSaveLyricsToDesktop={saveLyricsToDesktop}
+                    onPlayInPlayer={playTrackInPlayer}
+                    onRename={renameTrack}
+                    onEditCover={setCoverEditTrack}
+                    onSelect={openInPlayer}
+                    selected={view === 'player' && selectedPlayerTrackId === track.id}
+                    player={player}
+                  />
+                ))
+              )}
+            </div>
+          )
+        ) : (
+          /* Library tab — flat slim list of saved streamed tracks. The
+             rich Artists/Albums/Playlists views still live in the main
+             Music pane (reachable via the search button in the header
+             above) since they need more horizontal room than 260px. */
+          libraryTracks.length === 0 ? (
+            <div className="flex-1 flex flex-col items-center justify-center px-4 text-center">
+              <div
+                className="flex items-center justify-center rounded-2xl mb-2"
+                style={{ width: 44, height: 44, background: 'var(--bg-hover)' }}
+              >
+                <Heart size={18} style={{ color: 'var(--text-disabled)' }} />
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
+                Your saved music lives here
+              </div>
+              <div style={{ fontSize: 10, color: 'var(--text-disabled)', marginTop: 4, maxWidth: 220, lineHeight: 1.4 }}>
+                Click the magnifier above to search, then add tracks you want to keep.
+              </div>
+              <button
+                onClick={() => {
+                  setMusicSearchOpen(true);
+                  setMusicPaneTab('search');
+                }}
+                className="mt-3 flex items-center gap-1.5 rounded-lg px-3"
+                style={{
+                  height: 28,
+                  fontSize: 11,
+                  fontWeight: 700,
+                  color: 'white',
+                  background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))',
+                }}
+              >
+                <Search size={11} /> Search music
+              </button>
+            </div>
+          ) : visibleLibrary.length === 0 ? (
+            <div className="flex-1 flex flex-col items-center justify-center px-4 text-center">
+              <Search size={18} style={{ color: 'var(--text-disabled)', opacity: 0.5 }} />
+              <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 8 }}>
+                {gallerySearch
+                  ? `No matches for "${gallerySearch}"`
+                  : `No ${libraryChip} yet.`}
+              </div>
+            </div>
+          ) : (
+            <div className="flex-1 overflow-y-auto invisible-scrollbar p-1.5 flex flex-col gap-0.5">
+              {visibleLibrary.map((track) => (
+                <LibrarySidebarRow
+                  key={track.id}
+                  track={track}
+                  player={player}
+                  selected={view === 'player' && selectedPlayerTrackId === track.id}
+                  isFavorite={favoriteMusicIds.has(track.id)}
+                  onOpenInPlayer={openInPlayer}
+                  onRemix={remixLibraryTrack}
+                  onToggleFavorite={toggleMusicFavorite}
+                  onRemove={removeLibraryTrack}
+                />
+              ))}
+            </div>
+          )
         )}
       </aside>
 
@@ -8276,7 +8880,7 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
             )}
             <ConnectionBadge endpoint={endpoint} endpoints={endpoints} onSwitch={switchEndpoint} />
             <button
-              onClick={surpriseMe}
+              onClick={view === 'player' ? surpriseFromPlayer : surpriseMe}
               disabled={busy}
               className="flex items-center gap-1.5 px-3 rounded-lg transition-all hover:bg-[var(--bg-hover)] disabled:opacity-40"
               style={{
@@ -8286,7 +8890,9 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
                 background: 'var(--bg-window)',
                 border: '1px solid var(--border-subtle)',
               }}
-              title={t('musiccreator.header.surpriseTitle')}
+              title={view === 'player'
+                ? t('musiccreator.header.surpriseFromPlayerTitle')
+                : t('musiccreator.header.surpriseTitle')}
             >
               <Shuffle size={12} />
               {t('musiccreator.header.surprise')}

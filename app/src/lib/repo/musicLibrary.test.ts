@@ -35,6 +35,18 @@ const makeFake = (): Db => {
       tracks.push({ id, provider, external_id, title, artist, album, duration_ms, thumbnail_url, external_url, added_at, last_played_at });
       return;
     }
+    if (lower.startsWith('insert or ignore into music_library_tracks')) {
+      const [id, provider, external_id, title, artist, album, duration_ms, thumbnail_url, external_url, added_at, last_played_at] = bindings as [string, string, string, string, string, string, number, string, string, number, number];
+      if (!tracks.some((t) => t.id === id)) {
+        tracks.push({ id, provider, external_id, title, artist, album, duration_ms, thumbnail_url, external_url, added_at, last_played_at });
+      }
+      return;
+    }
+    if (lower.startsWith('update music_library_tracks')) {
+      const [title, artist, album, duration_ms, thumbnail_url, external_url, id] = bindings as [string, string, string, number, string, string, string];
+      tracks = tracks.map((t) => t.id === id ? { ...t, title, artist, album, duration_ms, thumbnail_url, external_url } : t);
+      return;
+    }
     if (lower.startsWith('insert into music_playlists')) {
       const [id, name, created_at, updated_at] = bindings as [string, string, number, number];
       playlists.push({ id, name, created_at, updated_at });

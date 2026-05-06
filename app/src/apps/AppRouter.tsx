@@ -115,6 +115,16 @@ const WORKSPACE_APP_IDS_HINT = new Set([
 const AppRouter: FC<AppRouterProps> = ({ appId }) => {
   const canonical = LEGACY_APP_ID_ALIASES[appId] ?? appId;
 
+  // DEV-ONLY: short-circuit juli3ta to the in-tree MusicCreator so
+  // edits to `app/src/apps/MusicCreator.tsx` are immediately visible
+  // in the local dev server. In production, the workspace-host path
+  // below loads the published `tytus-app-juli3ta@<tag>` bundle from
+  // jsdelivr. Remove this block once the standalone repo's next
+  // release is cut and the jsdelivr cache is refreshed.
+  if (import.meta.env.DEV && canonical === 'juli3ta') {
+    return <MusicCreator />;
+  }
+
   // Dynamic-loader path — source of truth is the live installed_apps
   // table. A row with kind ∈ {'bundled', 'installed'} mounts via
   // WorkspaceAppHost regardless of whether the id is in the hint Set.

@@ -459,9 +459,11 @@ export const getSetting = async <T>(key: string, fallback: T): Promise<T> => {
 export const putSetting = async (key: string, value: unknown): Promise<void> => {
   const db = getDb();
   if (!db) return;
+  // Avoid `ON CONFLICT(key) DO UPDATE SET ...` because the host SQL
+  // validator misparses the SET keyword as a table reference. Settings
+  // is a pure key/value table with no triggers, so REPLACE is safe.
   await db.run(
-    `INSERT INTO music_creator_settings (key, value) VALUES (?, ?)
-     ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+    `INSERT OR REPLACE INTO music_creator_settings (key, value) VALUES (?, ?)`,
     [key, JSON.stringify(value)],
   );
 };

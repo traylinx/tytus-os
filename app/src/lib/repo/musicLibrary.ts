@@ -129,19 +129,26 @@ export const upsertLibraryTrack = async (track: MusicLibraryTrack): Promise<void
   const db = getDb();
   if (!db) throw new Error('Database not ready');
   const r = fromTrack(track);
-  await db.run(
-    `INSERT INTO music_library_tracks
-       (id, provider, external_id, title, artist, album, duration_ms, thumbnail_url, external_url, added_at, last_played_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-     ON CONFLICT(id) DO UPDATE SET
-       title = excluded.title,
-       artist = excluded.artist,
-       album = excluded.album,
-       duration_ms = excluded.duration_ms,
-       thumbnail_url = excluded.thumbnail_url,
-       external_url = excluded.external_url`,
-    [r.id, r.provider, r.external_id, r.title, r.artist, r.album, r.duration_ms, r.thumbnail_url, r.external_url, r.added_at, r.last_played_at],
-  );
+  // Two-step upsert instead of `INSERT ... ON CONFLICT(id) DO UPDATE SET ...`
+  // because the host SQL validator tokenises naively and mistakes the
+  // SET keyword for a table reference, rejecting the statement with
+  // 'cannot reference table "SET"'. The IGNORE+UPDATE pair is
+  // semantically identical for our schema (added_at / last_played_at
+  // are preserved by IGNORE, the mutable fields are written by UPDATE).
+  await db.tx(async () => {
+    await db.run(
+      `INSERT OR IGNORE INTO music_library_tracks
+         (id, provider, external_id, title, artist, album, duration_ms, thumbnail_url, external_url, added_at, last_played_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [r.id, r.provider, r.external_id, r.title, r.artist, r.album, r.duration_ms, r.thumbnail_url, r.external_url, r.added_at, r.last_played_at],
+    );
+    await db.run(
+      `UPDATE music_library_tracks
+         SET title = ?, artist = ?, album = ?, duration_ms = ?, thumbnail_url = ?, external_url = ?
+       WHERE id = ?`,
+      [r.title, r.artist, r.album, r.duration_ms, r.thumbnail_url, r.external_url, r.id],
+    );
+  });
 };
 
 export const deleteLibraryTrack = async (id: string): Promise<void> => {

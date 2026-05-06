@@ -394,6 +394,7 @@
     "musiccreator.header.subtitle": "Pod {podId} · ail-music",
     "musiccreator.header.surprise": "Sorpréndeme",
     "musiccreator.header.surpriseTitle": "Tema aleatorio",
+    "musiccreator.header.surpriseFromPlayerTitle": "Remezcla esta canción con un tema aleatorio",
     "musiccreator.theme.label": "Tema",
     "musiccreator.theme.placeholder": "Describe la canción: vibra, mood, historia, época…",
     "musiccreator.theme.hint": "Escribiremos letras estructuradas a partir de esto. O pega las tuyas abajo.",
