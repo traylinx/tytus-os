@@ -9275,6 +9275,28 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
     };
   }, [player, player.state.trackId, player.state.playing, allPlayerTracks]);
 
+  // Browser-tab title indicator. When a track is loaded, replace
+  // document.title with "▶ Track — JULI3TA" (or "⏸" when paused) so
+  // the user can see what's playing without switching back to the
+  // tab. The cleanup restores whatever title the host had before
+  // we touched it — the closure-captures-pre-mutation pattern means
+  // a chain of effect runs returns cleanly to the host's title even
+  // after many track flips.
+  //
+  // No-op when no track is loaded (default JULI3TA-empty view) so we
+  // don't waste a write on the page-load tick.
+  useEffect(() => {
+    const trackId = player.state.trackId;
+    if (!trackId) return;
+    const track = allPlayerTracks.find((t) => t.id === trackId);
+    if (!track) return;
+    const prefix = player.state.playing ? '▶' : '⏸';
+    const cleanTitle = (track.title || 'Untitled').replace(/\s*\((lyrics|cover|restyle)\)\s*$/, '');
+    const previous = document.title;
+    document.title = `${prefix} ${cleanTitle} — JULI3TA`;
+    return () => { document.title = previous; };
+  }, [player.state.trackId, player.state.playing, allPlayerTracks]);
+
   // Keyboard shortcuts when Player view is active. Standard music-app
   // bindings: Space=play/pause, ←/→=seek ±5s, ↑/↓=volume ±10%. We skip
   // when the user is typing into an input/textarea/contenteditable so
