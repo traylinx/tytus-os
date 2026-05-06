@@ -154,8 +154,39 @@ const Dock = memo(function Dock() {
     [dispatch],
   );
 
-  const pinnedItemsRaw = dockItems.filter((d) => d.isPinned && !isReplacedByForge(resolveCanonicalAppId(d.appId)));
-  const openUnpinned = dockItems.filter((d) => !d.isPinned && d.isOpen && !isReplacedByForge(resolveCanonicalAppId(d.appId)));
+  // Dedupe by canonical id so a legacy entry (e.g. `musiccreator`) and
+  // its installed canonical (`juli3ta`) don't both surface in the Dock
+  // — keep the canonical entry where present, otherwise the legacy.
+  const dedupeByCanonical = (items: typeof dockItems) => {
+    const out: typeof dockItems = [];
+    const canonicalSeen = new Set<string>();
+    // First pass: items whose appId IS already the canonical (no alias)
+    // win priority — they render with the canonical icon/name.
+    for (const d of items) {
+      const canonical = resolveCanonicalAppId(d.appId);
+      if (d.appId === canonical) {
+        out.push(d);
+        canonicalSeen.add(canonical);
+      }
+    }
+    // Second pass: aliased entries only render if the canonical isn't
+    // already in the dock. Skips dupes like {musiccreator} when
+    // {juli3ta} is present.
+    for (const d of items) {
+      const canonical = resolveCanonicalAppId(d.appId);
+      if (d.appId === canonical) continue;
+      if (canonicalSeen.has(canonical)) continue;
+      out.push(d);
+      canonicalSeen.add(canonical);
+    }
+    return out;
+  };
+  const pinnedItemsRaw = dedupeByCanonical(
+    dockItems.filter((d) => d.isPinned && !isReplacedByForge(resolveCanonicalAppId(d.appId))),
+  );
+  const openUnpinned = dedupeByCanonical(
+    dockItems.filter((d) => !d.isPinned && d.isOpen && !isReplacedByForge(resolveCanonicalAppId(d.appId))),
+  );
 
   // Phase 1.6 — apply user-configured dock order. Apps not present
   // in `theme.dock.order` keep their default registry position

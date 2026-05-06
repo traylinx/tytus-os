@@ -29,6 +29,17 @@ import { getAppById } from '@/apps/registry';
 
 const BRAND_MARK = '/brand/tytusos-mark-32.png';
 
+// Shell-menu labels are app-provided as human-readable English by
+// default. The host attempts to translate via the `shell.<Label>` key
+// so localizers can override them; if the key is missing (most
+// third-party apps don't ship translations), fall back to the
+// original label rather than displaying the raw "shell.Foo" key.
+function translateShellLabel(t: (k: string) => string, label: string): string {
+  const key = `shell.${label}`;
+  const translated = t(key);
+  return translated === key ? label : translated;
+}
+
 const PILL_TEXT: Record<string, string> = {
   green: '#A5D6A7',
   yellow: '#FFE082',
@@ -230,8 +241,8 @@ const TopPanel = memo(function TopPanel() {
       : menuModel.appLabel,
     groups: menuModel.groups.map((group) => ({
       ...group,
-      label: t(`shell.${group.label}`),
-      items: group.items.map((item) => ({ ...item, label: t(`shell.${item.label}`) })),
+      label: translateShellLabel(t, group.label),
+      items: group.items.map((item) => ({ ...item, label: translateShellLabel(t, item.label) })),
     })),
   }), [activeWindow, menuModel, t]);
 

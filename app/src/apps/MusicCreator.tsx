@@ -108,6 +108,12 @@ import type { Agent, IncludedPod } from '@/types/daemon';
 // before the localStorage→SQLite migration.
 type VoiceRecording = VoiceRecordingRow;
 
+// Build-time app version. Surfaced in the Help menu ("About JULI3TA
+// vX.Y.Z") and the Settings dialog footer so users can see exactly
+// which release they're running. Bumped in lockstep with package.json
+// + tytus-app.json on every release.
+const APP_VERSION = '0.3.1';
+
 // ──────────────────────────────────────────────────────────
 // Cross-app drag MIME types
 // ──────────────────────────────────────────────────────────
@@ -9064,6 +9070,7 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
         items: [
           { id: 'juli3ta-help', label: 'JULI3TA Help…', onSelect: () => setHelpOpen(true) },
           { id: 'tytus-help', label: 'Tytus Help', actionId: 'open-help' as const },
+          { id: 'juli3ta-about', label: `About JULI3TA v${APP_VERSION}`, onSelect: () => setSettingsOpen(true) },
         ],
       },
     ],
@@ -11818,6 +11825,22 @@ function SettingsDialog({ settings, endpoints, onChange, onClose }: SettingsDial
           <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>
             JULI3TA Settings
           </div>
+          <span
+            className="tabular-nums"
+            style={{
+              fontSize: 10,
+              fontWeight: 700,
+              color: 'var(--accent-primary)',
+              border: '1px solid var(--accent-primary)',
+              background: 'var(--bg-hover)',
+              padding: '2px 6px',
+              borderRadius: 'var(--radius-full)',
+              letterSpacing: 0.4,
+            }}
+            title={`JULI3TA v${APP_VERSION}`}
+          >
+            v{APP_VERSION}
+          </span>
           <button
             onClick={onClose}
             className="ml-auto flex items-center justify-center rounded-md transition-all hover:bg-[var(--bg-hover)]"
