@@ -1752,7 +1752,18 @@ function usePlayer(
     try {
       shuffle = localStorage.getItem('juli3ta:shuffle') === '1';
     } catch {}
-    return { trackId: null, playing: false, loadingTrackId: null, positionMs: 0, durationMs: 0, volume: 1, repeatMode, shuffle };
+    // Persist volume so a reload doesn't slam the user back to 100%
+    // after they've deliberately lowered it. Clamp to [0, 1] in case
+    // a corrupted value is stored. Default 1 on missing/invalid.
+    let volume = 1;
+    try {
+      const raw = localStorage.getItem('juli3ta:volume');
+      if (raw !== null) {
+        const parsed = Number.parseFloat(raw);
+        if (Number.isFinite(parsed)) volume = Math.max(0, Math.min(1, parsed));
+      }
+    } catch {}
+    return { trackId: null, playing: false, loadingTrackId: null, positionMs: 0, durationMs: 0, volume, repeatMode, shuffle };
   });
   const errorRetryRef = useRef<string | null>(null);
   // Play history stack — the trackIds the user has heard, oldest →
@@ -1901,7 +1912,20 @@ function usePlayer(
     const clamped = Math.max(0, Math.min(1, v));
     if (audioRef.current) audioRef.current.volume = clamped;
     setState((s) => ({ ...s, volume: clamped }));
+    try { localStorage.setItem('juli3ta:volume', String(clamped)); } catch {}
   }, [audioRef]);
+
+  // Apply persisted volume to the <audio> element once it mounts.
+  // Without this, the slider visually shows the persisted level but
+  // the audio element stays at its default 1.0 until the user
+  // physically moves the slider — surprising silence when they
+  // expect their saved level.
+  useEffect(() => {
+    if (audioRef.current) audioRef.current.volume = state.volume;
+    // Intentionally only run on mount: subsequent changes flow through
+    // setVolume which already updates audioRef.current.volume.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const playable = useMemo(() => queue.filter(hasPlayableAudio), [queue]);
 

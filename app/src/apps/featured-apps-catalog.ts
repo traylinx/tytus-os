@@ -87,7 +87,7 @@ const ALL_FEATURED_APPS: FeaturedApp[] = [
     description: 'Full AI-native music creator for Tytus OS. Create songs, lyrics, covers, and manage your local music workbench.',
     icon: 'juli3ta:mark',
     category: 'Creative',
-    manifestUrl: 'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-juli3ta@juli3ta-0.2.17/tytus-app.json',
+    manifestUrl: 'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-juli3ta@juli3ta-0.2.18/tytus-app.json',
   },
 ];
 
