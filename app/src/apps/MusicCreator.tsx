@@ -112,7 +112,7 @@ type VoiceRecording = VoiceRecordingRow;
 // vX.Y.Z") and the Settings dialog footer so users can see exactly
 // which release they're running. Bumped in lockstep with package.json
 // + tytus-app.json on every release.
-const APP_VERSION = '0.3.1';
+const APP_VERSION = '0.3.2';
 
 // ──────────────────────────────────────────────────────────
 // Cross-app drag MIME types
@@ -9738,7 +9738,10 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
           background: 'var(--bg-titlebar)',
         }}
       >
-        {/* Header — brand + per-tab actions on the right */}
+        {/* Header — count + per-tab actions on the right. Brand label
+            removed because the workspace titlebar above already shows
+            the JULI3TA wordmark; doubling it here just stole rail
+            real-estate from the actual content. */}
         <div
           className="flex items-center gap-2 px-3 flex-shrink-0"
           style={{
@@ -9746,9 +9749,16 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
             borderBottom: '1px solid var(--border-subtle)',
           }}
         >
-          <Sparkles size={13} style={{ color: 'var(--accent-primary)' }} />
-          <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)' }}>
-            JULI3TA
+          <div
+            style={{
+              fontSize: 10,
+              fontWeight: 800,
+              textTransform: 'uppercase',
+              letterSpacing: 0.8,
+              color: 'var(--text-disabled)',
+            }}
+          >
+            {sidebarTab === 'mywork' ? 'My Work' : 'Library'}
           </div>
           <div className="ml-auto flex items-center gap-2">
             <span style={{ fontSize: 10, color: 'var(--text-disabled)' }}>
