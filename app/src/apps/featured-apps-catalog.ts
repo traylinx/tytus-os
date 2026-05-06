@@ -34,6 +34,14 @@ export interface FeaturedApp {
 
 const ALL_FEATURED_APPS: FeaturedApp[] = [
   {
+    id: 'forge',
+    name: 'Tytus Forge',
+    description: 'Standalone vscode.dev-style Monaco workbench for local files, markdown preview, and future Tytus agents/Cortex workflows.',
+    icon: 'Sparkles',
+    category: 'Productivity',
+    manifestUrl: 'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-forge@0.1.0/tytus-app.json',
+  },
+  {
     id: 'text-editor',
     name: 'Text Editor',
     description: 'Plain-text editor with multi-file tabs, syntax highlighting, search/replace, and word-wrap.',
@@ -51,8 +59,8 @@ const ALL_FEATURED_APPS: FeaturedApp[] = [
   },
   {
     id: 'markdown-preview',
-    name: 'Markdown Preview',
-    description: 'Live markdown editor and preview with split-pane view.',
+    name: 'Markdown Editor',
+    description: 'Markdown editor with live split-pane preview and GitHub-flavored rendering.',
     icon: 'FileCode',
     category: 'Productivity',
     manifestUrl: 'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-markdown-preview@v0.1.0/tytus-app.json',
@@ -79,14 +87,12 @@ const ALL_FEATURED_APPS: FeaturedApp[] = [
     description: 'Full AI-native music creator for Tytus OS. Create songs, lyrics, covers, and manage your local music workbench.',
     icon: 'juli3ta:mark',
     category: 'Creative',
-    manifestUrl: 'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-juli3ta@juli3ta-0.2.16/tytus-app.json',
+    manifestUrl: 'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-juli3ta@juli3ta-0.2.17/tytus-app.json',
   },
 ];
 
 const REPLACED_BY_FORGE_FALLBACK_IDS = new Set([
-  'text-editor',
   'code-editor',
-  'markdown-preview',
 ]);
 
 export const FEATURED_APPS: FeaturedApp[] = ALL_FEATURED_APPS.filter(
@@ -96,9 +102,11 @@ export const FEATURED_APPS: FeaturedApp[] = ALL_FEATURED_APPS.filter(
 /** URL of the remote Featured catalog. Bumped per OS release; the
  *  catalog repo is independently versioned so featured-app additions
  *  don't require a Tytus OS rebuild. v0.7.0 publishes verified standalone
- *  JULI3TA v0.2.1. */
+ *  Forge is developed as a standalone app; the catalog is intentionally
+ *  fetched from `main` so Forge version bumps do not require an OS rebuild.
+ *  Individual app manifest URLs remain pinned to immutable app tags. */
 export const FEATURED_CATALOG_URL =
-  'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-catalog@v0.7.0/featured.json';
+  'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-catalog@main/featured.json';
 
 /**
  * Denylist of catalog ids the OS will refuse to auto-install at boot,

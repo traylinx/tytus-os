@@ -4107,6 +4107,71 @@ function TrackCard({
 }
 
 // ──────────────────────────────────────────────────────────
+// Recently-played pin row at the top of My Work. Resolves the
+// MRU id stack against the live myWorkTracks list and renders up to
+// 6 mini-cards in a horizontal-scrolling strip. Hidden when none of
+// the persisted ids are still present (the entries silently fall
+// off the strip rather than crashing — same fault tolerance as the
+// selectedPlayerTrackId validation effect).
+function RecentlyPlayedRow({
+  trackIds,
+  allTracks,
+  player,
+  onSelect,
+}: {
+  trackIds: string[];
+  allTracks: SavedTrack[];
+  player: PlayerControls;
+  onSelect: (track: SavedTrack) => void;
+}) {
+  const tracks = trackIds
+    .map((id) => allTracks.find((t) => t.id === id))
+    .filter((t): t is SavedTrack => !!t)
+    .slice(0, 6);
+  if (tracks.length === 0) return null;
+  return (
+    <div className="mb-2">
+      <div
+        style={{
+          fontSize: 9, fontWeight: 800,
+          color: 'var(--text-disabled)',
+          textTransform: 'uppercase',
+          letterSpacing: 0.7,
+          padding: '2px 4px 6px',
+        }}
+      >
+        Recent
+      </div>
+      <div className="flex gap-1.5 overflow-x-auto invisible-scrollbar pb-1">
+        {tracks.map((t) => {
+          const isActive = player.state.trackId === t.id;
+          return (
+            <button
+              key={t.id}
+              onClick={() => onSelect(t)}
+              className="flex flex-col items-start flex-shrink-0 rounded-lg p-1.5 transition-all hover:bg-[var(--bg-hover)]"
+              style={{
+                width: 84,
+                background: isActive ? 'var(--bg-selected)' : 'var(--bg-titlebar)',
+                border: isActive ? '1px solid var(--accent-primary)' : '1px solid var(--border-subtle)',
+              }}
+              title={t.title || 'Untitled'}
+            >
+              <TrackAvatar track={t} size={68} iconSize={20} radius={6} />
+              <div
+                className="truncate w-full text-left"
+                style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-primary)', marginTop: 4 }}
+              >
+                {t.title || 'Untitled'}
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // LibrarySidebarRow — slim Library track row in the sidebar
 // ──────────────────────────────────────────────────────────
 //
@@ -6889,6 +6954,23 @@ export default function MusicCreator() {
   useEffect(() => {
     try { localStorage.setItem('juli3ta:libraryChip', libraryChip); } catch {}
   }, [libraryChip]);
+  // Recently-played track ids — persisted MRU stack (newest first,
+  // capped at 8). Drives the "Recent" pin row at the top of My Work
+  // when the user is on the All chip without an active search query.
+  // Pushed by an effect below that watches player.state.trackId; not
+  // wired through usePlayer because the Recent UI is My-Work-scoped
+  // (we filter to myWorkTracks at render time, ignoring streamed
+  // Library tracks that wouldn't fit the gallery card chrome).
+  const [recentlyPlayedIds, setRecentlyPlayedIds] = useState<string[]>(() => {
+    try {
+      const raw = localStorage.getItem('juli3ta:recentlyPlayedIds');
+      const parsed = raw ? JSON.parse(raw) as unknown : null;
+      return Array.isArray(parsed) ? parsed.filter((s): s is string => typeof s === 'string').slice(0, 8) : [];
+    } catch { return []; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem('juli3ta:recentlyPlayedIds', JSON.stringify(recentlyPlayedIds)); } catch {}
+  }, [recentlyPlayedIds]);
   // Multi-select mode for the Library sidebar tab. When on, rows show
   // a checkbox + clicking selects/deselects (instead of opening in
   // player). A footer action bar offers batch Toggle-favorite and
@@ -8123,27 +8205,6 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
     setTheme(themes[Math.floor(Math.random() * themes.length)]);
   };
 
-  // Player-side surprise: take the track currently shown in the Player
-  // view, drop it into Creator > Restyle as the reference audio
-  // (loadTrack does the heavy lifting — audio ingest, lyrics, style,
-  // cover, specs), then re-randomize the theme on top. The user lands
-  // in a remix-ready form with a fresh creative direction, one click.
-  // Resolver mirrors the PlayerView track lookup at the render site so
-  // "what's currently playing/selected" always matches what the button
-  // operates on. Falls back to a plain creator-side surprise when the
-  // library is empty.
-  const surpriseFromPlayer = () => {
-    const candId =
-      selectedPlayerTrackId ??
-      player.state.trackId ??
-      visibleGallery[0]?.id ??
-      libraryTracks[0]?.id ??
-      null;
-    const track = candId ? allPlayerTracks.find((t) => t.id === candId) ?? null : null;
-    if (track) loadTrack(track);
-    setView('creator');
-    surpriseMe();
-  };
 
   const deleteTrack = useCallback((id: string) => {
     setGallery((g) => g.filter((track) => track.id !== id));
@@ -8864,6 +8925,7 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
     if (!exists) setSelectedPlayerTrackId(null);
   }, [selectedPlayerTrackId, allPlayerTracks]);
 
+
   // Player owns one <audio> element shared by every play surface
   // (TrackCard, TrackTable row, MiniPlayer). The ref is created here
   // (consumer owns refs per React strict rules) and passed both to
@@ -8873,6 +8935,44 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
   // currently sees — search-filtered or not.
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const player = usePlayer(allPlayerTracks, audioRef, resolveTrackAudioSrc);
+
+  // Player-side surprise: take the track currently shown in the Player
+  // view, drop it into Creator > Restyle as the reference audio
+  // (loadTrack does the heavy lifting — audio ingest, lyrics, style,
+  // cover, specs), then re-randomize the theme on top. The user lands
+  // in a remix-ready form with a fresh creative direction, one click.
+  // Resolver mirrors the PlayerView track lookup at the render site so
+  // "what's currently playing/selected" always matches what the button
+  // operates on. Falls back to a plain creator-side surprise when the
+  // library is empty.
+  const surpriseFromPlayer = () => {
+    const candId =
+      selectedPlayerTrackId ??
+      player.state.trackId ??
+      visibleGallery[0]?.id ??
+      libraryTracks[0]?.id ??
+      null;
+    const track = candId ? allPlayerTracks.find((t) => t.id === candId) ?? null : null;
+    if (track) loadTrack(track);
+    setView('creator');
+    surpriseMe();
+  };
+
+  // Whenever a new track becomes the active player track, prepend it
+  // to the recently-played MRU stack (dedupe, cap at 8). We watch the
+  // trackId rather than play events so re-selecting a track via the
+  // sidebar (without restarting playback) doesn't pollute Recent.
+  // Initial null → first track transition counts as a play; that's
+  // intended.
+  useEffect(() => {
+    const id = player.state.trackId;
+    if (!id) return;
+    setRecentlyPlayedIds((prev) => {
+      if (prev[0] === id) return prev;
+      const next = [id, ...prev.filter((p) => p !== id)].slice(0, 8);
+      return next;
+    });
+  }, [player.state.trackId]);
 
   // Keyboard shortcuts when Player view is active. Standard music-app
   // bindings: Space=play/pause, ←/→=seek ±5s, ↑/↓=volume ±10%. We skip
@@ -9480,6 +9580,18 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
             </div>
           ) : (
             <div className="flex-1 overflow-y-auto invisible-scrollbar p-1.5 flex flex-col gap-0.5">
+              {/* Recent pin row — quick-access strip for the user's
+                  last-played tracks, hidden under chip filters or an
+                  active search so we don't double-show the same items
+                  the user is currently filtering for. */}
+              {recentlyPlayedIds.length > 0 && myWorkChip === 'all' && !gallerySearch.trim() && (
+                <RecentlyPlayedRow
+                  trackIds={recentlyPlayedIds}
+                  allTracks={myWorkTracks}
+                  player={player}
+                  onSelect={openInPlayer}
+                />
+              )}
               {galleryView === 'list' ? (
                 <TrackTable
                   tracks={visibleGallery}
