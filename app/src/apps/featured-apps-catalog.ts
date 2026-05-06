@@ -87,7 +87,7 @@ const ALL_FEATURED_APPS: FeaturedApp[] = [
     description: 'Visual agent house for Tytus pods and third-party AI agents — rooms, bodies, moods, probes, and safe status diagnostics.',
     icon: 'Building2',
     category: 'Productivity',
-    manifestUrl: 'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-openhouse@c3e9c4bffc636338ade933c23bfa2e5bb0a2748d/tytus-app.json',
+    manifestUrl: 'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-openhouse@v1.1.0/tytus-app.json',
   },
   {
     id: 'juli3ta',
