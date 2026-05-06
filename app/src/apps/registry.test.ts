@@ -43,7 +43,11 @@ describe('registry — getAppsByKind', () => {
 
   it('returns empty for kinds with no entries today', () => {
     expect(getAppsByKind('alias')).toEqual([]);
-    expect(getAppsByKind('installed')).toEqual([]);
+  });
+
+  it('keeps bundled installed apps reachable by kind', () => {
+    const installedApps = getAppsByKind('installed');
+    expect(installedApps.map((app) => app.id)).toContain('forge');
   });
 });
 
