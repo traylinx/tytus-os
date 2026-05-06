@@ -8998,6 +8998,62 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
     });
   }, [player.state.trackId]);
 
+  // MediaSession API integration — wires hardware media keys (laptop
+  // function row, headphone button-clicks, AirPods double-tap) and
+  // the OS-level Now Playing widget (macOS Control Center, Windows
+  // SMTC, Android lock-screen) to the JULI3TA player. Without this,
+  // pressing the Play button on a Bluetooth headset does nothing
+  // because the browser doesn't know what to play.
+  //
+  // The metadata block is what makes the OS widget render the track
+  // title + artwork. We default the artist to "JULI3TA" for generated
+  // tracks (where track.artist is empty) so the widget never shows
+  // "Unknown artist", which looks broken.
+  //
+  // Action handlers must be set fresh on every track change so they
+  // close over the latest `track` reference; nulling them on cleanup
+  // avoids stale handlers firing after unmount.
+  useEffect(() => {
+    if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) return;
+    const ms = navigator.mediaSession;
+    const trackId = player.state.trackId;
+    const track = trackId ? allPlayerTracks.find((t) => t.id === trackId) : null;
+    if (!track) {
+      ms.metadata = null;
+      ms.playbackState = 'none';
+      return;
+    }
+    ms.metadata = new MediaMetadata({
+      title: track.title || 'Untitled',
+      artist: track.artist || 'JULI3TA',
+      album: track.album || (track.styleTags && track.styleTags !== '—' ? track.styleTags : ''),
+      artwork: track.coverDataUrl
+        ? [{ src: track.coverDataUrl, sizes: '512x512', type: track.coverDataUrl.startsWith('data:image/png') ? 'image/png' : 'image/jpeg' }]
+        : track.thumbnailUrl
+        ? [{ src: track.thumbnailUrl, sizes: '256x256', type: 'image/jpeg' }]
+        : [],
+    });
+    ms.playbackState = player.state.playing ? 'playing' : 'paused';
+    ms.setActionHandler('play', () => player.toggle(track));
+    ms.setActionHandler('pause', () => player.pause());
+    ms.setActionHandler('previoustrack', () => player.prev());
+    ms.setActionHandler('nexttrack', () => player.next());
+    ms.setActionHandler('seekbackward', (details) => {
+      player.seek(Math.max(0, player.state.positionMs - (details.seekOffset ?? 10) * 1000));
+    });
+    ms.setActionHandler('seekforward', (details) => {
+      player.seek(Math.min(player.state.durationMs || 0, player.state.positionMs + (details.seekOffset ?? 10) * 1000));
+    });
+    return () => {
+      ms.setActionHandler('play', null);
+      ms.setActionHandler('pause', null);
+      ms.setActionHandler('previoustrack', null);
+      ms.setActionHandler('nexttrack', null);
+      ms.setActionHandler('seekbackward', null);
+      ms.setActionHandler('seekforward', null);
+    };
+  }, [player, player.state.trackId, player.state.playing, allPlayerTracks]);
+
   // Keyboard shortcuts when Player view is active. Standard music-app
   // bindings: Space=play/pause, ←/→=seek ±5s, ↑/↓=volume ±10%. We skip
   // when the user is typing into an input/textarea/contenteditable so
