@@ -60,7 +60,7 @@ import { appDefinitionFromInstalledRow } from './registry';
  * installed manifest. This unifies the icon + name + description so
  * the launcher grid, Dock, and Frequently Used all show the same
  * face for a given app — no more "FileCode here / Eye there" for the
- * same Markdown Preview.
+ * same Markdown Editor.
  *
  * Returns the input unchanged when:
  *   - the id has no alias entry, OR

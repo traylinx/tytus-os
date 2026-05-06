@@ -16,8 +16,8 @@ describe('localizedAppName', () => {
 
   it('falls back to the AppDefinition.name when the key is missing', () => {
     const t = (k: string) => k; // identity = key not in any locale
-    expect(localizedAppName(t, 'markdown-preview', 'Markdown Preview')).toBe(
-      'Markdown Preview',
+    expect(localizedAppName(t, 'markdown-preview', 'Markdown Editor')).toBe(
+      'Markdown Editor',
     );
   });
 

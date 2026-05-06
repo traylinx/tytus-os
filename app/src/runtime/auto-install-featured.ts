@@ -4,7 +4,7 @@
  * The Featured catalog (`featured-apps-catalog.ts` + the remote
  * `tytus-app-catalog` repo) describes a curated set of user apps that
  * the OS treats as "default installed" — JULI3TA, Text Editor, Code
- * Editor, Markdown Preview, Photo Editor, API Tester, etc. Without
+ * Editor, Markdown Editor, Photo Editor, API Tester, etc. Without
  * this seed they only land in `installed_apps` after the user clicks
  * Install in the App Store, which leaves the launcher feeling empty
  * on first boot.

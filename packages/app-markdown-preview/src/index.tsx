@@ -1,5 +1,5 @@
 /**
- * @tytus/app-markdown-preview — Markdown Preview workspace package entry.
+ * @tytus/app-markdown-preview — Markdown Editor workspace package entry.
  *
  * Phase 5 lift: source moved from `app/src/apps/MarkdownPreview.tsx`
  * (~210 LOC) into this package. Shell-internal `useFileSystem` hook

@@ -56,17 +56,31 @@ interface InstalledAppRawRow {
 const SELECT_COLUMNS =
   'id, kind, manifest_json, entry_url, assets_url, manifest_url, installed_at, enabled, builtin_protected';
 
-const mapRow = (r: InstalledAppRawRow): InstalledAppRow => ({
-  id: r.id,
-  kind: r.kind,
-  manifest: JSON.parse(r.manifest_json) as Manifest,
-  entryUrl: r.entry_url,
-  assetsUrl: r.assets_url,
-  manifestUrl: r.manifest_url ?? null,
-  installedAt: r.installed_at,
-  enabled: !!r.enabled,
-  builtinProtected: !!r.builtin_protected,
-});
+function normalizeManifestForDisplay(id: string, manifest: Manifest): Manifest {
+  if (id !== 'markdown-preview') return manifest;
+  return {
+    ...manifest,
+    name: 'Markdown Editor',
+    icon: 'FileCode',
+    description:
+      'Markdown editor with live split-pane preview, GitHub-flavored rendering, and export tools.',
+  };
+}
+
+const mapRow = (r: InstalledAppRawRow): InstalledAppRow => {
+  const manifest = JSON.parse(r.manifest_json) as Manifest;
+  return {
+    id: r.id,
+    kind: r.kind,
+    manifest: normalizeManifestForDisplay(r.id, manifest),
+    entryUrl: r.entry_url,
+    assetsUrl: r.assets_url,
+    manifestUrl: r.manifest_url ?? null,
+    installedAt: r.installed_at,
+    enabled: !!r.enabled,
+    builtinProtected: !!r.builtin_protected,
+  };
+};
 
 /** Read every row from installed_apps. Used by the App Store UI (M5)
  *  + by forSharedKey resolution. */

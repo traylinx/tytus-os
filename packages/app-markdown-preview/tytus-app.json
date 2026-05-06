@@ -1,11 +1,11 @@
 {
   "$schema": "https://tytus.traylinx.com/schema/app/v1.json",
   "id": "markdown-preview",
-  "name": "Markdown Preview",
+  "name": "Markdown Editor",
   "version": "1.0.0",
-  "icon": "Eye",
+  "icon": "FileCode",
   "category": "Productivity",
-  "description": "Live-rendered Markdown viewer with reading-flow stylesheet, ToC sidebar, and link navigation.",
+  "description": "Markdown editor with live split-pane preview, GitHub-flavored rendering, and export tools.",
 
   "window": {
     "defaultSize": { "width": 900, "height": 720 },

@@ -2,9 +2,10 @@
  * Public-surface cleanup for the Forge MVP.
  *
  * These app ids are still present as source packages or legacy routes, but
- * they are no longer user-facing products. Forge is the public productivity
- * surface. Filtering only affects launcher/store/dock surfaces; it does not
- * delete data or packages.
+ * they are no longer user-facing products. Forge stays public, while Text
+ * Editor and Markdown Editor are restored as standalone productivity apps.
+ * Filtering only affects launcher/store/dock surfaces; it does not delete
+ * data or packages.
  */
 export const REPLACED_BY_FORGE_APP_IDS: ReadonlySet<string> = new Set([
   'memo',
@@ -12,12 +13,8 @@ export const REPLACED_BY_FORGE_APP_IDS: ReadonlySet<string> = new Set([
   'studio',
   'sheet',
   'spreadsheet',
-  'text-editor',
-  'texteditor',
   'code-editor',
   'codeeditor',
-  'markdown-preview',
-  'markdownpreview',
   'jsonformatter',
 ]);
 

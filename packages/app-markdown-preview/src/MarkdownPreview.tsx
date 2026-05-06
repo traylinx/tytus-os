@@ -1,5 +1,5 @@
 // ============================================================
-// Markdown Preview — Split-pane editor + live preview
+// Markdown Editor — Split-pane editor + live preview
 // ============================================================
 //
 // Lifted from app/src/apps/MarkdownPreview.tsx as part of
@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import { markdownToHtml } from './lib/markdown';
 
-const DEFAULT_MD = `# Welcome to Markdown Preview
+const DEFAULT_MD = `# Welcome to Markdown Editor
 
 This is a **live** markdown editor with *GitHub-flavored* rendering.
 

@@ -65,7 +65,7 @@ const baseManifest = (id: string, name: string, icon: string): Manifest => ({
 
 const legacyDef: AppDefinition = {
   id: 'markdownpreview',
-  name: 'Markdown Preview',
+  name: 'Markdown Editor',
   icon: 'FileCode',
   category: 'Productivity',
   description: 'Live markdown with GitHub styling.',
@@ -110,8 +110,8 @@ describe('unifyAppDefinition', () => {
     });
     const unified = unifyAppDefinition(legacyDef);
     expect(unified.id).toBe('markdown-preview');
-    expect(unified.icon).toBe('Eye');
-    expect(unified.name).toBe('Markdown Preview');
+    expect(unified.icon).toBe('FileCode');
+    expect(unified.name).toBe('Markdown Editor');
   });
 
 

@@ -358,7 +358,8 @@ describe('TytusAppsTab', () => {
       expect(screen.getByTestId('tytus-featured-card-forge')).toBeTruthy();
       expect(screen.getByTestId('tytus-featured-card-photo-editor')).toBeTruthy();
       expect(screen.getByTestId('tytus-featured-card-api-tester')).toBeTruthy();
-      expect(screen.queryByTestId('tytus-featured-card-text-editor')).toBeNull();
+      expect(screen.getByTestId('tytus-featured-card-text-editor')).toBeTruthy();
+      expect(screen.getByTestId('tytus-featured-card-markdown-preview')).toBeTruthy();
       expect(screen.queryByTestId('tytus-featured-card-code-editor')).toBeNull();
     });
   });
@@ -402,7 +403,9 @@ describe('TytusAppsTab', () => {
         loadInstalledApps={async () => [
           row('forge', 'installed', { manifestUrl: 'x' }),
           row('juli3ta', 'installed', { manifestUrl: 'x' }),
+          row('markdown-preview', 'installed', { manifestUrl: 'x' }),
           row('photo-editor', 'installed', { manifestUrl: 'x' }),
+          row('text-editor', 'installed', { manifestUrl: 'x' }),
           row('api-tester', 'installed', { manifestUrl: 'x' }),
         ]}
       />,

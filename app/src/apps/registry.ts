@@ -121,8 +121,8 @@ export const APP_REGISTRY: AppDefinition[] = [
     description: 'PDF and document viewer.',
     defaultSize: { width: 720, height: 600 }, minSize: { width: 400, height: 360 } },
 
-  { id: 'markdownpreview', name: 'Markdown Preview', icon: 'FileCode', category: 'Productivity',
-    description: 'Live markdown with GitHub styling.',
+  { id: 'markdownpreview', name: 'Markdown Editor', icon: 'FileCode', category: 'Productivity',
+    description: 'Edit Markdown with live GitHub-flavored preview.',
     defaultSize: { width: 800, height: 600 }, minSize: { width: 480, height: 360 } },
 
   // ================================================================
@@ -309,12 +309,15 @@ export const getAppById = (id: string): AppDefinition | undefined => {
  *  Frequently Used / Dock). */
 export function appDefinitionFromInstalledRow(row: InstalledAppRow): AppDefinition {
   const m = row.manifest;
+  const markdownEditorOverride = row.id === 'markdown-preview';
   return {
     id: row.id,
-    name: m.name,
-    icon: m.icon,
+    name: markdownEditorOverride ? 'Markdown Editor' : m.name,
+    icon: markdownEditorOverride ? 'FileCode' : m.icon,
     category: manifestCategoryToAppCategory(m.category),
-    description: m.description,
+    description: markdownEditorOverride
+      ? 'Markdown editor with live split-pane preview, GitHub-flavored rendering, and export tools.'
+      : m.description,
     defaultSize: m.window.defaultSize,
     minSize: m.window.minSize,
     kind: row.kind,

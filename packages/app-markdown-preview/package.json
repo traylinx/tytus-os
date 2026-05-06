@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Markdown Preview — user-installable Tytus app. Live-rendered Markdown viewer with reading-flow stylesheet. Will be carved into its own git repo (tytus-app-markdown-preview) post-skeleton.",
+  "description": "Markdown Editor — user-installable Tytus app. Edit Markdown with a live split-pane preview and export tools.",
   "main": "./src/index.tsx",
   "types": "./src/index.tsx",
   "exports": {
