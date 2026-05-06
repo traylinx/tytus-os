@@ -228,6 +228,65 @@ export interface ReinstallAppOptions {
   fetchImpl?: FetchLike;
 }
 
+export interface UpdateInstalledAppFromManifestUrlOptions {
+  appId: string;
+  manifestUrl: string;
+  db: Db;
+  fetchImpl?: FetchLike;
+}
+
+/**
+ * Fetch a specific manifest URL and UPDATE an existing installed row in
+ * place. Unlike `reinstallApp`, this uses the caller-provided URL rather
+ * than the row's stored `manifestUrl`. Boot-time Featured sync uses this
+ * to repair stale rows whose original install URL points at an old commit
+ * or a broken jsDelivr tag/branch cache.
+ */
+export async function updateInstalledAppFromManifestUrl(
+  opts: UpdateInstalledAppFromManifestUrlOptions,
+): Promise<InstalledAppRow> {
+  const { appId, db, manifestUrl } = opts;
+  const fetchImpl = opts.fetchImpl ?? defaultFetch;
+
+  const existing = await getInstalledApp(db, appId);
+  if (!existing) {
+    throw new InstallerError('not_found', { id: appId });
+  }
+
+  const json = await fetchManifest(manifestUrl, fetchImpl);
+  assertValid(json);
+  const manifest: Manifest = json;
+  assertUrlTransport(manifest);
+
+  if (manifest.id !== appId) {
+    throw new InstallerError('invalid_manifest', [
+      {
+        path: '/id',
+        message: `manifest id changed from ${appId} to ${manifest.id}; refusing featured app update`,
+      },
+    ]);
+  }
+
+  await updateInstalledApp(db, appId, {
+    manifest,
+    entryUrl: manifest.entry?.url ?? null,
+    assetsUrl: manifest.entry?.assets ?? null,
+    manifestUrl,
+  });
+
+  const updated: InstalledAppRow = {
+    ...existing,
+    manifest,
+    entryUrl: manifest.entry?.url ?? null,
+    assetsUrl: manifest.entry?.assets ?? null,
+    manifestUrl,
+  };
+  addToInstalledAppsCache(updated);
+  notifyInstalledAppsChanged();
+  return updated;
+}
+
+
 /**
  * Re-fetch the manifest from the URL the original install came from and
  * UPDATE the row in place. Used by the App Store "Reinstall" / "Check

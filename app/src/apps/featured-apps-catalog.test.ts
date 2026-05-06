@@ -171,7 +171,7 @@ describe('FEATURED_APPS hardcoded baseline', () => {
       'text-editor',
     ]);
     expect(FEATURED_APPS.find((a) => a.id === 'markdown-preview')?.name).toBe('Markdown Editor');
-    expect(FEATURED_APPS.find((a) => a.id === 'openhouse')?.manifestUrl).toBe('https://cdn.jsdelivr.net/gh/traylinx/tytus-app-openhouse@v1.1.2/tytus-app.json');
+    expect(FEATURED_APPS.find((a) => a.id === 'openhouse')?.manifestUrl).toBe('https://cdn.jsdelivr.net/gh/traylinx/tytus-app-openhouse@e0835ba8c5d5c4a8aad4033b1e0aa7b603c59e38/tytus-app.json');
     expect(ids).not.toContain('code-editor');
   });
 });

@@ -11,7 +11,9 @@
  *
  * This module fetches the live catalog (with hardcoded fallback) and,
  * for any entry whose id is not yet present in `installed_apps`, calls
- * `installAppFromManifestUrl` against its manifest URL. Failures are
+ * `installAppFromManifestUrl` against its manifest URL. For existing
+ * Featured rows whose stored manifest URL is stale, it updates the row
+ * in place from the current catalog manifest URL. Failures are
  * tolerated — a flaky network on first boot does NOT block shell boot;
  * the next boot retries any still-missing apps.
  *
@@ -28,6 +30,7 @@ import {
 } from '@/apps/featured-apps-catalog';
 import {
   installAppFromManifestUrl,
+  updateInstalledAppFromManifestUrl,
   InstallerError,
 } from './installer';
 import { listInstalledApps } from './installed-apps-repo';
@@ -36,6 +39,7 @@ import type { Db } from '@/lib/db/types';
 export interface AutoInstallReport {
   attempted: number;
   installed: string[];
+  updated: string[];
   failed: Array<{ id: string; reason: string }>;
   skipped: string[];
 }
@@ -44,7 +48,10 @@ export interface AutoInstallOptions {
   /** Override for tests — defaults to the live `loadFeaturedApps`. */
   loadCatalog?: () => Promise<FeaturedApp[]>;
   /** Override for tests — defaults to the live installer. */
-  install?: (opts: {
+  install?: (opts: { manifestUrl: string; db: Db }) => Promise<unknown>;
+  /** Override for tests — defaults to the live featured-app updater. */
+  update?: (opts: {
+    appId: string;
     manifestUrl: string;
     db: Db;
   }) => Promise<unknown>;
@@ -99,38 +106,58 @@ export async function autoInstallFeaturedAtBoot(
 ): Promise<AutoInstallReport> {
   const loadCatalog = opts.loadCatalog ?? loadFeaturedApps;
   const install =
-    opts.install ??
-    ((args) => installAppFromManifestUrl({ ...args, db }));
+    opts.install ?? ((args) => installAppFromManifestUrl({ ...args, db }));
+  const update =
+    opts.update ??
+    ((args) => updateInstalledAppFromManifestUrl({ ...args, db }));
   const concurrency = opts.concurrency ?? DEFAULT_CONCURRENCY;
   const log = {
     info: opts.logger?.info ?? ((m: string) => console.info(m)),
-    warn: opts.logger?.warn ?? ((m: string, ...rest: unknown[]) => console.warn(m, ...rest)),
+    warn:
+      opts.logger?.warn ??
+      ((m: string, ...rest: unknown[]) => console.warn(m, ...rest)),
   };
 
   let catalog: FeaturedApp[];
   try {
     catalog = await loadCatalog();
   } catch (err) {
-    log.warn('[tytusos] featured catalog load failed; skipping auto-install', err);
-    return { attempted: 0, installed: [], failed: [], skipped: [] };
+    log.warn(
+      '[tytusos] featured catalog load failed; skipping auto-install',
+      err,
+    );
+    return {
+      attempted: 0,
+      installed: [],
+      updated: [],
+      failed: [],
+      skipped: [],
+    };
   }
 
-  const existing = new Set(
-    (await listInstalledApps(db)).map((row) => row.id),
-  );
+  const installedRows = await listInstalledApps(db);
+  const existingById = new Map(installedRows.map((row) => [row.id, row]));
 
-  const targets = catalog.filter(
-    (entry) =>
-      !existing.has(entry.id) && !AUTO_INSTALL_DENYLIST.has(entry.id),
+  const eligibleCatalog = catalog.filter(
+    (entry) => !AUTO_INSTALL_DENYLIST.has(entry.id),
   );
+  const targets = eligibleCatalog.filter(
+    (entry) => !existingById.has(entry.id),
+  );
+  const updateTargets = eligibleCatalog.filter((entry) => {
+    const existing = existingById.get(entry.id);
+    return Boolean(existing && existing.manifestUrl !== entry.manifestUrl);
+  });
   const skipped = catalog
-    .filter(
-      (entry) =>
-        existing.has(entry.id) || AUTO_INSTALL_DENYLIST.has(entry.id),
-    )
+    .filter((entry) => {
+      if (AUTO_INSTALL_DENYLIST.has(entry.id)) return true;
+      const existing = existingById.get(entry.id);
+      return Boolean(existing && existing.manifestUrl === entry.manifestUrl);
+    })
     .map((entry) => entry.id);
 
   const installed: string[] = [];
+  const updated: string[] = [];
   const failed: Array<{ id: string; reason: string }> = [];
 
   await runWithConcurrency(targets, concurrency, async (entry) => {
@@ -138,11 +165,16 @@ export async function autoInstallFeaturedAtBoot(
       await install({ manifestUrl: entry.manifestUrl, db });
       installed.push(entry.id);
     } catch (err) {
-      const reason =
-        err instanceof InstallerError
-          ? `${err.code}${err.message ? `: ${err.message}` : ''}`
-          : (err as Error)?.message ?? String(err);
-      failed.push({ id: entry.id, reason });
+      failed.push({ id: entry.id, reason: formatInstallFailure(err) });
+    }
+  });
+
+  await runWithConcurrency(updateTargets, concurrency, async (entry) => {
+    try {
+      await update({ appId: entry.id, manifestUrl: entry.manifestUrl, db });
+      updated.push(entry.id);
+    } catch (err) {
+      failed.push({ id: entry.id, reason: formatInstallFailure(err) });
     }
   });
 
@@ -151,14 +183,26 @@ export async function autoInstallFeaturedAtBoot(
       `[tytusos] auto-installed ${installed.length} featured app(s): ${installed.join(', ')}`,
     );
   }
+  if (updated.length > 0) {
+    log.info(
+      `[tytusos] auto-updated ${updated.length} featured app(s): ${updated.join(', ')}`,
+    );
+  }
   for (const f of failed) {
     log.warn(`[tytusos] auto-install failed for ${f.id}: ${f.reason}`);
   }
 
   return {
-    attempted: targets.length,
+    attempted: targets.length + updateTargets.length,
     installed,
+    updated,
     failed,
     skipped,
   };
+}
+
+function formatInstallFailure(err: unknown): string {
+  return err instanceof InstallerError
+    ? `${err.code}${err.message ? `: ${err.message}` : ''}`
+    : ((err as Error)?.message ?? String(err));
 }

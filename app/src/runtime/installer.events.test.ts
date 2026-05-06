@@ -10,6 +10,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   installAppFromManifestUrl,
   reinstallApp,
+  updateInstalledAppFromManifestUrl,
   uninstallApp,
 } from './installer';
 import { subscribeInstalledAppsChanged } from './installed-apps-events';
@@ -143,6 +144,25 @@ describe('installer events', () => {
     const updated = { ...manifest, version: '2.0.0' };
     await reinstallApp({
       appId: 'cool-app',
+      db,
+      fetchImpl: mockFetch(updated),
+    });
+    expect(listener).toHaveBeenCalledTimes(1);
+    unsubscribe();
+  });
+
+  it('fires on successful featured manifest-url update', async () => {
+    const manifest = goodManifest('cool-app');
+    await installAppFromManifestUrl({
+      manifestUrl: 'https://cdn.example.com/cool-app/old.json',
+      db,
+      fetchImpl: mockFetch(manifest),
+    });
+    listener.mockClear();
+    const updated = { ...manifest, version: '2.0.0' };
+    await updateInstalledAppFromManifestUrl({
+      appId: 'cool-app',
+      manifestUrl: 'https://cdn.example.com/cool-app/new.json',
       db,
       fetchImpl: mockFetch(updated),
     });

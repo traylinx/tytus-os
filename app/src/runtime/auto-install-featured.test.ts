@@ -65,14 +65,15 @@ class MemoryDb implements Db {
   }
 
   /** Test helper. */
-  __seedRow(id: string): void {
+  __seedRow(id: string, manifestUrl?: string): void {
     this.rows.push({
       id,
       kind: 'installed',
       manifest_json: JSON.stringify({ id }),
       entry_url: 'https://cdn.example.com/x.js',
       assets_url: null,
-      manifest_url: 'https://cdn.example.com/x.json',
+      manifest_url:
+        manifestUrl ?? `https://cdn.example.com/${id}/tytus-app.json`,
       installed_at: 0,
       enabled: 1,
       builtin_protected: 0,
@@ -99,6 +100,7 @@ describe('autoInstallFeaturedAtBoot', () => {
       'photo-editor',
       'text-editor',
     ]);
+    expect(report.updated).toEqual([]);
     expect(report.failed).toEqual([]);
     expect(report.skipped).toEqual([]);
     expect(install).toHaveBeenCalledTimes(3);
@@ -106,8 +108,14 @@ describe('autoInstallFeaturedAtBoot', () => {
 
   it('skips apps that are already installed', async () => {
     const db = new MemoryDb();
-    db.__seedRow('mock-music');
-    db.__seedRow('text-editor');
+    db.__seedRow(
+      'mock-music',
+      'https://cdn.example.com/mock-music/tytus-app.json',
+    );
+    db.__seedRow(
+      'text-editor',
+      'https://cdn.example.com/text-editor/tytus-app.json',
+    );
 
     const install = vi.fn(async ({ manifestUrl }: { manifestUrl: string }) => {
       const id = manifestUrl.split('/')[3];
@@ -122,6 +130,7 @@ describe('autoInstallFeaturedAtBoot', () => {
 
     expect(report.attempted).toBe(1);
     expect(report.installed).toEqual(['photo-editor']);
+    expect(report.updated).toEqual([]);
     expect(report.skipped.sort()).toEqual(['mock-music', 'text-editor']);
     expect(install).toHaveBeenCalledTimes(1);
   });
@@ -149,8 +158,50 @@ describe('autoInstallFeaturedAtBoot', () => {
     });
     expect(second.attempted).toBe(0);
     expect(second.installed).toEqual([]);
+    expect(second.updated).toEqual([]);
     expect(second.skipped.sort()).toEqual(FAKE_CATALOG.map((f) => f.id).sort());
     expect(install).not.toHaveBeenCalled();
+  });
+
+  it('updates existing Featured apps when their stored manifest URL is stale', async () => {
+    const db = new MemoryDb();
+    db.__seedRow('mock-music', 'https://cdn.example.com/mock-music/old.json');
+
+    const install = vi.fn();
+    const update = vi.fn(
+      async ({
+        appId,
+        manifestUrl,
+      }: {
+        appId: string;
+        manifestUrl: string;
+      }) => {
+        const row = db.rows.find((r) => r.id === appId);
+        if (!row) throw new Error(`missing seeded row ${appId}`);
+        row.manifest_url = manifestUrl;
+        row.manifest_json = JSON.stringify({ id: appId, version: '2.0.0' });
+      },
+    );
+
+    const report = await autoInstallFeaturedAtBoot(db, {
+      loadCatalog: async () => [FAKE_CATALOG[0]],
+      install,
+      update,
+      logger: { info: () => undefined, warn: () => undefined },
+    });
+
+    expect(report.attempted).toBe(1);
+    expect(report.installed).toEqual([]);
+    expect(report.updated).toEqual(['mock-music']);
+    expect(report.failed).toEqual([]);
+    expect(report.skipped).toEqual([]);
+    expect(install).not.toHaveBeenCalled();
+    expect(update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        appId: 'mock-music',
+        manifestUrl: 'https://cdn.example.com/mock-music/tytus-app.json',
+      }),
+    );
   });
 
   it('records per-app failures without short-circuiting the rest', async () => {
@@ -170,6 +221,7 @@ describe('autoInstallFeaturedAtBoot', () => {
     });
 
     expect(report.installed.sort()).toEqual(['mock-music', 'photo-editor']);
+    expect(report.updated).toEqual([]);
     expect(report.failed).toHaveLength(1);
     expect(report.failed[0].id).toBe('text-editor');
     expect(report.failed[0].reason).toMatch(/fetch_failed/);
@@ -205,6 +257,7 @@ describe('autoInstallFeaturedAtBoot', () => {
       logger: { info: () => undefined, warn: () => undefined },
     });
     expect(report.installed.sort()).toEqual(['juli3ta', 'text-editor']);
+    expect(report.updated).toEqual([]);
     expect(report.skipped).toEqual([]);
     expect(install).toHaveBeenCalledTimes(2);
     expect(install).toHaveBeenCalledWith(
@@ -226,6 +279,7 @@ describe('autoInstallFeaturedAtBoot', () => {
     expect(report).toEqual({
       attempted: 0,
       installed: [],
+      updated: [],
       failed: [],
       skipped: [],
     });

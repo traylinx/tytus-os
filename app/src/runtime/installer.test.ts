@@ -11,6 +11,7 @@ import {
   InstallerError,
   installAppFromManifestUrl,
   reinstallApp,
+  updateInstalledAppFromManifestUrl,
   uninstallApp,
 } from './installer';
 import { listInstalledApps } from './installed-apps-repo';
@@ -44,7 +45,9 @@ class MemoryDb implements Db {
         // Mimic SQLite PRIMARY KEY violation. The installer's
         // duplicate check should fire BEFORE we reach this branch in
         // tests, but we throw here so a missing check would surface.
-        throw new Error(`UNIQUE constraint failed: installed_apps.id (${String(id)})`);
+        throw new Error(
+          `UNIQUE constraint failed: installed_apps.id (${String(id)})`,
+        );
       }
       this.rows.push({
         id,
@@ -381,6 +384,80 @@ describe('reinstallApp', () => {
     expect(err).toBeInstanceOf(InstallerError);
     expect(err.code).toBe('cannot_reinstall');
     expect((err.details as { id: string }).id).toBe('memo');
+  });
+});
+
+describe('updateInstalledAppFromManifestUrl', () => {
+  it('updates an existing row from a caller-provided manifest URL, preserving installed_at', async () => {
+    const v1 = goodManifest('openhouse', { version: '1.0.0' });
+    const v2 = goodManifest('openhouse', {
+      version: '1.1.4',
+      entry: { url: 'https://cdn.example.com/openhouse/v114/index.js' },
+    });
+    const oldUrl = 'https://cdn.example.com/openhouse/old/tytus-app.json';
+    const newUrl = 'https://cdn.example.com/openhouse/new/tytus-app.json';
+    const fetchImpl = mockFetch({
+      [oldUrl]: { body: v1 },
+      [newUrl]: { body: v2 },
+    });
+
+    await installAppFromManifestUrl({
+      manifestUrl: oldUrl,
+      db,
+      now: () => 1000,
+      fetchImpl,
+    });
+
+    const updated = await updateInstalledAppFromManifestUrl({
+      appId: 'openhouse',
+      manifestUrl: newUrl,
+      db,
+      fetchImpl,
+    });
+
+    expect(updated.manifest.version).toBe('1.1.4');
+    expect(updated.entryUrl).toBe(
+      'https://cdn.example.com/openhouse/v114/index.js',
+    );
+    expect(updated.manifestUrl).toBe(newUrl);
+    expect(updated.installedAt).toBe(1000);
+
+    const all = await listInstalledApps(db);
+    expect(all).toHaveLength(1);
+    expect(all[0].manifest.version).toBe('1.1.4');
+    expect(all[0].manifestUrl).toBe(newUrl);
+    expect(all[0].installedAt).toBe(1000);
+  });
+
+  it('throws InstallerError(not_found) when the row is missing', async () => {
+    const err = await updateInstalledAppFromManifestUrl({
+      appId: 'ghost',
+      manifestUrl: 'https://cdn.example.com/ghost/tytus-app.json',
+      db,
+      fetchImpl: mockFetch({}),
+    }).catch((e) => e);
+    expect(err).toBeInstanceOf(InstallerError);
+    expect(err.code).toBe('not_found');
+  });
+
+  it('throws InstallerError(invalid_manifest) when the new manifest renames the id', async () => {
+    const original = goodManifest('keep-id');
+    const oldUrl = 'https://cdn.example.com/keep-id/old.json';
+    const newUrl = 'https://cdn.example.com/keep-id/new.json';
+    const fetchImpl = mockFetch({
+      [oldUrl]: { body: original },
+      [newUrl]: { body: goodManifest('renamed-id') },
+    });
+
+    await installAppFromManifestUrl({ manifestUrl: oldUrl, db, fetchImpl });
+    const err = await updateInstalledAppFromManifestUrl({
+      appId: 'keep-id',
+      manifestUrl: newUrl,
+      db,
+      fetchImpl,
+    }).catch((e) => e);
+    expect(err).toBeInstanceOf(InstallerError);
+    expect(err.code).toBe('invalid_manifest');
   });
 });
 

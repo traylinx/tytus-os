@@ -87,7 +87,7 @@ const ALL_FEATURED_APPS: FeaturedApp[] = [
     description: 'Visual agent house for Tytus pods and third-party AI agents — rooms, bodies, moods, probes, and safe status diagnostics.',
     icon: 'Building2',
     category: 'Productivity',
-    manifestUrl: 'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-openhouse@v1.1.2/tytus-app.json',
+    manifestUrl: 'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-openhouse@e0835ba8c5d5c4a8aad4033b1e0aa7b603c59e38/tytus-app.json',
   },
   {
     id: 'juli3ta',
@@ -114,7 +114,7 @@ export const FEATURED_APPS: FeaturedApp[] = ALL_FEATURED_APPS.filter(
  *  fetched from `main` so Forge version bumps do not require an OS rebuild.
  *  Individual app manifest URLs remain pinned to immutable app tags. */
 export const FEATURED_CATALOG_URL =
-  'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-catalog@main/featured.json';
+  'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-catalog@7b9b5c21a0c4bdbcd08ed2b7dcd4e9e0b5028879/featured.json';
 
 /**
  * Denylist of catalog ids the OS will refuse to auto-install at boot,
