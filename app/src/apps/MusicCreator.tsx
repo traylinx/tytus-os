@@ -2650,6 +2650,154 @@ function MuteToggle({
 }
 
 // ──────────────────────────────────────────────────────────
+// KeyboardShortcutsModal — `?` hotkey lists every binding
+// the workspace responds to. Power-user surface; the modal is
+// purely informational (no actions) so we don't have to worry
+// about focus traps or busy-state. Esc + click-outside close.
+// ──────────────────────────────────────────────────────────
+
+const KEYBOARD_SHORTCUTS: ReadonlyArray<{
+  scope: 'global' | 'player';
+  combo: string;
+  action: string;
+}> = [
+  { scope: 'global', combo: '?', action: 'Show this help' },
+  { scope: 'global', combo: 'Esc', action: 'Close modal / dismiss overlay' },
+  { scope: 'player', combo: 'Space', action: 'Play / Pause' },
+  { scope: 'player', combo: '←', action: 'Seek back 5s' },
+  { scope: 'player', combo: '→', action: 'Seek forward 5s' },
+  { scope: 'player', combo: '↑', action: 'Volume up (10%)' },
+  { scope: 'player', combo: '↓', action: 'Volume down (10%)' },
+];
+
+function KeyboardShortcutsModal({
+  open,
+  onClose,
+}: {
+  open: boolean;
+  onClose: () => void;
+}) {
+  if (!open) return null;
+  const groups: Array<{ label: string; rows: typeof KEYBOARD_SHORTCUTS }> = [
+    { label: 'Global', rows: KEYBOARD_SHORTCUTS.filter((r) => r.scope === 'global') },
+    { label: 'Player view', rows: KEYBOARD_SHORTCUTS.filter((r) => r.scope === 'player') },
+  ];
+  return createPortal(
+    <div
+      onClick={onClose}
+      className="fixed inset-0 flex items-center justify-center"
+      style={{
+        background: 'rgba(0, 0, 0, 0.55)',
+        backdropFilter: 'blur(6px)',
+        zIndex: 10000,
+        padding: 24,
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="rounded-2xl overflow-hidden flex flex-col"
+        style={{
+          background: 'var(--bg-window)',
+          border: '1px solid var(--border-subtle)',
+          boxShadow: 'var(--shadow-lg)',
+          width: '100%',
+          maxWidth: 520,
+          maxHeight: '80vh',
+        }}
+      >
+        <div
+          className="flex items-center justify-between px-5"
+          style={{
+            height: 48,
+            borderBottom: '1px solid var(--border-subtle)',
+            background: 'var(--bg-titlebar)',
+          }}
+        >
+          <div className="flex items-center gap-2">
+            <BrandIcon name="juli3ta:mark" size={18} />
+            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>
+              Keyboard shortcuts
+            </span>
+          </div>
+          <button
+            onClick={onClose}
+            className="flex items-center justify-center rounded-md transition-all hover:bg-[var(--bg-hover)]"
+            style={{ width: 28, height: 28, color: 'var(--text-secondary)' }}
+            title="Close (Esc)"
+          >
+            <X size={14} />
+          </button>
+        </div>
+        <div className="flex-1 overflow-y-auto invisible-scrollbar px-5 py-4">
+          {groups.map((group) => (
+            <div key={group.label} className="mb-4 last:mb-0">
+              <div
+                style={{
+                  fontSize: 10,
+                  fontWeight: 800,
+                  textTransform: 'uppercase',
+                  letterSpacing: 0.8,
+                  color: 'var(--text-disabled)',
+                  marginBottom: 8,
+                }}
+              >
+                {group.label}
+              </div>
+              <div className="flex flex-col gap-1">
+                {group.rows.map((row) => (
+                  <div
+                    key={row.combo}
+                    className="flex items-center justify-between rounded-lg px-3"
+                    style={{
+                      height: 36,
+                      background: 'var(--bg-titlebar)',
+                      border: '1px solid var(--border-subtle)',
+                    }}
+                  >
+                    <span style={{ fontSize: 12, color: 'var(--text-primary)' }}>{row.action}</span>
+                    <kbd
+                      className="tabular-nums"
+                      style={{
+                        fontSize: 11,
+                        fontWeight: 700,
+                        fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+                        color: 'var(--accent-primary)',
+                        background: 'var(--bg-window)',
+                        border: '1px solid var(--accent-primary)',
+                        padding: '3px 8px',
+                        borderRadius: 'var(--radius-md)',
+                        minWidth: 28,
+                        textAlign: 'center',
+                      }}
+                    >
+                      {row.combo}
+                    </kbd>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+        <div
+          className="flex-shrink-0 px-5 py-3 flex items-center"
+          style={{
+            background: 'var(--bg-titlebar)',
+            borderTop: '1px solid var(--border-subtle)',
+            fontSize: 11,
+            color: 'var(--text-disabled)',
+            justifyContent: 'space-between',
+          }}
+        >
+          <span>Bindings skip when typing in inputs.</span>
+          <span>Press <kbd style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', color: 'var(--text-secondary)' }}>?</kbd> again to close.</span>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
+// ──────────────────────────────────────────────────────────
 // Empty state — shown when no pod is allocated
 // ──────────────────────────────────────────────────────────
 
@@ -7223,6 +7371,10 @@ export default function MusicCreator() {
   // exits — see the effect below.
   const [librarySelectMode, setLibrarySelectMode] = useState(false);
   const [librarySelectedIds, setLibrarySelectedIds] = useState<Set<string>>(() => new Set());
+  // Keyboard shortcut help overlay. Triggered globally by `?` so the
+  // user can discover the bindings from any view, not just PlayerView.
+  // Closed by Escape or clicking the overlay.
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [musicSearchOpen, setMusicSearchOpen] = useState(false);
   const [musicPaneTab, setMusicPaneTab] = useState<MusicPaneTab>('search');
   const [musicQuery, setMusicQuery] = useState('');
@@ -9341,6 +9493,29 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [view, player, allPlayerTracks]);
+
+  // Global "?" shortcut — toggles the keyboard shortcut help overlay.
+  // Lives outside the PlayerView guard so a new user on the Creator
+  // pane can hit ? and learn the bindings exist. Skipped when typing
+  // into an input (Shift+/ is also a literal "?" in text fields).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const tgt = e.target as HTMLElement | null;
+      if (tgt) {
+        const tag = tgt.tagName;
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+        if (tgt.isContentEditable) return;
+      }
+      if (e.key === '?' || (e.key === '/' && e.shiftKey)) {
+        e.preventDefault();
+        setShortcutsOpen((open) => !open);
+      } else if (e.key === 'Escape' && shortcutsOpen) {
+        setShortcutsOpen(false);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [shortcutsOpen]);
 
   const playMusicPlaylist = useCallback((playlist: MusicPlaylist) => {
     const first = playlist.items.find(hasPlayableAudio);
@@ -11522,6 +11697,9 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
           setStyle(recipeStyle);
         }}
       />
+
+      {/* Keyboard shortcuts help overlay — toggled globally by `?`. */}
+      <KeyboardShortcutsModal open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
 
       {/* Settings modal — overlay-style dialog, model overrides per
           endpoint. Same shell-styled pattern as other apps' settings. */}
