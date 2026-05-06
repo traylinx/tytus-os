@@ -26,7 +26,7 @@ export const APP_REGISTRY: AppDefinition[] = [
 
   { id: 'forge', name: 'Tytus Forge', icon: 'Sparkles', category: 'Productivity',
     description: 'Tytus-native Monaco workbench for local files, artifacts, and future agent/Cortex workflows.',
-    defaultSize: { width: 1200, height: 780 }, minSize: { width: 760, height: 520 }, kind: 'bundled' },
+    defaultSize: { width: 1200, height: 780 }, minSize: { width: 760, height: 520 }, kind: 'installed' },
 
   { id: 'pod-inspector', name: 'Pod Inspector', icon: 'Box', category: 'System',
     description: 'Inspect, restart, uninstall, revoke pods. Live job logs.',

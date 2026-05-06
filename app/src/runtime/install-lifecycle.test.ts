@@ -109,7 +109,7 @@ beforeEach(() => {
   db = new MemoryDb();
 });
 
-const SYSTEM_APP_IDS = ['forge', 'memo', 'sheet', 'studio', 'music-player', 'voice-recorder'];
+const SYSTEM_APP_IDS = ['memo', 'sheet', 'studio', 'music-player', 'voice-recorder'];
 const SYSTEM_APP_COUNT = SYSTEM_APP_IDS.length;
 
 describe('install lifecycle (Phase 8 smoke)', () => {

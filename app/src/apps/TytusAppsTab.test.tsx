@@ -69,13 +69,13 @@ describe('TytusAppsTab', () => {
     render(
       <TytusAppsTab
         loadInstalledApps={async () => [
-          row('forge', 'bundled'),
+          row('voice-recorder', 'bundled'),
           row('music-player', 'bundled'),
         ]}
       />,
     );
     await waitFor(() => {
-      expect(screen.getByTestId('tytus-app-card-forge')).toBeTruthy();
+      expect(screen.getByTestId('tytus-app-card-voice-recorder')).toBeTruthy();
       expect(screen.getByTestId('tytus-app-card-music-player')).toBeTruthy();
     });
   });
@@ -83,11 +83,11 @@ describe('TytusAppsTab', () => {
   it('disables the Uninstall button for builtin-protected system apps with the spec tooltip', async () => {
     render(
       <TytusAppsTab
-        loadInstalledApps={async () => [row('forge', 'bundled')]}
+        loadInstalledApps={async () => [row('music-player', 'bundled')]}
       />,
     );
-    await waitFor(() => screen.getByTestId('tytus-app-card-forge'));
-    const btn = screen.getByTestId('tytus-app-uninstall-forge') as HTMLButtonElement;
+    await waitFor(() => screen.getByTestId('tytus-app-card-music-player'));
+    const btn = screen.getByTestId('tytus-app-uninstall-music-player') as HTMLButtonElement;
     expect(btn.disabled).toBe(true);
     expect(btn.title).toContain('System app — auto-updated with Tytus OS');
   });
@@ -113,10 +113,10 @@ describe('TytusAppsTab', () => {
   it('hides the System apps history section when there are no aliases', async () => {
     render(
       <TytusAppsTab
-        loadInstalledApps={async () => [row('forge', 'bundled')]}
+        loadInstalledApps={async () => [row('music-player', 'bundled')]}
       />,
     );
-    await waitFor(() => screen.getByTestId('tytus-app-card-forge'));
+    await waitFor(() => screen.getByTestId('tytus-app-card-music-player'));
     expect(screen.queryByTestId('tytus-apps-history-toggle')).toBeNull();
   });
 
@@ -158,13 +158,13 @@ describe('TytusAppsTab', () => {
     const onOpen = vi.fn();
     render(
       <TytusAppsTab
-        loadInstalledApps={async () => [row('forge', 'bundled')]}
+        loadInstalledApps={async () => [row('music-player', 'bundled')]}
         onOpen={onOpen}
       />,
     );
-    await waitFor(() => screen.getByTestId('tytus-app-card-forge'));
-    fireEvent.click(screen.getByTestId('tytus-app-open-forge'));
-    expect(onOpen).toHaveBeenCalledWith('forge');
+    await waitFor(() => screen.getByTestId('tytus-app-card-music-player'));
+    fireEvent.click(screen.getByTestId('tytus-app-open-music-player'));
+    expect(onOpen).toHaveBeenCalledWith('music-player');
   });
 
   it('fires onOpen with the alias TARGET id (not the alias id) when opening from history', async () => {
@@ -355,6 +355,7 @@ describe('TytusAppsTab', () => {
     render(<TytusAppsTab loadInstalledApps={async () => []} />);
     await waitFor(() => {
       expect(screen.getByTestId('tytus-apps-featured')).toBeTruthy();
+      expect(screen.getByTestId('tytus-featured-card-forge')).toBeTruthy();
       expect(screen.getByTestId('tytus-featured-card-photo-editor')).toBeTruthy();
       expect(screen.getByTestId('tytus-featured-card-api-tester')).toBeTruthy();
       expect(screen.queryByTestId('tytus-featured-card-text-editor')).toBeNull();
@@ -399,6 +400,7 @@ describe('TytusAppsTab', () => {
     render(
       <TytusAppsTab
         loadInstalledApps={async () => [
+          row('forge', 'installed', { manifestUrl: 'x' }),
           row('juli3ta', 'installed', { manifestUrl: 'x' }),
           row('photo-editor', 'installed', { manifestUrl: 'x' }),
           row('api-tester', 'installed', { manifestUrl: 'x' }),

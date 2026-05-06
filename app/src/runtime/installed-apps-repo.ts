@@ -34,7 +34,6 @@ export interface InstalledAppRow {
 }
 
 const BUILT_IN_PROTECTED = new Set([
-  'forge',
   'sheet',
   'studio',
   'memo',

@@ -29,7 +29,6 @@ export const BUNDLED_APP_LOADERS: Record<
   string,
   () => Promise<{ default?: unknown }>
 > = {
-  forge: () => import('@tytus/app-forge'),
   'music-player': () => import('@tytus/app-music-player'),
   'voice-recorder': () => import('@tytus/app-voice-recorder'),
   sheet: () => import('@tytus/app-sheet'),

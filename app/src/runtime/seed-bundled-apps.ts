@@ -18,12 +18,11 @@
 
 import type { Manifest } from '@tytus/host-api';
 // System apps — bundled with the shell, kind='bundled', builtin_protected=1.
-// User apps (text-editor, markdown-preview, api-tester, photo-editor,
+// User apps (forge, text-editor, markdown-preview, api-tester, photo-editor,
 // code-editor) carved to standalone repos at github.com/traylinx/tytus-app-*
 // + published to jsDelivr. Discovered via App Store's Featured section,
 // installed via "Install from URL" → kind='installed' rows. Seeding them
 // as bundled would collide with the install-from-URL path on duplicate id.
-import forgeManifest from '../../../packages/app-forge/tytus-app.json';
 import musicPlayerManifest from '../../../packages/app-music-player/tytus-app.json';
 import voiceRecorderManifest from '../../../packages/app-voice-recorder/tytus-app.json';
 import sheetManifest from '../../../packages/app-sheet/tytus-app.json';
@@ -55,13 +54,12 @@ function manifestEntry(id: string, raw: unknown): BundledManifestSpec {
 
 /**
  * Static list of bundled-app manifests this build of Tytus OS ships.
- * As new apps extract, add them here. The seed is idempotent so
+ * As new apps extract, remove them here and publish them through the catalog. The seed is idempotent so
  * dev/prod boot loops re-assert manifest_json on every run.
  */
 export const BUNDLED_APP_MANIFESTS: BundledManifestSpec[] = [
   // System apps (built-in, builtin_protected=1). Only apps with real
   // UI ship here. Deprecated extraction stubs are intentionally omitted.
-  manifestEntry('forge', forgeManifest),
   manifestEntry('music-player', musicPlayerManifest),
   manifestEntry('voice-recorder', voiceRecorderManifest),
   manifestEntry('sheet', sheetManifest),

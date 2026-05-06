@@ -159,11 +159,17 @@ describe('FEATURED_APPS hardcoded baseline', () => {
     }
   });
 
-  it('omits legacy productivity micro-apps that Forge replaces', () => {
+  it('includes restored Text Editor and Markdown Editor while omitting Code Editor', () => {
     const ids = FEATURED_APPS.map((a) => a.id).sort();
-    expect(ids).toEqual(['api-tester', 'juli3ta', 'photo-editor']);
-    expect(ids).not.toContain('text-editor');
+    expect(ids).toEqual([
+      'api-tester',
+      'forge',
+      'juli3ta',
+      'markdown-preview',
+      'photo-editor',
+      'text-editor',
+    ]);
+    expect(FEATURED_APPS.find((a) => a.id === 'markdown-preview')?.name).toBe('Markdown Editor');
     expect(ids).not.toContain('code-editor');
-    expect(ids).not.toContain('markdown-preview');
   });
 });
