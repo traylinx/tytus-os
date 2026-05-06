@@ -5048,6 +5048,36 @@ function ReferenceAudioCard({
   );
 }
 
+// "Up next" preview helper. Returns one of:
+//  - { kind: 'track', track } — sequential mode, predictable next.
+//  - { kind: 'random' } — shuffle is on, choice happens at end-of-track.
+//  - { kind: 'repeating' } — repeat-one, the same track replays.
+//  - { kind: 'end' } — last track in queue with shuffle/repeat both off.
+//  - null — no current track or empty queue (caller hides the card).
+type UpNext =
+  | { kind: 'track'; track: SavedTrack }
+  | { kind: 'random' }
+  | { kind: 'repeating' }
+  | { kind: 'end' };
+
+function computeUpNext(
+  currentId: string | null,
+  queue: SavedTrack[],
+  shuffle: boolean,
+  repeatMode: RepeatMode,
+): UpNext | null {
+  if (!currentId || queue.length === 0) return null;
+  if (repeatMode === 'one') return { kind: 'repeating' };
+  const playable = queue.filter(hasPlayableAudio);
+  if (playable.length === 0) return null;
+  if (shuffle) return { kind: 'random' };
+  const idx = playable.findIndex((t) => t.id === currentId);
+  if (idx < 0) return null;
+  if (idx + 1 < playable.length) return { kind: 'track', track: playable[idx + 1] };
+  if (repeatMode === 'all') return { kind: 'track', track: playable[0] };
+  return { kind: 'end' };
+}
+
 // Lyric-section markers like [Hook] / [Verse 1] / [Chorus] / [Bridge] /
 // [Pre-Chorus] / [Post-Hook / Outro] / [Intro] / [Outro] render as
 // muted neutral chips that match the flat Tytus chrome elsewhere —
@@ -5469,6 +5499,54 @@ function PlayerView({ track, player, restyleOriginal, onEditInCreator, onSwitchT
                 onUserPlay={() => { if (player.state.playing) player.pause(); }}
               />
             )}
+            {/* Up next preview. Only renders when this track is the
+                actively-playing one — showing "Up next" while the user
+                inspects an inactive track would be misleading. The
+                content varies by shuffle/repeat state — see
+                computeUpNext for the truth table. */}
+            {track.id === player.state.trackId && (() => {
+              const upNext = computeUpNext(
+                player.state.trackId,
+                player.queue,
+                player.state.shuffle,
+                player.state.repeatMode,
+              );
+              if (!upNext) return null;
+              return (
+                <PlayerInfoCard label="Up next">
+                  {upNext.kind === 'track' && (
+                    <div className="flex items-center gap-2.5">
+                      <TrackAvatar track={upNext.track} size={32} iconSize={14} radius={8} />
+                      <div className="flex-1 min-w-0">
+                        <div className="truncate" style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>
+                          {upNext.track.title}
+                        </div>
+                        <div className="truncate" style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>
+                          {(upNext.track.artist || (upNext.track.styleTags && upNext.track.styleTags !== '—' ? upNext.track.styleTags : 'JULI3TA'))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  {upNext.kind === 'random' && (
+                    <div className="flex items-center gap-2" style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                      <Shuffle size={13} style={{ color: 'var(--accent-primary)' }} />
+                      <span>Random next track from your queue.</span>
+                    </div>
+                  )}
+                  {upNext.kind === 'repeating' && (
+                    <div className="flex items-center gap-2" style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                      <Repeat1 size={13} style={{ color: 'var(--accent-primary)' }} />
+                      <span>Repeating this track.</span>
+                    </div>
+                  )}
+                  {upNext.kind === 'end' && (
+                    <div style={{ fontSize: 12, color: 'var(--text-disabled)' }}>
+                      End of queue.
+                    </div>
+                  )}
+                </PlayerInfoCard>
+              );
+            })()}
             {track.theme.trim() && (
               <PlayerInfoCard label={t('musiccreator.player.theme')}>
                 <div style={{ fontSize: 12, color: 'var(--text-primary)', whiteSpace: 'pre-wrap', lineHeight: 1.55 }}>
