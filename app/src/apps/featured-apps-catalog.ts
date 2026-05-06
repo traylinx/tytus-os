@@ -87,7 +87,7 @@ const ALL_FEATURED_APPS: FeaturedApp[] = [
     description: 'Visual agent house for Tytus pods and third-party AI agents — rooms, bodies, moods, probes, and safe status diagnostics.',
     icon: 'Building2',
     category: 'Productivity',
-    manifestUrl: 'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-openhouse@v1.0.1/tytus-app.json',
+    manifestUrl: 'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-openhouse@c3e9c4bffc636338ade933c23bfa2e5bb0a2748d/tytus-app.json',
   },
   {
     id: 'juli3ta',
@@ -177,7 +177,7 @@ export async function loadFeaturedApps(opts?: {
   const fetchImpl =
     opts?.fetchImpl ??
     ((u: string) =>
-      fetch(u, { signal: opts?.signal }).then(async (r) => ({
+      fetch(u, { signal: opts?.signal, cache: 'no-store' }).then(async (r) => ({
         ok: r.ok,
         json: () => r.json(),
       })));

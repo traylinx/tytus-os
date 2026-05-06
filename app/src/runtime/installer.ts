@@ -98,7 +98,7 @@ type FetchLike = (url: string) => Promise<{
 }>;
 
 const defaultFetch: FetchLike = (url) =>
-  fetch(url) as unknown as ReturnType<FetchLike>;
+  fetch(url, { cache: 'no-store' }) as unknown as ReturnType<FetchLike>;
 
 async function fetchManifest(
   manifestUrl: string,
