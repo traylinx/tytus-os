@@ -65,12 +65,102 @@ export interface IconicMixResult {
 
 // ─── Audio I/O helpers ────────────────────────────────────────
 
-const decodeAudio = async (blob: Blob): Promise<AudioBuffer> => {
+// Real-time playback capture rescue. When `decodeAudioData` rejects a
+// codec the browser's HTML5 <audio> element CAN still play (e.g.
+// opus-in-webm in older Safari, weird mp4 box layouts from streaming
+// proxies, mp4a.40.5 HE-AAC), we play the source silently through a
+// MediaElementAudioSourceNode → MediaStreamDestination → MediaRecorder
+// chain. The recorder produces a webm/opus blob the SAME browser can
+// always re-decode (since it just produced it). Cost: real-time wall
+// clock for `captureSec` seconds. We cap at 35 s (one cover sample
+// worth) so the rescue completes before the user gets impatient.
+const decodeViaPlaybackCapture = async (
+  blob: Blob,
+  ctx: AudioContext,
+  captureSec: number,
+): Promise<AudioBuffer> => {
+  if (typeof MediaRecorder === 'undefined') {
+    throw new Error('MediaRecorder unavailable in this environment.');
+  }
+  const mime = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4']
+    .find((m) => MediaRecorder.isTypeSupported(m));
+  if (!mime) {
+    throw new Error('No supported recorder mime type for fallback.');
+  }
+
+  const url = URL.createObjectURL(blob);
+  const audio = new Audio();
+  audio.src = url;
+  audio.muted = true;
+  audio.crossOrigin = 'anonymous';
+  audio.preload = 'auto';
+
+  try {
+    await new Promise<void>((res, rej) => {
+      const onReady = () => res();
+      const onErr = () =>
+        rej(new Error('Audio element rejected the source format too — browser cannot play it.'));
+      audio.addEventListener('canplay', onReady, { once: true });
+      audio.addEventListener('error', onErr, { once: true });
+      audio.load();
+    });
+
+    const srcNode = ctx.createMediaElementSource(audio);
+    const dest = ctx.createMediaStreamDestination();
+    srcNode.connect(dest);
+    // Intentionally NOT connecting to ctx.destination — keep playback silent.
+
+    const recorder = new MediaRecorder(dest.stream, { mimeType: mime });
+    const chunks: Blob[] = [];
+    recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
+
+    const targetMs = Math.max(
+      6_000,
+      Math.min(captureSec, audio.duration || captureSec) * 1000,
+    );
+
+    const stopped = new Promise<void>((res) => { recorder.onstop = () => res(); });
+    recorder.start(250);
+    audio.currentTime = 0;
+    await audio.play();
+    await new Promise<void>((res) => setTimeout(res, targetMs));
+    recorder.stop();
+    audio.pause();
+    await stopped;
+
+    const recBlob = new Blob(chunks, { type: mime });
+    if (recBlob.size === 0) {
+      throw new Error('Fallback capture produced no audio data.');
+    }
+    const recAb = await recBlob.arrayBuffer();
+    return await ctx.decodeAudioData(recAb);
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+};
+
+const decodeAudio = async (
+  blob: Blob,
+  fallbackCaptureSec = 35,
+): Promise<AudioBuffer> => {
   const Ctor = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
   const ctx = new Ctor();
   try {
     const ab = await blob.arrayBuffer();
-    return await ctx.decodeAudioData(ab.slice(0));
+    try {
+      return await ctx.decodeAudioData(ab.slice(0));
+    } catch (primaryErr) {
+      // Codec the static decoder rejects but <audio> may still play.
+      try {
+        return await decodeViaPlaybackCapture(blob, ctx, fallbackCaptureSec);
+      } catch (fallbackErr) {
+        const primaryMsg = (primaryErr as Error).message || 'decodeAudioData failed';
+        const fallbackMsg = (fallbackErr as Error).message || 'fallback failed';
+        throw new Error(
+          `Audio format isn't supported by this browser (${primaryMsg}). Compatibility-mode capture also failed: ${fallbackMsg}`,
+        );
+      }
+    }
   } finally {
     ctx.close().catch(() => undefined);
   }
