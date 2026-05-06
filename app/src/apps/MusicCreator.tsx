@@ -4689,6 +4689,14 @@ function SongCardModal({
 interface PlayerViewProps {
   track: SavedTrack | null;
   player: PlayerControls;
+  /**
+   * Session-scoped reference audio used when this very track was just
+   * restyled. When `restyleOriginal.trackId === track.id`, the player
+   * shows an inline mini-player with the original ref so the user can
+   * A/B against their generated restyle. Lost on reload — see
+   * `lastRestyleOriginal` state.
+   */
+  restyleOriginal?: { trackId: string; audioSrc: string; sourceLabel: string } | null;
   onEditInCreator: (track: SavedTrack) => void;
   onSwitchToCreator: () => void;
   onSearchMusic?: () => void;
@@ -4826,6 +4834,65 @@ function PlayerInfoCard({ label, children }: { label: string; children: React.Re
   );
 }
 
+// Side-by-side A/B card for restyle output. Renders the original
+// reference audio that was fed into the restyle so the user can
+// compare it against the just-generated track without leaving the
+// player view. Native <audio controls> keeps the implementation
+// trivial — full transport without us re-implementing scrub/volume.
+// When the user starts the reference, we pause the main JULI3TA
+// player so the two streams don't fight each other.
+function ReferenceAudioCard({
+  audioSrc,
+  sourceLabel,
+  onUserPlay,
+}: {
+  audioSrc: string;
+  sourceLabel: string;
+  onUserPlay: () => void;
+}) {
+  return (
+    <div
+      className="rounded-xl px-5 py-5"
+      style={{
+        background: 'linear-gradient(135deg, rgba(123,67,201,0.10), rgba(200,55,126,0.06))',
+        border: '1px solid var(--border-subtle)',
+      }}
+    >
+      <div
+        style={{
+          fontSize: 11, fontWeight: 700,
+          color: 'var(--text-disabled)',
+          textTransform: 'uppercase',
+          letterSpacing: 0.8,
+          marginBottom: 6,
+        }}
+      >
+        Reference audio
+      </div>
+      <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 12 }}>
+        Compare your restyle with the original you fed in.
+      </div>
+      <div
+        className="truncate"
+        style={{
+          fontSize: 12, fontWeight: 600,
+          color: 'var(--text-primary)',
+          marginBottom: 10,
+        }}
+        title={sourceLabel}
+      >
+        {sourceLabel}
+      </div>
+      <audio
+        controls
+        src={audioSrc}
+        onPlay={onUserPlay}
+        style={{ width: '100%', height: 32 }}
+      />
+    </div>
+  );
+}
+
 // Lyric-section markers like [Hook] / [Verse 1] / [Chorus] / [Bridge] /
 // [Pre-Chorus] / [Post-Hook / Outro] / [Intro] / [Outro] render as
 // muted neutral chips that match the flat Tytus chrome elsewhere —
@@ -4872,7 +4939,7 @@ function LyricsRendered({ text }: { text: string }) {
   );
 }
 
-function PlayerView({ track, player, onEditInCreator, onSwitchToCreator, onSearchMusic }: PlayerViewProps) {
+function PlayerView({ track, player, restyleOriginal, onEditInCreator, onSwitchToCreator, onSearchMusic }: PlayerViewProps) {
   const { t } = useI18n();
   const specsJson = track?.specsJson ?? '';
 
@@ -5240,6 +5307,13 @@ function PlayerView({ track, player, onEditInCreator, onSwitchToCreator, onSearc
               and KV rows don't crush. Each card is independent so
               adding/removing one doesn't reflow the others. */}
           <div className="flex flex-col gap-4" style={{ width: 420, flexShrink: 0 }}>
+            {restyleOriginal && restyleOriginal.trackId === track.id && (
+              <ReferenceAudioCard
+                audioSrc={restyleOriginal.audioSrc}
+                sourceLabel={restyleOriginal.sourceLabel}
+                onUserPlay={() => { if (player.state.playing) player.pause(); }}
+              />
+            )}
             {track.theme.trim() && (
               <PlayerInfoCard label={t('musiccreator.player.theme')}>
                 <div style={{ fontSize: 12, color: 'var(--text-primary)', whiteSpace: 'pre-wrap', lineHeight: 1.55 }}>
@@ -6282,6 +6356,20 @@ export default function MusicCreator() {
   // Cover-sample strategy: single best window OR best-of mix.
   const [sampleStrategy, setSampleStrategy] = useState<'best' | 'mix'>('best');
 
+  // Session-scoped "compare with original" state. After a successful
+  // restyle generation, we stash the original ref audio (as a data URL)
+  // keyed by the new track id so the PlayerView can render an inline
+  // "Reference audio" mini-player. Lost on reload — that's fine: this
+  // is the demo moment immediately after generation, not long-term
+  // archival. Storing the WAV bytes in SQLite would 2-3× the row size
+  // for every restyle and the rare "I want to A/B days later" use case
+  // can be served by re-loading the source from Library or Voice Recordings.
+  const [lastRestyleOriginal, setLastRestyleOriginal] = useState<{
+    trackId: string;
+    audioSrc: string;
+    sourceLabel: string;
+  } | null>(null);
+
   // Inline recorder state (mic OR system tab audio).
   const [recOpen, setRecOpen] = useState(false);
   const [recSource, setRecSource] = useState<'mic' | 'tab'>('mic');
@@ -6889,6 +6977,16 @@ export default function MusicCreator() {
         // as a shortcut) and the lyrics show up as ~/Music/Title.lyrics.txt.
         mirrorAudioToVfs(newTrack);
         mirrorLyricsToVfs(newTrack);
+        // For restyle generations, stash the original ref so the player
+        // can render an inline "Reference audio" mini-player for direct
+        // A/B comparison. Session-scoped — see lastRestyleOriginal state.
+        if (mode === 'restyle' && refAudioBase64) {
+          setLastRestyleOriginal({
+            trackId: newTrack.id,
+            audioSrc: `data:audio/wav;base64,${refAudioBase64}`,
+            sourceLabel: refAudioName || 'Original',
+          });
+        }
         addNotification({
           appId: 'musiccreator',
           appName: 'JULI3TA',
@@ -6915,7 +7013,7 @@ export default function MusicCreator() {
       generatingRef.current = false;
     }
   }, [
-    endpoint, theme, lyrics, songName, style, specs, activeTemplate, instrumental, mode, refAudioBase64, t,
+    endpoint, theme, lyrics, songName, style, specs, activeTemplate, instrumental, mode, refAudioBase64, refAudioName, t,
     saveTrack, creatorSettings, mirrorAudioToVfs, mirrorLyricsToVfs, addNotification,
     coverAuto, coverDataUrl, coverPrompt,
   ]);
@@ -8995,6 +9093,7 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
                 return candId ? allPlayerTracks.find((t) => t.id === candId) ?? null : null;
               })()}
               player={player}
+              restyleOriginal={lastRestyleOriginal}
               onSwitchToCreator={() => setView('creator')}
               onSearchMusic={() => {
                 setView('player');
