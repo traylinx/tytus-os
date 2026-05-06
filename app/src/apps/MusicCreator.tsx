@@ -1755,6 +1755,17 @@ function usePlayer(
     return { trackId: null, playing: false, loadingTrackId: null, positionMs: 0, durationMs: 0, volume: 1, repeatMode, shuffle };
   });
   const errorRetryRef = useRef<string | null>(null);
+  // Play history stack — the trackIds the user has heard, oldest →
+  // newest. Pushed by `play()` before changing the active track.
+  // Used by `prev` under shuffle to walk back through actual history
+  // instead of jumping to another random track. Stored as a ref so
+  // updates don't trigger re-render. Capped at 50 entries to bound
+  // memory if the user marathons in shuffle for hours.
+  const playHistoryRef = useRef<string[]>([]);
+  // True for one tick when prev() is mid-flight, so the play() it
+  // dispatches doesn't push the just-popped track back onto history
+  // (which would create an infinite ping-pong on repeated prev clicks).
+  const walkingHistoryRef = useRef<boolean>(false);
   const setRepeatMode = useCallback((m: RepeatMode) => {
     setState((s) => ({ ...s, repeatMode: m }));
     try { localStorage.setItem('juli3ta:repeatMode', m); } catch {}
@@ -1810,6 +1821,19 @@ function usePlayer(
   const play = useCallback((track: SavedTrack) => {
     void (async () => {
       errorRetryRef.current = null;
+      // Push the previously-active track onto the history stack
+      // BEFORE we mutate state. Skip when there's no current track,
+      // when the same track is being replayed, or when we're already
+      // walking history (the prev() handler temporarily flips a flag
+      // — see prev() below — to avoid double-pushing).
+      if (state.trackId && state.trackId !== track.id && !walkingHistoryRef.current) {
+        const hist = playHistoryRef.current;
+        if (hist[hist.length - 1] !== state.trackId) {
+          hist.push(state.trackId);
+          if (hist.length > 50) hist.splice(0, hist.length - 50);
+        }
+      }
+      walkingHistoryRef.current = false;
       setState((s) => ({
         ...s,
         trackId: track.id,
@@ -1908,9 +1932,23 @@ function usePlayer(
   const prev = useCallback(() => {
     if (!state.trackId || playable.length === 0) return;
     if (state.shuffle) {
-      // No play history stack yet — prev under shuffle picks another
-      // random track, matching Spotify's mobile behavior when there's
-      // no prior context. A future ship could add a real history stack.
+      // Walk back through actual history if any. Pop the newest entry
+      // and play it. The walkingHistoryRef flag suppresses the push
+      // in play() that would otherwise re-add this track on top of
+      // history, defeating the back-button. If history is empty (just
+      // started shuffling), fall back to picking another random track
+      // — matching Spotify's mobile behavior with no prior context.
+      const hist = playHistoryRef.current;
+      while (hist.length > 0) {
+        const candidateId = hist.pop();
+        if (!candidateId || candidateId === state.trackId) continue;
+        const candidate = playable.find((t) => t.id === candidateId);
+        if (candidate) {
+          walkingHistoryRef.current = true;
+          play(candidate);
+          return;
+        }
+      }
       const r = pickRandomNext();
       if (r) play(r);
       return;
