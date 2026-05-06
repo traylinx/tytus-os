@@ -31,7 +31,7 @@ import {
   Settings2, X, Monitor, MoreVertical, NotebookText, Music2, Search,
   Pencil, Image as ImageIcon, Upload, RefreshCw, ChevronUp,
   Heart, Radio, UserRound, ListMusic, Album, ExternalLink, FolderOpen,
-  ChevronLeft, Repeat, Repeat1,
+  ChevronLeft, Repeat, Repeat1, CheckSquare,
 } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import JulietaHelp from './JulietaHelp';
@@ -4090,11 +4090,18 @@ interface LibrarySidebarRowProps {
   onRemix: (track: SavedTrack) => void;
   onToggleFavorite: (track: SavedTrack) => void;
   onRemove: (track: SavedTrack) => void;
+  /** Multi-select mode flag — when true, the row renders a checkbox
+   *  in place of the play overlay and clicks toggle the selection
+   *  instead of opening the player or starting playback. */
+  selectMode?: boolean;
+  checked?: boolean;
+  onToggleCheck?: (track: SavedTrack) => void;
 }
 
 function LibrarySidebarRow({
   track, player, selected, isFavorite,
   onOpenInPlayer, onRemix, onToggleFavorite, onRemove,
+  selectMode = false, checked = false, onToggleCheck,
 }: LibrarySidebarRowProps) {
   const kebabRef = useRef<HTMLButtonElement | null>(null);
   const [hover, setHover] = useState(false);
@@ -4140,73 +4147,116 @@ function LibrarySidebarRow({
 
   const externalUrl = track.externalUrl;
 
+  // In selectMode, the entire row toggles the checkbox on click. The
+  // play overlay button + kebab menu are hidden — those gestures
+  // would conflict with selection. Title still shows but no longer
+  // navigates.
+  const handleRowClick = selectMode
+    ? () => { if (onToggleCheck) onToggleCheck(track); }
+    : undefined;
+
   return (
     <div
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
+      onClick={handleRowClick}
       className="rounded-lg px-2 py-2 transition-all"
       style={{
-        background: selected ? 'var(--bg-selected)' : hover ? 'var(--bg-hover)' : 'transparent',
-        border: selected ? '1px solid var(--accent-primary)' : '1px solid transparent',
+        background: selectMode && checked
+          ? 'var(--bg-selected)'
+          : selected ? 'var(--bg-selected)' : hover ? 'var(--bg-hover)' : 'transparent',
+        border: selectMode && checked
+          ? '1px solid var(--accent-primary)'
+          : selected ? '1px solid var(--accent-primary)' : '1px solid transparent',
         cursor: 'pointer',
       }}
-      title="Click to open in player"
+      title={selectMode ? (checked ? 'Deselect' : 'Select') : 'Click to open in player'}
     >
       <div className="flex items-center gap-2">
-        <button
-          onClick={(e) => { e.stopPropagation(); player.toggle(track); }}
-          className="relative flex items-center justify-center flex-shrink-0 transition-transform hover:scale-105"
-          style={{ width: 36, height: 36 }}
-          title={isPlaying ? 'Pause' : 'Play'}
-        >
-          <TrackAvatar track={track} size={36} iconSize={14} radius={6} />
+        {selectMode ? (
           <span
-            className="absolute inset-0 flex items-center justify-center rounded-md transition-opacity"
+            className="flex items-center justify-center flex-shrink-0"
             style={{
-              background: trackArtwork(track) ? 'rgba(0, 0, 0, 0.35)' : 'transparent',
-              borderRadius: 'var(--radius-md)',
+              width: 36, height: 36,
+              color: checked ? 'var(--accent-primary)' : 'var(--text-disabled)',
             }}
+            aria-hidden
           >
-            {isLoading
-              ? <Loader2 size={14} className="animate-spin" style={{ color: 'white' }} />
-              : isPlaying
-              ? <Pause size={14} style={{ color: 'white' }} />
-              : <Play size={14} style={{ color: 'white', marginLeft: 1 }} />}
+            {checked ? <CheckSquare size={20} /> : <Square size={20} />}
           </span>
-        </button>
-        <button
-          type="button"
-          onClick={() => onOpenInPlayer(track)}
-          className="flex-1 min-w-0 text-left"
-        >
-          <div
-            className="truncate"
-            style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)' }}
+        ) : (
+          <button
+            onClick={(e) => { e.stopPropagation(); player.toggle(track); }}
+            className="relative flex items-center justify-center flex-shrink-0 transition-transform hover:scale-105"
+            style={{ width: 36, height: 36 }}
+            title={isPlaying ? 'Pause' : 'Play'}
           >
-            {track.title || 'Untitled'}
+            <TrackAvatar track={track} size={36} iconSize={14} radius={6} />
+            <span
+              className="absolute inset-0 flex items-center justify-center rounded-md transition-opacity"
+              style={{
+                background: trackArtwork(track) ? 'rgba(0, 0, 0, 0.35)' : 'transparent',
+                borderRadius: 'var(--radius-md)',
+              }}
+            >
+              {isLoading
+                ? <Loader2 size={14} className="animate-spin" style={{ color: 'white' }} />
+                : isPlaying
+                ? <Pause size={14} style={{ color: 'white' }} />
+                : <Play size={14} style={{ color: 'white', marginLeft: 1 }} />}
+            </span>
+          </button>
+        )}
+        {selectMode ? (
+          <div className="flex-1 min-w-0 text-left">
+            <div
+              className="truncate"
+              style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)' }}
+            >
+              {track.title || 'Untitled'}
+            </div>
+            <div className="truncate" style={{ fontSize: 10, color: 'var(--text-disabled)' }}>
+              {track.artist || 'Unknown'}
+              {track.durationMs > 0 ? ` · ${formatTime(track.durationMs)}` : ''}
+            </div>
           </div>
-          <div className="truncate" style={{ fontSize: 10, color: 'var(--text-disabled)' }}>
-            {track.artist || 'Unknown'}
-            {track.durationMs > 0 ? ` · ${formatTime(track.durationMs)}` : ''}
-          </div>
-        </button>
-        <button
-          ref={kebabRef}
-          onClick={(e) => {
-            e.stopPropagation();
-            if (menu) setMenu(null);
-            else openMenu();
-          }}
-          className="flex items-center justify-center rounded-md flex-shrink-0 transition-all hover:bg-[var(--bg-selected)]"
-          style={{
-            width: 24, height: 24,
-            color: hover || menu ? 'var(--text-primary)' : 'var(--text-disabled)',
-          }}
-          aria-label="Track actions"
-          title="Track actions"
-        >
-          <MoreVertical size={14} />
-        </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => onOpenInPlayer(track)}
+            className="flex-1 min-w-0 text-left"
+          >
+            <div
+              className="truncate"
+              style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)' }}
+            >
+              {track.title || 'Untitled'}
+            </div>
+            <div className="truncate" style={{ fontSize: 10, color: 'var(--text-disabled)' }}>
+              {track.artist || 'Unknown'}
+              {track.durationMs > 0 ? ` · ${formatTime(track.durationMs)}` : ''}
+            </div>
+          </button>
+        )}
+        {!selectMode && (
+          <button
+            ref={kebabRef}
+            onClick={(e) => {
+              e.stopPropagation();
+              if (menu) setMenu(null);
+              else openMenu();
+            }}
+            className="flex items-center justify-center rounded-md flex-shrink-0 transition-all hover:bg-[var(--bg-selected)]"
+            style={{
+              width: 24, height: 24,
+              color: hover || menu ? 'var(--text-primary)' : 'var(--text-disabled)',
+            }}
+            aria-label="Track actions"
+            title="Track actions"
+          >
+            <MoreVertical size={14} />
+          </button>
+        )}
       </div>
 
       {menu && createPortal(
@@ -6682,6 +6732,13 @@ export default function MusicCreator() {
   const [sidebarTab, setSidebarTab] = useState<'mywork' | 'library'>('mywork');
   const [myWorkChip, setMyWorkChip] = useState<'all' | 'songs' | 'restyles' | 'lyrics'>('all');
   const [libraryChip, setLibraryChip] = useState<'all' | 'favorites'>('all');
+  // Multi-select mode for the Library sidebar tab. When on, rows show
+  // a checkbox + clicking selects/deselects (instead of opening in
+  // player). A footer action bar offers batch Toggle-favorite and
+  // Remove. ESC exits + clears selection. Switching sidebar tab also
+  // exits — see the effect below.
+  const [librarySelectMode, setLibrarySelectMode] = useState(false);
+  const [librarySelectedIds, setLibrarySelectedIds] = useState<Set<string>>(() => new Set());
   const [musicSearchOpen, setMusicSearchOpen] = useState(false);
   const [musicPaneTab, setMusicPaneTab] = useState<MusicPaneTab>('search');
   const [musicQuery, setMusicQuery] = useState('');
@@ -8821,6 +8878,45 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
       .catch((e: unknown) => console.warn('Library track delete failed:', e));
   }, []);
 
+  // ── Library multi-select helpers ─────────────────────────────
+  // Single source of truth: librarySelectedIds (Set<string>). All
+  // helpers operate on the visible (filtered/searched) library so
+  // "Select all" never silently selects rows the user can't see.
+  const toggleLibrarySelection = useCallback((track: SavedTrack) => {
+    setLibrarySelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(track.id)) next.delete(track.id);
+      else next.add(track.id);
+      return next;
+    });
+  }, []);
+
+  const exitLibrarySelectMode = useCallback(() => {
+    setLibrarySelectMode(false);
+    setLibrarySelectedIds(new Set());
+  }, []);
+
+  // ESC exits select mode and clears the selection. Scoped to when
+  // the mode is on — we don't want a global listener stealing ESC
+  // from any other modal.
+  useEffect(() => {
+    if (!librarySelectMode) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') exitLibrarySelectMode();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [librarySelectMode, exitLibrarySelectMode]);
+
+  // Switching away from the Library tab must clear selection — a
+  // pending batch action only makes sense in the context that spawned it.
+  useEffect(() => {
+    if (sidebarTab !== 'library' && (librarySelectMode || librarySelectedIds.size > 0)) {
+      setLibrarySelectMode(false);
+      setLibrarySelectedIds(new Set());
+    }
+  }, [sidebarTab, librarySelectMode, librarySelectedIds.size]);
+
   // In-app player view handoff. Clicking a track in the sidebar
   // switches the workspace pane to the player view and selects that
   // track — but does NOT auto-play. Users explicitly press the Play
@@ -9071,28 +9167,86 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
                   {chip.label}
                 </button>
               )))
-            : (([
-                { id: 'all' as const, label: 'All' },
-                { id: 'favorites' as const, label: 'Favorites' },
-              ]).map((chip) => (
+            : librarySelectMode
+            ? (
+              <>
+                <span style={{ fontSize: 10, fontWeight: 800, color: 'var(--text-primary)', flexShrink: 0 }}>
+                  {librarySelectedIds.size} selected
+                </span>
                 <button
-                  key={chip.id}
-                  onClick={() => setLibraryChip(chip.id)}
-                  className="rounded-full px-2.5 flex-shrink-0 transition-all"
+                  onClick={() => setLibrarySelectedIds(new Set(visibleLibrary.map((t) => t.id)))}
+                  className="rounded-full px-2.5 flex-shrink-0 transition-all hover:bg-[var(--bg-hover)]"
                   style={{
                     height: 22,
                     fontSize: 10,
-                    fontWeight: libraryChip === chip.id ? 800 : 600,
-                    color: libraryChip === chip.id ? 'white' : 'var(--text-secondary)',
-                    background: libraryChip === chip.id
-                      ? 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))'
-                      : 'var(--bg-window)',
+                    fontWeight: 700,
+                    color: 'var(--text-secondary)',
+                    background: 'var(--bg-window)',
                     border: '1px solid var(--border-subtle)',
                   }}
                 >
-                  {chip.label}
+                  Select all
                 </button>
-              )))}
+                <button
+                  onClick={exitLibrarySelectMode}
+                  className="ml-auto rounded-full px-2.5 flex-shrink-0 transition-all hover:bg-[var(--bg-hover)]"
+                  style={{
+                    height: 22,
+                    fontSize: 10,
+                    fontWeight: 700,
+                    color: 'var(--text-secondary)',
+                    background: 'var(--bg-window)',
+                    border: '1px solid var(--border-subtle)',
+                  }}
+                  title="Exit select mode (ESC)"
+                >
+                  Done
+                </button>
+              </>
+            )
+            : (
+              <>
+                {(([
+                  { id: 'all' as const, label: 'All' },
+                  { id: 'favorites' as const, label: 'Favorites' },
+                ]).map((chip) => (
+                  <button
+                    key={chip.id}
+                    onClick={() => setLibraryChip(chip.id)}
+                    className="rounded-full px-2.5 flex-shrink-0 transition-all"
+                    style={{
+                      height: 22,
+                      fontSize: 10,
+                      fontWeight: libraryChip === chip.id ? 800 : 600,
+                      color: libraryChip === chip.id ? 'white' : 'var(--text-secondary)',
+                      background: libraryChip === chip.id
+                        ? 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))'
+                        : 'var(--bg-window)',
+                      border: '1px solid var(--border-subtle)',
+                    }}
+                  >
+                    {chip.label}
+                  </button>
+                )))}
+                {libraryTracks.length > 0 && (
+                  <button
+                    onClick={() => setLibrarySelectMode(true)}
+                    className="ml-auto flex items-center gap-1 rounded-full px-2.5 flex-shrink-0 transition-all hover:bg-[var(--bg-hover)]"
+                    style={{
+                      height: 22,
+                      fontSize: 10,
+                      fontWeight: 700,
+                      color: 'var(--text-secondary)',
+                      background: 'var(--bg-window)',
+                      border: '1px solid var(--border-subtle)',
+                    }}
+                    title="Multi-select for batch actions"
+                  >
+                    <CheckSquare size={11} /> Select
+                  </button>
+                )}
+              </>
+            )}
         </div>
 
         {/* Content — conditional on active sidebar tab. */}
@@ -9231,10 +9385,69 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
                   onRemix={remixLibraryTrack}
                   onToggleFavorite={toggleMusicFavorite}
                   onRemove={removeLibraryTrack}
+                  selectMode={librarySelectMode}
+                  checked={librarySelectedIds.has(track.id)}
+                  onToggleCheck={toggleLibrarySelection}
                 />
               ))}
             </div>
           )
+        )}
+        {/* Library multi-select footer action bar. Renders only when
+            mode is on AND ≥1 row is selected. Toggle Favorite flips the
+            favorited state on each selected track individually (per-row
+            semantics — favoriting one already-fave + one not-fave gives
+            mixed results, matching how a real client would handle it).
+            Remove deletes from Library; both actions exit select mode
+            after they fire, since their context is gone. */}
+        {sidebarTab === 'library' && librarySelectMode && librarySelectedIds.size > 0 && (
+          <div
+            className="flex-shrink-0 flex items-center gap-1.5 px-2"
+            style={{
+              height: 44,
+              borderTop: '1px solid var(--border-subtle)',
+              background: 'var(--bg-titlebar)',
+            }}
+          >
+            <button
+              onClick={() => {
+                const tracks = visibleLibrary.filter((t) => librarySelectedIds.has(t.id));
+                for (const t of tracks) toggleMusicFavorite(t);
+                exitLibrarySelectMode();
+              }}
+              className="flex items-center gap-1 rounded-lg px-2.5 transition-all hover:bg-[var(--bg-hover)]"
+              style={{
+                height: 28,
+                fontSize: 11,
+                fontWeight: 700,
+                color: 'var(--text-secondary)',
+                background: 'var(--bg-window)',
+                border: '1px solid var(--border-subtle)',
+              }}
+              title={`Toggle favorite on ${librarySelectedIds.size} track(s)`}
+            >
+              <Heart size={11} /> Toggle favorite
+            </button>
+            <button
+              onClick={() => {
+                const tracks = visibleLibrary.filter((t) => librarySelectedIds.has(t.id));
+                for (const t of tracks) removeLibraryTrack(t);
+                exitLibrarySelectMode();
+              }}
+              className="flex items-center gap-1 rounded-lg px-2.5 transition-all hover:bg-[var(--bg-hover)]"
+              style={{
+                height: 28,
+                fontSize: 11,
+                fontWeight: 700,
+                color: 'white',
+                background: 'var(--status-danger)',
+                border: '1px solid var(--status-danger)',
+              }}
+              title={`Remove ${librarySelectedIds.size} track(s) from Library`}
+            >
+              <Trash2 size={11} /> Remove
+            </button>
+          </div>
         )}
       </aside>
 
