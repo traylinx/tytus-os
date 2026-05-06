@@ -31,7 +31,7 @@ import {
   Settings2, X, Monitor, MoreVertical, NotebookText, Music2, Search,
   Pencil, Image as ImageIcon, Upload, RefreshCw, ChevronUp,
   Heart, Radio, UserRound, ListMusic, Album, ExternalLink, FolderOpen,
-  ChevronLeft, Repeat, Repeat1, CheckSquare, Copy, Volume2, VolumeX,
+  ChevronLeft, Repeat, Repeat1, CheckSquare, Copy, Volume2, VolumeX, Moon,
 } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import JulietaHelp from './JulietaHelp';
@@ -1715,6 +1715,12 @@ interface PlayerState {
    *  pitch by default in modern browsers. Persisted in
    *  localStorage('juli3ta:playbackRate'). Clamped to [0.25, 4]. */
   playbackRate: number;
+  /** Wall-clock ms when the sleep timer should fire and pause
+   *  playback. null = no timer set. Intentionally NOT persisted —
+   *  a sleep timer scheduled "8 hours ago" makes no sense the next
+   *  morning, and silently re-pausing the user's first listen of
+   *  the day would be a maddening surprise. Lifetime: this session. */
+  sleepTimerEndsAt: number | null;
 }
 
 interface PlayerControls {
@@ -1734,6 +1740,9 @@ interface PlayerControls {
   setRepeatMode: (m: RepeatMode) => void;
   setShuffle: (on: boolean) => void;
   setPlaybackRate: (rate: number) => void;
+  /** Schedule a sleep timer N minutes from now. Pass null to cancel.
+   *  When the timer fires, playback pauses and the field is cleared. */
+  setSleepTimer: (durationMin: number | null) => void;
   next: () => void;
   prev: () => void;
 }
@@ -1782,7 +1791,7 @@ function usePlayer(
         if (Number.isFinite(parsed)) playbackRate = Math.max(0.25, Math.min(4, parsed));
       }
     } catch {}
-    return { trackId: null, playing: false, loadingTrackId: null, positionMs: 0, durationMs: 0, volume, repeatMode, shuffle, playbackRate };
+    return { trackId: null, playing: false, loadingTrackId: null, positionMs: 0, durationMs: 0, volume, repeatMode, shuffle, playbackRate, sleepTimerEndsAt: null };
   });
   const errorRetryRef = useRef<string | null>(null);
   // Play history stack — the trackIds the user has heard, oldest →
@@ -1810,6 +1819,17 @@ function usePlayer(
     setState((s) => ({ ...s, playbackRate: clamped }));
     try { localStorage.setItem('juli3ta:playbackRate', String(clamped)); } catch {}
   }, [audioRef]);
+  const setSleepTimer = useCallback((durationMin: number | null) => {
+    if (durationMin === null || durationMin <= 0) {
+      setState((s) => ({ ...s, sleepTimerEndsAt: null }));
+      return;
+    }
+    // Clamp to 24h — anything longer is almost certainly a typo
+    // (and would silently survive past the user's next nap).
+    const safeMin = Math.min(durationMin, 24 * 60);
+    const endsAt = Date.now() + safeMin * 60_000;
+    setState((s) => ({ ...s, sleepTimerEndsAt: endsAt }));
+  }, []);
 
   // Pre-load a track without starting playback. The bottom MiniPlayer
   // reads `state.trackId` to decide what to show, so `select` flips
@@ -1961,6 +1981,25 @@ function usePlayer(
     if (audioRef.current) audioRef.current.playbackRate = state.playbackRate;
   }, [state.playbackRate, state.trackId, audioRef]);
 
+  // Sleep timer — fires once at sleepTimerEndsAt and pauses playback.
+  // We use setTimeout (not an interval) so the fire is exact; the UI
+  // chip uses its own 1Hz tick for the countdown display, kept
+  // separate so the audio-side effect stays simple.
+  useEffect(() => {
+    if (state.sleepTimerEndsAt === null) return;
+    const remaining = state.sleepTimerEndsAt - Date.now();
+    if (remaining <= 0) {
+      audioRef.current?.pause();
+      setState((s) => ({ ...s, sleepTimerEndsAt: null, playing: false }));
+      return;
+    }
+    const handle = window.setTimeout(() => {
+      audioRef.current?.pause();
+      setState((s) => ({ ...s, sleepTimerEndsAt: null, playing: false }));
+    }, remaining);
+    return () => window.clearTimeout(handle);
+  }, [state.sleepTimerEndsAt, audioRef]);
+
   const playable = useMemo(() => queue.filter(hasPlayableAudio), [queue]);
 
   // Pick a random track from `playable` excluding the current one. We
@@ -2109,7 +2148,7 @@ function usePlayer(
     };
   }, [playable, state.trackId, state.repeatMode, state.shuffle, play, audioRef, resolveTrackSrc]);
 
-  return { state, queue, play, pause, toggle, select, seek, setVolume, setRepeatMode, setShuffle, setPlaybackRate, next, prev };
+  return { state, queue, play, pause, toggle, select, seek, setVolume, setRepeatMode, setShuffle, setPlaybackRate, setSleepTimer, next, prev };
 }
 
 // ──────────────────────────────────────────────────────────
@@ -2263,7 +2302,7 @@ function TrackAvatar({
 }
 
 function MiniPlayer({ player, allTracks }: { player: PlayerControls; allTracks: SavedTrack[] }) {
-  const { state, toggle, next, prev, seek, setVolume, setPlaybackRate, queue } = player;
+  const { state, toggle, next, prev, seek, setVolume, setPlaybackRate, setSleepTimer, queue } = player;
   // Try the queue first (typically === visibleGallery so prev/next
   // line up with what the user sees), then fall back to the full
   // gallery so the player doesn't disappear when the user types in
@@ -2415,6 +2454,11 @@ function MiniPlayer({ player, allTracks }: { player: PlayerControls; allTracks: 
           a genuinely hard-to-debug user complaint). */}
       <SpeedChip rate={state.playbackRate} setRate={setPlaybackRate} />
 
+      {/* Sleep timer — cycles through SLEEP_TIMER_OPTIONS on click.
+          When active, displays remaining minutes; when off, just the
+          moon icon. Right-click cancels. */}
+      <SleepTimerChip endsAt={state.sleepTimerEndsAt} setSleepTimer={setSleepTimer} />
+
       {/* Volume — slim slider with click-to-mute speaker icon.
           The icon stashes the pre-mute volume on a ref so toggling
           back restores the user's level instead of jumping to 100%. */}
@@ -2484,6 +2528,88 @@ function SpeedChip({
       title={isDefault ? 'Playback speed (click to change)' : `Playback speed ${label} — click to cycle, right-click to reset`}
     >
       {label}
+    </button>
+  );
+}
+
+// SLEEP_TIMER_OPTIONS — minutes the chip cycles through. Spans the
+// useful range for music: 5 (a single track), 15 (a couple of tracks),
+// 30 (a typical winding-down session), 45 (full album), 60 (extended).
+// `null` represents "off" — the cycle wraps back through it so the
+// user can always click their way to disabled.
+const SLEEP_TIMER_OPTIONS: ReadonlyArray<number | null> = [null, 5, 15, 30, 45, 60];
+
+function SleepTimerChip({
+  endsAt,
+  setSleepTimer,
+}: {
+  endsAt: number | null;
+  setSleepTimer: (durationMin: number | null) => void;
+}) {
+  // Re-render every second so the countdown stays live. Skipped
+  // when the timer is off — no point ticking when there's nothing
+  // to display. The browser coalesces 1Hz timers across tabs so
+  // this is essentially free.
+  const [, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (endsAt === null) return;
+    const id = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(id);
+  }, [endsAt]);
+
+  const isActive = endsAt !== null;
+  const remainingMin = isActive
+    ? Math.max(0, Math.ceil((endsAt - Date.now()) / 60_000))
+    : 0;
+
+  // Find the current option in the cycle. We match the *initial*
+  // duration the user picked (we can't introspect that from endsAt
+  // alone after time has passed), so for cycling we just step to the
+  // next option that's bigger than the current ceiling-minute count.
+  const onClick = () => {
+    if (!isActive) {
+      setSleepTimer(SLEEP_TIMER_OPTIONS[1]);
+      return;
+    }
+    // Find the next option > current remaining minutes; wrap to null.
+    const nextOption = SLEEP_TIMER_OPTIONS.find(
+      (opt) => opt !== null && opt > remainingMin,
+    ) ?? null;
+    setSleepTimer(nextOption);
+  };
+  const onContextMenu = (e: React.MouseEvent) => {
+    e.preventDefault();
+    if (isActive) setSleepTimer(null);
+  };
+
+  const label = isActive
+    ? remainingMin > 0 ? `${remainingMin}m` : '<1m'
+    : '';
+  const title = isActive
+    ? `Sleep timer: pauses in ~${remainingMin}m. Click to extend, right-click to cancel.`
+    : 'Sleep timer (click to start, off by default)';
+
+  return (
+    <button
+      onClick={onClick}
+      onContextMenu={onContextMenu}
+      className="flex items-center justify-center flex-shrink-0 transition-all hover:bg-[var(--bg-hover)] rounded-md tabular-nums"
+      style={{
+        height: 22,
+        minWidth: isActive ? 48 : 26,
+        padding: isActive ? '0 6px' : '0 4px',
+        gap: 4,
+        fontSize: 10,
+        fontWeight: 700,
+        letterSpacing: 0.3,
+        color: isActive ? 'var(--accent-primary)' : 'var(--text-disabled)',
+        border: `1px solid ${isActive ? 'var(--accent-primary)' : 'var(--border-subtle)'}`,
+        background: isActive ? 'var(--bg-hover)' : 'transparent',
+      }}
+      title={title}
+    >
+      <Moon size={11} />
+      {label && <span>{label}</span>}
     </button>
   );
 }
