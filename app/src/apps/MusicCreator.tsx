@@ -1709,6 +1709,12 @@ interface PlayerState {
    *  the user explicitly asked for the current track to loop.
    *  Persisted in localStorage('juli3ta:shuffle'). */
   shuffle: boolean;
+  /** Audio playback rate. 1 = normal speed; 0.5 = half-speed (good
+   *  for transcribing/learning a song); 1.5/2 = fast scan. Applied
+   *  to the <audio> element via .playbackRate; HTML5 audio preserves
+   *  pitch by default in modern browsers. Persisted in
+   *  localStorage('juli3ta:playbackRate'). Clamped to [0.25, 4]. */
+  playbackRate: number;
 }
 
 interface PlayerControls {
@@ -1727,6 +1733,7 @@ interface PlayerControls {
   setVolume: (v: number) => void;
   setRepeatMode: (m: RepeatMode) => void;
   setShuffle: (on: boolean) => void;
+  setPlaybackRate: (rate: number) => void;
   next: () => void;
   prev: () => void;
 }
@@ -1763,7 +1770,19 @@ function usePlayer(
         if (Number.isFinite(parsed)) volume = Math.max(0, Math.min(1, parsed));
       }
     } catch {}
-    return { trackId: null, playing: false, loadingTrackId: null, positionMs: 0, durationMs: 0, volume, repeatMode, shuffle };
+    // Persist playbackRate so a deliberate slow-down (e.g. 0.75x for
+    // a Spanish lyrics study session) survives a reload. Clamp to
+    // [0.25, 4] — values outside that range are nonsensical for music
+    // playback and some browsers reject them silently.
+    let playbackRate = 1;
+    try {
+      const raw = localStorage.getItem('juli3ta:playbackRate');
+      if (raw !== null) {
+        const parsed = Number.parseFloat(raw);
+        if (Number.isFinite(parsed)) playbackRate = Math.max(0.25, Math.min(4, parsed));
+      }
+    } catch {}
+    return { trackId: null, playing: false, loadingTrackId: null, positionMs: 0, durationMs: 0, volume, repeatMode, shuffle, playbackRate };
   });
   const errorRetryRef = useRef<string | null>(null);
   // Play history stack — the trackIds the user has heard, oldest →
@@ -1785,6 +1804,12 @@ function usePlayer(
     setState((s) => ({ ...s, shuffle: on }));
     try { localStorage.setItem('juli3ta:shuffle', on ? '1' : '0'); } catch {}
   }, []);
+  const setPlaybackRate = useCallback((rate: number) => {
+    const clamped = Math.max(0.25, Math.min(4, rate));
+    if (audioRef.current) audioRef.current.playbackRate = clamped;
+    setState((s) => ({ ...s, playbackRate: clamped }));
+    try { localStorage.setItem('juli3ta:playbackRate', String(clamped)); } catch {}
+  }, [audioRef]);
 
   // Pre-load a track without starting playback. The bottom MiniPlayer
   // reads `state.trackId` to decide what to show, so `select` flips
@@ -1926,6 +1951,15 @@ function usePlayer(
     // setVolume which already updates audioRef.current.volume.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Re-apply playbackRate whenever it changes OR the active track
+  // changes. HTMLAudioElement resets playbackRate to 1.0 every time
+  // `src` is reassigned, so without this the slow-down silently
+  // reverts on the next track. Runs both on mount (persisted rate
+  // applies to the first <audio>) and on every state.trackId flip.
+  useEffect(() => {
+    if (audioRef.current) audioRef.current.playbackRate = state.playbackRate;
+  }, [state.playbackRate, state.trackId, audioRef]);
 
   const playable = useMemo(() => queue.filter(hasPlayableAudio), [queue]);
 
@@ -2075,7 +2109,7 @@ function usePlayer(
     };
   }, [playable, state.trackId, state.repeatMode, state.shuffle, play, audioRef, resolveTrackSrc]);
 
-  return { state, queue, play, pause, toggle, select, seek, setVolume, setRepeatMode, setShuffle, next, prev };
+  return { state, queue, play, pause, toggle, select, seek, setVolume, setRepeatMode, setShuffle, setPlaybackRate, next, prev };
 }
 
 // ──────────────────────────────────────────────────────────
@@ -2229,7 +2263,7 @@ function TrackAvatar({
 }
 
 function MiniPlayer({ player, allTracks }: { player: PlayerControls; allTracks: SavedTrack[] }) {
-  const { state, toggle, next, prev, seek, setVolume, queue } = player;
+  const { state, toggle, next, prev, seek, setVolume, setPlaybackRate, queue } = player;
   // Try the queue first (typically === visibleGallery so prev/next
   // line up with what the user sees), then fall back to the full
   // gallery so the player doesn't disappear when the user types in
@@ -2374,6 +2408,13 @@ function MiniPlayer({ player, allTracks }: { player: PlayerControls; allTracks: 
         {formatTime(dur)}
       </span>
 
+      {/* Speed chip — cycles through PLAYBACK_SPEEDS on click.
+          Hidden at 1x via subtle styling, accent-coloured when slow
+          or fast so the user notices when audio isn't running at
+          normal speed (otherwise the "music sounds wrong" puzzle is
+          a genuinely hard-to-debug user complaint). */}
+      <SpeedChip rate={state.playbackRate} setRate={setPlaybackRate} />
+
       {/* Volume — slim slider with click-to-mute speaker icon.
           The icon stashes the pre-mute volume on a ref so toggling
           back restores the user's level instead of jumping to 100%. */}
@@ -2390,6 +2431,60 @@ function MiniPlayer({ player, allTracks }: { player: PlayerControls; allTracks: 
         />
       </div>
     </div>
+  );
+}
+
+// PLAYBACK_SPEEDS — values the SpeedChip cycles through on click. 1
+// is the "default" anchor, then ascending. Click cycles forward and
+// wraps; right-click resets to 1x. We deliberately stop at 2x — the
+// browser's pitch-preservation gets noticeably wonky past that, and
+// 4x feels like a different track entirely. 0.5/0.75 cover the
+// transcription/study use-cases.
+const PLAYBACK_SPEEDS = [1, 1.25, 1.5, 2, 0.5, 0.75] as const;
+
+function SpeedChip({
+  rate,
+  setRate,
+}: {
+  rate: number;
+  setRate: (r: number) => void;
+}) {
+  const isDefault = Math.abs(rate - 1) < 0.001;
+  const onClick = () => {
+    const idx = PLAYBACK_SPEEDS.findIndex((s) => Math.abs(s - rate) < 0.001);
+    const next = PLAYBACK_SPEEDS[(idx + 1) % PLAYBACK_SPEEDS.length];
+    setRate(next);
+  };
+  // Right-click resets to 1x — quick escape hatch when the user has
+  // cycled into a slow-down they want to undo without click-spamming.
+  const onContextMenu = (e: React.MouseEvent) => {
+    e.preventDefault();
+    if (!isDefault) setRate(1);
+  };
+  // Format: drop trailing zero so 1x reads as "1×" not "1.00×". Keep
+  // one decimal for 0.5 → "0.5×" so the reader sees fractional speed
+  // unambiguously without the row of zeros.
+  const label = `${Number.isInteger(rate) ? rate.toString() : rate.toString().replace(/\.?0+$/, '')}×`;
+  return (
+    <button
+      onClick={onClick}
+      onContextMenu={onContextMenu}
+      className="flex items-center justify-center flex-shrink-0 transition-all hover:bg-[var(--bg-hover)] rounded-md tabular-nums"
+      style={{
+        height: 22,
+        minWidth: 36,
+        padding: '0 6px',
+        fontSize: 10,
+        fontWeight: 700,
+        letterSpacing: 0.3,
+        color: isDefault ? 'var(--text-disabled)' : 'var(--accent-primary)',
+        border: `1px solid ${isDefault ? 'var(--border-subtle)' : 'var(--accent-primary)'}`,
+        background: isDefault ? 'transparent' : 'var(--bg-hover)',
+      }}
+      title={isDefault ? 'Playback speed (click to change)' : `Playback speed ${label} — click to cycle, right-click to reset`}
+    >
+      {label}
+    </button>
   );
 }
 
