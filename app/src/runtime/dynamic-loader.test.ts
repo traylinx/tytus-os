@@ -344,13 +344,13 @@ describe('loadAppById', () => {
     });
 
     expect(importModule).toHaveBeenCalledWith(
-      'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-juli3ta@juli3ta-0.3.6/dist/index.js',
+      'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-juli3ta@juli3ta-0.3.7/dist/index.js',
     );
     expect(makeEnv).toHaveBeenCalledWith(
       'juli3ta',
-      expect.objectContaining({ version: '0.3.6' }),
+      expect.objectContaining({ version: '0.3.7' }),
     );
-    expect(result.manifest.version).toBe('0.3.6');
+    expect(result.manifest.version).toBe('0.3.7');
   });
 });
 

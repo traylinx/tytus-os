@@ -126,11 +126,11 @@ function isRemoteEntryUrl(entryUrl: string): boolean {
   return /^https?:\/\//i.test(entryUrl);
 }
 
-const JULI3TA_GATEWAY_FIX_VERSION = '0.3.6';
+const JULI3TA_GATEWAY_FIX_VERSION = '0.3.7';
 const JULI3TA_GATEWAY_FIX_MANIFEST_URL =
-  'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-juli3ta@juli3ta-0.3.6/tytus-app.json';
+  'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-juli3ta@juli3ta-0.3.7/tytus-app.json';
 const JULI3TA_GATEWAY_FIX_ENTRY_URL =
-  'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-juli3ta@juli3ta-0.3.6/dist/index.js';
+  'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-juli3ta@juli3ta-0.3.7/dist/index.js';
 
 const JULI3TA_GATEWAY_FIX_MANIFEST: Manifest = {
   $schema: 'https://tytus.traylinx.com/schema/app/v1.json',
@@ -189,7 +189,7 @@ const withJuli3taGatewayFix = (row: InstalledAppRow): InstalledAppRow => {
   if (row.id !== 'juli3ta') return row;
   const version = row.manifest.version ?? '';
   const staleByVersion = isVersionBefore(version, JULI3TA_GATEWAY_FIX_VERSION);
-  const staleByUrl = /tytus-app-juli3ta@juli3ta-0\.(?:0|1|2|3\.[0-5])\b/.test(
+  const staleByUrl = /tytus-app-juli3ta@juli3ta-0\.(?:0|1|2|3\.[0-6])\b/.test(
     `${row.entryUrl ?? ''} ${row.manifestUrl ?? ''}`,
   );
   if (!staleByVersion && !staleByUrl) return row;
