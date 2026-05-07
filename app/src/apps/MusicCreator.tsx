@@ -79,7 +79,7 @@ import {
   migrateLegacyRecordingsToSqlite,
   type VoiceRecordingRow,
 } from '@/lib/repo/voiceRecordings';
-import { revealSecret } from '@/lib/secrets';
+import { buildJuli3taGatewayCandidates } from '@/lib/juli3taGatewayCandidates';
 import { buildCoverSample, buildIconicMix } from '@/lib/coverSample';
 import {
   getMusicStatus,
@@ -240,12 +240,6 @@ interface DiscoveredModels {
   image: string | null;
   allIds: readonly string[];     // full /v1/models id list — populates Settings dropdowns
 }
-
-// Local AIL fallback. switchAILocal binds to localhost:18080 by default
-// with `sk-test-123` as the dev key. If the user has switchAILocal
-// running, browser fetch can hit it cross-origin (CORS is `*`).
-const LOCAL_AIL_URL = 'http://localhost:18080/v1';
-const LOCAL_AIL_KEY = 'sk-test-123';
 
 // Style chips — grouped by family so the list is browsable rather than
 // a single uniform pile. Adds genres we were missing (Latin, electronic
@@ -854,45 +848,19 @@ const NO_MODELS: DiscoveredModels = {
   music: null, cover: null, lyrics: null, lyricsBackup: null, image: null, allIds: [],
 };
 
-// Static candidate list — we'll race them with a HEAD probe to pick the
-// fastest reachable one (remote first, local fallback).
+// Static candidate list — probe all account-level AIL routes in priority
+// order: remote public mirror → pod tunnel endpoint → local switchAILocal.
+// Music Creator deliberately ignores browser-agent pods (OpenClaw/Hermes):
+// those are not the account AIL gateway and expose the wrong model surface.
 const buildCandidates = (
   agents: readonly Agent[],
   included: readonly IncludedPod[],
 ): PodEndpoint[] => {
-  const out: PodEndpoint[] = [];
   void agents;
-  // Music Creator talks to the account-level AIL gateway, not the
-  // browser-agent gateways. Agent pod public URLs (OpenClaw/Hermes)
-  // are separate browser origins and currently do not answer CORS
-  // preflights for localhost TytusOS; probing them only creates noisy
-  // console errors and offers the wrong capability surface. Included
-  // AIL pods expose a WireGuard-local endpoint with CORS enabled, so
-  // prefer that endpoint over the public mirror.
-  for (const p of included) {
-    if (p.endpoint && p.user_key) {
-      out.push({
-        url: `${p.endpoint.replace(/\/$/, '')}/v1`,
-        apiKey: revealSecret(p.user_key, 'user_gesture'),
-        podId: p.pod_id,
-        source: 'included',
-        label: `AIL gateway ${p.pod_id}`,
-        models: NO_MODELS,
-      });
-    }
-  }
-  // Always include the local AIL gateway as the last-resort fallback.
-  // If switchAILocal is running on this machine, browser fetch reaches
-  // it through CORS (Access-Control-Allow-Origin: *).
-  out.push({
-    url: LOCAL_AIL_URL,
-    apiKey: LOCAL_AIL_KEY,
-    podId: 'local',
-    source: 'local',
-    label: 'Local AIL',
+  return buildJuli3taGatewayCandidates(included).map((candidate) => ({
+    ...candidate,
     models: NO_MODELS,
-  });
-  return out;
+  }));
 };
 
 // Pattern-based mapping from /v1/models output to the per-task ids this

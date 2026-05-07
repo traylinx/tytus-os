@@ -9,7 +9,7 @@
 
 import { describe, expect, it, beforeEach } from 'vitest';
 
-import { cleanupJuli3taAlphaIfPresent } from './cleanup-juli3ta-alpha';
+import { cleanupJuli3taAlphaIfPresent, upgradeJuli3taGatewayFixIfStale } from './cleanup-juli3ta-alpha';
 import {
   insertInstalledApp,
   listInstalledApps,
@@ -65,6 +65,17 @@ class MemoryDb implements Db {
     if (/DELETE\s+FROM\s+installed_apps/i.test(sql)) {
       const id = String(bindings[0]);
       this.rows = this.rows.filter((r) => r.id !== id);
+      return;
+    }
+    if (/UPDATE\s+installed_apps/i.test(sql)) {
+      const [manifest_json, entry_url, assets_url, manifest_url, id] = bindings;
+      const row = this.rows.find((r) => r.id === id);
+      if (row) {
+        row.manifest_json = manifest_json;
+        row.entry_url = entry_url;
+        row.assets_url = assets_url;
+        row.manifest_url = manifest_url;
+      }
       return;
     }
   }
@@ -161,3 +172,34 @@ describe('cleanupJuli3taAlphaIfPresent', () => {
   });
 });
 
+
+describe('upgradeJuli3taGatewayFixIfStale', () => {
+  it('upgrades existing standalone JULI3TA rows below v0.3.3 to the gateway-fix tag', async () => {
+    await insertInstalledApp(db, alphaRow('0.3.2'));
+
+    const report = await upgradeJuli3taGatewayFixIfStale(db);
+
+    expect(report.upgraded).toBe(true);
+    expect(report.reason).toMatch(/0\.3\.2 to 0\.3\.3/);
+    const [row] = await listInstalledApps(db);
+    expect(row?.manifest.version).toBe('0.3.3');
+    expect(row?.entryUrl).toBe(
+      'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-juli3ta@juli3ta-0.3.3/dist/index.js',
+    );
+    expect(row?.manifestUrl).toBe(
+      'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-juli3ta@juli3ta-0.3.3/tytus-app.json',
+    );
+  });
+
+  it('keeps current standalone JULI3TA rows unchanged', async () => {
+    await insertInstalledApp(db, alphaRow('0.3.3'));
+
+    const report = await upgradeJuli3taGatewayFixIfStale(db);
+
+    expect(report.upgraded).toBe(false);
+    expect(report.reason).toBe('version 0.3.3 is current');
+    const [row] = await listInstalledApps(db);
+    expect(row?.manifest.version).toBe('0.3.3');
+    expect(row?.entryUrl).toBe('https://cdn.example.com/juli3ta.js');
+  });
+});

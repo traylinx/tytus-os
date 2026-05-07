@@ -20,12 +20,73 @@
 import {
   deleteInstalledApp,
   getInstalledApp,
+  updateInstalledApp,
 } from './installed-apps-repo';
 import { removeFromInstalledAppsCache } from './installed-apps-cache';
 import { notifyInstalledAppsChanged } from './installed-apps-events';
 import type { Db } from '@/lib/db/types';
+import type { Manifest } from '@tytus/host-api';
 
 const INCOMPLETE_VERSION_PREFIXES = ['0.0.', '0.1.'];
+
+const JULI3TA_GATEWAY_FIX_VERSION = '0.3.3';
+const JULI3TA_GATEWAY_FIX_MANIFEST_URL =
+  'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-juli3ta@juli3ta-0.3.3/tytus-app.json';
+const JULI3TA_GATEWAY_FIX_ENTRY_URL =
+  'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-juli3ta@juli3ta-0.3.3/dist/index.js';
+
+const JULI3TA_GATEWAY_FIX_MANIFEST: Manifest = {
+  $schema: 'https://tytus.traylinx.com/schema/app/v1.json',
+  id: 'juli3ta',
+  name: 'JULI3TA',
+  version: JULI3TA_GATEWAY_FIX_VERSION,
+  icon: 'juli3ta:mark',
+  category: 'Creative',
+  description:
+    'JULI3TA — full AI-native music creator for Tytus OS. Create songs, lyrics, covers, and manage your local music workbench.',
+  window: {
+    defaultSize: { width: 1100, height: 760 },
+    minSize: { width: 720, height: 540 },
+  },
+  permissions: [
+    'vfs.user.music',
+    'daemon.read',
+    'daemon.network',
+    'storage.app',
+    'shell.openWindow',
+    'shell.notifications',
+    'shell.menu',
+  ],
+  storage: {
+    tables: [
+      { name: 'tracks', schema: 'migrations/0002_legacy_compat_tables.sql' },
+      { name: 'settings', schema: 'migrations/0002_legacy_compat_tables.sql' },
+      { name: 'voice-recordings', schema: 'migrations/0002_legacy_compat_tables.sql' },
+      { name: 'music-library', schema: 'migrations/0002_legacy_compat_tables.sql' },
+      { name: 'music-playlists', schema: 'migrations/0002_legacy_compat_tables.sql' },
+    ],
+  },
+  entry: { url: JULI3TA_GATEWAY_FIX_ENTRY_URL },
+};
+
+const versionParts = (version: string): number[] =>
+  version
+    .split(/[^0-9]+/)
+    .filter(Boolean)
+    .slice(0, 3)
+    .map((part) => Number.parseInt(part, 10));
+
+const isVersionBefore = (actual: string, minimum: string): boolean => {
+  const a = versionParts(actual);
+  const b = versionParts(minimum);
+  for (let i = 0; i < 3; i += 1) {
+    const av = a[i] ?? 0;
+    const bv = b[i] ?? 0;
+    if (av < bv) return true;
+    if (av > bv) return false;
+  }
+  return false;
+};
 
 export interface JuliAlphaCleanupReport {
   removed: boolean;
@@ -50,4 +111,36 @@ export async function cleanupJuli3taAlphaIfPresent(
   removeFromInstalledAppsCache('juli3ta');
   notifyInstalledAppsChanged();
   return { removed: true, reason: `removed incomplete standalone ${version}` };
+}
+
+export interface JuliGatewayFixUpgradeReport {
+  upgraded: boolean;
+  reason: string;
+}
+
+export async function upgradeJuli3taGatewayFixIfStale(
+  db: Db,
+): Promise<JuliGatewayFixUpgradeReport> {
+  const row = await getInstalledApp(db, 'juli3ta');
+  if (!row) return { upgraded: false, reason: 'no juli3ta row' };
+  if (row.kind !== 'installed') {
+    return { upgraded: false, reason: `kind ${row.kind} is not installed` };
+  }
+
+  const version = row.manifest.version ?? '';
+  if (!isVersionBefore(version, JULI3TA_GATEWAY_FIX_VERSION)) {
+    return { upgraded: false, reason: `version ${version} is current` };
+  }
+
+  await updateInstalledApp(db, 'juli3ta', {
+    manifest: JULI3TA_GATEWAY_FIX_MANIFEST,
+    entryUrl: JULI3TA_GATEWAY_FIX_ENTRY_URL,
+    assetsUrl: null,
+    manifestUrl: JULI3TA_GATEWAY_FIX_MANIFEST_URL,
+  });
+  notifyInstalledAppsChanged();
+  return {
+    upgraded: true,
+    reason: `upgraded juli3ta ${version || 'unknown'} to ${JULI3TA_GATEWAY_FIX_VERSION}`,
+  };
 }

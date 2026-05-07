@@ -5,7 +5,7 @@ import App from './App.tsx'
 import { initDb, getDbMeta } from '@/lib/db'
 import { seedBundledAppsAtBoot } from '@/runtime/seed-bundled-apps'
 import { autoInstallFeaturedAtBoot } from '@/runtime/auto-install-featured'
-import { cleanupJuli3taAlphaIfPresent } from '@/runtime/cleanup-juli3ta-alpha'
+import { cleanupJuli3taAlphaIfPresent, upgradeJuli3taGatewayFixIfStale } from '@/runtime/cleanup-juli3ta-alpha'
 import { migrateLegacyMusicCreatorTables } from '@/runtime/legacy-migrations'
 import { installHostExternals } from '@/runtime/externals/install-host-externals'
 import { notifyInstalledAppsChanged } from '@/runtime/installed-apps-events'
@@ -75,6 +75,17 @@ initDb()
       }
     } catch (err) {
       console.warn('[tytusos] juli3ta alpha cleanup failed', err)
+    }
+    // In-place update for already-installed JULI3TA rows before v0.3.3.
+    // Those rows point at immutable CDN tags, so App Store Featured updates
+    // alone cannot move existing users off the local-AIL-first build.
+    try {
+      const report = await upgradeJuli3taGatewayFixIfStale(db)
+      if (report.upgraded) {
+        console.info(`[tytusos] juli3ta gateway fix: ${report.reason}`)
+      }
+    } catch (err) {
+      console.warn('[tytusos] juli3ta gateway fix failed', err)
     }
     // Auto-install every Featured catalog entry that isn't already
     // present. The 5 carved-out user apps (text-editor, code-editor,
