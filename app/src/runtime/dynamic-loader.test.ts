@@ -306,6 +306,52 @@ describe('loadAppById', () => {
     expect(result.Component).toBe(FakeComponent);
     expect(result.manifest.id).toBe('third-party-app');
   });
+
+  it('coerces stale JULI3TA rows before loading so persisted windows do not import old CDN tags', async () => {
+    const db = new MemoryDb();
+    const staleUrl =
+      'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-juli3ta@juli3ta-0.2.1/dist/index.js';
+    const staleManifest: Manifest = {
+      ...fakeManifest,
+      id: 'juli3ta',
+      name: 'JULI3TA',
+      version: '0.2.1',
+      entry: { url: staleUrl },
+    };
+    await db.run(
+      `INSERT INTO installed_apps (id, kind, manifest_json, entry_url, assets_url, installed_at, enabled, builtin_protected) VALUES (?,?,?,?,?,?,?,?)`,
+      [
+        'juli3ta',
+        'installed',
+        JSON.stringify(staleManifest),
+        staleUrl,
+        null,
+        0,
+        1,
+        0,
+      ],
+    );
+
+    const FakeComponent = () => null;
+    const importModule = vi.fn(async () => ({
+      default: () => FakeComponent,
+    }));
+    const makeEnv = vi.fn(() => fakeEnv);
+
+    const result = await loadAppById('juli3ta', db, {
+      importModule,
+      makeEnv,
+    });
+
+    expect(importModule).toHaveBeenCalledWith(
+      'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-juli3ta@juli3ta-0.3.6/dist/index.js',
+    );
+    expect(makeEnv).toHaveBeenCalledWith(
+      'juli3ta',
+      expect.objectContaining({ version: '0.3.6' }),
+    );
+    expect(result.manifest.version).toBe('0.3.6');
+  });
 });
 
 describe('loadApp — transport-B (https) delegates to remote-loader', () => {

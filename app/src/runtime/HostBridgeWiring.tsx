@@ -27,6 +27,11 @@ import type {
 
 type DaemonStateListener = (state: DaemonState) => void;
 
+const withV1Suffix = (url: string): string => {
+  const trimmed = url.trim().replace(/\/+$/, '');
+  return /\/v1$/i.test(trimmed) ? trimmed : `${trimmed}/v1`;
+};
+
 export function HostBridgeWiring() {
   const ds = useDaemonStateContext();
   const w = useWindows();
@@ -38,12 +43,28 @@ export function HostBridgeWiring() {
 
   const projected: DaemonState = useMemo(() => {
     const includedRaw = ds.state?.included ?? [];
-    const included: Pod[] = includedRaw.map((p) => ({
-      id: p.pod_id,
-      status: 'running',
-      publicUrl: p.public_url,
-      kind: p.kind,
-    }));
+    const included: Pod[] = includedRaw.map((p) => {
+      const userKey = revealSecret(p.user_key, 'user_gesture');
+      return {
+        id: p.pod_id,
+        status: 'running',
+        publicUrl: p.public_url,
+        kind: p.kind,
+        // Standalone apps get the host-api Pod shape, not the raw daemon
+        // `included[]` shape. Expose the gateway material in `meta` for
+        // apps that use OpenAI-compatible SDKs directly (API Tester,
+        // JULI3TA), while `callPodEndpoint` remains the preferred host
+        // proxy when an app can delegate the request.
+        meta: {
+          endpoint: p.endpoint,
+          gatewayKey: userKey,
+          gatewayUrl: withV1Suffix(p.public_url),
+          privateUrl: p.endpoint,
+          publicUrl: p.public_url,
+          userKey,
+        },
+      };
+    });
     const agents: Agent[] = (ds.state?.agents ?? []).map((a) => ({
       id: a.pod_id,
       kind: a.agent_type,

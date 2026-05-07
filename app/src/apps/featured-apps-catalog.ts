@@ -4,7 +4,7 @@
  * served from a public github.com/traylinx/tytus-app-* repo via jsDelivr.
  *
  * Phase 10: source of truth is the remote catalog at
- * https://cdn.jsdelivr.net/gh/traylinx/tytus-app-catalog@<tag>/featured.json
+ * https://cdn.jsdelivr.net/gh/traylinx/tytus-app-catalog@<commit>/featured.json
  * — adding a featured app no longer requires an OS update. The App Store
  * fetches once per mount with `loadFeaturedApps()`. If the fetch fails
  * (offline, jsDelivr blip), we fall back to the hardcoded `FEATURED_APPS`
@@ -95,7 +95,7 @@ const ALL_FEATURED_APPS: FeaturedApp[] = [
     description: 'Full AI-native music creator for Tytus OS. Create songs, lyrics, covers, and manage your local music workbench.',
     icon: 'juli3ta:mark',
     category: 'Creative',
-    manifestUrl: 'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-juli3ta@juli3ta-0.3.3/tytus-app.json',
+    manifestUrl: 'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-juli3ta@juli3ta-0.3.6/tytus-app.json',
   },
 ];
 
@@ -111,10 +111,11 @@ export const FEATURED_APPS: FeaturedApp[] = ALL_FEATURED_APPS.filter(
  *  catalog repo is independently versioned so featured-app additions
  *  don't require a Tytus OS rebuild. v0.7.0 publishes verified standalone
  *  Forge is developed as a standalone app; the catalog is intentionally
- *  fetched from `main` so Forge version bumps do not require an OS rebuild.
- *  Individual app manifest URLs remain pinned to immutable app tags. */
+ *  fetched from an immutable catalog commit so jsDelivr branch caching does
+ *  not keep users on stale standalone app tags. Individual app manifest URLs
+ *  remain pinned to immutable app tags. */
 export const FEATURED_CATALOG_URL =
-  'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-catalog@7b9b5c21a0c4bdbcd08ed2b7dcd4e9e0b5028879/featured.json';
+  'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-catalog@0ac38db0ed861d826fee58e88bc0979d992f7c0f/featured.json';
 
 /**
  * Denylist of catalog ids the OS will refuse to auto-install at boot,

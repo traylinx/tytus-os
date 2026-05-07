@@ -126,6 +126,82 @@ function isRemoteEntryUrl(entryUrl: string): boolean {
   return /^https?:\/\//i.test(entryUrl);
 }
 
+const JULI3TA_GATEWAY_FIX_VERSION = '0.3.6';
+const JULI3TA_GATEWAY_FIX_MANIFEST_URL =
+  'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-juli3ta@juli3ta-0.3.6/tytus-app.json';
+const JULI3TA_GATEWAY_FIX_ENTRY_URL =
+  'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-juli3ta@juli3ta-0.3.6/dist/index.js';
+
+const JULI3TA_GATEWAY_FIX_MANIFEST: Manifest = {
+  $schema: 'https://tytus.traylinx.com/schema/app/v1.json',
+  id: 'juli3ta',
+  name: 'JULI3TA',
+  version: JULI3TA_GATEWAY_FIX_VERSION,
+  icon: 'juli3ta:mark',
+  category: 'Creative',
+  description:
+    'JULI3TA — full AI-native music creator for Tytus OS. Create songs, lyrics, covers, and manage your local music workbench.',
+  window: {
+    defaultSize: { width: 1100, height: 760 },
+    minSize: { width: 720, height: 540 },
+  },
+  permissions: [
+    'vfs.user.music',
+    'daemon.read',
+    'daemon.network',
+    'storage.app',
+    'shell.openWindow',
+    'shell.notifications',
+    'shell.menu',
+  ],
+  storage: {
+    tables: [
+      { name: 'tracks', schema: 'migrations/0002_legacy_compat_tables.sql' },
+      { name: 'settings', schema: 'migrations/0002_legacy_compat_tables.sql' },
+      { name: 'voice-recordings', schema: 'migrations/0002_legacy_compat_tables.sql' },
+      { name: 'music-library', schema: 'migrations/0002_legacy_compat_tables.sql' },
+      { name: 'music-playlists', schema: 'migrations/0002_legacy_compat_tables.sql' },
+    ],
+  },
+  entry: { url: JULI3TA_GATEWAY_FIX_ENTRY_URL },
+};
+
+const versionParts = (version: string): number[] =>
+  version
+    .split(/[^0-9]+/)
+    .filter(Boolean)
+    .slice(0, 3)
+    .map((part) => Number.parseInt(part, 10));
+
+const isVersionBefore = (actual: string, minimum: string): boolean => {
+  const a = versionParts(actual);
+  const b = versionParts(minimum);
+  for (let i = 0; i < 3; i += 1) {
+    const av = a[i] ?? 0;
+    const bv = b[i] ?? 0;
+    if (av < bv) return true;
+    if (av > bv) return false;
+  }
+  return false;
+};
+
+const withJuli3taGatewayFix = (row: InstalledAppRow): InstalledAppRow => {
+  if (row.id !== 'juli3ta') return row;
+  const version = row.manifest.version ?? '';
+  const staleByVersion = isVersionBefore(version, JULI3TA_GATEWAY_FIX_VERSION);
+  const staleByUrl = /tytus-app-juli3ta@juli3ta-0\.(?:0|1|2|3\.[0-5])\b/.test(
+    `${row.entryUrl ?? ''} ${row.manifestUrl ?? ''}`,
+  );
+  if (!staleByVersion && !staleByUrl) return row;
+  return {
+    ...row,
+    manifest: JULI3TA_GATEWAY_FIX_MANIFEST,
+    entryUrl: JULI3TA_GATEWAY_FIX_ENTRY_URL,
+    assetsUrl: null,
+    manifestUrl: JULI3TA_GATEWAY_FIX_MANIFEST_URL,
+  };
+};
+
 export interface LoadAppOptions {
   /** Injected for testability. Production code uses native dynamic
    *  import. The function returns the imported module — the loader
@@ -247,13 +323,19 @@ export async function loadAppById(
     makeEnv?: (appId: string, manifest: Manifest) => AppBootEnv;
   } = {},
 ): Promise<LoadedApp> {
-  const row = await getInstalledApp(db, appId);
-  if (!row) {
+  const storedRow = await getInstalledApp(db, appId);
+  if (!storedRow) {
     throw new AppLoadError(
       appId,
       `not found in installed_apps. Boot seed missed the row, or the app id is wrong.`,
     );
   }
+  // React mounts before the async SQLite boot cleanup finishes. If the
+  // persisted window opens JULI3TA during that race, it can otherwise
+  // import the old immutable 0.2.x CDN bundle for the whole session.
+  // Coerce at load time as a second line of defense; the boot cleanup
+  // still repairs the row permanently once it reaches the DB.
+  const row = withJuli3taGatewayFix(storedRow);
   const makeEnv =
     opts.makeEnv ??
     ((id: string, manifest: Manifest) =>
