@@ -110,10 +110,52 @@ interface DaemonStateProvider {
 }
 
 let DAEMON_STATE_PROVIDER: DaemonStateProvider | null = null;
+const EMPTY_DAEMON_STATE: DaemonState = { agents: [], included: [] };
+const DAEMON_STATE_SUBSCRIBERS = new Set<(s: DaemonState) => void>();
+let daemonProviderUnsubscribe: (() => void) | null = null;
+
+function emitDaemonState(state: DaemonState): void {
+  for (const fn of [...DAEMON_STATE_SUBSCRIBERS]) {
+    try {
+      fn(state);
+    } catch {
+      // subscriber faults must not break the shell bridge
+    }
+  }
+}
+
+function subscribeDaemonState(fn: (s: DaemonState) => void): () => void {
+  DAEMON_STATE_SUBSCRIBERS.add(fn);
+  const provider = DAEMON_STATE_PROVIDER;
+  if (provider) {
+    queueMicrotask(() => {
+      if (DAEMON_STATE_SUBSCRIBERS.has(fn)) {
+        try {
+          fn(provider.getState());
+        } catch {
+          // subscriber faults must not break the shell bridge
+        }
+      }
+    });
+  }
+  return () => {
+    DAEMON_STATE_SUBSCRIBERS.delete(fn);
+  };
+}
+
 export function setDaemonStateProvider(
   provider: DaemonStateProvider | null,
 ): void {
+  daemonProviderUnsubscribe?.();
+  daemonProviderUnsubscribe = null;
   DAEMON_STATE_PROVIDER = provider;
+  if (!provider) return;
+
+  // One shell-level subscription fans out to every HostClient. This keeps
+  // host.daemon subscriptions valid even when an app's HostClient was built
+  // before HostBridgeWiring mounted (browser reload + restored windows).
+  daemonProviderUnsubscribe = provider.subscribe(emitDaemonState);
+  emitDaemonState(provider.getState());
 }
 
 interface WindowsActions {
@@ -426,17 +468,12 @@ function makeFsApi(): FsApi {
  *  apps never see the bearer or assemble URLs themselves. The music and
  *  juli3taLibrary sub-clients hit same-origin daemon HTTP routes. */
 function makeDaemonApi(): DaemonApi {
-  const provider = DAEMON_STATE_PROVIDER;
-  const state = provider ? provider.getState() : { agents: [], included: [] };
-  const onStateChange = provider
-    ? (fn: (s: DaemonState) => void) => provider.subscribe(fn)
-    : () => () => {};
-
   const callPodEndpoint = async (
     podId: string,
     path: string,
     init?: RequestInit,
   ): Promise<Response> => {
+    const provider = DAEMON_STATE_PROVIDER;
     if (!provider) {
       throw new Error(
         'host.daemon.callPodEndpoint: no DaemonStateProvider wired. ' +
@@ -464,8 +501,10 @@ function makeDaemonApi(): DaemonApi {
   };
 
   return {
-    state,
-    onStateChange,
+    get state() {
+      return DAEMON_STATE_PROVIDER?.getState() ?? EMPTY_DAEMON_STATE;
+    },
+    onStateChange: subscribeDaemonState,
     callPodEndpoint,
     music: makeMusicDaemonApi(),
     juli3taLibrary: makeJuli3taLibraryApi(),

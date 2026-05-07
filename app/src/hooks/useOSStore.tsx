@@ -40,7 +40,11 @@ const loadPersistedWindows = (): PersistedWindow[] | null => {
     if (!raw) return null;
     const parsed: unknown = JSON.parse(raw);
     if (!Array.isArray(parsed)) return null;
-    const valid = parsed.filter(isPersistedWindow).filter((w) => getAppById(w.appId));
+    // Do not gate restored windows on `getAppById()`. Third-party /
+    // installed app definitions (JULI3TA, Forge, etc.) hydrate from the
+    // async installed-apps cache after the React tree starts. Filtering here
+    // races that hydration and drops those open windows on browser reload.
+    const valid = parsed.filter(isPersistedWindow);
     return valid;
   } catch {
     return null;
@@ -50,7 +54,9 @@ const loadPersistedWindows = (): PersistedWindow[] | null => {
 const persistWindows = (windows: Window[]): void => {
   try {
     const trimmed: PersistedWindow[] = windows
-      .filter((w) => getAppById(w.appId))
+      // Persist every structurally-valid open window, not only static
+      // registry apps. Installed apps can be unknown to the synchronous
+      // registry at reload/persist time but are still valid windows.
       .map((w) => ({
         id: w.id,
         appId: w.appId,

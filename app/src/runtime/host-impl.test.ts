@@ -301,6 +301,91 @@ describe('daemon.callPodEndpoint', () => {
   });
 });
 
+describe('daemon state bridge', () => {
+  const makeProvider = (stateRef: { current: DaemonState }) => {
+    const listeners = new Set<(s: DaemonState) => void>();
+    return {
+      provider: {
+        getState: () => stateRef.current,
+        getPod: () => null,
+        subscribe: (fn: (s: DaemonState) => void) => {
+          listeners.add(fn);
+          return () => listeners.delete(fn);
+        },
+      },
+      emit: () => {
+        for (const fn of listeners) fn(stateRef.current);
+      },
+    };
+  };
+
+  const tick = () => new Promise<void>((resolve) => queueMicrotask(resolve));
+
+  it('keeps host.daemon.state live when the provider is wired after host creation', () => {
+    const host = makeHostForApp('demo', fakeManifest, fakeEntryUrls);
+    expect(host.daemon.state.included).toHaveLength(0);
+
+    const stateRef = {
+      current: {
+        agents: [],
+        included: [{ id: 'ail-04', status: 'running' }],
+      } satisfies DaemonState,
+    };
+    const { provider } = makeProvider(stateRef);
+    setDaemonStateProvider(provider);
+
+    expect(host.daemon.state.included.map((p) => p.id)).toEqual(['ail-04']);
+  });
+
+  it('replays current state to subscribers registered before provider wiring', async () => {
+    const host = makeHostForApp('demo', fakeManifest, fakeEntryUrls);
+    const seen: string[] = [];
+    const off = host.daemon.onStateChange((state) => {
+      seen.push(state.included.map((p) => p.id).join(','));
+    });
+
+    const stateRef = {
+      current: {
+        agents: [],
+        included: [{ id: 'ail-04', status: 'running' }],
+      } satisfies DaemonState,
+    };
+    const { provider, emit } = makeProvider(stateRef);
+    setDaemonStateProvider(provider);
+    await tick();
+
+    stateRef.current = {
+      agents: [],
+      included: [{ id: 'ail-05', status: 'running' }],
+    };
+    emit();
+
+    off();
+    expect(seen).toEqual(['ail-04', 'ail-05']);
+  });
+
+  it('replays current state to subscribers registered after provider wiring', async () => {
+    const stateRef = {
+      current: {
+        agents: [],
+        included: [{ id: 'ail-04', status: 'running' }],
+      } satisfies DaemonState,
+    };
+    const { provider } = makeProvider(stateRef);
+    setDaemonStateProvider(provider);
+
+    const host = makeHostForApp('demo', fakeManifest, fakeEntryUrls);
+    const seen: string[] = [];
+    const off = host.daemon.onStateChange((state) => {
+      seen.push(state.included.map((p) => p.id).join(','));
+    });
+    await tick();
+    off();
+
+    expect(seen).toEqual(['ail-04']);
+  });
+});
+
 // ─── W2 — daemon.music ────────────────────────────────────────────────
 
 describe('daemon.music', () => {
@@ -718,4 +803,3 @@ describe('notifications.notify — appId / unread', () => {
     expect(queue[0].unread).toBe(false);
   });
 });
-
