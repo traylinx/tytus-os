@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { SCHEMA_V12, SCHEMA_V13, SCHEMA_VERSION } from './schema';
+import { SCHEMA_V12, SCHEMA_V13, SCHEMA_V14, SCHEMA_VERSION } from './schema';
 
 describe('SQLite schema — V12 (installed_apps)', () => {
-  it('SCHEMA_VERSION is bumped to 13', () => {
-    expect(SCHEMA_VERSION).toBe(13);
+  it('SCHEMA_VERSION is bumped to 14', () => {
+    expect(SCHEMA_VERSION).toBe(14);
   });
 
   it('SCHEMA_V12 creates installed_apps with the right columns', () => {
@@ -53,5 +53,23 @@ describe('SQLite schema — V13 (installed_apps.manifest_url)', () => {
       /ALTER\s+TABLE\s+installed_apps\s+ADD\s+COLUMN\s+manifest_url\s+TEXT/i,
     );
     expect(SCHEMA_V13).not.toMatch(/manifest_url\s+TEXT\s+NOT\s+NULL/i);
+  });
+});
+
+
+describe('SQLite schema — V14 (AI conversation substrate)', () => {
+  it('creates durable AI/Cortex tables and indexes', () => {
+    for (const table of [
+      'ai_threads',
+      'ai_messages',
+      'ai_runs',
+      'ai_artifacts',
+      'ai_memories',
+      'ai_outbox',
+    ]) {
+      expect(SCHEMA_V14).toContain(`CREATE TABLE IF NOT EXISTS ${table}`);
+    }
+    expect(SCHEMA_V14).toContain('CREATE VIRTUAL TABLE IF NOT EXISTS ai_memories_fts');
+    expect(SCHEMA_V14).toContain('idx_ai_threads_app_workspace');
   });
 });
