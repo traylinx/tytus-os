@@ -39,7 +39,7 @@ const ALL_FEATURED_APPS: FeaturedApp[] = [
     description: 'Monaco workspace with local files, chat/output panels, extension connectors, markdown preview, and search.',
     icon: 'Sparkles',
     category: 'Productivity',
-    manifestUrl: 'https://raw.githubusercontent.com/traylinx/tytus-app-atomek/v0.3.3/tytus-app.json',
+    manifestUrl: 'https://raw.githubusercontent.com/traylinx/tytus-app-atomek/v0.3.4/tytus-app.json',
   },
   {
     id: 'text-editor',
@@ -115,7 +115,7 @@ export const FEATURED_APPS: FeaturedApp[] = ALL_FEATURED_APPS.filter(
  *  not keep users on stale standalone app tags. Individual app manifest URLs
  *  remain pinned to immutable app tags. */
 export const FEATURED_CATALOG_URL =
-  'https://raw.githubusercontent.com/traylinx/tytus-app-catalog/c0c72e5494e12b02273032f978be72f8302363d6/featured.json';
+  'https://raw.githubusercontent.com/traylinx/tytus-app-catalog/c2e08a13fb760b0cf1b7553e3f5d3e824639f5a1/featured.json';
 
 /**
  * Denylist of catalog ids the OS will refuse to auto-install at boot,
