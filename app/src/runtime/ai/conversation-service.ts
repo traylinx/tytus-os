@@ -9,6 +9,7 @@ import type {
   AiSendMessageInput,
   AiStatus,
   AiThread,
+  AiUpdateThreadInput,
   AiWriteMemoryInput,
   DaemonApi,
 } from '@tytus/host-api';
@@ -60,6 +61,15 @@ export class ConversationService {
       title: input?.title,
       mode: input?.mode,
       privacy: input?.privacy,
+    });
+  }
+
+  updateThread(input: AiUpdateThreadInput): Promise<AiThread> {
+    return this.repo.updateThread({
+      appId: this.opts.appId,
+      threadId: input.threadId,
+      title: input.title,
+      status: input.status,
     });
   }
 

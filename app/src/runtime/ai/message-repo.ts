@@ -32,6 +32,12 @@ export interface AiRepo {
     mode?: string;
     privacy?: AiPrivacyMode;
   }): Promise<AiThread>;
+  updateThread(input: {
+    threadId: string;
+    appId: string;
+    title?: string;
+    status?: AiThreadStatus;
+  }): Promise<AiThread>;
   getThread(threadId: string, appId: string): Promise<AiThread | null>;
   listMessages(threadId: string, appId: string): Promise<AiMessage[]>;
   appendMessage(input: {
@@ -127,6 +133,25 @@ export const createAiRepo = (db: Db, clock: Clock = defaultClock): AiRepo => {
       const thread = await this.getThread(id, input.appId);
       if (!thread) throw new Error('ai repo failed to create thread');
       return thread;
+    },
+
+    async updateThread(input) {
+      await ensure();
+      const existing = await this.getThread(input.threadId, input.appId);
+      if (!existing) throw new Error(`ai thread not found: ${input.threadId}`);
+      const title = input.title === undefined ? existing.title : input.title.trim();
+      if (input.title !== undefined && !title) throw new Error('host.ai.updateThread: title is empty');
+      const status = input.status ?? existing.status;
+      const ts = clock.now();
+      await db.run(
+        `UPDATE ai_threads
+            SET title = ?, status = ?, updated_at = ?
+          WHERE ${threadOwnerWhere}`,
+        [title, status, ts, input.threadId, input.appId],
+      );
+      const updated = await this.getThread(input.threadId, input.appId);
+      if (!updated) throw new Error(`ai thread not found after update: ${input.threadId}`);
+      return updated;
     },
 
     async getThread(threadId, appId) {

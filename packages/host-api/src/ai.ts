@@ -98,6 +98,12 @@ export interface AiCreateThreadInput {
   privacy?: AiPrivacyMode;
 }
 
+export interface AiUpdateThreadInput {
+  threadId: string;
+  title?: string;
+  status?: AiThreadStatus;
+}
+
 export interface AiSendMessageInput {
   threadId: string;
   body: string;
@@ -147,6 +153,7 @@ export interface AiApi {
   listModels(input?: AiListModelsInput): Promise<AiModelInfo[]>;
   listThreads(input?: AiListThreadsInput): Promise<AiThread[]>;
   createThread(input?: AiCreateThreadInput): Promise<AiThread>;
+  updateThread(input: AiUpdateThreadInput): Promise<AiThread>;
   listMessages(threadId: string): Promise<AiMessage[]>;
   sendMessage(input: AiSendMessageInput): AsyncIterable<AiEvent>;
   cancelRun(runId: string): Promise<void>;

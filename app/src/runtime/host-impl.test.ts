@@ -87,20 +87,28 @@ describe('makeHostForApp — host.ai permissions', () => {
   it('blocks artifact APIs unless the app declares ai.artifacts', async () => {
     const host = makeHostForApp('demo', fakeManifest, fakeEntryUrls);
 
-    await expect(host.ai!.listArtifacts({ threadId: 'thr_1' })).rejects.toThrow(
+    await expect(Promise.resolve().then(() => host.ai!.listArtifacts({ threadId: 'thr_1' }))).rejects.toThrow(
       PermissionDeniedError,
     );
     await expect(
-      host.ai!.createArtifact({
+      Promise.resolve().then(() => host.ai!.createArtifact({
         threadId: 'thr_1',
         title: 'Plan',
         kind: 'markdown',
         body: '# plan',
-      }),
+      })),
     ).rejects.toThrow(PermissionDeniedError);
-    await expect(host.ai!.deleteArtifact('art_1')).rejects.toThrow(
+    await expect(Promise.resolve().then(() => host.ai!.deleteArtifact('art_1'))).rejects.toThrow(
       PermissionDeniedError,
     );
+  });
+
+  it('blocks thread mutation APIs unless the app declares ai.chat', async () => {
+    const host = makeHostForApp('demo', fakeManifest, fakeEntryUrls);
+
+    await expect(
+      Promise.resolve().then(() => host.ai!.updateThread({ threadId: 'thr_1', title: 'Renamed' })),
+    ).rejects.toThrow(PermissionDeniedError);
   });
 });
 

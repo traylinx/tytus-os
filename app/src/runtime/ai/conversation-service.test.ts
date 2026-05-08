@@ -38,6 +38,15 @@ class FakeRepo implements AiRepo {
     return baseThread;
   }
 
+  async updateThread(input: { title?: string; status?: AiThread['status'] }) {
+    return {
+      ...baseThread,
+      title: input.title ?? baseThread.title,
+      status: input.status ?? baseThread.status,
+      updatedAt: 2,
+    };
+  }
+
   async getThread(threadId: string, appId: string) {
     return threadId === baseThread.id && appId === baseThread.appId ? baseThread : null;
   }
@@ -245,6 +254,23 @@ describe('ConversationService', () => {
       appId: 'demo',
       title: 'Preference',
       body: 'Use remote AIL first.',
+    });
+  });
+
+  it('renames chat threads through the app-scoped repo', async () => {
+    const repo = new FakeRepo();
+    const service = new ConversationService({
+      db: {} as never,
+      daemon: fakeDaemon,
+      appId: 'demo',
+      repo,
+      gateway: {} as LlmGateway,
+    });
+
+    await expect(service.updateThread({ threadId: 'thr_1', title: 'Research chat' })).resolves.toMatchObject({
+      id: 'thr_1',
+      appId: 'demo',
+      title: 'Research chat',
     });
   });
 
