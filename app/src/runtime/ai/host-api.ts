@@ -63,5 +63,9 @@ export const makeAiApi = (opts: {
       requirePermission(opts.manifest, opts.appId, 'ai.memory.read');
       return getService().searchMemory(input);
     },
+    writeMemory(input) {
+      requirePermission(opts.manifest, opts.appId, 'ai.memory.write');
+      return getService().writeMemory(input);
+    },
   };
 };

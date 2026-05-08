@@ -10,9 +10,11 @@ import type {
   AiThreadRow,
   AiThreadStatus,
   Clock,
+  AiWriteMemoryInput,
 } from './types';
 import { defaultClock, mapMessage, mapThread } from './types';
 import { ensureAiSchema } from './schema';
+import { recordOutboxRow, searchMemoryRows, writeMemoryRow } from './memory-repo';
 
 export interface AiRepo {
   listThreads(input?: {
@@ -59,6 +61,13 @@ export interface AiRepo {
   }): Promise<void>;
   deleteThread(threadId: string, appId: string): Promise<void>;
   searchMemory(appId: string, query: string, limit?: number): Promise<AiMemoryHit[]>;
+  writeMemory(appId: string, input: AiWriteMemoryInput): Promise<AiMemoryHit>;
+  recordOutbox(input: {
+    appId: string;
+    threadId: string;
+    payload: Record<string, unknown>;
+    error?: string | null;
+  }): Promise<string>;
 }
 
 export const createAiRepo = (db: Db, clock: Clock = defaultClock): AiRepo => {
@@ -243,21 +252,17 @@ export const createAiRepo = (db: Db, clock: Clock = defaultClock): AiRepo => {
 
     async searchMemory(appId, query, limit = 8) {
       await ensure();
-      const needle = query.trim();
-      if (!needle) return [];
-      try {
-        return await db.query<AiMemoryHit>(
-          `SELECT m.id, m.app_id AS appId, m.title, m.body, bm25(ai_memories_fts) AS score, m.created_at AS createdAt, m.updated_at AS updatedAt
-             FROM ai_memories_fts f
-             JOIN ai_memories m ON m.id = f.id
-            WHERE ai_memories_fts MATCH ? AND m.app_id = ?
-            ORDER BY score ASC
-            LIMIT ?`,
-          [needle, appId, limit],
-        );
-      } catch {
-        return [];
-      }
+      return searchMemoryRows(db, appId, query, limit);
+    },
+
+    async writeMemory(appId, input) {
+      await ensure();
+      return writeMemoryRow(db, clock, appId, input);
+    },
+
+    async recordOutbox(input) {
+      await ensure();
+      return recordOutboxRow(db, clock, input);
     },
   };
 };

@@ -9,6 +9,7 @@ import type {
   AiStatus,
   AiThread,
   AiThreadStatus,
+  AiWriteMemoryInput,
 } from '@tytus/host-api';
 
 export type {
@@ -22,6 +23,7 @@ export type {
   AiStatus,
   AiThread,
   AiThreadStatus,
+  AiWriteMemoryInput,
 };
 
 export interface Clock {
@@ -64,6 +66,15 @@ export interface AiMessageRow {
   updated_at: number;
 }
 
+export interface AiMemoryRow {
+  id: string;
+  app_id: string;
+  title: string;
+  body: string;
+  created_at: number;
+  updated_at: number;
+}
+
 export const mapThread = (row: AiThreadRow): AiThread => ({
   id: row.id,
   appId: row.app_id,
@@ -86,6 +97,16 @@ export const mapMessage = (row: AiMessageRow): AiMessage => ({
   model: row.model,
   gatewayLabel: row.gateway_label,
   error: row.error,
+  createdAt: row.created_at,
+  updatedAt: row.updated_at,
+});
+
+export const mapMemoryHit = (row: AiMemoryRow & { score?: number | null }): AiMemoryHit => ({
+  id: row.id,
+  appId: row.app_id,
+  title: row.title,
+  body: row.body,
+  score: row.score ?? 0,
   createdAt: row.created_at,
   updatedAt: row.updated_at,
 });

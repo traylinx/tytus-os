@@ -43,6 +43,7 @@ export type {
   AiStatus,
   AiThread,
   AiThreadStatus,
+  AiWriteMemoryInput,
 } from './ai';
 
 export type {

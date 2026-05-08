@@ -93,6 +93,12 @@ export interface AiSearchMemoryInput {
   limit?: number;
 }
 
+export interface AiWriteMemoryInput {
+  title: string;
+  body: string;
+  metadata?: Record<string, string | number | boolean | null>;
+}
+
 export interface AiApi {
   status(signal?: AbortSignal): Promise<AiStatus>;
   listThreads(input?: AiListThreadsInput): Promise<AiThread[]>;
@@ -102,4 +108,5 @@ export interface AiApi {
   cancelRun(runId: string): Promise<void>;
   deleteThread(threadId: string): Promise<void>;
   searchMemory(input: AiSearchMemoryInput): Promise<AiMemoryHit[]>;
+  writeMemory(input: AiWriteMemoryInput): Promise<AiMemoryHit>;
 }

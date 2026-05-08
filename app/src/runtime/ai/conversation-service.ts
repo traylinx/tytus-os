@@ -7,6 +7,7 @@ import type {
   AiSendMessageInput,
   AiStatus,
   AiThread,
+  AiWriteMemoryInput,
   DaemonApi,
 } from '@tytus/host-api';
 import type { Db } from '@/lib/db/types';
@@ -133,6 +134,20 @@ export class ConversationService {
         error: message,
       });
       await this.repo.updateRun({ id: runId, status: 'error', error: message });
+      await this.repo.recordOutbox({
+        appId: this.opts.appId,
+        threadId: thread.id,
+        error: message,
+        payload: {
+          kind: 'ai.sendMessage',
+          body,
+          model: input.model ?? 'auto',
+          mode: input.mode ?? thread.mode,
+          privacy: input.privacy ?? thread.privacy,
+          context: input.context ?? [],
+          failedAt: Date.now(),
+        },
+      }).catch(() => undefined);
       yield { type: 'run_failed', runId, messageId: assistant.id, error: message };
       yield { type: 'message_updated', message: assistant };
     }
@@ -148,6 +163,10 @@ export class ConversationService {
 
   searchMemory(input: AiSearchMemoryInput) {
     return this.repo.searchMemory(this.opts.appId, input.query, input.limit);
+  }
+
+  writeMemory(input: AiWriteMemoryInput) {
+    return this.repo.writeMemory(this.opts.appId, input);
   }
 
   private toOpenAiMessages(history: AiMessage[], context: AiSendMessageInput['context']): OpenAiChatMessage[] {
