@@ -70,8 +70,14 @@ const isLegacyWorkspaceRow = (row: InstalledAppRow): boolean =>
   Boolean(row.entryUrl?.includes('/tytus-app-forge@')) ||
   Boolean(row.manifestUrl?.includes('/tytus-app-forge@'));
 
+const isOutdatedWorkspaceRow = (row: InstalledAppRow): boolean =>
+  row.id === WORKSPACE_APP_ID &&
+  (row.manifest.version !== WORKSPACE_APP_VERSION ||
+    row.entryUrl !== WORKSPACE_APP_ENTRY_URL ||
+    row.manifestUrl !== WORKSPACE_APP_MANIFEST_URL);
+
 export function coerceWorkspaceRebrandRow(row: InstalledAppRow): InstalledAppRow {
-  if (!isLegacyWorkspaceRow(row)) return row;
+  if (!isLegacyWorkspaceRow(row) && !isOutdatedWorkspaceRow(row)) return row;
   return {
     ...row,
     id: WORKSPACE_APP_ID,
@@ -90,34 +96,21 @@ export interface WorkspaceRebrandMigrationReport {
   reason: string;
 }
 
-export async function migrateWorkspaceRebrandIfPresent(
+async function writeWorkspaceRow(
   db: Db,
-): Promise<WorkspaceRebrandMigrationReport> {
-  const legacy = await getInstalledApp(db, LEGACY_WORKSPACE_APP_ID);
-  if (!legacy) {
-    return { migrated: false, reason: 'no legacy workspace row' };
-  }
-
-  const canonical = await getInstalledApp(db, WORKSPACE_APP_ID);
-  if (canonical) {
-    await deleteInstalledApp(db, LEGACY_WORKSPACE_APP_ID);
-    removeFromInstalledAppsCache(LEGACY_WORKSPACE_APP_ID);
-    addToInstalledAppsCache(canonical);
-    notifyInstalledAppsChanged();
-    return { migrated: true, reason: 'removed duplicate legacy workspace row' };
-  }
-
-  const migrated = coerceWorkspaceRebrandRow(legacy);
+  targetId: string,
+  row: InstalledAppRow,
+): Promise<void> {
   const args: SqlValue[] = [
-    migrated.id,
-    migrated.kind,
-    JSON.stringify(migrated.manifest),
-    migrated.entryUrl,
-    migrated.assetsUrl,
-    migrated.manifestUrl,
-    migrated.enabled ? 1 : 0,
-    migrated.builtinProtected ? 1 : 0,
-    LEGACY_WORKSPACE_APP_ID,
+    row.id,
+    row.kind,
+    JSON.stringify(row.manifest),
+    row.entryUrl,
+    row.assetsUrl,
+    row.manifestUrl,
+    row.enabled ? 1 : 0,
+    row.builtinProtected ? 1 : 0,
+    targetId,
   ];
   await db.run(
     `UPDATE installed_apps
@@ -132,6 +125,52 @@ export async function migrateWorkspaceRebrandIfPresent(
       WHERE id = ?`,
     args,
   );
+}
+
+export async function migrateWorkspaceRebrandIfPresent(
+  db: Db,
+): Promise<WorkspaceRebrandMigrationReport> {
+  const legacy = await getInstalledApp(db, LEGACY_WORKSPACE_APP_ID);
+  const canonical = await getInstalledApp(db, WORKSPACE_APP_ID);
+
+  if (canonical) {
+    const current = coerceWorkspaceRebrandRow(canonical);
+    if (isOutdatedWorkspaceRow(canonical)) {
+      await writeWorkspaceRow(db, WORKSPACE_APP_ID, current);
+      addToInstalledAppsCache(current);
+    } else {
+      addToInstalledAppsCache(canonical);
+    }
+
+    if (legacy) {
+      await deleteInstalledApp(db, LEGACY_WORKSPACE_APP_ID);
+      removeFromInstalledAppsCache(LEGACY_WORKSPACE_APP_ID);
+      notifyInstalledAppsChanged();
+      return {
+        migrated: true,
+        reason: isOutdatedWorkspaceRow(canonical)
+          ? `updated ${WORKSPACE_APP_ID} to ${WORKSPACE_APP_VERSION} and removed duplicate legacy workspace row`
+          : 'removed duplicate legacy workspace row',
+      };
+    }
+
+    if (isOutdatedWorkspaceRow(canonical)) {
+      notifyInstalledAppsChanged();
+      return {
+        migrated: true,
+        reason: `updated ${WORKSPACE_APP_ID} to ${WORKSPACE_APP_VERSION}`,
+      };
+    }
+
+    return { migrated: false, reason: 'workspace row already current' };
+  }
+
+  if (!legacy) {
+    return { migrated: false, reason: 'no legacy workspace row' };
+  }
+
+  const migrated = coerceWorkspaceRebrandRow(legacy);
+  await writeWorkspaceRow(db, LEGACY_WORKSPACE_APP_ID, migrated);
 
   removeFromInstalledAppsCache(LEGACY_WORKSPACE_APP_ID);
   addToInstalledAppsCache(migrated);

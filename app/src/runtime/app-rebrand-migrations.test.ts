@@ -163,6 +163,46 @@ describe('migrateWorkspaceRebrandIfPresent', () => {
     );
   });
 
+
+  it('upgrades an existing canonical workspace row pinned to an older tag', async () => {
+    const staleCanonical: InstalledAppRow = {
+      ...legacyRow,
+      id: WORKSPACE_APP_ID,
+      manifest: {
+        ...legacyManifest,
+        id: WORKSPACE_APP_ID,
+        name: 'Atomek',
+        version: '0.2.0',
+        entry: {
+          url: 'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-atomek@v0.2.0/dist/index.js',
+        },
+      },
+      entryUrl:
+        'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-atomek@v0.2.0/dist/index.js',
+      manifestUrl:
+        'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-atomek@v0.2.0/tytus-app.json',
+    };
+    await insertInstalledApp(db, staleCanonical);
+    addToInstalledAppsCache(staleCanonical);
+
+    const report = await migrateWorkspaceRebrandIfPresent(db);
+
+    expect(report.migrated).toBe(true);
+    expect(report.reason).toBe(`updated ${WORKSPACE_APP_ID} to ${WORKSPACE_APP_VERSION}`);
+
+    const rows = await listInstalledApps(db);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      id: WORKSPACE_APP_ID,
+      entryUrl: WORKSPACE_APP_ENTRY_URL,
+      manifestUrl: WORKSPACE_APP_MANIFEST_URL,
+    });
+    expect(rows[0].manifest.version).toBe(WORKSPACE_APP_VERSION);
+    expect(getInstalledAppRow(WORKSPACE_APP_ID)?.entryUrl).toBe(
+      WORKSPACE_APP_ENTRY_URL,
+    );
+  });
+
   it('deletes the duplicate legacy row when the canonical row already exists', async () => {
     const canonical: InstalledAppRow = {
       ...legacyRow,
