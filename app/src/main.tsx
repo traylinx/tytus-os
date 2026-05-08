@@ -6,6 +6,7 @@ import { initDb, getDbMeta } from '@/lib/db'
 import { seedBundledAppsAtBoot } from '@/runtime/seed-bundled-apps'
 import { autoInstallFeaturedAtBoot } from '@/runtime/auto-install-featured'
 import { cleanupJuli3taAlphaIfPresent, upgradeJuli3taGatewayFixIfStale } from '@/runtime/cleanup-juli3ta-alpha'
+import { migrateWorkspaceRebrandIfPresent } from '@/runtime/app-rebrand-migrations'
 import { migrateLegacyMusicCreatorTables } from '@/runtime/legacy-migrations'
 import { installHostExternals } from '@/runtime/externals/install-host-externals'
 import { notifyInstalledAppsChanged } from '@/runtime/installed-apps-events'
@@ -86,6 +87,18 @@ initDb()
       }
     } catch (err) {
       console.warn('[tytusos] juli3ta gateway fix failed', err)
+    }
+    // In-place repair for users with the pre-rebrand workspace app
+    // installed/open. The old row points at an immutable CDN tag, so
+    // catalog updates alone cannot stop restored windows loading the
+    // retired bundle.
+    try {
+      const report = await migrateWorkspaceRebrandIfPresent(db)
+      if (report.migrated) {
+        console.info(`[tytusos] workspace rebrand migration: ${report.reason}`)
+      }
+    } catch (err) {
+      console.warn('[tytusos] workspace rebrand migration failed', err)
     }
     // Auto-install every Featured catalog entry that isn't already
     // present. The 5 carved-out user apps (text-editor, code-editor,

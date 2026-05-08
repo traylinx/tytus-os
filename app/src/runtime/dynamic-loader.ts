@@ -68,6 +68,11 @@ import { getInstalledApp, type InstalledAppRow } from './installed-apps-repo';
 import { makeAppBootEnv } from './host-impl';
 import { loadRemoteApp, RemoteAppLoadError } from './remote-loader';
 import { importBundledOrUrl } from './bundled-app-loaders';
+import {
+  coerceWorkspaceRebrandRow,
+  LEGACY_WORKSPACE_APP_ID,
+  WORKSPACE_APP_ID,
+} from './app-rebrand-migrations';
 
 /** Public result the window manager renders. */
 export interface LoadedApp {
@@ -323,19 +328,22 @@ export async function loadAppById(
     makeEnv?: (appId: string, manifest: Manifest) => AppBootEnv;
   } = {},
 ): Promise<LoadedApp> {
-  const storedRow = await getInstalledApp(db, appId);
+  let storedRow = await getInstalledApp(db, appId);
+  if (!storedRow && appId === WORKSPACE_APP_ID) {
+    storedRow = await getInstalledApp(db, LEGACY_WORKSPACE_APP_ID);
+  }
   if (!storedRow) {
     throw new AppLoadError(
       appId,
       `not found in installed_apps. Boot seed missed the row, or the app id is wrong.`,
     );
   }
-  // React mounts before the async SQLite boot cleanup finishes. If the
-  // persisted window opens JULI3TA during that race, it can otherwise
-  // import the old immutable 0.2.x CDN bundle for the whole session.
-  // Coerce at load time as a second line of defense; the boot cleanup
-  // still repairs the row permanently once it reaches the DB.
-  const row = withJuli3taGatewayFix(storedRow);
+  // React mounts before async boot cleanups finish. If a persisted
+  // window opens a stale installed app during that race, it can
+  // otherwise import an old immutable CDN bundle for the whole session.
+  // Coerce at load time as a second line of defense; boot migrations
+  // still repair the row permanently once they reach the DB.
+  const row = coerceWorkspaceRebrandRow(withJuli3taGatewayFix(storedRow));
   const makeEnv =
     opts.makeEnv ??
     ((id: string, manifest: Manifest) =>

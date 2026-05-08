@@ -5,6 +5,7 @@
 import React, { createContext, useContext, useReducer, useCallback, useEffect } from 'react';
 import type { OSState, OSAction, Window, DesktopIcon, Notification, DockItem, WindowArgs, WindowState, WindowSnapEntry, SnapKind } from '@/types';
 import { APP_REGISTRY, getAppById, getDefaultDockApps } from '@/apps/registry';
+import { resolveCanonicalAppId } from '@/apps/legacy-app-aliases';
 import { DEFAULT_TYTUS_WALLPAPER } from '@/lib/brand';
 import { normalizeTheme } from '@/lib/theme/normalize';
 
@@ -34,6 +35,18 @@ const isPersistedWindow = (value: unknown): value is PersistedWindow => {
   return true;
 };
 
+const normalizePersistedWindow = (windowState: PersistedWindow): PersistedWindow => {
+  const appId = resolveCanonicalAppId(windowState.appId);
+  if (appId === windowState.appId) return windowState;
+  const app = getAppById(appId);
+  return {
+    ...windowState,
+    appId,
+    title: app?.name ?? windowState.title,
+    icon: app?.icon ?? windowState.icon,
+  };
+};
+
 const loadPersistedWindows = (): PersistedWindow[] | null => {
   try {
     const raw = localStorage.getItem(WINDOWS_STORAGE_KEY);
@@ -44,7 +57,7 @@ const loadPersistedWindows = (): PersistedWindow[] | null => {
     // installed app definitions (JULI3TA, Atomek, etc.) hydrate from the
     // async installed-apps cache after the React tree starts. Filtering here
     // races that hydration and drops those open windows on browser reload.
-    const valid = parsed.filter(isPersistedWindow);
+    const valid = parsed.filter(isPersistedWindow).map(normalizePersistedWindow);
     return valid;
   } catch {
     return null;
@@ -99,7 +112,9 @@ const loadWindowGeometry = (): Record<string, WindowGeometry> => {
     if (!parsed || typeof parsed !== 'object') return {};
     const out: Record<string, WindowGeometry> = {};
     for (const [k, v] of Object.entries(parsed as Record<string, unknown>)) {
-      if (typeof k === 'string' && isWindowGeometry(v)) out[k] = v;
+      if (typeof k === 'string' && isWindowGeometry(v)) {
+        out[resolveCanonicalAppId(k)] = v;
+      }
     }
     return out;
   } catch {

@@ -352,6 +352,54 @@ describe('loadAppById', () => {
     );
     expect(result.manifest.version).toBe('0.3.7');
   });
+
+  it('coerces legacy workspace rows before loading so restored windows do not import retired app tags', async () => {
+    const db = new MemoryDb();
+    const oldUrl =
+      'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-forge@0.1.0/dist/index.js';
+    const oldManifest: Manifest = {
+      ...fakeManifest,
+      id: 'forge',
+      name: 'Tytus Forge',
+      version: '0.1.0',
+      entry: { url: oldUrl },
+    };
+    await db.run(
+      `INSERT INTO installed_apps (id, kind, manifest_json, entry_url, assets_url, manifest_url, installed_at, enabled, builtin_protected) VALUES (?,?,?,?,?,?,?,?,?)`,
+      [
+        'forge',
+        'installed',
+        JSON.stringify(oldManifest),
+        oldUrl,
+        null,
+        'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-forge@0.1.0/tytus-app.json',
+        0,
+        1,
+        0,
+      ],
+    );
+
+    const FakeComponent = () => null;
+    const importModule = vi.fn(async () => ({
+      default: () => FakeComponent,
+    }));
+    const makeEnv = vi.fn(() => fakeEnv);
+
+    const result = await loadAppById('atomek', db, {
+      importModule,
+      makeEnv,
+    });
+
+    expect(importModule).toHaveBeenCalledWith(
+      'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-atomek@v0.2.0/dist/index.js',
+    );
+    expect(makeEnv).toHaveBeenCalledWith(
+      'atomek',
+      expect.objectContaining({ id: 'atomek', name: 'Atomek', version: '0.2.0' }),
+    );
+    expect(result.appId).toBe('atomek');
+    expect(result.manifest.id).toBe('atomek');
+  });
 });
 
 describe('loadApp — transport-B (https) delegates to remote-loader', () => {
