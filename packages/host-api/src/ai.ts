@@ -58,6 +58,18 @@ export interface AiMemoryHit {
   updatedAt: number;
 }
 
+export interface AiArtifact {
+  id: string;
+  threadId: string;
+  messageId: string | null;
+  appId: string;
+  title: string;
+  kind: string;
+  body: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
 export type AiEvent =
   | { type: 'run_started'; runId: string; threadId: string }
   | { type: 'message_created'; message: AiMessage }
@@ -99,6 +111,18 @@ export interface AiWriteMemoryInput {
   metadata?: Record<string, string | number | boolean | null>;
 }
 
+export interface AiListArtifactsInput {
+  threadId: string;
+}
+
+export interface AiCreateArtifactInput {
+  threadId: string;
+  messageId?: string | null;
+  title: string;
+  kind: string;
+  body: string;
+}
+
 export interface AiApi {
   status(signal?: AbortSignal): Promise<AiStatus>;
   listThreads(input?: AiListThreadsInput): Promise<AiThread[]>;
@@ -109,4 +133,7 @@ export interface AiApi {
   deleteThread(threadId: string): Promise<void>;
   searchMemory(input: AiSearchMemoryInput): Promise<AiMemoryHit[]>;
   writeMemory(input: AiWriteMemoryInput): Promise<AiMemoryHit>;
+  listArtifacts(input: AiListArtifactsInput): Promise<AiArtifact[]>;
+  createArtifact(input: AiCreateArtifactInput): Promise<AiArtifact>;
+  deleteArtifact(artifactId: string): Promise<void>;
 }

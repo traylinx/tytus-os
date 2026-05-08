@@ -28,10 +28,13 @@ export { APP_ID_PATTERN, sqlAppId, physicalTableName, validateManifest } from '.
 
 export type {
   AiApi,
+  AiArtifact,
   AiContextPart,
+  AiCreateArtifactInput,
   AiCreateThreadInput,
   AiEvent,
   AiGatewaySource,
+  AiListArtifactsInput,
   AiListThreadsInput,
   AiMemoryHit,
   AiMessage,

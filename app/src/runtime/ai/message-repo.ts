@@ -1,5 +1,8 @@
 import type { Db, SqlValue } from '@/lib/db/types';
 import type {
+  AiArtifact,
+  AiArtifactRow,
+  AiCreateArtifactInput,
   AiMemoryHit,
   AiMessage,
   AiMessageRow,
@@ -12,7 +15,7 @@ import type {
   Clock,
   AiWriteMemoryInput,
 } from './types';
-import { defaultClock, mapMessage, mapThread } from './types';
+import { defaultClock, mapArtifact, mapMessage, mapThread } from './types';
 import { ensureAiSchema } from './schema';
 import { recordOutboxRow, searchMemoryRows, writeMemoryRow } from './memory-repo';
 
@@ -62,6 +65,9 @@ export interface AiRepo {
   deleteThread(threadId: string, appId: string): Promise<void>;
   searchMemory(appId: string, query: string, limit?: number): Promise<AiMemoryHit[]>;
   writeMemory(appId: string, input: AiWriteMemoryInput): Promise<AiMemoryHit>;
+  listArtifacts(appId: string, threadId: string): Promise<AiArtifact[]>;
+  createArtifact(appId: string, input: AiCreateArtifactInput): Promise<AiArtifact>;
+  deleteArtifact(appId: string, artifactId: string): Promise<void>;
   recordOutbox(input: {
     appId: string;
     threadId: string;
@@ -258,6 +264,64 @@ export const createAiRepo = (db: Db, clock: Clock = defaultClock): AiRepo => {
     async writeMemory(appId, input) {
       await ensure();
       return writeMemoryRow(db, clock, appId, input);
+    },
+
+    async listArtifacts(appId, threadId) {
+      await ensure();
+      const thread = await this.getThread(threadId, appId);
+      if (!thread) return [];
+      const rows = await db.query<AiArtifactRow>(
+        `SELECT id, thread_id, message_id, app_id, title, kind, body, created_at, updated_at
+           FROM ai_artifacts
+          WHERE thread_id = ? AND app_id = ?
+          ORDER BY created_at DESC`,
+        [threadId, appId],
+      );
+      return rows.map(mapArtifact);
+    },
+
+    async createArtifact(appId, input) {
+      await ensure();
+      const thread = await this.getThread(input.threadId, appId);
+      if (!thread) throw new Error(`ai thread not found for artifact: ${input.threadId}`);
+      const title = input.title.trim();
+      const kind = input.kind.trim();
+      if (!title) throw new Error('host.ai.createArtifact: title is empty');
+      if (!kind) throw new Error('host.ai.createArtifact: kind is empty');
+      const ts = clock.now();
+      const id = clock.id('art');
+      await db.run(
+        `INSERT INTO ai_artifacts
+          (id, thread_id, message_id, app_id, title, kind, body, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          id,
+          input.threadId,
+          input.messageId ?? null,
+          appId,
+          title,
+          kind,
+          input.body,
+          ts,
+          ts,
+        ],
+      );
+      const rows = await db.query<AiArtifactRow>(
+        `SELECT id, thread_id, message_id, app_id, title, kind, body, created_at, updated_at
+           FROM ai_artifacts
+          WHERE id = ? AND app_id = ?`,
+        [id, appId],
+      );
+      if (!rows[0]) throw new Error('ai repo failed to create artifact');
+      return mapArtifact(rows[0]);
+    },
+
+    async deleteArtifact(appId, artifactId) {
+      await ensure();
+      await db.run(
+        `DELETE FROM ai_artifacts WHERE id = ? AND app_id = ?`,
+        [artifactId, appId],
+      );
     },
 
     async recordOutbox(input) {

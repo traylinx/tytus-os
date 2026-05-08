@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type {
+  AiArtifact,
   AiMemoryHit,
   AiMessage,
   AiThread,
@@ -26,6 +27,7 @@ class FakeRepo implements AiRepo {
   messages: AiMessage[] = [];
   outbox: Array<{ appId: string; threadId: string; payload: Record<string, unknown>; error?: string | null }> = [];
   memories: AiMemoryHit[] = [];
+  artifacts: AiArtifact[] = [];
   runUpdates: Array<{ id: string; status: string; gatewayLabel?: string | null; error?: string | null }> = [];
 
   async listThreads() {
@@ -119,6 +121,38 @@ class FakeRepo implements AiRepo {
     return memory;
   }
 
+  async listArtifacts(appId: string, threadId: string) {
+    return this.artifacts.filter((artifact) => artifact.appId === appId && artifact.threadId === threadId);
+  }
+
+  async createArtifact(appId: string, input: {
+    threadId: string;
+    messageId?: string | null;
+    title: string;
+    kind: string;
+    body: string;
+  }) {
+    const artifact: AiArtifact = {
+      id: `art_${this.artifacts.length + 1}`,
+      appId,
+      threadId: input.threadId,
+      messageId: input.messageId ?? null,
+      title: input.title,
+      kind: input.kind,
+      body: input.body,
+      createdAt: 20,
+      updatedAt: 20,
+    };
+    this.artifacts.push(artifact);
+    return artifact;
+  }
+
+  async deleteArtifact(appId: string, artifactId: string) {
+    this.artifacts = this.artifacts.filter(
+      (artifact) => artifact.appId !== appId || artifact.id !== artifactId,
+    );
+  }
+
   async recordOutbox(input: { appId: string; threadId: string; payload: Record<string, unknown>; error?: string | null }) {
     this.outbox.push(input);
     return 'out_1';
@@ -138,6 +172,7 @@ describe('ConversationService', () => {
     const repo = new FakeRepo();
     const gateway = {
       chat: async function* () {
+        yield* [];
         throw new Error('AIL offline');
       },
       status: async () => ({ available: false, source: 'none', label: 'offline' }),
@@ -178,5 +213,36 @@ describe('ConversationService', () => {
       title: 'Preference',
       body: 'Use remote AIL first.',
     });
+  });
+
+  it('stores, lists, and deletes AI artifacts through the app-scoped repo', async () => {
+    const repo = new FakeRepo();
+    const service = new ConversationService({
+      db: {} as never,
+      daemon: fakeDaemon,
+      appId: 'demo',
+      repo,
+      gateway: {} as LlmGateway,
+    });
+
+    const artifact = await service.createArtifact({
+      threadId: 'thr_1',
+      title: 'Plan',
+      kind: 'markdown',
+      body: '# Next step',
+    });
+
+    expect(artifact).toMatchObject({
+      appId: 'demo',
+      threadId: 'thr_1',
+      messageId: null,
+      title: 'Plan',
+      kind: 'markdown',
+      body: '# Next step',
+    });
+    await expect(service.listArtifacts({ threadId: 'thr_1' })).resolves.toEqual([artifact]);
+
+    await service.deleteArtifact(artifact.id);
+    await expect(service.listArtifacts({ threadId: 'thr_1' })).resolves.toEqual([]);
   });
 });

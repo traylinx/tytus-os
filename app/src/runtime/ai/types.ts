@@ -1,5 +1,7 @@
 import type {
+  AiArtifact,
   AiContextPart,
+  AiCreateArtifactInput,
   AiGatewaySource,
   AiMemoryHit,
   AiMessage,
@@ -13,7 +15,9 @@ import type {
 } from '@tytus/host-api';
 
 export type {
+  AiArtifact,
   AiContextPart,
+  AiCreateArtifactInput,
   AiGatewaySource,
   AiMemoryHit,
   AiMessage,
@@ -75,6 +79,18 @@ export interface AiMemoryRow {
   updated_at: number;
 }
 
+export interface AiArtifactRow {
+  id: string;
+  thread_id: string;
+  message_id: string | null;
+  app_id: string;
+  title: string;
+  kind: string;
+  body: string;
+  created_at: number;
+  updated_at: number;
+}
+
 export const mapThread = (row: AiThreadRow): AiThread => ({
   id: row.id,
   appId: row.app_id,
@@ -107,6 +123,18 @@ export const mapMemoryHit = (row: AiMemoryRow & { score?: number | null }): AiMe
   title: row.title,
   body: row.body,
   score: row.score ?? 0,
+  createdAt: row.created_at,
+  updatedAt: row.updated_at,
+});
+
+export const mapArtifact = (row: AiArtifactRow): AiArtifact => ({
+  id: row.id,
+  threadId: row.thread_id,
+  messageId: row.message_id,
+  appId: row.app_id,
+  title: row.title,
+  kind: row.kind,
+  body: row.body,
   createdAt: row.created_at,
   updatedAt: row.updated_at,
 });

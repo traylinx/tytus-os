@@ -1,5 +1,7 @@
 import type {
   AiEvent,
+  AiArtifact,
+  AiCreateArtifactInput,
   AiListThreadsInput,
   AiCreateThreadInput,
   AiMessage,
@@ -153,7 +155,8 @@ export class ConversationService {
     }
   }
 
-  cancelRun(_runId: string): Promise<void> {
+  cancelRun(runId: string): Promise<void> {
+    void runId;
     return Promise.resolve();
   }
 
@@ -167,6 +170,18 @@ export class ConversationService {
 
   writeMemory(input: AiWriteMemoryInput) {
     return this.repo.writeMemory(this.opts.appId, input);
+  }
+
+  listArtifacts(input: { threadId: string }): Promise<AiArtifact[]> {
+    return this.repo.listArtifacts(this.opts.appId, input.threadId);
+  }
+
+  createArtifact(input: AiCreateArtifactInput): Promise<AiArtifact> {
+    return this.repo.createArtifact(this.opts.appId, input);
+  }
+
+  deleteArtifact(artifactId: string): Promise<void> {
+    return this.repo.deleteArtifact(this.opts.appId, artifactId);
   }
 
   private toOpenAiMessages(history: AiMessage[], context: AiSendMessageInput['context']): OpenAiChatMessage[] {

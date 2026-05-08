@@ -67,5 +67,17 @@ export const makeAiApi = (opts: {
       requirePermission(opts.manifest, opts.appId, 'ai.memory.write');
       return getService().writeMemory(input);
     },
+    listArtifacts(input) {
+      requirePermission(opts.manifest, opts.appId, 'ai.artifacts');
+      return getService().listArtifacts(input);
+    },
+    createArtifact(input) {
+      requirePermission(opts.manifest, opts.appId, 'ai.artifacts');
+      return getService().createArtifact(input);
+    },
+    deleteArtifact(artifactId) {
+      requirePermission(opts.manifest, opts.appId, 'ai.artifacts');
+      return getService().deleteArtifact(artifactId);
+    },
   };
 };

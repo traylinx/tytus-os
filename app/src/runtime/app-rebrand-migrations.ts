@@ -21,11 +21,11 @@ import { notifyInstalledAppsChanged } from './installed-apps-events';
 
 export const WORKSPACE_APP_ID = 'atomek';
 export const LEGACY_WORKSPACE_APP_ID = 'forge';
-export const WORKSPACE_APP_VERSION = '0.3.0';
+export const WORKSPACE_APP_VERSION = '0.3.1';
 export const WORKSPACE_APP_MANIFEST_URL =
-  'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-atomek@v0.3.0/tytus-app.json';
+  'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-atomek@v0.3.1/tytus-app.json';
 export const WORKSPACE_APP_ENTRY_URL =
-  'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-atomek@v0.3.0/dist/index.js';
+  'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-atomek@v0.3.1/dist/index.js';
 
 export const WORKSPACE_APP_MANIFEST: Manifest = {
   $schema: 'https://tytus.traylinx.com/schema/app/v1.json',

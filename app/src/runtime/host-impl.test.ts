@@ -83,6 +83,27 @@ describe('makeHostForApp — shape', () => {
   });
 });
 
+describe('makeHostForApp — host.ai permissions', () => {
+  it('blocks artifact APIs unless the app declares ai.artifacts', async () => {
+    const host = makeHostForApp('demo', fakeManifest, fakeEntryUrls);
+
+    await expect(host.ai!.listArtifacts({ threadId: 'thr_1' })).rejects.toThrow(
+      PermissionDeniedError,
+    );
+    await expect(
+      host.ai!.createArtifact({
+        threadId: 'thr_1',
+        title: 'Plan',
+        kind: 'markdown',
+        body: '# plan',
+      }),
+    ).rejects.toThrow(PermissionDeniedError);
+    await expect(host.ai!.deleteArtifact('art_1')).rejects.toThrow(
+      PermissionDeniedError,
+    );
+  });
+});
+
 describe('makeHostForApp — events bus', () => {
   it('delivers payloads to subscribers', () => {
     const host = makeHostForApp('demo', fakeManifest, fakeEntryUrls);
