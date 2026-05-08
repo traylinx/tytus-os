@@ -39,7 +39,7 @@ import {
 } from '@/runtime/installer';
 import { useOptionalNotifications } from '@/hooks/useOSStore';
 import { FEATURED_APPS, type FeaturedApp, loadFeaturedApps } from './featured-apps-catalog';
-import { isReplacedByForge } from './product-replacements';
+import { isHiddenLegacyApp } from './product-replacements';
 
 /** Map an InstallerError code to a user-facing toast message. */
 function installerErrorToast(action: 'install' | 'uninstall' | 'reinstall', err: unknown): {
@@ -193,16 +193,16 @@ export const TytusAppsTab: FC<TytusAppsTabProps> = ({
   }, [loadInstalledApps, reloadKey]);
 
   const systemApps = rows
-    .filter((r) => r.kind === 'bundled' && r.builtinProtected && !isReplacedByForge(r.id))
+    .filter((r) => r.kind === 'bundled' && r.builtinProtected && !isHiddenLegacyApp(r.id))
     .sort((a, b) => a.manifest.name.localeCompare(b.manifest.name));
   const userBundledApps = rows
-    .filter((r) => r.kind === 'bundled' && !r.builtinProtected && !isReplacedByForge(r.id))
+    .filter((r) => r.kind === 'bundled' && !r.builtinProtected && !isHiddenLegacyApp(r.id))
     .sort((a, b) => a.manifest.name.localeCompare(b.manifest.name));
   const installedApps = rows
-    .filter((r) => r.kind === 'installed' && !isReplacedByForge(r.id))
+    .filter((r) => r.kind === 'installed' && !isHiddenLegacyApp(r.id))
     .sort((a, b) => a.manifest.name.localeCompare(b.manifest.name));
   const aliasApps = rows
-    .filter((r) => r.kind === 'alias' && !isReplacedByForge(r.id))
+    .filter((r) => r.kind === 'alias' && !isHiddenLegacyApp(r.id))
     .sort((a, b) => a.manifest.name.localeCompare(b.manifest.name));
 
   const handleUninstall = async (row: InstalledAppRow) => {
@@ -239,7 +239,7 @@ export const TytusAppsTab: FC<TytusAppsTabProps> = ({
   /** Featured apps NOT yet installed — surface in the catalog section. */
   const availableFeatured = useMemo(() => {
     const knownIds = new Set(rows.map((r) => r.id));
-    return featured.filter((f) => !knownIds.has(f.id) && !isReplacedByForge(f.id));
+    return featured.filter((f) => !knownIds.has(f.id) && !isHiddenLegacyApp(f.id));
   }, [rows, featured]);
 
   const handleFeaturedInstall = async (featured: FeaturedApp) => {

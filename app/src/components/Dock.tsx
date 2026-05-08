@@ -14,7 +14,7 @@ import { localizedAppName } from '@/i18n/app-name';
 import { BrandIcon, isBrandIconName } from './BrandIcon';
 import { parsePayload, serializePayload } from '@/lib/dnd';
 import * as trashRepo from '@/lib/repo/trash';
-import { isReplacedByForge } from '@/apps/product-replacements';
+import { isHiddenLegacyApp } from '@/apps/product-replacements';
 
 // Phase 1.2 — pixel sizes per Dock size variant. Used both for icon
 // dimensions and for the auto-hide reveal zone height/width.
@@ -182,10 +182,10 @@ const Dock = memo(function Dock() {
     return out;
   };
   const pinnedItemsRaw = dedupeByCanonical(
-    dockItems.filter((d) => d.isPinned && !isReplacedByForge(resolveCanonicalAppId(d.appId))),
+    dockItems.filter((d) => d.isPinned && !isHiddenLegacyApp(resolveCanonicalAppId(d.appId))),
   );
   const openUnpinned = dedupeByCanonical(
-    dockItems.filter((d) => !d.isPinned && d.isOpen && !isReplacedByForge(resolveCanonicalAppId(d.appId))),
+    dockItems.filter((d) => !d.isPinned && d.isOpen && !isHiddenLegacyApp(resolveCanonicalAppId(d.appId))),
   );
 
   // Phase 1.6 — apply user-configured dock order. Apps not present

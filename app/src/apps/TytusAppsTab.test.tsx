@@ -355,7 +355,7 @@ describe('TytusAppsTab', () => {
     render(<TytusAppsTab loadInstalledApps={async () => []} />);
     await waitFor(() => {
       expect(screen.getByTestId('tytus-apps-featured')).toBeTruthy();
-      expect(screen.getByTestId('tytus-featured-card-forge')).toBeTruthy();
+      expect(screen.getByTestId('tytus-featured-card-atomek')).toBeTruthy();
       expect(screen.getByTestId('tytus-featured-card-photo-editor')).toBeTruthy();
       expect(screen.getByTestId('tytus-featured-card-api-tester')).toBeTruthy();
       expect(screen.getByTestId('tytus-featured-card-text-editor')).toBeTruthy();
@@ -401,7 +401,7 @@ describe('TytusAppsTab', () => {
     render(
       <TytusAppsTab
         loadInstalledApps={async () => [
-          row('forge', 'installed', { manifestUrl: 'x' }),
+          row('atomek', 'installed', { manifestUrl: 'x' }),
           row('juli3ta', 'installed', { manifestUrl: 'x' }),
           row('markdown-preview', 'installed', { manifestUrl: 'x' }),
           row('openhouse', 'installed', { manifestUrl: 'x' }),

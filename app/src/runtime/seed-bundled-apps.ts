@@ -18,7 +18,7 @@
 
 import type { Manifest } from '@tytus/host-api';
 // System apps — bundled with the shell, kind='bundled', builtin_protected=1.
-// User apps (forge, text-editor, markdown-preview, api-tester, photo-editor,
+// User apps (atomek, text-editor, markdown-preview, api-tester, photo-editor,
 // code-editor) carved to standalone repos at github.com/traylinx/tytus-app-*
 // + published to jsDelivr. Discovered via App Store's Featured section,
 // installed via "Install from URL" → kind='installed' rows. Seeding them

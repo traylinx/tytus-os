@@ -1,13 +1,13 @@
 /**
- * Public-surface cleanup for the Forge MVP.
+ * Public-surface cleanup for retired legacy app ids.
  *
  * These app ids are still present as source packages or legacy routes, but
- * they are no longer user-facing products. Forge stays public, while Text
+ * they are no longer user-facing products. The primary workspace app stays public, while Text
  * Editor and Markdown Editor are restored as standalone productivity apps.
  * Filtering only affects launcher/store/dock surfaces; it does not delete
  * data or packages.
  */
-export const REPLACED_BY_FORGE_APP_IDS: ReadonlySet<string> = new Set([
+export const HIDDEN_LEGACY_APP_IDS: ReadonlySet<string> = new Set([
   'memo',
   'notes',
   'studio',
@@ -18,6 +18,6 @@ export const REPLACED_BY_FORGE_APP_IDS: ReadonlySet<string> = new Set([
   'jsonformatter',
 ]);
 
-export function isReplacedByForge(appId: string | null | undefined): boolean {
-  return !!appId && REPLACED_BY_FORGE_APP_IDS.has(appId);
+export function isHiddenLegacyApp(appId: string | null | undefined): boolean {
+  return !!appId && HIDDEN_LEGACY_APP_IDS.has(appId);
 }

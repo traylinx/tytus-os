@@ -41,7 +41,7 @@ const loadPersistedWindows = (): PersistedWindow[] | null => {
     const parsed: unknown = JSON.parse(raw);
     if (!Array.isArray(parsed)) return null;
     // Do not gate restored windows on `getAppById()`. Third-party /
-    // installed app definitions (JULI3TA, Forge, etc.) hydrate from the
+    // installed app definitions (JULI3TA, Atomek, etc.) hydrate from the
     // async installed-apps cache after the React tree starts. Filtering here
     // races that hydration and drops those open windows on browser reload.
     const valid = parsed.filter(isPersistedWindow);

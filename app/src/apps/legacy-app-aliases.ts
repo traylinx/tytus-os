@@ -28,6 +28,9 @@ export const LEGACY_APP_ID_ALIASES: Record<string, string> = {
   texteditor: 'text-editor',
   codeeditor: 'code-editor',
   apitester: 'api-tester',
+  // Product rebrand: old public Forge installs/windows should resolve to the
+  // new Atomek app id without keeping brand names in new source internals.
+  forge: 'atomek',
   // JULI3TA transition: when the verified standalone app is installed
   // under id `juli3ta`, the legacy launcher id (`musiccreator`) should
   // surface/open that independent app. If the standalone row is absent,

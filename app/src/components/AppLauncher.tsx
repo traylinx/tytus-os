@@ -19,7 +19,7 @@ import type { AppDefinition } from '@/types';
 import { useI18n } from '@/i18n';
 import { localizedAppName } from '@/i18n/app-name';
 import { BrandIcon, isBrandIconName } from './BrandIcon';
-import { isReplacedByForge } from '@/apps/product-replacements';
+import { isHiddenLegacyApp } from '@/apps/product-replacements';
 
 const DynamicIcon = ({ name, ...props }: { name: string } & LucideProps) => {
   if (isBrandIconName(name)) {
@@ -90,7 +90,7 @@ const AppLauncher = memo(function AppLauncher() {
         const resolved: AppDefinition[] = [];
         for (const s of scored) {
           const canonical = resolveCanonicalAppId(s.appId);
-          if (seen.has(canonical) || isReplacedByForge(canonical)) continue;
+          if (seen.has(canonical) || isHiddenLegacyApp(canonical)) continue;
           seen.add(canonical);
           const def = getAppById(canonical);
           if (def) resolved.push(unifyAppDefinition(def));
@@ -132,7 +132,7 @@ const AppLauncher = memo(function AppLauncher() {
     const out: AppDefinition[] = [];
     for (const app of apps) {
       const u = unifyAppDefinition(app);
-      if (seen.has(u.id) || isReplacedByForge(u.id)) continue;
+      if (seen.has(u.id) || isHiddenLegacyApp(u.id)) continue;
       seen.add(u.id);
       out.push(u);
     }
@@ -180,7 +180,7 @@ const AppLauncher = memo(function AppLauncher() {
   const frequentApps = scoredFrequent.length > 0
     ? scoredFrequent
     : dockItems
-        .filter((d) => d.isPinned && !isReplacedByForge(resolveCanonicalAppId(d.appId)))
+        .filter((d) => d.isPinned && !isHiddenLegacyApp(resolveCanonicalAppId(d.appId)))
         .map((d) => getAppById(d.appId))
         .filter(Boolean)
         .map((app) => unifyAppDefinition(app as AppDefinition)) as AppDefinition[];

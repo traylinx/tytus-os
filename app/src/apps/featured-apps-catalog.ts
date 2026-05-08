@@ -34,12 +34,12 @@ export interface FeaturedApp {
 
 const ALL_FEATURED_APPS: FeaturedApp[] = [
   {
-    id: 'forge',
-    name: 'Tytus Forge',
-    description: 'Standalone vscode.dev-style Monaco workbench for local files, markdown preview, and future Tytus agents/Cortex workflows.',
+    id: 'atomek',
+    name: 'Atomek',
+    description: 'Clean Monaco workspace for local files, markdown preview, and search. No fake remote repository, tunnel, terminal, or extension surfaces.',
     icon: 'Sparkles',
     category: 'Productivity',
-    manifestUrl: 'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-forge@0.1.0/tytus-app.json',
+    manifestUrl: 'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-atomek@v0.2.0/tytus-app.json',
   },
   {
     id: 'text-editor',
@@ -99,23 +99,23 @@ const ALL_FEATURED_APPS: FeaturedApp[] = [
   },
 ];
 
-const REPLACED_BY_FORGE_FALLBACK_IDS = new Set([
+const HIDDEN_LEGACY_FALLBACK_IDS = new Set([
   'code-editor',
 ]);
 
 export const FEATURED_APPS: FeaturedApp[] = ALL_FEATURED_APPS.filter(
-  (app) => !REPLACED_BY_FORGE_FALLBACK_IDS.has(app.id),
+  (app) => !HIDDEN_LEGACY_FALLBACK_IDS.has(app.id),
 );
 
 /** URL of the remote Featured catalog. Bumped per OS release; the
  *  catalog repo is independently versioned so featured-app additions
- *  don't require a Tytus OS rebuild. v0.7.0 publishes verified standalone
- *  Forge is developed as a standalone app; the catalog is intentionally
+ *  do not require a Tytus OS rebuild. The current catalog publishes
+ *  Atomek as a standalone app; the catalog is intentionally
  *  fetched from an immutable catalog commit so jsDelivr branch caching does
  *  not keep users on stale standalone app tags. Individual app manifest URLs
  *  remain pinned to immutable app tags. */
 export const FEATURED_CATALOG_URL =
-  'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-catalog@0ac38db0ed861d826fee58e88bc0979d992f7c0f/featured.json';
+  'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-catalog@8a9edf93d249e86c3cb76b20c46d2761679e64b5/featured.json';
 
 /**
  * Denylist of catalog ids the OS will refuse to auto-install at boot,

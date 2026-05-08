@@ -163,7 +163,7 @@ describe('FEATURED_APPS hardcoded baseline', () => {
     const ids = FEATURED_APPS.map((a) => a.id).sort();
     expect(ids).toEqual([
       'api-tester',
-      'forge',
+      'atomek',
       'juli3ta',
       'markdown-preview',
       'openhouse',
