@@ -63,7 +63,7 @@ describe('makeHostForApp — shape', () => {
     expect(host.appId).toBe('demo');
   });
 
-  it('exposes all 10 namespaces', () => {
+  it('exposes all host namespaces', () => {
     const host = makeHostForApp('demo', fakeManifest, fakeEntryUrls);
     for (const ns of [
       'fs',
@@ -74,6 +74,7 @@ describe('makeHostForApp — shape', () => {
       'i18n',
       'storage',
       'events',
+      'ai',
       'media',
       'assets',
     ] as const) {

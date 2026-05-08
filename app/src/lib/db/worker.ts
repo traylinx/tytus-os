@@ -24,7 +24,7 @@ import sqlite3InitModule, {
   type Database,
   type Sqlite3Static,
 } from '@sqlite.org/sqlite-wasm';
-import { SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V9, SCHEMA_V10, SCHEMA_V11, SCHEMA_V12, SCHEMA_V13, SCHEMA_VERSION } from './schema';
+import { SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V9, SCHEMA_V10, SCHEMA_V11, SCHEMA_V12, SCHEMA_V13, SCHEMA_V14, SCHEMA_VERSION } from './schema';
 
 declare const self: DedicatedWorkerGlobalScope;
 
@@ -96,6 +96,7 @@ const openDb = async (): Promise<{ persistent: boolean; libVersion: string }> =>
   db.exec(SCHEMA_V10); // Provider-backed JULI3TA Player library/playlists/favorites.
   db.exec(SCHEMA_V11); // Sprint A Phase 4 — trash_items metadata index.
   db.exec(SCHEMA_V12); // Apps Platform M1 — installed_apps registry table.
+  db.exec(SCHEMA_V14); // Host-owned AI/Cortex conversation substrate.
 
   // Reusable column-presence ALTER. Each ALTER is gated on the actual
   // schema rather than user_version, so a stuck migration in a previous

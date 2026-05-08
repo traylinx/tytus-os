@@ -53,6 +53,14 @@ describe('validateManifest', () => {
     expect(r.valid).toBe(true);
   });
 
+  it('accepts AI/Cortex permissions at runtime', () => {
+    const r = validateManifest({
+      ...VALID,
+      permissions: ['ai.chat', 'ai.memory.read', 'ai.memory.write', 'ai.artifacts'],
+    });
+    expect(r.valid).toBe(true);
+  });
+
   it('reports negative window size', () => {
     const r = validateManifest({
       ...VALID,

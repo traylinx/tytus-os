@@ -2,6 +2,7 @@ import type { FileNode, WindowArgsByApp } from '@tytus/contracts';
 import type { EventsApi } from './events';
 import type { Manifest } from './manifest';
 import type { AppCreateSession } from './session';
+import type { AiApi } from './ai';
 
 /**
  * Top-level Host API surface. The shell binds one `HostClient` per app at
@@ -21,6 +22,9 @@ export interface HostClient {
   i18n: I18nApi;
   storage: StorageApi;
   events: EventsApi;
+  /** Reusable Tytus AI/Cortex chat surface. Newer shell builds provide it;
+   *  app tests and older hosts may omit it, so consumers should degrade. */
+  ai?: AiApi;
   media: MediaApi;
   assets: AssetsApi;
 }

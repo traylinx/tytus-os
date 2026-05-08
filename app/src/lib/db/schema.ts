@@ -10,7 +10,7 @@
 //
 // Phase 2 ships the API Tester migration: history + collections.
 
-export const SCHEMA_VERSION = 13;
+export const SCHEMA_VERSION = 14;
 
 export const SCHEMA_V1 = `
 CREATE TABLE IF NOT EXISTS api_history (
@@ -331,4 +331,107 @@ CREATE INDEX IF NOT EXISTS idx_installed_apps_kind ON installed_apps(kind);
 // (HMR reload mid-migration, etc.) self-heals on the next boot.
 export const SCHEMA_V13 = `
 ALTER TABLE installed_apps ADD COLUMN manifest_url TEXT;
+`;
+
+// Schema V14: host-owned AI/Cortex conversation substrate.
+//
+// System tables, not app-prefixed storage. Apps can only reach these through
+// `host.ai`, which enforces `ai.*` permissions and owns gateway/auth handling.
+// This keeps chat history, runs, artifacts, local memories, and retry outbox
+// durable in the existing OPFS-backed Tytus SQLite database.
+export const SCHEMA_V14 = `
+CREATE TABLE IF NOT EXISTS ai_threads (
+  id              TEXT PRIMARY KEY,
+  owner_key       TEXT NOT NULL DEFAULT 'local',
+  app_id          TEXT NOT NULL,
+  workspace_key   TEXT NOT NULL DEFAULT 'default',
+  title           TEXT NOT NULL DEFAULT 'New chat',
+  mode            TEXT NOT NULL DEFAULT 'default',
+  privacy         TEXT NOT NULL DEFAULT 'cloud',
+  status          TEXT NOT NULL DEFAULT 'active',
+  created_at      INTEGER NOT NULL,
+  updated_at      INTEGER NOT NULL,
+  last_message_at INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_ai_threads_app_workspace
+  ON ai_threads(app_id, workspace_key, status, updated_at DESC);
+
+CREATE TABLE IF NOT EXISTS ai_messages (
+  id             TEXT PRIMARY KEY,
+  thread_id      TEXT NOT NULL REFERENCES ai_threads(id) ON DELETE CASCADE,
+  run_id         TEXT,
+  role           TEXT NOT NULL,
+  body           TEXT NOT NULL DEFAULT '',
+  status         TEXT NOT NULL DEFAULT 'complete',
+  model          TEXT,
+  gateway_label  TEXT,
+  error          TEXT,
+  created_at     INTEGER NOT NULL,
+  updated_at     INTEGER NOT NULL,
+  metadata_json  TEXT NOT NULL DEFAULT '{}'
+);
+CREATE INDEX IF NOT EXISTS idx_ai_messages_thread_created
+  ON ai_messages(thread_id, created_at ASC);
+
+CREATE TABLE IF NOT EXISTS ai_runs (
+  id             TEXT PRIMARY KEY,
+  thread_id      TEXT NOT NULL REFERENCES ai_threads(id) ON DELETE CASCADE,
+  app_id         TEXT NOT NULL,
+  status         TEXT NOT NULL,
+  model          TEXT NOT NULL DEFAULT 'auto',
+  gateway_label  TEXT,
+  error          TEXT,
+  created_at     INTEGER NOT NULL,
+  updated_at     INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_ai_runs_thread
+  ON ai_runs(thread_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS ai_artifacts (
+  id             TEXT PRIMARY KEY,
+  thread_id      TEXT NOT NULL REFERENCES ai_threads(id) ON DELETE CASCADE,
+  message_id     TEXT,
+  app_id         TEXT NOT NULL,
+  title          TEXT NOT NULL,
+  kind           TEXT NOT NULL,
+  body           TEXT NOT NULL,
+  created_at     INTEGER NOT NULL,
+  updated_at     INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_ai_artifacts_thread
+  ON ai_artifacts(thread_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS ai_memories (
+  id             TEXT PRIMARY KEY,
+  owner_key      TEXT NOT NULL DEFAULT 'local',
+  app_id         TEXT NOT NULL,
+  title          TEXT NOT NULL,
+  body           TEXT NOT NULL,
+  metadata_json  TEXT NOT NULL DEFAULT '{}',
+  created_at     INTEGER NOT NULL,
+  updated_at     INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_ai_memories_app_updated
+  ON ai_memories(app_id, updated_at DESC);
+CREATE VIRTUAL TABLE IF NOT EXISTS ai_memories_fts
+  USING fts5(id UNINDEXED, app_id UNINDEXED, title, body);
+
+CREATE TABLE IF NOT EXISTS ai_outbox (
+  id             TEXT PRIMARY KEY,
+  app_id         TEXT NOT NULL,
+  thread_id      TEXT NOT NULL,
+  payload_json   TEXT NOT NULL,
+  status         TEXT NOT NULL DEFAULT 'pending',
+  error          TEXT,
+  created_at     INTEGER NOT NULL,
+  updated_at     INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_ai_outbox_status
+  ON ai_outbox(status, created_at ASC);
+
+CREATE TABLE IF NOT EXISTS ai_settings (
+  key        TEXT PRIMARY KEY,
+  value      TEXT NOT NULL,
+  updated_at INTEGER NOT NULL
+);
 `;

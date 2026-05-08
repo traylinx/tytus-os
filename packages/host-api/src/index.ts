@@ -27,6 +27,25 @@ export type {
 export { APP_ID_PATTERN, sqlAppId, physicalTableName, validateManifest } from './manifest';
 
 export type {
+  AiApi,
+  AiContextPart,
+  AiCreateThreadInput,
+  AiEvent,
+  AiGatewaySource,
+  AiListThreadsInput,
+  AiMemoryHit,
+  AiMessage,
+  AiMessageStatus,
+  AiPrivacyMode,
+  AiRole,
+  AiSearchMemoryInput,
+  AiSendMessageInput,
+  AiStatus,
+  AiThread,
+  AiThreadStatus,
+} from './ai';
+
+export type {
   AppMode,
   SendRequest,
   TransactionOutcome,

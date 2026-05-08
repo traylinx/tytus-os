@@ -17,7 +17,7 @@ describe('useHost', () => {
       wrapper: ({ children }) => <HostProvider>{children}</HostProvider>,
     });
     expect(result.current.appId).toBe('__shell__');
-    // All 10 namespaces present.
+    // All host namespaces present.
     for (const ns of [
       'fs',
       'daemon',
@@ -27,6 +27,7 @@ describe('useHost', () => {
       'i18n',
       'storage',
       'events',
+      'ai',
       'media',
       'assets',
     ] as const) {
@@ -45,6 +46,7 @@ describe('useHost', () => {
       i18n: {} as never,
       storage: {} as never,
       events: {} as never,
+      ai: {} as never,
       media: {} as never,
       assets: {} as never,
     };

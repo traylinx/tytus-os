@@ -1,0 +1,263 @@
+import type { Db, SqlValue } from '@/lib/db/types';
+import type {
+  AiMemoryHit,
+  AiMessage,
+  AiMessageRow,
+  AiMessageStatus,
+  AiPrivacyMode,
+  AiRole,
+  AiThread,
+  AiThreadRow,
+  AiThreadStatus,
+  Clock,
+} from './types';
+import { defaultClock, mapMessage, mapThread } from './types';
+import { ensureAiSchema } from './schema';
+
+export interface AiRepo {
+  listThreads(input?: {
+    appId: string;
+    workspaceKey?: string;
+    status?: AiThreadStatus;
+  }): Promise<AiThread[]>;
+  createThread(input: {
+    appId: string;
+    workspaceKey?: string;
+    title?: string;
+    mode?: string;
+    privacy?: AiPrivacyMode;
+  }): Promise<AiThread>;
+  getThread(threadId: string, appId: string): Promise<AiThread | null>;
+  listMessages(threadId: string, appId: string): Promise<AiMessage[]>;
+  appendMessage(input: {
+    threadId: string;
+    appId: string;
+    role: AiRole;
+    body: string;
+    status?: AiMessageStatus;
+    runId?: string | null;
+    model?: string | null;
+    gatewayLabel?: string | null;
+    error?: string | null;
+  }): Promise<AiMessage>;
+  updateMessage(input: {
+    id: string;
+    threadId: string;
+    appId: string;
+    body?: string;
+    status?: AiMessageStatus;
+    model?: string | null;
+    gatewayLabel?: string | null;
+    error?: string | null;
+  }): Promise<AiMessage>;
+  createRun(input: { threadId: string; appId: string; model: string }): Promise<string>;
+  updateRun(input: {
+    id: string;
+    status: string;
+    gatewayLabel?: string | null;
+    error?: string | null;
+  }): Promise<void>;
+  deleteThread(threadId: string, appId: string): Promise<void>;
+  searchMemory(appId: string, query: string, limit?: number): Promise<AiMemoryHit[]>;
+}
+
+export const createAiRepo = (db: Db, clock: Clock = defaultClock): AiRepo => {
+  let ensured: Promise<void> | null = null;
+  const ensure = () => (ensured ??= ensureAiSchema(db));
+
+  const threadOwnerWhere = `id = ? AND app_id = ?`;
+
+  return {
+    async listThreads(input) {
+      await ensure();
+      const clauses = ['app_id = ?'];
+      const bindings: SqlValue[] = [input?.appId ?? ''];
+      if (input?.workspaceKey) {
+        clauses.push('workspace_key = ?');
+        bindings.push(input.workspaceKey);
+      }
+      if (input?.status) {
+        clauses.push('status = ?');
+        bindings.push(input.status);
+      }
+      const rows = await db.query<AiThreadRow>(
+        `SELECT id, app_id, workspace_key, title, mode, privacy, status, created_at, updated_at, last_message_at
+           FROM ai_threads
+          WHERE ${clauses.join(' AND ')}
+          ORDER BY updated_at DESC`,
+        bindings,
+      );
+      return rows.map(mapThread);
+    },
+
+    async createThread(input) {
+      await ensure();
+      const ts = clock.now();
+      const id = clock.id('thr');
+      await db.run(
+        `INSERT INTO ai_threads
+          (id, owner_key, app_id, workspace_key, title, mode, privacy, status, created_at, updated_at, last_message_at)
+         VALUES (?, 'local', ?, ?, ?, ?, ?, 'active', ?, ?, NULL)`,
+        [
+          id,
+          input.appId,
+          input.workspaceKey ?? 'default',
+          input.title?.trim() || 'New chat',
+          input.mode ?? 'default',
+          input.privacy ?? 'cloud',
+          ts,
+          ts,
+        ],
+      );
+      const thread = await this.getThread(id, input.appId);
+      if (!thread) throw new Error('ai repo failed to create thread');
+      return thread;
+    },
+
+    async getThread(threadId, appId) {
+      await ensure();
+      const rows = await db.query<AiThreadRow>(
+        `SELECT id, app_id, workspace_key, title, mode, privacy, status, created_at, updated_at, last_message_at
+           FROM ai_threads WHERE ${threadOwnerWhere}`,
+        [threadId, appId],
+      );
+      return rows[0] ? mapThread(rows[0]) : null;
+    },
+
+    async listMessages(threadId, appId) {
+      await ensure();
+      const thread = await this.getThread(threadId, appId);
+      if (!thread) return [];
+      const rows = await db.query<AiMessageRow>(
+        `SELECT id, thread_id, role, body, status, model, gateway_label, error, created_at, updated_at
+           FROM ai_messages
+          WHERE thread_id = ?
+          ORDER BY created_at ASC`,
+        [threadId],
+      );
+      return rows.map(mapMessage);
+    },
+
+    async appendMessage(input) {
+      await ensure();
+      const ts = clock.now();
+      const id = clock.id(input.role === 'user' ? 'usr' : 'msg');
+      await db.run(
+        `INSERT INTO ai_messages
+          (id, thread_id, run_id, role, body, status, model, gateway_label, error, created_at, updated_at, metadata_json)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '{}')`,
+        [
+          id,
+          input.threadId,
+          input.runId ?? null,
+          input.role,
+          input.body,
+          input.status ?? 'complete',
+          input.model ?? null,
+          input.gatewayLabel ?? null,
+          input.error ?? null,
+          ts,
+          ts,
+        ],
+      );
+      await db.run(
+        `UPDATE ai_threads SET updated_at = ?, last_message_at = ? WHERE ${threadOwnerWhere}`,
+        [ts, ts, input.threadId, input.appId],
+      );
+      const rows = await db.query<AiMessageRow>(
+        `SELECT id, thread_id, role, body, status, model, gateway_label, error, created_at, updated_at
+           FROM ai_messages WHERE id = ?`,
+        [id],
+      );
+      if (!rows[0]) throw new Error('ai repo failed to append message');
+      return mapMessage(rows[0]);
+    },
+
+    async updateMessage(input) {
+      await ensure();
+      const ts = clock.now();
+      const existing = await db.query<AiMessageRow>(
+        `SELECT m.id, m.thread_id, m.role, m.body, m.status, m.model, m.gateway_label, m.error, m.created_at, m.updated_at
+           FROM ai_messages m
+           JOIN ai_threads t ON t.id = m.thread_id
+          WHERE m.id = ? AND m.thread_id = ? AND t.app_id = ?`,
+        [input.id, input.threadId, input.appId],
+      );
+      if (!existing[0]) throw new Error(`ai message not found: ${input.id}`);
+      const prev = existing[0];
+      await db.run(
+        `UPDATE ai_messages
+            SET body = ?, status = ?, model = ?, gateway_label = ?, error = ?, updated_at = ?
+          WHERE id = ?`,
+        [
+          input.body ?? prev.body,
+          input.status ?? prev.status,
+          input.model === undefined ? prev.model : input.model,
+          input.gatewayLabel === undefined ? prev.gateway_label : input.gatewayLabel,
+          input.error === undefined ? prev.error : input.error,
+          ts,
+          input.id,
+        ],
+      );
+      await db.run(
+        `UPDATE ai_threads SET updated_at = ?, last_message_at = ? WHERE ${threadOwnerWhere}`,
+        [ts, ts, input.threadId, input.appId],
+      );
+      const rows = await db.query<AiMessageRow>(
+        `SELECT id, thread_id, role, body, status, model, gateway_label, error, created_at, updated_at
+           FROM ai_messages WHERE id = ?`,
+        [input.id],
+      );
+      return mapMessage(rows[0]);
+    },
+
+    async createRun(input) {
+      await ensure();
+      const ts = clock.now();
+      const id = clock.id('run');
+      await db.run(
+        `INSERT INTO ai_runs
+          (id, thread_id, app_id, status, model, gateway_label, error, created_at, updated_at)
+         VALUES (?, ?, ?, 'running', ?, NULL, NULL, ?, ?)`,
+        [id, input.threadId, input.appId, input.model, ts, ts],
+      );
+      return id;
+    },
+
+    async updateRun(input) {
+      await ensure();
+      await db.run(
+        `UPDATE ai_runs SET status = ?, gateway_label = COALESCE(?, gateway_label), error = ?, updated_at = ? WHERE id = ?`,
+        [input.status, input.gatewayLabel ?? null, input.error ?? null, clock.now(), input.id],
+      );
+    },
+
+    async deleteThread(threadId, appId) {
+      await ensure();
+      await db.run(`UPDATE ai_threads SET status = 'archived', updated_at = ? WHERE ${threadOwnerWhere}`, [
+        clock.now(),
+        threadId,
+        appId,
+      ]);
+    },
+
+    async searchMemory(appId, query, limit = 8) {
+      await ensure();
+      const needle = query.trim();
+      if (!needle) return [];
+      try {
+        return await db.query<AiMemoryHit>(
+          `SELECT m.id, m.app_id AS appId, m.title, m.body, bm25(ai_memories_fts) AS score, m.created_at AS createdAt, m.updated_at AS updatedAt
+             FROM ai_memories_fts f
+             JOIN ai_memories m ON m.id = f.id
+            WHERE ai_memories_fts MATCH ? AND m.app_id = ?
+            ORDER BY score ASC
+            LIMIT ?`,
+          [needle, appId, limit],
+        );
+      } catch {
+        return [];
+      }
+    },
+  };
+};

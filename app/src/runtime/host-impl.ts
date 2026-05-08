@@ -74,6 +74,7 @@ import {
   resolveSharedTableNames,
 } from './installed-apps-repo';
 import { getDb } from '@/lib/db';
+import { makeAiApi } from './ai/host-api';
 
 const ASSET_SIZE_LIMIT_BYTES = 1024 * 1024; // 1 MB per spec.
 
@@ -884,16 +885,18 @@ export function makeHostForApp(
   manifest: Manifest,
   entryUrls: EntryUrls,
 ): HostClient {
+  const daemon = makeDaemonApi();
   return {
     appId,
     fs: makeFsApi(),
-    daemon: makeDaemonApi(),
+    daemon,
     windows: makeWindowsApi(appId),
     notifications: makeNotificationsApi(appId),
     shellMenu: makeShellMenuApi(),
     i18n: makeI18nApi(),
     storage: makeStorageApi(appId, manifest),
     events: getShellEventBus(),
+    ai: makeAiApi({ appId, manifest, daemon }),
     media: makeMediaApi(),
     assets: makeAssetsApi(appId, entryUrls.assets),
   };
