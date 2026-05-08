@@ -1,10 +1,10 @@
 /**
  * Featured apps catalog — curated list of user apps the App Store
  * surfaces with one-click Install. Each entry points at a manifest URL
- * served from a public github.com/traylinx/tytus-app-* repo via jsDelivr.
+ * served from a public github.com/traylinx/tytus-app-* repo via a CORS-safe CDN/raw URL.
  *
  * Phase 10: source of truth is the remote catalog at
- * https://cdn.jsdelivr.net/gh/traylinx/tytus-app-catalog@<commit>/featured.json
+ * https://raw.githubusercontent.com/traylinx/tytus-app-catalog/<commit>/featured.json
  * — adding a featured app no longer requires an OS update. The App Store
  * fetches once per mount with `loadFeaturedApps()`. If the fetch fails
  * (offline, jsDelivr blip), we fall back to the hardcoded `FEATURED_APPS`
@@ -39,7 +39,7 @@ const ALL_FEATURED_APPS: FeaturedApp[] = [
     description: 'Monaco workspace with local files, chat/output panels, extension connectors, markdown preview, and search.',
     icon: 'Sparkles',
     category: 'Productivity',
-    manifestUrl: 'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-atomek@v0.3.3/tytus-app.json',
+    manifestUrl: 'https://raw.githubusercontent.com/traylinx/tytus-app-atomek/v0.3.3/tytus-app.json',
   },
   {
     id: 'text-editor',
@@ -111,11 +111,11 @@ export const FEATURED_APPS: FeaturedApp[] = ALL_FEATURED_APPS.filter(
  *  catalog repo is independently versioned so featured-app additions
  *  do not require a Tytus OS rebuild. The current catalog publishes
  *  Atomek as a standalone app; the catalog is intentionally
- *  fetched from an immutable catalog commit so jsDelivr branch caching does
+ *  fetched from an immutable catalog commit so branch caching does
  *  not keep users on stale standalone app tags. Individual app manifest URLs
  *  remain pinned to immutable app tags. */
 export const FEATURED_CATALOG_URL =
-  'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-catalog@f14155ce5e235a0ef112f8bf28d4b4fbcf98a7b2/featured.json';
+  'https://raw.githubusercontent.com/traylinx/tytus-app-catalog/c0c72e5494e12b02273032f978be72f8302363d6/featured.json';
 
 /**
  * Denylist of catalog ids the OS will refuse to auto-install at boot,
