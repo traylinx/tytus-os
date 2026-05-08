@@ -21,11 +21,11 @@ import { notifyInstalledAppsChanged } from './installed-apps-events';
 
 export const WORKSPACE_APP_ID = 'atomek';
 export const LEGACY_WORKSPACE_APP_ID = 'forge';
-export const WORKSPACE_APP_VERSION = '0.2.0';
+export const WORKSPACE_APP_VERSION = '0.2.1';
 export const WORKSPACE_APP_MANIFEST_URL =
-  'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-atomek@v0.2.0/tytus-app.json';
+  'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-atomek@v0.2.1/tytus-app.json';
 export const WORKSPACE_APP_ENTRY_URL =
-  'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-atomek@v0.2.0/dist/index.js';
+  'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-atomek@v0.2.1/dist/index.js';
 
 export const WORKSPACE_APP_MANIFEST: Manifest = {
   $schema: 'https://tytus.traylinx.com/schema/app/v1.json',
@@ -35,7 +35,7 @@ export const WORKSPACE_APP_MANIFEST: Manifest = {
   icon: 'Sparkles',
   category: 'Productivity',
   description:
-    'Atomek — clean Monaco workspace for local files, markdown preview, and search. No fake remote repository, tunnel, terminal, or extension surfaces.',
+    'Monaco workspace with local files, chat/output panels, extension connectors, markdown preview, and search.',
   window: {
     defaultSize: { width: 1200, height: 780 },
     minSize: { width: 760, height: 520 },

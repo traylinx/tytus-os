@@ -36,10 +36,10 @@ const ALL_FEATURED_APPS: FeaturedApp[] = [
   {
     id: 'atomek',
     name: 'Atomek',
-    description: 'Clean Monaco workspace for local files, markdown preview, and search. No fake remote repository, tunnel, terminal, or extension surfaces.',
+    description: 'Monaco workspace with local files, chat/output panels, extension connectors, markdown preview, and search.',
     icon: 'Sparkles',
     category: 'Productivity',
-    manifestUrl: 'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-atomek@v0.2.0/tytus-app.json',
+    manifestUrl: 'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-atomek@v0.2.1/tytus-app.json',
   },
   {
     id: 'text-editor',
