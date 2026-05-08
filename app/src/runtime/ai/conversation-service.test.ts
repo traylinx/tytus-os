@@ -197,6 +197,39 @@ describe('ConversationService', () => {
     expect(repo.runUpdates.at(-1)).toMatchObject({ status: 'error', error: 'AIL offline' });
   });
 
+  it('forwards chat model aliases and routing preference to the LLM gateway', async () => {
+    const repo = new FakeRepo();
+    const calls: Array<Record<string, unknown>> = [];
+    const gateway = {
+      chat: async function* (input: Record<string, unknown>) {
+        calls.push(input);
+        yield { token: 'ok', candidate: { id: 'local', source: 'local', label: 'Local AIL', baseUrl: '', callViaHost: false } };
+      },
+      status: async () => ({ available: true, source: 'local', label: 'Local AIL' }),
+    } as unknown as LlmGateway;
+    const service = new ConversationService({
+      db: {} as never,
+      daemon: fakeDaemon,
+      appId: 'demo',
+      repo,
+      gateway,
+    });
+
+    const events = [];
+    for await (const event of service.sendMessage({
+      threadId: 'thr_1',
+      body: 'hello',
+      model: 'ail-chat',
+      gatewayPreference: 'local',
+    })) {
+      events.push(event);
+    }
+
+    expect(calls[0]).toMatchObject({ model: 'ail-chat', gatewayPreference: 'local' });
+    const done = events.find((event) => event.type === 'done');
+    expect(done?.message.gatewayLabel).toBe('Local AIL · ail-chat');
+  });
+
   it('writes explicit app memories through the repo', async () => {
     const repo = new FakeRepo();
     const service = new ConversationService({

@@ -1,4 +1,4 @@
-import type { DaemonApi } from '@tytus/host-api';
+import type { AiGatewayPreference, AiModelInfo, DaemonApi } from '@tytus/host-api';
 import { buildGatewayCandidates, type GatewayCandidate } from './gateway-candidates';
 import { extractChatText, parseOpenAiSse, type OpenAiChatMessage } from './openai-stream';
 
@@ -10,6 +10,7 @@ export interface ChatResultChunk {
 export interface ChatCompleteInput {
   messages: OpenAiChatMessage[];
   model?: string;
+  gatewayPreference?: AiGatewayPreference;
   signal?: AbortSignal;
 }
 
@@ -35,16 +36,21 @@ export class LlmGateway {
     this.daemon = daemon;
   }
 
-  candidates(): GatewayCandidate[] {
+  candidates(preference: AiGatewayPreference = 'auto'): GatewayCandidate[] {
     const all = buildGatewayCandidates(this.daemon);
-    if (!this.lastGoodId) return all;
-    const idx = all.findIndex((c) => c.id === this.lastGoodId);
-    if (idx <= 0) return all;
-    return [all[idx], ...all.slice(0, idx), ...all.slice(idx + 1)];
+    const filtered = preference === 'local'
+      ? all.filter((c) => c.source === 'local')
+      : preference === 'remote'
+        ? all.filter((c) => c.source !== 'local')
+        : all;
+    if (!this.lastGoodId) return filtered;
+    const idx = filtered.findIndex((c) => c.id === this.lastGoodId);
+    if (idx <= 0) return filtered;
+    return [filtered[idx], ...filtered.slice(0, idx), ...filtered.slice(idx + 1)];
   }
 
-  async status(signal?: AbortSignal) {
-    const candidates = this.candidates();
+  async status(signal?: AbortSignal, preference: AiGatewayPreference = 'auto') {
+    const candidates = this.candidates(preference);
     for (const candidate of candidates) {
       try {
         const res = await this.fetchCandidate(candidate, '/models', {
@@ -60,11 +66,48 @@ export class LlmGateway {
         // try next candidate
       }
     }
-    return { available: false, source: 'none', label: 'No AIL gateway reachable', reason: 'All AIL gateway probes failed' } as const;
+    const reason = preference === 'auto'
+      ? 'All AIL gateway probes failed'
+      : `No ${preference === 'remote' ? 'remote Tytus' : 'local'} AIL gateway reachable`;
+    return { available: false, source: 'none', label: 'No AIL gateway reachable', reason } as const;
+  }
+
+  async listModels(input?: { gatewayPreference?: AiGatewayPreference; signal?: AbortSignal }): Promise<AiModelInfo[]> {
+    const candidates = this.candidates(input?.gatewayPreference ?? 'auto');
+    const out: AiModelInfo[] = [];
+    const seen = new Set<string>();
+    for (const candidate of candidates) {
+      try {
+        const res = await this.fetchCandidate(candidate, '/models', {
+          method: 'GET',
+          headers: { Accept: 'application/json' },
+          signal: withTimeout(input?.signal, 3500),
+        });
+        if (!res.ok) continue;
+        const json = await res.json();
+        const ids = extractModelIds(json);
+        if (ids.length > 0) this.lastGoodId = candidate.id;
+        for (const id of ids) {
+          const key = `${candidate.id}:${id}`;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          out.push({ id, source: candidate.source, gatewayLabel: candidate.label });
+        }
+      } catch {
+        // try next candidate
+      }
+    }
+    return out;
   }
 
   async *chat(input: ChatCompleteInput): AsyncIterable<ChatResultChunk> {
-    const candidates = this.candidates();
+    const preference = input.gatewayPreference ?? 'auto';
+    const candidates = this.candidates(preference);
+    if (candidates.length === 0) {
+      throw new Error(preference === 'remote'
+        ? 'No remote Tytus AIL gateway available. Choose Auto or Local AIL in Atomek Settings, or connect a Tytus AIL pod.'
+        : 'No local AIL gateway available. Choose Auto or Remote Tytus AIL in Atomek Settings, or start switchAILocal.');
+    }
     let lastError: unknown = null;
     for (const candidate of candidates) {
       try {
@@ -119,3 +162,18 @@ export class LlmGateway {
     return fetch(`${candidate.baseUrl}${path}`, { ...init, headers });
   }
 }
+
+const extractModelIds = (value: unknown): string[] => {
+  if (!value || typeof value !== 'object') return [];
+  const data = (value as { data?: unknown }).data;
+  if (!Array.isArray(data)) return [];
+  const ids: string[] = [];
+  for (const item of data) {
+    if (typeof item === 'string' && item.trim()) ids.push(item.trim());
+    else if (item && typeof item === 'object') {
+      const id = (item as { id?: unknown }).id;
+      if (typeof id === 'string' && id.trim()) ids.push(id.trim());
+    }
+  }
+  return Array.from(new Set(ids));
+};

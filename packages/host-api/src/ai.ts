@@ -8,12 +8,20 @@ export type AiMessageStatus = 'pending' | 'streaming' | 'complete' | 'error';
 
 export type AiGatewaySource = 'included' | 'tunnel' | 'local' | 'none';
 
+export type AiGatewayPreference = 'auto' | 'remote' | 'local';
+
 export interface AiStatus {
   available: boolean;
   source: AiGatewaySource;
   label: string;
   model?: string;
   reason?: string;
+}
+
+export interface AiModelInfo {
+  id: string;
+  source: AiGatewaySource;
+  gatewayLabel: string;
 }
 
 export interface AiThread {
@@ -93,6 +101,12 @@ export interface AiCreateThreadInput {
 export interface AiSendMessageInput {
   threadId: string;
   body: string;
+  /**
+   * User routing preference. `remote` means Tytus AIL only
+   * (public/proxied or tunnel), `local` means local switchAILocal only,
+   * `auto` keeps the existing failover order.
+   */
+  gatewayPreference?: AiGatewayPreference;
   model?: string;
   mode?: string;
   privacy?: AiPrivacyMode;
@@ -103,6 +117,11 @@ export interface AiSendMessageInput {
 export interface AiSearchMemoryInput {
   query: string;
   limit?: number;
+}
+
+export interface AiListModelsInput {
+  gatewayPreference?: AiGatewayPreference;
+  signal?: AbortSignal;
 }
 
 export interface AiWriteMemoryInput {
@@ -125,6 +144,7 @@ export interface AiCreateArtifactInput {
 
 export interface AiApi {
   status(signal?: AbortSignal): Promise<AiStatus>;
+  listModels(input?: AiListModelsInput): Promise<AiModelInfo[]>;
   listThreads(input?: AiListThreadsInput): Promise<AiThread[]>;
   createThread(input?: AiCreateThreadInput): Promise<AiThread>;
   listMessages(threadId: string): Promise<AiMessage[]>;

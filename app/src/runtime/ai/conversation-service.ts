@@ -41,6 +41,10 @@ export class ConversationService {
     return this.gateway.status(signal) as Promise<AiStatus>;
   }
 
+  listModels(input?: { gatewayPreference?: AiSendMessageInput['gatewayPreference']; signal?: AbortSignal }) {
+    return this.gateway.listModels(input);
+  }
+
   listThreads(input?: AiListThreadsInput): Promise<AiThread[]> {
     return this.repo.listThreads({
       appId: this.opts.appId,
@@ -103,12 +107,16 @@ export class ConversationService {
       const messages = this.toOpenAiMessages(history, input.context);
       let full = '';
       let gatewayLabel: string | null = null;
+      const requestedModel = input.model?.trim() || 'auto';
       for await (const chunk of this.gateway.chat({
         messages,
-        model: input.model ?? 'auto',
+        model: requestedModel,
+        gatewayPreference: input.gatewayPreference ?? 'auto',
         signal: input.signal,
       })) {
-        gatewayLabel = chunk.candidate.label;
+        gatewayLabel = requestedModel === 'auto'
+          ? chunk.candidate.label
+          : `${chunk.candidate.label} · ${requestedModel}`;
         full += chunk.token;
         yield { type: 'token', messageId: assistant.id, token: chunk.token, body: full };
       }
@@ -144,6 +152,7 @@ export class ConversationService {
           kind: 'ai.sendMessage',
           body,
           model: input.model ?? 'auto',
+          gatewayPreference: input.gatewayPreference ?? 'auto',
           mode: input.mode ?? thread.mode,
           privacy: input.privacy ?? thread.privacy,
           context: input.context ?? [],

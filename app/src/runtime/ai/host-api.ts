@@ -35,6 +35,10 @@ export const makeAiApi = (opts: {
     status(signal) {
       return getService().status(signal);
     },
+    listModels(input) {
+      requirePermission(opts.manifest, opts.appId, 'ai.chat');
+      return getService().listModels(input);
+    },
     listThreads(input) {
       requirePermission(opts.manifest, opts.appId, 'ai.chat');
       return getService().listThreads(input);
