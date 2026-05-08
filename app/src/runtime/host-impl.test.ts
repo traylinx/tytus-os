@@ -246,7 +246,7 @@ describe('daemon.callPodEndpoint', () => {
     });
   };
 
-  it('injects Authorization: Bearer header on the composed URL', async () => {
+  it('routes through the same-origin tray proxy without exposing Authorization', async () => {
     wirePod({
       id: 'p1',
       status: 'running',
@@ -259,9 +259,9 @@ describe('daemon.callPodEndpoint', () => {
     expect(res.ok).toBe(true);
     expect(fetchSpy).toHaveBeenCalledTimes(1);
     const [url, init] = fetchSpy.mock.calls[0];
-    expect(url).toBe('https://pod-1.example/api/v1/models');
+    expect(url).toBe('/api/pods/p1/proxy/v1/models');
     const auth = (init as RequestInit | undefined)?.headers as Headers;
-    expect(auth.get('Authorization')).toBe('Bearer tok-abc123');
+    expect(auth.get('Authorization')).toBeNull();
   });
 
   it('throws a clear error when the pod is missing from daemon state', async () => {
@@ -272,15 +272,7 @@ describe('daemon.callPodEndpoint', () => {
     ).rejects.toThrow(/pod "missing" not found/);
   });
 
-  it('throws when the pod has no publicUrl yet', async () => {
-    wirePod({ id: 'p1', status: 'starting' });
-    const host = makeHostForApp('demo', fakeManifest, fakeEntryUrls);
-    await expect(
-      host.daemon.callPodEndpoint('p1', '/v1/models'),
-    ).rejects.toThrow(/no public URL/);
-  });
-
-  it('merges caller headers with the bearer header without dropping them', async () => {
+  it('preserves caller headers while stripping gateway Authorization', async () => {
     wirePod({
       id: 'p1',
       status: 'running',
@@ -297,7 +289,7 @@ describe('daemon.callPodEndpoint', () => {
     const init = fetchSpy.mock.calls[0][1] as RequestInit;
     const headers = init.headers as Headers;
     expect(headers.get('X-Custom')).toBe('yes');
-    expect(headers.get('Authorization')).toBe('Bearer tok-abc123');
+    expect(headers.get('Authorization')).toBeNull();
     expect(init.method).toBe('POST');
   });
 });

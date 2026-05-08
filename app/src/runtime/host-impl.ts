@@ -464,10 +464,10 @@ function makeFsApi(): FsApi {
 
 /** Build the daemon namespace. Reads live state through the
  *  shell-injected DaemonStateProvider so the React side owns the polling
- *  loop and host-impl stays React-free. `callPodEndpoint` looks up the
- *  pod descriptor (including its bearer) and prepends the public URL —
- *  apps never see the bearer or assemble URLs themselves. The music and
- *  juli3taLibrary sub-clients hit same-origin daemon HTTP routes. */
+ *  loop and host-impl stays React-free. `callPodEndpoint` delegates to
+ *  the same-origin tray proxy so browser apps never call public pod
+ *  origins directly (CORS) and never receive gateway secrets. The music
+ *  and juli3taLibrary sub-clients hit same-origin daemon HTTP routes. */
 function makeDaemonApi(): DaemonApi {
   const callPodEndpoint = async (
     podId: string,
@@ -487,17 +487,10 @@ function makeDaemonApi(): DaemonApi {
         `host.daemon.callPodEndpoint: pod "${podId}" not found in current daemon state.`,
       );
     }
-    const publicUrl = descriptor.pod.publicUrl;
-    if (!publicUrl) {
-      throw new Error(
-        `host.daemon.callPodEndpoint: pod "${podId}" has no public URL — wait for state.connected.`,
-      );
-    }
     const headers = new Headers(init?.headers ?? {});
-    if (descriptor.bearer) {
-      headers.set('Authorization', `Bearer ${descriptor.bearer}`);
-    }
-    const url = `${publicUrl}${path}`;
+    headers.delete('Authorization');
+    const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+    const url = `/api/pods/${encodeURIComponent(podId)}/proxy${normalizedPath}`;
     return fetch(url, { ...init, headers });
   };
 
