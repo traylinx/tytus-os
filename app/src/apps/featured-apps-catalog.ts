@@ -96,7 +96,7 @@ const ALL_FEATURED_APPS: FeaturedApp[] = [
     description: 'Full AI-native music creator for Tytus OS. Create songs, lyrics, covers, and manage your local music workbench.',
     icon: 'juli3ta:mark',
     category: 'Creative',
-    manifestUrl: 'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-juli3ta@juli3ta-0.3.7/tytus-app.json',
+    manifestUrl: 'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-juli3ta@juli3ta-0.3.8/tytus-app.json',
   },
 ];
 
@@ -111,12 +111,12 @@ export const FEATURED_APPS: FeaturedApp[] = ALL_FEATURED_APPS.filter(
 /** URL of the remote Featured catalog. Bumped per OS release; the
  *  catalog repo is independently versioned so featured-app additions
  *  do not require a Tytus OS rebuild. The current catalog publishes
- *  Atomek as a standalone app; the catalog is intentionally
+ *  Atomek and JULI3TA as standalone apps; the catalog is intentionally
  *  fetched from an immutable catalog commit so branch caching does
  *  not keep users on stale standalone app tags. Individual app manifest URLs
  *  remain pinned to immutable app tags. */
 export const FEATURED_CATALOG_URL =
-  'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-catalog@6c5a5dc057ca8e07f19c6fcec0d6e67b37f56089/featured.json';
+  'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-catalog@c581fabf90553b5662a5077bc6ea2ebe81490742/featured.json';
 
 /**
  * Denylist of catalog ids the OS will refuse to auto-install at boot,
