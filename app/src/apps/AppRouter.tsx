@@ -95,10 +95,12 @@ interface AppRouterProps {
  * PR removes the in-tree files.
  */
 const WORKSPACE_APP_IDS_HINT = new Set([
-  // System apps (bundled with shell). Atomek and user apps live at
-  // github.com/traylinx/tytus-app-* and ship as kind='installed' rows
-  // via App Store → Featured (or Install from URL); they do NOT
-  // appear in the boot seed and don't need a hint here.
+  // External workspace apps that must never flash AppPlaceholder while
+  // SQLite/installed_apps hydrates. Atomek is the primary shell app:
+  // showing the static registry placeholder for it looks like the app is
+  // unimplemented even though the published bundle is available.
+  'atomek',
+  // System apps bundled with shell.
   'memo',
   'music-player',
   'sheet',

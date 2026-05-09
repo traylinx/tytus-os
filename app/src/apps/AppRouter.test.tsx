@@ -94,6 +94,15 @@ describe('AppRouter — installed-apps routing (regression: third-party Open)', 
     expect(screen.getByTestId('workspace-host-memo')).toBeTruthy();
   });
 
+
+
+  it('does not flash the static placeholder for Atomek while installed_apps hydrates', () => {
+    setInstalledIds(new Map());
+    render(<AppRouter appId="atomek" windowId="w1" />);
+    expect(screen.getByTestId('workspace-host-atomek')).toBeTruthy();
+    expect(screen.queryByTestId('placeholder-atomek')).toBeNull();
+  });
+
   it('honours LEGACY_APP_ID_ALIASES when consulting the live installed_apps map', () => {
     // The legacy `notes` id is aliased to `memo` — a bundled row at
     // `memo` should win even when the request comes in via the
