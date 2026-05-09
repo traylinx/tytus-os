@@ -1,19 +1,18 @@
 // ============================================================
-// Dock — Bottom dock with pinned apps, open indicators, trash
+// Dock — Bottom dock with app launcher, dynamic apps, and permanent controls
 // ============================================================
 
 import { useCallback, memo, useEffect, useMemo, useState } from 'react';
 import { useOS } from '@/hooks/useOSStore';
 import { getAppById } from '@/apps/registry';
 import { resolveCanonicalAppId, unifyAppDefinition } from '@/apps/legacy-app-aliases';
-import { LayoutGrid, Trash2 } from 'lucide-react';
+import { LayoutGrid } from 'lucide-react';
 import * as Icons from 'lucide-react';
 import type { LucideProps } from 'lucide-react';
 import { useI18n } from '@/i18n';
 import { localizedAppName } from '@/i18n/app-name';
 import { BrandIcon, isBrandIconName } from './BrandIcon';
 import { parsePayload, serializePayload } from '@/lib/dnd';
-import * as trashRepo from '@/lib/repo/trash';
 import { isHiddenLegacyApp } from '@/apps/product-replacements';
 
 // Phase 1.2 — pixel sizes per Dock size variant. Used both for icon
@@ -21,6 +20,7 @@ import { isHiddenLegacyApp } from '@/apps/product-replacements';
 const DOCK_SIZE_PX = { small: 40, medium: 56, large: 72 } as const;
 const ICON_SIZE_PX = { small: 32, medium: 40, large: 52 } as const;
 const ICON_GLYPH_PX = { small: 18, medium: 22, large: 28 } as const;
+const PERMANENT_RIGHT_APP_ID = 'settings';
 
 const DynamicIcon = ({ name, ...props }: { name: string } & LucideProps) => {
   if (isBrandIconName(name)) {
@@ -107,53 +107,6 @@ const Dock = memo(function Dock() {
     dispatch({ type: 'TOGGLE_APP_LAUNCHER' });
   }, [dispatch]);
 
-  const handleTrashClick = useCallback(() => {
-    dispatch({ type: 'OPEN_WINDOW', appId: 'filemanager' });
-  }, [dispatch]);
-
-  // Phase 4.3 — Dock Trash icon accepts file + desktop-icon drops.
-  // For desktop-icon refs we dispatch REMOVE_DESKTOP_ICON (existing
-  // reducer); the actual byte trashing for daemon-backed targets is
-  // deferred until the daemon endpoints land (see DONE.md).
-  const [trashDropOver, setTrashDropOver] = useState(false);
-  const handleTrashDragOver = useCallback((e: React.DragEvent) => {
-    const types = Array.from(e.dataTransfer.types);
-    if (
-      types.includes('application/x-tytus-file-ref') ||
-      types.includes('application/x-tytus-desktop-icon')
-    ) {
-      e.preventDefault();
-      try {
-        e.dataTransfer.dropEffect = 'move';
-      } catch {}
-      setTrashDropOver(true);
-    }
-  }, []);
-  const handleTrashDragLeave = useCallback(() => {
-    setTrashDropOver(false);
-  }, []);
-  const handleTrashDrop = useCallback(
-    (e: React.DragEvent) => {
-      setTrashDropOver(false);
-      const payload = parsePayload(e.dataTransfer);
-      if (!payload) return;
-      e.preventDefault();
-      if (payload.kind === 'desktop-icon') {
-        for (const id of payload.iconIds) {
-          dispatch({ type: 'REMOVE_DESKTOP_ICON', id });
-        }
-        return;
-      }
-      if (payload.kind === 'file') {
-        // vfs refs: hand to trash repo (which writes the metadata
-        // index + delegates to vfs hooks). daemon refs: surface as
-        // not-found until the daemon endpoints land.
-        void trashRepo.trash(payload.refs);
-      }
-    },
-    [dispatch],
-  );
-
   // Dedupe by canonical id so a legacy entry (e.g. `musiccreator`) and
   // its installed canonical (`juli3ta`) don't both surface in the Dock
   // — keep the canonical entry where present, otherwise the legacy.
@@ -182,10 +135,19 @@ const Dock = memo(function Dock() {
     return out;
   };
   const pinnedItemsRaw = dedupeByCanonical(
-    dockItems.filter((d) => d.isPinned && !isHiddenLegacyApp(resolveCanonicalAppId(d.appId))),
+    dockItems.filter((d) =>
+      d.appId !== PERMANENT_RIGHT_APP_ID &&
+      d.isPinned &&
+      !isHiddenLegacyApp(resolveCanonicalAppId(d.appId)),
+    ),
   );
   const openUnpinned = dedupeByCanonical(
-    dockItems.filter((d) => !d.isPinned && d.isOpen && !isHiddenLegacyApp(resolveCanonicalAppId(d.appId))),
+    dockItems.filter((d) =>
+      d.appId !== PERMANENT_RIGHT_APP_ID &&
+      !d.isPinned &&
+      d.isOpen &&
+      !isHiddenLegacyApp(resolveCanonicalAppId(d.appId)),
+    ),
   );
 
   // Phase 1.6 — apply user-configured dock order. Apps not present
@@ -229,9 +191,13 @@ const Dock = memo(function Dock() {
     [dispatch, dockTheme, draggingAppId, pinnedItems],
   );
 
-  const renderDockIcon = (appId: string, isTrash = false, reorderable = false) => {
+  const renderDockIcon = (
+    appId: string,
+    reorderable = false,
+    options: { permanent?: boolean } = {},
+  ) => {
     const item = dockItems.find((d) => d.appId === appId);
-    if (!item && !isTrash) return null;
+    if (!item && !options.permanent) return null;
 
     const rawApp = getAppById(appId);
     const app = rawApp ? unifyAppDefinition(rawApp) : undefined;
@@ -290,7 +256,7 @@ const Dock = memo(function Dock() {
         style={{ opacity: isDragGhost ? 0.4 : 1 }}
         {...reorderHandlers}
         onContextMenu={(e) => {
-          if (isTrash) return;
+          if (options.permanent) return;
           e.preventDefault();
           dispatch({
             type: 'SHOW_CONTEXT_MENU',
@@ -347,15 +313,15 @@ const Dock = memo(function Dock() {
               animation: 'tooltipAppear 100ms ease',
             }}
           >
-            {isTrash ? t('dock.trash') : app ? localizedAppName(t, app.id, app.name) : appId}
+            {app ? localizedAppName(t, app.id, app.name) : appId}
           </div>
         )}
 
         {/* Icon */}
         <button
-          onClick={() => isTrash ? handleTrashClick() : handleAppClick(appId)}
-          aria-label={isTrash ? t('dock.trash') : app ? localizedAppName(t, app.id, app.name) : appId}
-          title={isTrash ? t('dock.trash') : app ? localizedAppName(t, app.id, app.name) : appId}
+          onClick={() => handleAppClick(appId)}
+          aria-label={app ? localizedAppName(t, app.id, app.name) : appId}
+          title={app ? localizedAppName(t, app.id, app.name) : appId}
           className="rounded-md flex items-center justify-center transition-all"
           style={{
             width: iconExtent,
@@ -363,14 +329,10 @@ const Dock = memo(function Dock() {
             background: isHovered ? 'var(--bg-hover)' : 'transparent',
             transform: isBouncing ? 'translateY(-6px)' : 'scale(1)',
             transition: isBouncing ? 'transform 400ms cubic-bezier(0.34, 1.56, 0.64, 1)' : 'all 150ms ease',
-            opacity: isTrash ? 0.7 : isOpen ? 1 : 0.85,
+            opacity: isOpen || options.permanent ? 1 : 0.85,
           }}
         >
-          {isTrash ? (
-            <Trash2 size={iconGlyph} className="text-[var(--text-primary)]" />
-          ) : (
-            <DynamicIcon name={app?.icon || 'HelpCircle'} size={iconGlyph} className="text-[var(--text-primary)]" />
-          )}
+          <DynamicIcon name={app?.icon || 'HelpCircle'} size={iconGlyph} className="text-[var(--text-primary)]" />
         </button>
 
         {/* Active indicator dot — sits inside the dock so it's never clipped at the viewport edge */}
@@ -475,9 +437,9 @@ const Dock = memo(function Dock() {
         }}
       />
 
-      {/* Pinned apps (Phase 1.6 — reorderable via app DnD) */}
+      {/* Dynamic app section: user-pinned apps first, then open unpinned apps. */}
       {pinnedItems.map((item) =>
-        renderDockIcon(item.appId, false, true),
+        renderDockIcon(item.appId, true),
       )}
 
       {/* Separator (if there are open unpinned apps) */}
@@ -505,24 +467,9 @@ const Dock = memo(function Dock() {
         }}
       />
 
-      {/* Trash (Phase 4.3 drop target) */}
-      <div
-        onDragOver={handleTrashDragOver}
-        onDragLeave={handleTrashDragLeave}
-        onDrop={handleTrashDrop}
-        style={{
-          position: 'relative',
-          ...(trashDropOver
-            ? {
-                outline: '2px solid var(--accent-error)',
-                outlineOffset: 2,
-                borderRadius: 'var(--radius-sm)',
-              }
-            : {}),
-        }}
-      >
-        {renderDockIcon('trash', true)}
-      </div>
+      {/* Permanent right-side system controls. Settings is always present here;
+          it is intentionally excluded from the dynamic app section above. */}
+      {renderDockIcon(PERMANENT_RIGHT_APP_ID, false, { permanent: true })}
 
       <style>{`
         @keyframes dockSlideUp {
