@@ -30,6 +30,21 @@ type TerminalReadResponse = {
 const isRecord = (v: unknown): v is Record<string, unknown> =>
   typeof v === 'object' && v !== null;
 
+class TerminalRequestError extends Error {
+  readonly status: number;
+  readonly terminalMissing: boolean;
+
+  constructor(message: string, status: number, terminalMissing = false) {
+    super(message);
+    this.name = 'TerminalRequestError';
+    this.status = status;
+    this.terminalMissing = terminalMissing;
+  }
+}
+
+const terminalErrorMessage = (parsed: unknown, fallback: string): string =>
+  isRecord(parsed) && typeof parsed.error === 'string' ? parsed.error : fallback;
+
 async function startTerminal(body: TerminalStart): Promise<string> {
   const res = await fetch('/api/terminal/session', {
     method: 'POST',
@@ -38,25 +53,35 @@ async function startTerminal(body: TerminalStart): Promise<string> {
   });
   const parsed = await res.json().catch(() => ({})) as unknown;
   if (!res.ok || !isRecord(parsed) || typeof parsed.id !== 'string') {
-    const msg = isRecord(parsed) && typeof parsed.error === 'string'
-      ? parsed.error
-      : `terminal start failed (${res.status})`;
-    throw new Error(msg);
+    throw new TerminalRequestError(
+      terminalErrorMessage(parsed, `terminal start failed (${res.status})`),
+      res.status,
+    );
   }
   return parsed.id;
 }
 
 async function readTerminal(id: string): Promise<TerminalReadResponse> {
   const res = await fetch(`/api/terminal/session?id=${encodeURIComponent(id)}`);
-  return await res.json().catch(() => ({ error: `terminal read failed (${res.status})` })) as TerminalReadResponse;
+  const parsed = await res.json().catch(() => ({})) as unknown;
+  if (!res.ok) {
+    const message = terminalErrorMessage(parsed, `terminal read failed (${res.status})`);
+    throw new TerminalRequestError(message, res.status, message === 'terminal_not_found');
+  }
+  return parsed as TerminalReadResponse;
 }
 
-function writeTerminal(id: string, data: string): void {
-  void fetch(`/api/terminal/session/write?id=${encodeURIComponent(id)}`, {
+async function writeTerminal(id: string, data: string): Promise<void> {
+  const res = await fetch(`/api/terminal/session/write?id=${encodeURIComponent(id)}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ data }),
   });
+  if (!res.ok) {
+    const parsed = await res.json().catch(() => ({})) as unknown;
+    const message = terminalErrorMessage(parsed, `terminal write failed (${res.status})`);
+    throw new TerminalRequestError(message, res.status, message === 'terminal_not_found');
+  }
 }
 
 function resizeTerminal(id: string, cols: number, rows: number): void {
@@ -64,11 +89,12 @@ function resizeTerminal(id: string, cols: number, rows: number): void {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ cols, rows }),
-  });
+  }).catch(() => undefined);
 }
 
 function stopTerminal(id: string): void {
-  void fetch(`/api/terminal/session?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
+  void fetch(`/api/terminal/session?id=${encodeURIComponent(id)}`, { method: 'DELETE' })
+    .catch(() => undefined);
 }
 
 
@@ -110,7 +136,7 @@ export default function Terminal() {
     const id = sessionRef.current;
     if (!id) return;
     void navigator.clipboard?.readText().then((text) => {
-      if (text) writeTerminal(id, text);
+      if (text) void writeTerminal(id, text).catch(() => undefined);
     });
   };
 
@@ -278,6 +304,21 @@ export default function Terminal() {
 
     term.focus();
 
+    const markTerminalLost = (message: string, color = '31') => {
+      if (cancelled) return;
+      if (pollTimer !== null) {
+        window.clearTimeout(pollTimer);
+        pollTimer = null;
+      }
+      dataDisposable?.dispose();
+      dataDisposable = null;
+      titleDisposable?.dispose();
+      titleDisposable = null;
+      sessionRef.current = null;
+      term.writeln(`\r\n\x1b[${color}m${message}\x1b[0m`);
+      setStatus(color === '90' ? 'closed' : 'error');
+    };
+
     const poll = async (id: string) => {
       if (cancelled) return;
       try {
@@ -322,7 +363,16 @@ export default function Terminal() {
         setStatus('connected');
         term.reset();
         fit();
-        dataDisposable = term.onData((data) => writeTerminal(id, data));
+        dataDisposable = term.onData((data) => {
+          void writeTerminal(id, data).catch((err) => {
+            const missing = err instanceof TerminalRequestError && err.terminalMissing;
+            markTerminalLost(
+              missing
+                ? 'Terminal session ended because Tytus restarted. Open a new Terminal window.'
+                : err instanceof Error ? err.message : String(err),
+            );
+          });
+        });
         titleDisposable = term.onTitleChange((title) => {
           if (currentWindow?.id && title.trim()) {
             dispatch({ type: 'UPDATE_WINDOW_TITLE', windowId: currentWindow.id, title: title.trim() });
@@ -373,7 +423,7 @@ export default function Terminal() {
       e.preventDefault();
       e.stopPropagation();
       void navigator.clipboard?.readText().then((text) => {
-        if (text) writeTerminal(id, text);
+        if (text) void writeTerminal(id, text).catch(() => undefined);
       });
       return;
     }
@@ -391,7 +441,7 @@ export default function Terminal() {
     if (!text) return;
     e.preventDefault();
     e.stopPropagation();
-    writeTerminal(id, text);
+    void writeTerminal(id, text).catch(() => undefined);
   };
 
   return (
