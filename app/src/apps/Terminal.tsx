@@ -27,6 +27,9 @@ type TerminalReadResponse = {
   exit_code: number | null;
 } | { error: string };
 
+const TERMINAL_ACTIVE_POLL_MS = 90;
+const TERMINAL_IDLE_POLL_MS = 750;
+
 const isRecord = (v: unknown): v is Record<string, unknown> =>
   typeof v === 'object' && v !== null;
 
@@ -325,23 +328,29 @@ export default function Terminal() {
         const parsed = await readTerminal(id);
         if (cancelled) return;
         if ('error' in parsed) {
-          term.writeln(`\r\n\x1b[31m${parsed.error}\x1b[0m`);
-          setStatus('error');
+          markTerminalLost(parsed.error);
           return;
         }
         if (parsed.output) enqueueTerminalWrite(term, parsed.output);
         if (!parsed.alive) {
-          if (parsed.exit_code !== null) {
-            term.writeln(`\r\n\x1b[90m[process exited: ${parsed.exit_code}]\x1b[0m`);
-          }
-          setStatus('closed');
+          markTerminalLost(
+            parsed.exit_code !== null ? `[process exited: ${parsed.exit_code}]` : '[process exited]',
+            '90',
+          );
           return;
         }
-        pollTimer = window.setTimeout(() => void poll(id), 90);
+        pollTimer = window.setTimeout(
+          () => void poll(id),
+          parsed.output ? TERMINAL_ACTIVE_POLL_MS : TERMINAL_IDLE_POLL_MS,
+        );
       } catch (err) {
         if (!cancelled) {
-          term.writeln(`\r\n\x1b[31m${err instanceof Error ? err.message : String(err)}\x1b[0m`);
-          setStatus('error');
+          const missing = err instanceof TerminalRequestError && err.terminalMissing;
+          markTerminalLost(
+            missing
+              ? 'Terminal session ended because Tytus restarted. Open a new Terminal window.'
+              : err instanceof Error ? err.message : String(err),
+          );
         }
       }
     };
