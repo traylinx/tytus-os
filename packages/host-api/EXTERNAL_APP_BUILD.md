@@ -171,6 +171,13 @@ stay on `entry.module`; installed apps use `entry.url`.
 - **Don't import the host's loader.** Installed apps consume
   `@tytus/host-api` types only; the loader (`app/src/runtime/`) is
   shell-private.
+- **Don't execute host shell commands through `@tytus/host-api`.**
+  The public host surface intentionally has no command-runner API.
+  The built-in Terminal talks to the local tray daemon's PTY endpoints,
+  but that is an interactive system app path, not a capability granted
+  to installed apps. Apps that need validation should surface copyable
+  commands or ask the user to open Terminal until a future allow-listed,
+  non-shell host check API exists.
 - **Don't ship `@font-face`** rules in your CSS — declare fonts in
   `manifest.entry.fonts[]`. The host's CSS isolation rejects
   `@font-face`.
