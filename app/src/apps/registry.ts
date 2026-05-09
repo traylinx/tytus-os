@@ -416,6 +416,7 @@ export function resolveAlias(
 
 export const getDefaultDockApps = (): string[] => [
   'atomek',
+  'juli3ta',
   'pod-inspector',
   'settings',
   'chat',
