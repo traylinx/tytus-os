@@ -115,7 +115,7 @@ export class LlmGateway {
 
   async *chat(input: ChatCompleteInput): AsyncIterable<ChatResultChunk> {
     const preference = input.gatewayPreference ?? 'auto';
-    const candidates = this.candidates(preference);
+    const candidates = this.chatCandidates(preference);
     if (candidates.length === 0) {
       throw new Error(preference === 'remote'
         ? 'No remote Tytus AIL gateway available. Choose Auto or Local AIL in Atomek Settings, or connect a Tytus AIL pod.'
@@ -163,6 +163,17 @@ export class LlmGateway {
       }
     }
     throw lastError instanceof Error ? lastError : new Error(String(lastError ?? 'No AIL gateway reachable'));
+  }
+
+  private chatCandidates(preference: AiGatewayPreference): GatewayCandidate[] {
+    const candidates = this.candidates(preference);
+    if (preference === 'local') return candidates;
+    const rank = (candidate: GatewayCandidate): number => {
+      if (candidate.source === 'tunnel') return 0;
+      if (candidate.source === 'included') return 1;
+      return 2;
+    };
+    return [...candidates].sort((a, b) => rank(a) - rank(b));
   }
 
 

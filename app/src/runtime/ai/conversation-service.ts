@@ -222,7 +222,7 @@ export class ConversationService {
     for (const msg of history) {
       if (msg.role !== 'user' && msg.role !== 'assistant' && msg.role !== 'system') continue;
       if (msg.status === 'error') continue;
-      if (!msg.body.trim() && msg.role !== 'assistant') continue;
+      if (!msg.body.trim()) continue;
       messages.push({ role: msg.role, content: msg.body });
     }
     return messages.slice(-24);

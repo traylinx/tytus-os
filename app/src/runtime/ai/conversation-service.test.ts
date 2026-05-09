@@ -239,6 +239,31 @@ describe('ConversationService', () => {
     expect(done?.message.gatewayLabel).toBe('Local AIL · ail-chat');
   });
 
+  it('does not send the in-flight assistant placeholder as an empty chat message', async () => {
+    const repo = new FakeRepo();
+    const calls: Array<Record<string, unknown>> = [];
+    const gateway = {
+      chat: async function* (input: Record<string, unknown>) {
+        calls.push(input);
+        yield { token: 'ok', candidate: { id: 'local', source: 'local', label: 'Local AIL', baseUrl: '', callViaHost: false } };
+      },
+      status: async () => ({ available: true, source: 'local', label: 'Local AIL' }),
+    } as unknown as LlmGateway;
+    const service = new ConversationService({
+      db: {} as never,
+      daemon: fakeDaemon,
+      appId: 'demo',
+      repo,
+      gateway,
+    });
+
+    for await (const _event of service.sendMessage({ threadId: 'thr_1', body: 'hello' })) {
+      // consume stream
+    }
+
+    expect(calls[0].messages).toEqual([{ role: 'user', content: 'hello' }]);
+  });
+
   it('forwards embedding model aliases and routing preference to the LLM gateway', async () => {
     const repo = new FakeRepo();
     const calls: Array<Record<string, unknown>> = [];

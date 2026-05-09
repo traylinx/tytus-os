@@ -106,6 +106,43 @@ describe('LlmGateway', () => {
     vi.unstubAllGlobals();
   });
 
+  it('uses direct Tytus tunnel before host proxy for streaming chat when available', async () => {
+    const d = daemon([
+      {
+        id: 'p04',
+        status: 'running',
+        kind: 'ail',
+        publicUrl: 'https://p04.example.com',
+        meta: {
+          gatewayUrl: 'https://p04.example.com/v1',
+          privateUrl: 'http://10.42.42.1:18080/v1',
+          gatewayKey: 'sk-live',
+        },
+      },
+    ]);
+    const fetchSpy = vi.fn<typeof fetch>(async () => new Response(JSON.stringify({
+      choices: [{ message: { content: 'tunnel ok' } }],
+    }), {
+      headers: { 'content-type': 'application/json' },
+    }));
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const chunks = [];
+    for await (const chunk of new LlmGateway(d).chat({
+      messages: [{ role: 'user', content: 'ping' }],
+      model: 'auto',
+      gatewayPreference: 'remote',
+    })) {
+      chunks.push(chunk);
+    }
+
+    expect(fetchSpy).toHaveBeenCalledWith('http://10.42.42.1:18080/v1/chat/completions', expect.any(Object));
+    expect(d.callPodEndpoint).not.toHaveBeenCalledWith('p04', '/v1/chat/completions', expect.any(Object));
+    expect(chunks.map((c) => c.token).join('')).toBe('tunnel ok');
+    expect(chunks[0].candidate.source).toBe('tunnel');
+    vi.unstubAllGlobals();
+  });
+
   it('honors local-only routing even when remote AIL exists', async () => {
     const d = daemon([
       { id: 'p04', status: 'running', kind: 'ail', publicUrl: 'https://p04.example.com' },

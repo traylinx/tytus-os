@@ -31,7 +31,7 @@ export async function* parseOpenAiSse(stream: ReadableStream<Uint8Array>): Async
         const data = trimmed.slice(5).trim();
         if (!data || data === '[DONE]') continue;
         const parsed = JSON.parse(data) as OpenAiChatResponse;
-        const token = parsed.choices?.[0]?.delta?.content;
+        const token = parsed.choices?.[0]?.delta?.content ?? parsed.choices?.[0]?.message?.content;
         if (token) yield token;
       }
     }
