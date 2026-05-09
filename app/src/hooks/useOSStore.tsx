@@ -13,6 +13,11 @@ import { normalizeTheme } from '@/lib/theme/normalize';
 const WINDOWS_STORAGE_KEY = 'tytus_windows';
 const THEME_STORAGE_KEY = 'tytus_theme';
 const DOCK_PINS_STORAGE_KEY = 'tytus_dock_pins';
+const DOCK_DEFAULTS_MIGRATION_KEY = 'tytus_dock_defaults_migrated_v2026_05_juli3ta';
+const DEFAULT_DOCK_APPS_TO_MIGRATE = ['juli3ta'] as const;
+const DEFAULT_DOCK_INSERT_AFTER: Partial<Record<(typeof DEFAULT_DOCK_APPS_TO_MIGRATE)[number], string>> = {
+  juli3ta: 'atomek',
+};
 
 interface PersistedWindow {
   id: string;
@@ -114,16 +119,61 @@ const persistTheme = (theme: Theme): void => {
   }
 };
 
+const uniqueCanonicalDockPins = (pins: string[]): string[] => (
+  [...new Set(pins.map(resolveCanonicalAppId))]
+);
+
+const markDockDefaultsMigrationApplied = (): void => {
+  try {
+    localStorage.setItem(DOCK_DEFAULTS_MIGRATION_KEY, '1');
+  } catch {
+    /* ignore */
+  }
+};
+
+const mergeNewDefaultDockPinsOnce = (pins: string[]): string[] => {
+  const unique = uniqueCanonicalDockPins(pins);
+  try {
+    if (localStorage.getItem(DOCK_DEFAULTS_MIGRATION_KEY) === '1') return unique;
+  } catch {
+    return unique;
+  }
+
+  const migrated = [...unique];
+  for (const appId of DEFAULT_DOCK_APPS_TO_MIGRATE) {
+    if (migrated.includes(appId)) continue;
+    const insertAfter = DEFAULT_DOCK_INSERT_AFTER[appId];
+    const afterIndex = insertAfter ? migrated.indexOf(insertAfter) : -1;
+    if (afterIndex >= 0) migrated.splice(afterIndex + 1, 0, appId);
+    else migrated.push(appId);
+  }
+
+  try {
+    localStorage.setItem(DOCK_PINS_STORAGE_KEY, JSON.stringify(migrated));
+  } catch {
+    /* ignore */
+  }
+  markDockDefaultsMigrationApplied();
+  return migrated;
+};
+
 const loadPersistedDockPins = (): string[] => {
   try {
     const raw = localStorage.getItem(DOCK_PINS_STORAGE_KEY);
-    if (!raw) return getDefaultDockApps();
+    if (!raw) {
+      markDockDefaultsMigrationApplied();
+      return getDefaultDockApps();
+    }
     const parsed: unknown = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return getDefaultDockApps();
-    return parsed
-      .filter((id): id is string => typeof id === 'string')
-      .map(resolveCanonicalAppId);
+    if (!Array.isArray(parsed)) {
+      markDockDefaultsMigrationApplied();
+      return getDefaultDockApps();
+    }
+    return mergeNewDefaultDockPinsOnce(
+      parsed.filter((id): id is string => typeof id === 'string'),
+    );
   } catch {
+    markDockDefaultsMigrationApplied();
     return getDefaultDockApps();
   }
 };
@@ -338,15 +388,29 @@ const createDockItem = (appId: string, overrides: Partial<DockItem> = {}): DockI
 
 const createInitialDockItems = (): DockItem[] => {
   const pinned = loadPersistedDockPins();
-  const items = APP_REGISTRY.map((app) => createDockItem(app.id, {
-    isPinned: pinned.includes(app.id),
-  }));
-  const existing = new Set(items.map((item) => item.appId));
+  const registryIds = new Set(APP_REGISTRY.map((app) => app.id));
+  const seen = new Set<string>();
+  const items: DockItem[] = [];
+
+  // Preserve the persisted/default pin order exactly. Some standalone apps
+  // (JULI3TA) are installed from the runtime catalog and not present in the
+  // synchronous APP_REGISTRY during shell boot, so unknown pinned ids must be
+  // allowed to sit in the configured position instead of being appended after
+  // every built-in app.
   for (const appId of pinned) {
-    if (!existing.has(appId)) {
-      items.push(createDockItem(appId, { isPinned: true }));
-    }
+    if (seen.has(appId)) continue;
+    items.push(createDockItem(appId, { isPinned: true }));
+    seen.add(appId);
   }
+
+  for (const app of APP_REGISTRY) {
+    const canonical = resolveCanonicalAppId(app.id);
+    if (seen.has(app.id) || seen.has(canonical)) continue;
+    items.push(createDockItem(app.id, { isPinned: false }));
+    seen.add(app.id);
+    if (!registryIds.has(canonical) && pinned.includes(canonical)) seen.add(canonical);
+  }
+
   return items;
 };
 

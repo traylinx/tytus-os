@@ -77,6 +77,83 @@ describe("useOSStore window persistence", () => {
     );
   });
 
+  it("loads default Dock pins in product order", async () => {
+    const { OSProvider, useOS } = await import("./useOSStore");
+    let latest: unknown = null;
+
+    const Probe = () => {
+      latest = useOS().state;
+      return <div>probe</div>;
+    };
+
+    render(
+      <OSProvider>
+        <Probe />
+      </OSProvider>,
+    );
+
+    await waitFor(() => {
+      const state = latest as { dockItems: Array<{ appId: string; isPinned: boolean }> } | null;
+      expect(state?.dockItems.filter((d) => d.isPinned).map((d) => d.appId)).toEqual([
+        "atomek",
+        "juli3ta",
+        "pod-inspector",
+        "settings",
+        "chat",
+        "filemanager",
+        "channels",
+        "terminal",
+      ]);
+    });
+  });
+
+  it("migrates existing Dock pins to include JULI3TA once", async () => {
+    localStorage.setItem(
+      "tytus_dock_pins",
+      JSON.stringify(["atomek", "pod-inspector", "settings", "chat", "filemanager", "channels", "terminal"]),
+    );
+
+    const { OSProvider, useOS } = await import("./useOSStore");
+    let latest: unknown = null;
+
+    const Probe = () => {
+      latest = useOS().state;
+      return <div>probe</div>;
+    };
+
+    render(
+      <OSProvider>
+        <Probe />
+      </OSProvider>,
+    );
+
+    await waitFor(() => {
+      const state = latest as { dockItems: Array<{ appId: string; isPinned: boolean }> } | null;
+      expect(state?.dockItems.filter((d) => d.isPinned).map((d) => d.appId)).toEqual([
+        "atomek",
+        "juli3ta",
+        "pod-inspector",
+        "settings",
+        "chat",
+        "filemanager",
+        "channels",
+        "terminal",
+      ]);
+    });
+
+    expect(JSON.parse(localStorage.getItem("tytus_dock_pins") ?? "[]")).toEqual([
+      "atomek",
+      "juli3ta",
+      "pod-inspector",
+      "settings",
+      "chat",
+      "filemanager",
+      "channels",
+      "terminal",
+    ]);
+    expect(localStorage.getItem("tytus_dock_defaults_migrated_v2026_05_juli3ta")).toBe("1");
+  });
+
   it("rewrites legacy workspace windows to the canonical app id on restore", async () => {
     localStorage.setItem("tytus_windows", JSON.stringify([persistedLegacyWorkspaceWindow]));
 
@@ -199,6 +276,7 @@ describe("useOSStore window persistence", () => {
     await waitFor(() => {
       const state = latest as { dockItems: Array<{ appId: string; isPinned: boolean }> } | null;
       expect(state?.dockItems.find((d) => d.appId === "browser")?.isPinned).toBe(true);
+      expect(state?.dockItems.find((d) => d.appId === "juli3ta")?.isPinned).toBe(true);
       expect(state?.dockItems.find((d) => d.appId === "terminal")?.isPinned).toBe(false);
     });
 
@@ -207,6 +285,7 @@ describe("useOSStore window persistence", () => {
     await waitFor(() => {
       const stored = JSON.parse(localStorage.getItem("tytus_dock_pins") ?? "[]") as string[];
       expect(stored).toContain("browser");
+      expect(stored).toContain("juli3ta");
       expect(stored).toContain("terminal");
     });
   });
