@@ -59,6 +59,8 @@ export interface WindowArgs {
   terminal?: {
     command: 'shell' | 'tytus';
     args?: string[];
+    /** Optional text to prefill into the PTY after startup. No newline is appended by the host. */
+    initialInput?: string;
   };
   /** API Tester preset request. `ail` seeds the Collections panel with the
    * full AIL endpoint catalog wired to the active included pod's URL+key. */

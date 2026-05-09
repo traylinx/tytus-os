@@ -311,9 +311,41 @@ export interface TerminalLaunchInput {
   prompt?: string;
 }
 
+export interface LocalJobInput {
+  toolId: string;
+  prompt: string;
+  cwd?: string;
+  context?: string;
+}
+
+export interface LocalJob {
+  id: string;
+  toolId: string;
+  status: 'running' | 'queued' | string;
+  streamUrl: string;
+}
+
+export type LocalJobEventKind = 'log' | 'done' | 'fail' | 'exit';
+
+export interface LocalJobEvent {
+  kind: LocalJobEventKind;
+  data: string;
+}
+
+export interface LocalJobHandlers {
+  onEvent?: (event: LocalJobEvent) => void;
+  onLog?: (line: string) => void;
+  onDone?: (payload: string) => void;
+  onFail?: (message: string) => void;
+  onExit?: (code: number) => void;
+  onError?: (error: Event) => void;
+}
+
 export interface LocalApi {
   listTools(signal?: AbortSignal): Promise<LocalTool[]>;
   openTerminal(input?: TerminalLaunchInput): Promise<void>;
+  runJob(input: LocalJobInput, signal?: AbortSignal): Promise<LocalJob>;
+  streamJob(jobId: string, handlers: LocalJobHandlers): () => void;
 }
 
 // ─── host.skills ─────────────────────────────────────────────────────

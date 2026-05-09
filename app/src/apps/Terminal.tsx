@@ -126,6 +126,7 @@ export default function Terminal() {
     }
     return { command: 'shell' };
   }, [windowArgs?.terminal]);
+  const initialInput = windowArgs?.terminal?.initialInput ?? '';
 
   const sessionKey = JSON.stringify(start);
 
@@ -372,6 +373,7 @@ export default function Terminal() {
         setStatus('connected');
         term.reset();
         fit();
+        if (initialInput) void writeTerminal(id, initialInput).catch(() => undefined);
         dataDisposable = term.onData((data) => {
           void writeTerminal(id, data).catch((err) => {
             const missing = err instanceof TerminalRequestError && err.terminalMissing;
@@ -412,7 +414,7 @@ export default function Terminal() {
       term.dispose();
       if (termRef.current === term) termRef.current = null;
     };
-  }, [currentWindow?.id, dispatch, sessionKey, start]);
+  }, [currentWindow?.id, dispatch, initialInput, sessionKey, start]);
 
   const handleClipboardKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
     const term = termRef.current;

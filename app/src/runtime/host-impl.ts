@@ -39,6 +39,9 @@ import type {
   Juli3taFileTrack,
   Juli3taLibraryApi,
   LocalApi,
+  LocalJob,
+  LocalJobHandlers,
+  LocalJobInput,
   LocalTool,
   Manifest,
   MediaApi,
@@ -645,17 +648,79 @@ function makeLocalApi(): LocalApi {
       );
       return body.tools ?? [];
     },
-    async openTerminal(): Promise<void> {
+    async openTerminal(input = {}): Promise<void> {
       if (!WINDOWS_ACTIONS) {
         throw new Error(
           'host.local.openTerminal: no WindowsActions wired. Call setWindowsActions() at shell boot.',
         );
       }
+      const launchLine = terminalLaunchLine(input);
       WINDOWS_ACTIONS.openOrFocus('terminal', {
-        terminal: { command: 'shell' },
+        terminal: {
+          command: 'shell',
+          initialInput: launchLine,
+        },
       } as unknown as AnyWindowArgs);
     },
+    async runJob(input: LocalJobInput, signal?: AbortSignal): Promise<LocalJob> {
+      return sameOriginPostJson<LocalJob>(
+        '/api/local/jobs',
+        input,
+        undefined,
+        signal,
+      );
+    },
+    streamJob(jobId: string, handlers: LocalJobHandlers): () => void {
+      const source = new EventSource(`/api/jobs/${encodeURIComponent(jobId)}/stream`);
+      source.addEventListener('log', (event) => {
+        const data = (event as MessageEvent<string>).data;
+        handlers.onEvent?.({ kind: 'log', data });
+        handlers.onLog?.(data);
+      });
+      source.addEventListener('done', (event) => {
+        const data = (event as MessageEvent<string>).data;
+        handlers.onEvent?.({ kind: 'done', data });
+        handlers.onDone?.(data);
+      });
+      source.addEventListener('fail', (event) => {
+        const data = (event as MessageEvent<string>).data;
+        handlers.onEvent?.({ kind: 'fail', data });
+        handlers.onFail?.(data);
+        source.close();
+      });
+      source.addEventListener('exit', (event) => {
+        const data = (event as MessageEvent<string>).data;
+        handlers.onEvent?.({ kind: 'exit', data });
+        try {
+          handlers.onExit?.(JSON.parse(data).code ?? -1);
+        } catch {
+          handlers.onExit?.(-1);
+        }
+        source.close();
+      });
+      source.onerror = (event) => handlers.onError?.(event);
+      return () => source.close();
+    },
   };
+}
+
+function shellQuote(value: string): string {
+  return `'${value.replace(/'/g, `'\\''`)}'`;
+}
+
+function terminalLaunchLine(input: { toolId?: string; command?: string; prompt?: string; cwd?: string; args?: string[] }): string {
+  const lines: string[] = [];
+  if (input.cwd) lines.push(`cd ${shellQuote(input.cwd)}`);
+  if (input.prompt) {
+    lines.push(`# Tytus context: ${input.prompt.replace(/\r?\n/g, ' ').slice(0, 500)}`);
+  }
+  const command = input.command && input.command !== 'shell' ? input.command : input.toolId;
+  if (command && command !== 'terminal') {
+    const args = input.args?.map(shellQuote).join(' ') ?? '';
+    lines.push(`${command}${args ? ` ${args}` : ''}`);
+  }
+  const text = lines.filter(Boolean).join('\n');
+  return text ? `${text}` : '';
 }
 
 function makeSkillsApi(): SkillsApi {
