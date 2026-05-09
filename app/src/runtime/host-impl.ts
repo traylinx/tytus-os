@@ -38,6 +38,8 @@ import type {
   Juli3taFileLibraryResponse,
   Juli3taFileTrack,
   Juli3taLibraryApi,
+  LocalApi,
+  LocalTool,
   Manifest,
   MediaApi,
   MicrophoneStream,
@@ -54,7 +56,10 @@ import type {
   ShellEventPayload,
   ShellMenuApi,
   ShellMenuSpec,
+  SkillsApi,
   StorageApi,
+  TytusSkillPack,
+  TytusSkillSummary,
   UnifiedMusicSearchResponse,
   WindowsApi,
 } from '@tytus/host-api';
@@ -631,6 +636,63 @@ function makeJuli3taLibraryApi(): Juli3taLibraryApi {
   };
 }
 
+function makeLocalApi(): LocalApi {
+  return {
+    async listTools(signal?: AbortSignal): Promise<LocalTool[]> {
+      const body = await sameOriginGetJson<{ tools?: LocalTool[] }>(
+        '/api/local/tools',
+        signal,
+      );
+      return body.tools ?? [];
+    },
+    async openTerminal(): Promise<void> {
+      if (!WINDOWS_ACTIONS) {
+        throw new Error(
+          'host.local.openTerminal: no WindowsActions wired. Call setWindowsActions() at shell boot.',
+        );
+      }
+      WINDOWS_ACTIONS.openOrFocus('terminal', {
+        terminal: { command: 'shell' },
+      } as unknown as AnyWindowArgs);
+    },
+  };
+}
+
+function makeSkillsApi(): SkillsApi {
+  return {
+    async list(input = {}): Promise<TytusSkillSummary[]> {
+      const q = new URLSearchParams();
+      if (input.appId) q.set('appId', input.appId);
+      if (input.source) q.set('source', input.source);
+      const suffix = q.toString() ? `?${q.toString()}` : '';
+      const body = await sameOriginGetJson<{ skills?: TytusSkillSummary[] }>(
+        `/api/skills${suffix}`,
+        input.signal,
+      );
+      return body.skills ?? [];
+    },
+    get(id: string, signal?: AbortSignal): Promise<TytusSkillPack> {
+      return sameOriginGetJson<TytusSkillPack>(
+        `/api/skills/${encodeURIComponent(id)}`,
+        signal,
+      );
+    },
+    async resolve(input): Promise<TytusSkillSummary[]> {
+      const body = await sameOriginPostJson<{ skills?: TytusSkillSummary[] }>(
+        '/api/skills/resolve',
+        {
+          prompt: input.prompt,
+          appId: input.appId,
+          mimeType: input.mimeType,
+        },
+        undefined,
+        input.signal,
+      );
+      return body.skills ?? [];
+    },
+  };
+}
+
 /** Build the windows namespace. The shell wires its useOSStore dispatch
  *  surface in via setWindowsActions; calls before the wiring lands
  *  throw a clear "no shell yet" error rather than a no-op so missing
@@ -890,6 +952,8 @@ export function makeHostForApp(
     storage: makeStorageApi(appId, manifest),
     events: getShellEventBus(),
     ai: makeAiApi({ appId, manifest, daemon }),
+    local: makeLocalApi(),
+    skills: makeSkillsApi(),
     media: makeMediaApi(),
     assets: makeAssetsApi(appId, entryUrls.assets),
   };

@@ -169,6 +169,51 @@
             }
           },
           "uniqueItems": true
+        },
+        "agentSkills": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "title", "description", "driver"],
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9.-]*[a-z0-9]$",
+                "maxLength": 96
+              },
+              "title": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 80
+              },
+              "description": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 240
+              },
+              "driver": {
+                "type": "string",
+                "enum": ["tytus-app", "host-api", "local-job", "terminal", "mcp", "browser"]
+              },
+              "skillUrl": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 512
+              },
+              "permissions": {
+                "type": "array",
+                "items": { "type": "string", "minLength": 1 },
+                "uniqueItems": true
+              },
+              "triggers": {
+                "type": "array",
+                "items": { "type": "string", "minLength": 1, "maxLength": 64 },
+                "uniqueItems": true
+              }
+            }
+          },
+          "uniqueItems": true
         }
       }
     },

@@ -112,8 +112,27 @@ export interface ManifestFileAssociation {
   mimeType: string;
 }
 
+export type ManifestAgentSkillDriver =
+  | 'tytus-app'
+  | 'host-api'
+  | 'local-job'
+  | 'terminal'
+  | 'mcp'
+  | 'browser';
+
+export interface ManifestAgentSkillRef {
+  id: string;
+  title: string;
+  description: string;
+  driver: ManifestAgentSkillDriver;
+  skillUrl?: string;
+  permissions?: Permission[];
+  triggers?: string[];
+}
+
 export interface ManifestContributes {
   fileAssociations?: ManifestFileAssociation[];
+  agentSkills?: ManifestAgentSkillRef[];
 }
 
 /**

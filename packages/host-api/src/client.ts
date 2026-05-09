@@ -25,6 +25,12 @@ export interface HostClient {
   /** Reusable Tytus AI/Cortex chat surface. Newer shell builds provide it;
    *  app tests and older hosts may omit it, so consumers should degrade. */
   ai?: AiApi;
+  /** Local computer capability bridge. Apps discover and launch existing
+   *  local tools through TytusOS/tray instead of shelling out themselves. */
+  local?: LocalApi;
+  /** Agentic app/extension skill registry. Skill packs are data +
+   *  instructions; execution remains driver/permission gated. */
+  skills?: SkillsApi;
   media: MediaApi;
   assets: AssetsApi;
 }
@@ -279,6 +285,86 @@ export interface Juli3taLibraryApi {
   saveGeneratedTrack(track: Juli3taFileTrack): Promise<Juli3taFileTrack>;
   deleteGeneratedTrack(id: string): Promise<void>;
   openGeneratedTracksFolder(): Promise<string>;
+}
+
+// ─── host.local ──────────────────────────────────────────────────────
+
+export type LocalToolKind = 'ai-cli' | 'terminal' | 'system-cli' | 'app' | string;
+
+export type LocalToolStatus = 'available' | 'missing' | 'needs_setup' | string;
+
+export interface LocalTool {
+  id: string;
+  label: string;
+  command?: string;
+  kind: LocalToolKind;
+  status: LocalToolStatus;
+  version?: string | null;
+  description?: string;
+}
+
+export interface TerminalLaunchInput {
+  toolId?: string;
+  command?: string;
+  args?: string[];
+  cwd?: string;
+  prompt?: string;
+}
+
+export interface LocalApi {
+  listTools(signal?: AbortSignal): Promise<LocalTool[]>;
+  openTerminal(input?: TerminalLaunchInput): Promise<void>;
+}
+
+// ─── host.skills ─────────────────────────────────────────────────────
+
+export type SkillDriver =
+  | 'tytus-app'
+  | 'host-api'
+  | 'local-job'
+  | 'terminal'
+  | 'mcp'
+  | 'browser'
+  | string;
+
+export type SkillSource = 'app' | 'makakoo' | 'user' | 'system' | string;
+
+export type SkillStatus = 'available' | 'missing' | 'needs_setup' | string;
+
+export interface TytusSkillSummary {
+  id: string;
+  title: string;
+  description: string;
+  driver: SkillDriver;
+  source: SkillSource;
+  status: SkillStatus;
+  appId?: string;
+  skillUrl?: string;
+  triggers?: string[];
+}
+
+export interface TytusSkillPack extends TytusSkillSummary {
+  body: string;
+  setup?: string[];
+}
+
+export interface SkillListInput {
+  appId?: string;
+  source?: SkillSource;
+  signal?: AbortSignal;
+}
+
+export interface SkillResolveInput {
+  prompt: string;
+  appId?: string;
+  mimeType?: string;
+  signal?: AbortSignal;
+}
+
+export interface SkillsApi {
+  list(input?: SkillListInput): Promise<TytusSkillSummary[]>;
+  get(id: string, signal?: AbortSignal): Promise<TytusSkillPack>;
+  resolve(input: SkillResolveInput): Promise<TytusSkillSummary[]>;
 }
 
 export interface DaemonApi {
