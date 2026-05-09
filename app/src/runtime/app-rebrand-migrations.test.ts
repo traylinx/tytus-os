@@ -212,15 +212,15 @@ describe('migrateWorkspaceRebrandIfPresent', () => {
         ...legacyManifest,
         id: WORKSPACE_APP_ID,
         name: 'Atomek',
-        version: '0.4.3',
+        version: '0.4.4',
         entry: {
-          url: 'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-atomek@v0.4.3/dist/index.js',
+          url: 'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-atomek@v0.4.4/dist/index.js',
         },
       },
       entryUrl:
-        'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-atomek@v0.4.3/dist/index.js',
+        'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-atomek@v0.4.4/dist/index.js',
       manifestUrl:
-        'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-atomek@v0.4.3/tytus-app.json',
+        'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-atomek@v0.4.4/tytus-app.json',
     };
     await insertInstalledApp(db, futureCanonical);
     addToInstalledAppsCache(futureCanonical);
@@ -233,7 +233,7 @@ describe('migrateWorkspaceRebrandIfPresent', () => {
     expect(rows).toHaveLength(1);
     expect(rows[0].entryUrl).toBe(futureCanonical.entryUrl);
     expect(rows[0].manifestUrl).toBe(futureCanonical.manifestUrl);
-    expect(rows[0].manifest.version).toBe('0.4.3');
+    expect(rows[0].manifest.version).toBe('0.4.4');
   });
 
   it('deletes the duplicate legacy row when the canonical row already exists', async () => {

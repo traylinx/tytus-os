@@ -391,11 +391,11 @@ describe('loadAppById', () => {
     });
 
     expect(importModule).toHaveBeenCalledWith(
-      'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-atomek@v0.4.2/dist/index.js',
+      'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-atomek@v0.4.3/dist/index.js',
     );
     expect(makeEnv).toHaveBeenCalledWith(
       'atomek',
-      expect.objectContaining({ id: 'atomek', name: 'Atomek', version: '0.4.2' }),
+      expect.objectContaining({ id: 'atomek', name: 'Atomek', version: '0.4.3' }),
     );
     expect(result.appId).toBe('atomek');
     expect(result.manifest.id).toBe('atomek');
