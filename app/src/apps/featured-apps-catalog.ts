@@ -40,7 +40,7 @@ const ALL_FEATURED_APPS: FeaturedApp[] = [
     description: 'Monaco workspace with intelligent AIL chat, dynamic file context, semantic retrieval, AI edit previews, and Tytus computer/agent controller.',
     icon: 'Sparkles',
     category: 'Productivity',
-    manifestUrl: 'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-atomek@v0.4.9/tytus-app.json',
+    manifestUrl: 'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-atomek@v0.4.11/tytus-app.json',
   },
   {
     id: 'text-editor',
@@ -116,7 +116,7 @@ export const FEATURED_APPS: FeaturedApp[] = ALL_FEATURED_APPS.filter(
  *  not keep users on stale standalone app tags. Individual app manifest URLs
  *  remain pinned to immutable app tags. */
 export const FEATURED_CATALOG_URL =
-  'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-catalog@653e935f3cc0ff0922d096896feacec591df1142/featured.json';
+  'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-catalog@5a198952431e0fd934786d9389271abb7fc12b25/featured.json';
 
 /**
  * Denylist of catalog ids the OS will refuse to auto-install at boot,
