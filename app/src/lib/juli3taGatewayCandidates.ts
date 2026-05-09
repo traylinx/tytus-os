@@ -7,6 +7,8 @@ export interface Juli3taGatewayCandidate {
   podId: string;
   source: 'included' | 'local';
   label: string;
+  /** Same-origin tray proxy pod id. Present for account AIL pods so browser code never calls pod origins directly. */
+  proxyPodId?: string;
 }
 
 export const LOCAL_AIL_URL = 'http://localhost:18080/v1';
@@ -104,6 +106,7 @@ export const buildJuli3taGatewayCandidates = (
         podId: `${podLabel}:remote`,
         source: 'included',
         label: `AIL gateway ${podLabel} (remote)`,
+        proxyPodId: podLabel,
       });
     }
 
@@ -117,6 +120,7 @@ export const buildJuli3taGatewayCandidates = (
         podId: `${podLabel}:tunnel`,
         source: 'included',
         label: `AIL gateway ${podLabel} (tunnel)`,
+        proxyPodId: podLabel,
       });
     }
   }

@@ -1399,6 +1399,24 @@ describe("daemon client — base URL + SSE URL", () => {
     expect(url).toBe("http://localhost:49445/api/state");
   });
 
+  it("postStoreAppsCheck sends an object body, not a pre-stringified JSON string", async () => {
+    const { fetch } = makeFakeFetch([
+      {
+        method: "POST",
+        path: "/api/apps/check",
+        body: { results: [{ id: "juli3ta", installed: true }] },
+        expect: (init) => {
+          expect(init?.body).toBe(JSON.stringify({ app_ids: ["juli3ta"] }));
+        },
+      },
+    ]);
+    const client = createDaemonClient({ fetch });
+    const r = await client.postStoreAppsCheck(["juli3ta"]);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.value.results[0]).toEqual({ id: "juli3ta", installed: true });
+  });
+
   it("jobStreamUrl encodes job id", () => {
     const c = createDaemonClient({ baseUrl: "http://localhost:49445" });
     expect(c.jobStreamUrl("abc/123")).toBe(

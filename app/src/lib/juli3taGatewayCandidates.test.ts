@@ -33,7 +33,9 @@ describe('JULI3TA gateway candidate building', () => {
     ]);
     expect(candidates.map((c) => c.podId)).toEqual(['04:remote', '04:tunnel', 'local']);
     expect(candidates[0]?.label).toBe('AIL gateway 04 (remote)');
+    expect(candidates[0]?.proxyPodId).toBe('04');
     expect(candidates[1]?.label).toBe('AIL gateway 04 (tunnel)');
+    expect(candidates[1]?.proxyPodId).toBe('04');
   });
 
   it('de-duplicates identical public and tunnel gateway URLs', () => {
@@ -73,6 +75,7 @@ describe('JULI3TA gateway candidate building', () => {
     ]);
     expect(candidates[0]?.apiKey).toBe('sk-camel-key');
     expect(candidates[0]?.podId).toBe('pod-camel:remote');
+    expect(candidates[0]?.proxyPodId).toBe('pod-camel');
   });
 
   it('accepts host-api pod meta gateway fields from standalone apps', () => {
@@ -96,5 +99,6 @@ describe('JULI3TA gateway candidate building', () => {
     ]);
     expect(candidates[0]?.apiKey).toBe('sk-meta-key');
     expect(candidates[0]?.podId).toBe('04:remote');
+    expect(candidates[0]?.proxyPodId).toBe('04');
   });
 });

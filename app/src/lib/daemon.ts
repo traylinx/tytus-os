@@ -936,7 +936,7 @@ export const createDaemonClient = (
         "/api/apps/check",
         {
           method: "POST",
-          body: JSON.stringify({ app_ids: appIds }),
+          body: { app_ids: appIds },
           signal,
         },
         (b) =>
