@@ -9,7 +9,8 @@ This folder documents the TytusOS desktop that ships with the `tytus` tray daemo
 | [getting-started.md](user-manual/getting-started.md) | Fresh install, sign-in, desktop, pods, first actions |
 | [settings.md](user-manual/settings.md) | Real Settings panels, session expiry, daemon recovery, updates |
 | [files.md](user-manual/files.md) | Tytus Home, shared folders, pod workspace, Inbox/Outbox/Downloads |
-| [troubleshooting.md](user-manual/troubleshooting.md) | Session, readiness, CORS, files, terminal, theme issues |
+| [atomek.md](user-manual/atomek.md) | Atomek workbench, editor, chat, AIL routing, Computer / Agents, app skills |
+| [troubleshooting.md](user-manual/troubleshooting.md) | Session, readiness, CORS, files, terminal, Atomek, theme issues |
 | [about.md](user-manual/about.md) | Product positioning, naming, install surfaces |
 | [windows.md](user-manual/windows.md) | Window controls |
 | [desktop.md](user-manual/desktop.md) | Desktop icons and wallpaper |

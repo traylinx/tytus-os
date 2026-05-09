@@ -30,6 +30,7 @@ const EXPECTED_SLUGS = [
   "launcher",
   "keyboard-shortcuts",
   "files",
+  "atomek",
   "settings",
   "apps-catalog",
   "troubleshooting",

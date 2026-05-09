@@ -1,6 +1,6 @@
 # Files
 
-Files is the Finder-like browser for Tytus. It covers local Tytus Home, shared folders, and pod workspaces.
+Files is the Finder-like browser for Tytus. It covers local Tytus Home, shared folders, and pod workspaces. Use Atomek when you need an editor, markdown preview, chat context, patch previews, or local agent work against those files.
 
 ## Sources
 
@@ -23,6 +23,18 @@ Files is the Finder-like browser for Tytus. It covers local Tytus Home, shared f
 ## Empty folders
 
 A missing pod inbox or downloads directory should render as a friendly empty state, not raw CLI stderr. If you see `tytus ls: no such path`, report it as a Files empty-state bug.
+
+## Files vs Atomek
+
+| Need | Use |
+|---|---|
+| Browse or move through Tytus Home, Shared, Inbox, Outbox, Downloads | Files |
+| Open a local folder for editing | Atomek |
+| Ask AI about the active file | Atomek chat |
+| Run tests or local tools with folder context | Atomek -> Computer / Agents or Terminal |
+| Inspect generated artifacts and patch previews | Atomek Outputs |
+
+Files owns broad navigation. Atomek owns editing and agent interaction. Do not duplicate full editor behavior in Files.
 
 ## Safety
 

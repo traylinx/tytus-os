@@ -42,6 +42,8 @@ If the top bar says **Session expired**, your pods are still running. Open **Set
 | Copy OpenAI-compatible env vars | Pod Inspector -> Copy env |
 | Browse local workspace | Files -> Tytus Home |
 | Browse a pod workspace | Files -> Pod NN workspace |
+| Edit local files and ask AI with file context | Atomek |
+| Launch local agents with active file context | Atomek -> Computer / Agents |
 | Configure Telegram/Discord/Slack/etc. | Channels |
 | Fix expired login | Settings -> Daemon |
 | Check shared folders | Settings -> Sharing or Files -> Shared |
@@ -75,6 +77,7 @@ Real production surfaces:
 - Files over Tytus Home, shared folders, and pod workspaces
 - Channels setup
 - Terminal backed by the host shell through the tray daemon
+- Atomek workbench for local files, chat, artifacts, app skills, and local Computer / Agents
 - Settings for account, daemon, sharing, appearance, dock, language, privacy, updates
 - Music Creator and other Tytus apps that use the included gateway
 

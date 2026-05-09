@@ -47,6 +47,35 @@ Browser shortcuts differ by OS. The terminal should support:
 
 If this regresses, compare against Ghostty behavior and ensure the terminal app handles platform-specific modifier keys.
 
+
+## Atomek editor is blank or files are not editable
+
+A blank editor with a normal text file usually means an old Atomek bundle is cached or the file type did not get a text model.
+
+Fix:
+
+1. Hard-refresh TytusOS.
+2. Reopen Atomek.
+3. Reopen the file from Explorer.
+4. Confirm Atomek loads `tytus-app-atomek@v0.4.11` or newer.
+5. If still broken, include the file extension and browser console error in the bug report.
+
+## Atomek folder rows do not expand or collapse
+
+Use the folder chevron or click the folder row. If nothing changes, you are likely on an old bundle. Hard-refresh TytusOS and reopen the folder.
+
+## Atomek shows duplicate Computer / Agents and Extensions icons
+
+That was an old app bundle. The current surface has one **Computer / Agents** activity. Hard-refresh TytusOS and confirm the app comes from `tytus-app-atomek@v0.4.11` or newer.
+
+## Atomek local tools are missing
+
+Open **Atomek -> Computer / Agents** and click **Refresh capabilities**. If a tool is still missing, install the local CLI first, then refresh again. Atomek only launches allowlisted tools discovered through the host bridge.
+
+## Atomek model list shows an obsolete model
+
+AIL model selection is global. Fix the global AIL configuration or selected route. Do not hardcode a replacement model in Atomek or TytusOS app code.
+
 ## `garagetytus-shared` missing inside a pod
 
 Core chat/API may work, but shared S3 bucket access will be degraded.
