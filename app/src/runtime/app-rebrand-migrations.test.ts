@@ -203,6 +203,39 @@ describe('migrateWorkspaceRebrandIfPresent', () => {
     );
   });
 
+
+  it('does not downgrade a canonical workspace row newer than the migration floor', async () => {
+    const futureCanonical: InstalledAppRow = {
+      ...legacyRow,
+      id: WORKSPACE_APP_ID,
+      manifest: {
+        ...legacyManifest,
+        id: WORKSPACE_APP_ID,
+        name: 'Atomek',
+        version: '0.4.3',
+        entry: {
+          url: 'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-atomek@v0.4.3/dist/index.js',
+        },
+      },
+      entryUrl:
+        'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-atomek@v0.4.3/dist/index.js',
+      manifestUrl:
+        'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-atomek@v0.4.3/tytus-app.json',
+    };
+    await insertInstalledApp(db, futureCanonical);
+    addToInstalledAppsCache(futureCanonical);
+
+    const report = await migrateWorkspaceRebrandIfPresent(db);
+
+    expect(report.migrated).toBe(false);
+    expect(report.reason).toBe('workspace row already current');
+    const rows = await listInstalledApps(db);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].entryUrl).toBe(futureCanonical.entryUrl);
+    expect(rows[0].manifestUrl).toBe(futureCanonical.manifestUrl);
+    expect(rows[0].manifest.version).toBe('0.4.3');
+  });
+
   it('deletes the duplicate legacy row when the canonical row already exists', async () => {
     const canonical: InstalledAppRow = {
       ...legacyRow,

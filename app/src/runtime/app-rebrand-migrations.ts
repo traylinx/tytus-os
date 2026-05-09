@@ -21,11 +21,11 @@ import { notifyInstalledAppsChanged } from './installed-apps-events';
 
 export const WORKSPACE_APP_ID = 'atomek';
 export const LEGACY_WORKSPACE_APP_ID = 'forge';
-export const WORKSPACE_APP_VERSION = '0.3.8';
+export const WORKSPACE_APP_VERSION = '0.4.2';
 export const WORKSPACE_APP_MANIFEST_URL =
-  'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-atomek@v0.3.8/tytus-app.json';
+  'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-atomek@v0.4.2/tytus-app.json';
 export const WORKSPACE_APP_ENTRY_URL =
-  'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-atomek@v0.3.8/dist/index.js';
+  'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-atomek@v0.4.2/dist/index.js';
 
 export const WORKSPACE_APP_MANIFEST: Manifest = {
   $schema: 'https://tytus.traylinx.com/schema/app/v1.json',
@@ -74,11 +74,34 @@ const isLegacyWorkspaceRow = (row: InstalledAppRow): boolean =>
   Boolean(row.entryUrl?.includes('/tytus-app-forge@')) ||
   Boolean(row.manifestUrl?.includes('/tytus-app-forge@'));
 
-const isOutdatedWorkspaceRow = (row: InstalledAppRow): boolean =>
-  row.id === WORKSPACE_APP_ID &&
-  (row.manifest.version !== WORKSPACE_APP_VERSION ||
-    row.entryUrl !== WORKSPACE_APP_ENTRY_URL ||
-    row.manifestUrl !== WORKSPACE_APP_MANIFEST_URL);
+const versionParts = (version: string): number[] =>
+  version
+    .split(/[^0-9]+/)
+    .filter(Boolean)
+    .slice(0, 3)
+    .map((part) => Number.parseInt(part, 10));
+
+const isVersionBefore = (actual: string, minimum: string): boolean => {
+  const a = versionParts(actual);
+  const b = versionParts(minimum);
+  for (let i = 0; i < 3; i += 1) {
+    const av = a[i] ?? 0;
+    const bv = b[i] ?? 0;
+    if (av < bv) return true;
+    if (av > bv) return false;
+  }
+  return false;
+};
+
+const isOutdatedWorkspaceRow = (row: InstalledAppRow): boolean => {
+  if (row.id !== WORKSPACE_APP_ID) return false;
+  const joinedUrls = `${row.entryUrl ?? ''} ${row.manifestUrl ?? ''}`;
+  return (
+    isVersionBefore(row.manifest.version ?? '', WORKSPACE_APP_VERSION) ||
+    /tytus-app-forge@/i.test(joinedUrls) ||
+    /tytus-app-atomek@v0\.(?:[0-2]|3\.[0-9]|4\.[0-1])\b/i.test(joinedUrls)
+  );
+};
 
 export function coerceWorkspaceRebrandRow(row: InstalledAppRow): InstalledAppRow {
   if (!isLegacyWorkspaceRow(row) && !isOutdatedWorkspaceRow(row)) return row;
