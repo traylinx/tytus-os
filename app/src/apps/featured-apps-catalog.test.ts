@@ -118,7 +118,7 @@ describe('loadFeaturedApps', () => {
         apps: [
           {
             ...VALID_REMOTE.apps[0],
-            manifestUrl: 'https://raw.githubusercontent.com/traylinx/tytus-app-atomek/v0.3.8/tytus-app.json',
+            manifestUrl: 'https://raw.githubusercontent.com/traylinx/tytus-app-atomek/v0.4.1/tytus-app.json',
           },
         ],
       }),
@@ -126,7 +126,7 @@ describe('loadFeaturedApps', () => {
     const list = await loadFeaturedApps({ fetchImpl });
     expect(list).toHaveLength(1);
     expect(list[0].manifestUrl).toBe(
-      'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-atomek@v0.3.8/tytus-app.json',
+      'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-atomek@v0.4.1/tytus-app.json',
     );
   });
 
