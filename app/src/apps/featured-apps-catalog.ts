@@ -1,10 +1,11 @@
 /**
  * Featured apps catalog — curated list of user apps the App Store
  * surfaces with one-click Install. Each entry points at a manifest URL
- * served from a public github.com/traylinx/tytus-app-* repo via a CORS-safe CDN/raw URL.
+ * served from a public github.com/traylinx/tytus-app-* repo via the CSP-allowed
+ * jsDelivr CDN.
  *
  * Phase 10: source of truth is the remote catalog at
- * https://raw.githubusercontent.com/traylinx/tytus-app-catalog/<commit>/featured.json
+ * https://cdn.jsdelivr.net/gh/traylinx/tytus-app-catalog@<commit>/featured.json
  * — adding a featured app no longer requires an OS update. The App Store
  * fetches once per mount with `loadFeaturedApps()`. If the fetch fails
  * (offline, jsDelivr blip), we fall back to the hardcoded `FEATURED_APPS`
@@ -39,7 +40,7 @@ const ALL_FEATURED_APPS: FeaturedApp[] = [
     description: 'Monaco workspace with local files, chat/output panels, extension connectors, markdown preview, and search.',
     icon: 'Sparkles',
     category: 'Productivity',
-    manifestUrl: 'https://raw.githubusercontent.com/traylinx/tytus-app-atomek/v0.3.8/tytus-app.json',
+    manifestUrl: 'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-atomek@v0.3.8/tytus-app.json',
   },
   {
     id: 'text-editor',
@@ -115,7 +116,7 @@ export const FEATURED_APPS: FeaturedApp[] = ALL_FEATURED_APPS.filter(
  *  not keep users on stale standalone app tags. Individual app manifest URLs
  *  remain pinned to immutable app tags. */
 export const FEATURED_CATALOG_URL =
-  'https://raw.githubusercontent.com/traylinx/tytus-app-catalog/f0b62e014d3b2099d3d1dae162488351b7a0193d/featured.json';
+  'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-catalog@f0b62e014d3b2099d3d1dae162488351b7a0193d/featured.json';
 
 /**
  * Denylist of catalog ids the OS will refuse to auto-install at boot,
@@ -128,6 +129,26 @@ export const AUTO_INSTALL_DENYLIST: ReadonlySet<string> = new Set();
 interface RemoteCatalogShape {
   version?: number;
   apps?: unknown;
+}
+
+function normalizeCatalogManifestUrl(url: string): string {
+  try {
+    const parsed = new URL(url);
+    if (
+      parsed.protocol === 'https:' &&
+      parsed.hostname === 'raw.githubusercontent.com'
+    ) {
+      const [owner, repo, ref, ...path] = parsed.pathname
+        .split('/')
+        .filter(Boolean);
+      if (owner === 'traylinx' && repo && ref && path.length > 0) {
+        return `https://cdn.jsdelivr.net/gh/traylinx/${repo}@${ref}/${path.join('/')}`;
+      }
+    }
+  } catch {
+    return url;
+  }
+  return url;
 }
 
 function parseRemoteCatalog(raw: unknown): FeaturedApp[] | null {
@@ -148,14 +169,15 @@ function parseRemoteCatalog(raw: unknown): FeaturedApp[] | null {
     ) {
       continue;
     }
-    if (!e.manifestUrl.startsWith('https://')) continue;
+    const manifestUrl = normalizeCatalogManifestUrl(e.manifestUrl);
+    if (!manifestUrl.startsWith('https://')) continue;
     out.push({
       id: e.id,
       name: e.name,
       description: e.description,
       icon: e.icon,
       category: e.category,
-      manifestUrl: e.manifestUrl,
+      manifestUrl,
     });
   }
   return out;

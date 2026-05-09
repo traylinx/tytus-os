@@ -110,6 +110,26 @@ describe('loadFeaturedApps', () => {
     expect(list[0].id).toBe('second-app');
   });
 
+  it('normalizes traylinx raw GitHub manifest URLs to the CSP-allowed CDN', async () => {
+    const fetchImpl = mockFetch(async () => ({
+      ok: true,
+      json: async () => ({
+        version: 1,
+        apps: [
+          {
+            ...VALID_REMOTE.apps[0],
+            manifestUrl: 'https://raw.githubusercontent.com/traylinx/tytus-app-atomek/v0.3.8/tytus-app.json',
+          },
+        ],
+      }),
+    }));
+    const list = await loadFeaturedApps({ fetchImpl });
+    expect(list).toHaveLength(1);
+    expect(list[0].manifestUrl).toBe(
+      'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-atomek@v0.3.8/tytus-app.json',
+    );
+  });
+
   it('skips entries missing required fields', async () => {
     const fetchImpl = mockFetch(async () => ({
       ok: true,
@@ -170,6 +190,7 @@ describe('FEATURED_APPS hardcoded baseline', () => {
       'photo-editor',
       'text-editor',
     ]);
+    expect(FEATURED_APPS.every((a) => a.manifestUrl.startsWith('https://cdn.jsdelivr.net/'))).toBe(true);
     expect(FEATURED_APPS.find((a) => a.id === 'markdown-preview')?.name).toBe('Markdown Editor');
     expect(FEATURED_APPS.find((a) => a.id === 'openhouse')?.manifestUrl).toBe('https://cdn.jsdelivr.net/gh/traylinx/tytus-app-openhouse@e0835ba8c5d5c4a8aad4033b1e0aa7b603c59e38/tytus-app.json');
     expect(ids).not.toContain('code-editor');

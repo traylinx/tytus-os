@@ -104,4 +104,110 @@ describe("useOSStore window persistence", () => {
     const state = latest as { dockItems: Array<{ appId: string; isOpen: boolean }> } | null;
     expect(state?.dockItems.find((d) => d.appId === "atomek")?.isOpen).toBe(true);
   });
+
+  it("restores and persists Dock position, size, auto-hide, and order", async () => {
+    localStorage.setItem(
+      "tytus_theme",
+      JSON.stringify({
+        mode: "light",
+        accent: "#ff00aa",
+        wallpaper: "tytus-default",
+        dock: {
+          position: "left",
+          size: "large",
+          autoHide: true,
+          order: ["terminal", "chat"],
+        },
+      }),
+    );
+
+    const { OSProvider, useOS } = await import("./useOSStore");
+    let latest: unknown = null;
+
+    const Probe = () => {
+      const { state, dispatch } = useOS();
+      latest = state;
+      return (
+        <button
+          onClick={() =>
+            dispatch({
+              type: "SET_THEME",
+              theme: {
+                dock: {
+                  ...state.theme.dock,
+                  position: "right",
+                  order: ["chat", "terminal"],
+                },
+              },
+            })
+          }
+        >
+          change dock
+        </button>
+      );
+    };
+
+    const { getByText } = render(
+      <OSProvider>
+        <Probe />
+      </OSProvider>,
+    );
+
+    await waitFor(() => {
+      const state = latest as { theme: { dock: { position: string; size: string; autoHide: boolean; order: string[] } } } | null;
+      expect(state?.theme.dock).toEqual({
+        position: "left",
+        size: "large",
+        autoHide: true,
+        order: ["terminal", "chat"],
+      });
+    });
+
+    getByText("change dock").click();
+
+    await waitFor(() => {
+      const stored = JSON.parse(localStorage.getItem("tytus_theme") ?? "{}") as {
+        dock?: { position?: string; order?: string[] };
+      };
+      expect(stored.dock?.position).toBe("right");
+      expect(stored.dock?.order).toEqual(["chat", "terminal"]);
+    });
+  });
+
+  it("restores and persists user Dock pins", async () => {
+    localStorage.setItem("tytus_dock_pins", JSON.stringify(["browser"]));
+
+    const { OSProvider, useOS } = await import("./useOSStore");
+    let latest: unknown = null;
+
+    const Probe = () => {
+      const { state, dispatch } = useOS();
+      latest = state;
+      return (
+        <button onClick={() => dispatch({ type: "PIN_DOCK_ITEM", appId: "terminal" })}>
+          pin terminal
+        </button>
+      );
+    };
+
+    const { getByText } = render(
+      <OSProvider>
+        <Probe />
+      </OSProvider>,
+    );
+
+    await waitFor(() => {
+      const state = latest as { dockItems: Array<{ appId: string; isPinned: boolean }> } | null;
+      expect(state?.dockItems.find((d) => d.appId === "browser")?.isPinned).toBe(true);
+      expect(state?.dockItems.find((d) => d.appId === "terminal")?.isPinned).toBe(false);
+    });
+
+    getByText("pin terminal").click();
+
+    await waitFor(() => {
+      const stored = JSON.parse(localStorage.getItem("tytus_dock_pins") ?? "[]") as string[];
+      expect(stored).toContain("browser");
+      expect(stored).toContain("terminal");
+    });
+  });
 });

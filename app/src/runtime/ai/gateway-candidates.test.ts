@@ -147,4 +147,82 @@ describe('LlmGateway', () => {
     expect(models.map((model) => model.id)).toEqual(['ail-chat', 'ail-code']);
     expect(models.every((model) => model.gatewayLabel === 'AIL gateway p04 (remote)')).toBe(true);
   });
+
+  it('posts remote embeddings with the caller-provided model alias', async () => {
+    const d = daemon([
+      { id: 'p04', status: 'running', kind: 'ail', publicUrl: 'https://p04.example.com' },
+    ]);
+    const callPodEndpoint = d.callPodEndpoint as ReturnType<typeof vi.fn>;
+    callPodEndpoint.mockResolvedValueOnce(new Response(JSON.stringify({
+      model: 'remote-embed',
+      data: [{ embedding: [0.1, 0.2, 0.3] }],
+    }), {
+      headers: { 'content-type': 'application/json' },
+    }));
+    const fetchSpy = vi.fn<typeof fetch>();
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const result = await new LlmGateway(d).embedText({
+      input: 'remember this',
+      model: 'remote-embed',
+      gatewayPreference: 'remote',
+    });
+
+    expect(callPodEndpoint).toHaveBeenCalledWith('p04', '/v1/embeddings', expect.objectContaining({
+      method: 'POST',
+      body: JSON.stringify({ model: 'remote-embed', input: 'remember this' }),
+    }));
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(result).toMatchObject({
+      embedding: [0.1, 0.2, 0.3],
+      model: 'remote-embed',
+    });
+    expect(result.candidate.source).toBe('included');
+    vi.unstubAllGlobals();
+  });
+
+  it('posts local embeddings with a local model alias', async () => {
+    const d = daemon([
+      { id: 'p04', status: 'running', kind: 'ail', publicUrl: 'https://p04.example.com' },
+    ]);
+    const fetchSpy = vi.fn<typeof fetch>(async () => new Response(JSON.stringify({
+      data: [{ embedding: [1, 2, 3] }],
+    }), {
+      headers: { 'content-type': 'application/json' },
+    }));
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const result = await new LlmGateway(d).embedText({
+      input: 'local memory',
+      model: 'local-embed',
+      gatewayPreference: 'local',
+    });
+
+    expect(d.callPodEndpoint).not.toHaveBeenCalledWith('p04', '/v1/embeddings', expect.any(Object));
+    expect(fetchSpy).toHaveBeenCalledWith('http://localhost:18080/v1/embeddings', expect.objectContaining({
+      method: 'POST',
+      body: JSON.stringify({ model: 'local-embed', input: 'local memory' }),
+    }));
+    expect(result.embedding).toEqual([1, 2, 3]);
+    expect(result.model).toBe('local-embed');
+    expect(result.candidate.source).toBe('local');
+    vi.unstubAllGlobals();
+  });
+
+  it('uses the neutral auto alias for embeddings when no model is supplied', async () => {
+    const d = daemon([]);
+    const fetchSpy = vi.fn<typeof fetch>(async () => new Response(JSON.stringify({
+      data: [{ embedding: [4, 5, 6] }],
+    }), {
+      headers: { 'content-type': 'application/json' },
+    }));
+    vi.stubGlobal('fetch', fetchSpy);
+
+    await new LlmGateway(d).embedText({ input: 'no hardcoded model ids' });
+
+    const body = JSON.parse(String(fetchSpy.mock.calls[0][1]?.body));
+    expect(body).toEqual({ model: 'auto', input: 'no hardcoded model ids' });
+    expect(String(body.model)).not.toMatch(/text-embedding|ada|bge|gte|e5/i);
+    vi.unstubAllGlobals();
+  });
 });

@@ -28,12 +28,12 @@ export const isRefreshTokenExpired = (error: string | null | undefined): boolean
 // now; in that case login-required refresh errors are stale warnings,
 // not an active session-expired state. This mirrors the tray menu.
 //
-//   green  = daemon_running && logged_in && tunnel_active && keychain_healthy
-//             && no active refresh error
-//   yellow = daemon_running && (! tunnel_active
-//                                || ! keychain_healthy
-//                                || non-login refresh error)
-//   red    = !daemon_running || status === 'offline'
+//   green  = logged_in && tunnel_active && keychain_healthy
+//             && no active refresh error && daemon_running
+//   yellow = usable session with degraded local helper state
+//            (! daemon_running || ! tunnel_active || ! keychain_healthy
+//             || non-login refresh error)
+//   red    = no usable session, or /api/state itself is unreachable
 //   gray   = loading / unknown
 export const computePill = (
   status: DaemonStatus,
@@ -57,10 +57,16 @@ export const computePill = (
       detail: error?.message ?? "Daemon returned no state",
     };
   }
-  if (!state.daemon_running) {
+  const hasUsableSession =
+    state.logged_in ||
+    state.tunnel_active ||
+    state.agents.length > 0 ||
+    state.included.length > 0;
+  if (!state.daemon_running && !hasUsableSession) {
     return { color: "red", label: "Stopped", detail: "Daemon not running" };
   }
   const issues: string[] = [];
+  if (!state.daemon_running) issues.push("daemon offline");
   if (!state.tunnel_active) issues.push("tunnel down");
   if (!state.keychain_healthy) issues.push("keychain unhealthy");
   const loginRequiredRefreshError = isRefreshTokenExpired(state.last_refresh_error);

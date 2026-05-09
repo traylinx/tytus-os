@@ -130,6 +130,26 @@ export interface AiListModelsInput {
   signal?: AbortSignal;
 }
 
+export interface AiEmbedTextInput {
+  input: string;
+  /**
+   * User routing preference. `remote` means Tytus AIL only
+   * (public/proxied or tunnel), `local` means local switchAILocal only,
+   * `auto` keeps the existing failover order.
+   */
+  gatewayPreference?: AiGatewayPreference;
+  /** Optional model alias understood by the selected AIL gateway. */
+  model?: string;
+  signal?: AbortSignal;
+}
+
+export interface AiEmbeddingResult {
+  embedding: number[];
+  model: string;
+  gatewayLabel: string;
+  source: AiGatewaySource;
+}
+
 export interface AiWriteMemoryInput {
   title: string;
   body: string;
@@ -151,6 +171,7 @@ export interface AiCreateArtifactInput {
 export interface AiApi {
   status(signal?: AbortSignal): Promise<AiStatus>;
   listModels(input?: AiListModelsInput): Promise<AiModelInfo[]>;
+  embedText(input: AiEmbedTextInput): Promise<AiEmbeddingResult>;
   listThreads(input?: AiListThreadsInput): Promise<AiThread[]>;
   createThread(input?: AiCreateThreadInput): Promise<AiThread>;
   updateThread(input: AiUpdateThreadInput): Promise<AiThread>;

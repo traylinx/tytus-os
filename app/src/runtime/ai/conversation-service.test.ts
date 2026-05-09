@@ -239,6 +239,47 @@ describe('ConversationService', () => {
     expect(done?.message.gatewayLabel).toBe('Local AIL · ail-chat');
   });
 
+  it('forwards embedding model aliases and routing preference to the LLM gateway', async () => {
+    const repo = new FakeRepo();
+    const calls: Array<Record<string, unknown>> = [];
+    const gateway = {
+      embedText: async (input: Record<string, unknown>) => {
+        calls.push(input);
+        return {
+          embedding: [0.25, 0.5],
+          model: 'remote-embed',
+          candidate: { id: 'p04:remote', source: 'included', label: 'AIL gateway p04 (remote)', baseUrl: '', callViaHost: true },
+        };
+      },
+      status: async () => ({ available: true, source: 'included', label: 'AIL gateway p04 (remote)' }),
+    } as unknown as LlmGateway;
+    const service = new ConversationService({
+      db: {} as never,
+      daemon: fakeDaemon,
+      appId: 'demo',
+      repo,
+      gateway,
+    });
+
+    const result = await service.embedText({
+      input: 'index this note',
+      model: 'remote-embed',
+      gatewayPreference: 'remote',
+    });
+
+    expect(calls[0]).toMatchObject({
+      input: 'index this note',
+      model: 'remote-embed',
+      gatewayPreference: 'remote',
+    });
+    expect(result).toEqual({
+      embedding: [0.25, 0.5],
+      model: 'remote-embed',
+      gatewayLabel: 'AIL gateway p04 (remote)',
+      source: 'included',
+    });
+  });
+
   it('writes explicit app memories through the repo', async () => {
     const repo = new FakeRepo();
     const service = new ConversationService({

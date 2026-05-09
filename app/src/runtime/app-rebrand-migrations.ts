@@ -23,7 +23,7 @@ export const WORKSPACE_APP_ID = 'atomek';
 export const LEGACY_WORKSPACE_APP_ID = 'forge';
 export const WORKSPACE_APP_VERSION = '0.3.8';
 export const WORKSPACE_APP_MANIFEST_URL =
-  'https://raw.githubusercontent.com/traylinx/tytus-app-atomek/v0.3.8/tytus-app.json';
+  'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-atomek@v0.3.8/tytus-app.json';
 export const WORKSPACE_APP_ENTRY_URL =
   'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-atomek@v0.3.8/dist/index.js';
 

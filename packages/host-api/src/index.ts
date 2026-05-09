@@ -32,6 +32,8 @@ export type {
   AiContextPart,
   AiCreateArtifactInput,
   AiCreateThreadInput,
+  AiEmbedTextInput,
+  AiEmbeddingResult,
   AiEvent,
   AiGatewayPreference,
   AiGatewaySource,

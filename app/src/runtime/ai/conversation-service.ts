@@ -1,4 +1,6 @@
 import type {
+  AiEmbedTextInput,
+  AiEmbeddingResult,
   AiEvent,
   AiArtifact,
   AiCreateArtifactInput,
@@ -44,6 +46,16 @@ export class ConversationService {
 
   listModels(input?: { gatewayPreference?: AiSendMessageInput['gatewayPreference']; signal?: AbortSignal }) {
     return this.gateway.listModels(input);
+  }
+
+  async embedText(input: AiEmbedTextInput): Promise<AiEmbeddingResult> {
+    const result = await this.gateway.embedText(input);
+    return {
+      embedding: result.embedding,
+      model: result.model,
+      gatewayLabel: result.candidate.label,
+      source: result.candidate.source,
+    };
   }
 
   listThreads(input?: AiListThreadsInput): Promise<AiThread[]> {

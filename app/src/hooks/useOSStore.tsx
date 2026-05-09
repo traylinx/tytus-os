@@ -3,7 +3,7 @@
 // ============================================================
 
 import React, { createContext, useContext, useReducer, useCallback, useEffect } from 'react';
-import type { OSState, OSAction, Window, DesktopIcon, Notification, DockItem, WindowArgs, WindowState, WindowSnapEntry, SnapKind } from '@/types';
+import type { OSState, OSAction, Window, DesktopIcon, Notification, DockItem, WindowArgs, WindowState, WindowSnapEntry, SnapKind, Theme } from '@/types';
 import { APP_REGISTRY, getAppById, getDefaultDockApps } from '@/apps/registry';
 import { resolveCanonicalAppId } from '@/apps/legacy-app-aliases';
 import { DEFAULT_TYTUS_WALLPAPER } from '@/lib/brand';
@@ -11,6 +11,8 @@ import { normalizeTheme } from '@/lib/theme/normalize';
 
 // ---- Window persistence ----
 const WINDOWS_STORAGE_KEY = 'tytus_windows';
+const THEME_STORAGE_KEY = 'tytus_theme';
+const DOCK_PINS_STORAGE_KEY = 'tytus_dock_pins';
 
 interface PersistedWindow {
   id: string;
@@ -80,6 +82,56 @@ const persistWindows = (windows: Window[]): void => {
         icon: w.icon,
       }));
     localStorage.setItem(WINDOWS_STORAGE_KEY, JSON.stringify(trimmed));
+  } catch {
+    /* ignore */
+  }
+};
+
+// ---- Desktop personalization persistence ----
+// Theme now owns Dock position / size / auto-hide / order. Dock pins are
+// separate because they are runtime app state, not visual theme state.
+const defaultTheme = (): Theme => normalizeTheme({
+  mode: 'dark',
+  accent: '#7C4DFF',
+  wallpaper: DEFAULT_TYTUS_WALLPAPER,
+});
+
+const loadPersistedTheme = (): Theme => {
+  try {
+    const raw = localStorage.getItem(THEME_STORAGE_KEY);
+    if (!raw) return defaultTheme();
+    return normalizeTheme(JSON.parse(raw));
+  } catch {
+    return defaultTheme();
+  }
+};
+
+const persistTheme = (theme: Theme): void => {
+  try {
+    localStorage.setItem(THEME_STORAGE_KEY, JSON.stringify(normalizeTheme(theme)));
+  } catch {
+    /* ignore */
+  }
+};
+
+const loadPersistedDockPins = (): string[] => {
+  try {
+    const raw = localStorage.getItem(DOCK_PINS_STORAGE_KEY);
+    if (!raw) return getDefaultDockApps();
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return getDefaultDockApps();
+    return parsed
+      .filter((id): id is string => typeof id === 'string')
+      .map(resolveCanonicalAppId);
+  } catch {
+    return getDefaultDockApps();
+  }
+};
+
+const persistDockPins = (items: DockItem[]): void => {
+  try {
+    const pins = items.filter((d) => d.isPinned).map((d) => resolveCanonicalAppId(d.appId));
+    localStorage.setItem(DOCK_PINS_STORAGE_KEY, JSON.stringify([...new Set(pins)]));
   } catch {
     /* ignore */
   }
@@ -285,10 +337,17 @@ const createDockItem = (appId: string, overrides: Partial<DockItem> = {}): DockI
 });
 
 const createInitialDockItems = (): DockItem[] => {
-  const pinned = getDefaultDockApps();
-  return APP_REGISTRY.map((app) => createDockItem(app.id, {
+  const pinned = loadPersistedDockPins();
+  const items = APP_REGISTRY.map((app) => createDockItem(app.id, {
     isPinned: pinned.includes(app.id),
   }));
+  const existing = new Set(items.map((item) => item.appId));
+  for (const appId of pinned) {
+    if (!existing.has(appId)) {
+      items.push(createDockItem(appId, { isPinned: true }));
+    }
+  }
+  return items;
 };
 
 const ensureDockItem = (items: DockItem[], appId: string): DockItem[] => (
@@ -348,11 +407,7 @@ const buildInitialState = (): OSState => {
     windows: restoredWindows,
     apps: APP_REGISTRY,
     desktopIcons: loadDesktopIcons(),
-    theme: normalizeTheme({
-      mode: 'dark',
-      accent: '#7C4DFF',
-      wallpaper: DEFAULT_TYTUS_WALLPAPER,
-    }),
+    theme: loadPersistedTheme(),
     notifications: [],
     dockItems,
     contextMenu: {
@@ -834,12 +889,12 @@ function osReducer(state: OSState, action: OSAction): OSState {
     }
 
     case 'SET_THEME': {
-      return { ...state, theme: { ...state.theme, ...action.theme } };
+      return { ...state, theme: normalizeTheme({ ...state.theme, ...action.theme }) };
     }
 
     case 'TOGGLE_THEME': {
       const mode = state.theme.mode === 'dark' ? 'light' : 'dark';
-      return { ...state, theme: { ...state.theme, mode } };
+      return { ...state, theme: normalizeTheme({ ...state.theme, mode }) };
     }
 
     case 'PIN_DOCK_ITEM': {
@@ -989,6 +1044,17 @@ export const OSProvider: React.FC<{ children: React.ReactNode }> = ({ children }
   useEffect(() => {
     persistWindowSnap(state.windowSnap);
   }, [state.windowSnap]);
+
+  // Real-OS personalization persistence: wallpaper/theme, Dock position,
+  // Dock size, auto-hide, and user-reordered app order survive reloads.
+  useEffect(() => {
+    persistTheme(state.theme);
+  }, [state.theme]);
+
+  // User "Keep in Dock" / "Remove from Dock" choices survive reloads.
+  useEffect(() => {
+    persistDockPins(state.dockItems);
+  }, [state.dockItems]);
 
   // Sprint B Phase 5.4f — clipboard permission cache.
   useEffect(() => {

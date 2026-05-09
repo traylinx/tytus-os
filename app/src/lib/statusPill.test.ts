@@ -36,9 +36,28 @@ describe("computePill", () => {
     expect(r.label).toBe("Offline");
   });
 
-  it("red when daemon_running is false", () => {
-    const s = wrapState({ ...stateFixture, daemon_running: false });
-    expect(computePill("online", s, null).color).toBe("red");
+  it("yellow, not stopped, when daemon_running is false but session is usable", () => {
+    const s = wrapState({ ...stateFixture, daemon_running: false, daemon_pid: 0, uptime_secs: 0 });
+    const r = computePill("online", s, null);
+    expect(r.color).toBe("yellow");
+    expect(r.label).toBe("Degraded");
+    expect(r.detail).toContain("daemon offline");
+  });
+
+  it("red when daemon_running is false and no usable session exists", () => {
+    const s = wrapState({
+      ...stateFixture,
+      daemon_running: false,
+      daemon_pid: 0,
+      uptime_secs: 0,
+      logged_in: false,
+      tunnel_active: false,
+      agents: [],
+      included: [],
+    });
+    const r = computePill("online", s, null);
+    expect(r.color).toBe("red");
+    expect(r.label).toBe("Stopped");
   });
 
   it("green when all healthy", () => {

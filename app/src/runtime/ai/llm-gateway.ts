@@ -14,6 +14,19 @@ export interface ChatCompleteInput {
   signal?: AbortSignal;
 }
 
+export interface EmbedTextInput {
+  input: string;
+  model?: string;
+  gatewayPreference?: AiGatewayPreference;
+  signal?: AbortSignal;
+}
+
+export interface EmbedTextResult {
+  embedding: number[];
+  model: string;
+  candidate: GatewayCandidate;
+}
+
 const withTimeout = (signal: AbortSignal | undefined, ms: number): AbortSignal => {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), ms);
@@ -152,6 +165,60 @@ export class LlmGateway {
     throw lastError instanceof Error ? lastError : new Error(String(lastError ?? 'No AIL gateway reachable'));
   }
 
+
+  async embedText(input: EmbedTextInput): Promise<EmbedTextResult> {
+    const text = input.input.trim();
+    if (!text) throw new Error('AIL embeddings input is empty');
+    const preference = input.gatewayPreference ?? 'auto';
+    const candidates = this.candidates(preference);
+    if (candidates.length === 0) {
+      throw new Error(preference === 'remote'
+        ? 'No remote Tytus AIL gateway available for embeddings. Choose Auto or Local AIL in Atomek Settings, or connect a Tytus AIL pod.'
+        : 'No local AIL gateway available for embeddings. Choose Auto or Remote Tytus AIL in Atomek Settings, or start switchAILocal.');
+    }
+    let lastError: unknown = null;
+    const requestedModel = input.model?.trim() || 'auto';
+    for (const candidate of candidates) {
+      try {
+        const res = await this.fetchCandidate(candidate, '/embeddings', {
+          method: 'POST',
+          headers: {
+            Accept: 'application/json',
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: requestedModel,
+            input: text,
+          }),
+          signal: input.signal,
+        });
+        if (!res.ok) {
+          const body = await res.text().catch(() => '');
+          const err = new Error(`AIL ${candidate.label} embeddings failed HTTP ${res.status}: ${body.slice(0, 400)}`);
+          if (retryable(res.status)) {
+            lastError = err;
+            continue;
+          }
+          throw err;
+        }
+        const json = await res.json();
+        const embedding = extractEmbedding(json);
+        if (!embedding) {
+          throw new Error(`AIL ${candidate.label} embeddings returned no embedding vector`);
+        }
+        this.lastGoodId = candidate.id;
+        return {
+          embedding,
+          model: extractResponseModel(json) ?? requestedModel,
+          candidate,
+        };
+      } catch (err) {
+        lastError = err;
+      }
+    }
+    throw lastError instanceof Error ? lastError : new Error(String(lastError ?? 'No AIL embeddings gateway reachable'));
+  }
+
   private fetchCandidate(candidate: GatewayCandidate, path: string, init: RequestInit): Promise<Response> {
     if (candidate.callViaHost && candidate.podId) {
       const hostPath = path.startsWith('/v1/') ? path : `/v1${path}`;
@@ -177,3 +244,28 @@ const extractModelIds = (value: unknown): string[] => {
   }
   return Array.from(new Set(ids));
 };
+
+
+const extractEmbedding = (value: unknown): number[] | null => {
+  if (!value || typeof value !== 'object') return null;
+  const data = (value as { data?: unknown }).data;
+  if (Array.isArray(data)) {
+    for (const item of data) {
+      if (item && typeof item === 'object') {
+        const embedding = (item as { embedding?: unknown }).embedding;
+        if (isNumberArray(embedding)) return embedding;
+      }
+    }
+  }
+  const direct = (value as { embedding?: unknown }).embedding;
+  return isNumberArray(direct) ? direct : null;
+};
+
+const extractResponseModel = (value: unknown): string | null => {
+  if (!value || typeof value !== 'object') return null;
+  const model = (value as { model?: unknown }).model;
+  return typeof model === 'string' && model.trim() ? model.trim() : null;
+};
+
+const isNumberArray = (value: unknown): value is number[] =>
+  Array.isArray(value) && value.length > 0 && value.every((item) => typeof item === 'number' && Number.isFinite(item));

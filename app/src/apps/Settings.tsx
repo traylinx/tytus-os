@@ -39,6 +39,10 @@ import {
   Moon,
   Volume2,
   VolumeX,
+  ChevronUp,
+  ChevronDown,
+  Plus,
+  Minus,
 } from "lucide-react";
 import LogPane from "@/components/LogPane";
 import { useOS } from "@/hooks/useOSStore";
@@ -202,9 +206,9 @@ interface OfficialLanguagePackCatalogItem {
 }
 
 const OFFICIAL_LANGUAGE_CATALOG_URL =
-  "https://raw.githubusercontent.com/traylinx/tytus-os-language-index/main/catalog.json";
+  "https://cdn.jsdelivr.net/gh/traylinx/tytus-os-language-index@main/catalog.json";
 const OFFICIAL_LANGUAGE_RAW_PREFIX =
-  "https://raw.githubusercontent.com/traylinx/";
+  "https://cdn.jsdelivr.net/gh/traylinx/";
 
 const isOfficialLanguageUrl = (url: string): boolean => {
   try {
@@ -216,6 +220,26 @@ const isOfficialLanguageUrl = (url: string): boolean => {
   } catch {
     return false;
   }
+};
+
+const normalizeOfficialLanguageUrl = (url: string): string => {
+  try {
+    const parsed = new URL(url);
+    if (
+      parsed.protocol === "https:" &&
+      parsed.hostname === "raw.githubusercontent.com"
+    ) {
+      const [owner, repo, ref, ...path] = parsed.pathname
+        .split("/")
+        .filter(Boolean);
+      if (owner === "traylinx" && repo && ref && path.length > 0) {
+        return `https://cdn.jsdelivr.net/gh/traylinx/${repo}@${ref}/${path.join("/")}`;
+      }
+    }
+  } catch {
+    return url;
+  }
+  return url;
 };
 
 const sha256Hex = async (text: string): Promise<string> => {
@@ -273,6 +297,7 @@ const Settings: React.FC = () => {
   // demos OFF; Explorer defaults ON. The stored choice wins once the
   // user toggles.
   const { showDemoApps, setShowDemoApps } = useDemoApps(daemon.state?.tier);
+  const [dockAppToAdd, setDockAppToAdd] = useState<string>("");
 
   // Deep-link: navigate(#/settings/agents) flips the active panel.
   // Deliberate setState-in-effect — we're syncing UI state from a URL
@@ -380,6 +405,58 @@ const Settings: React.FC = () => {
     }
   }, [dispatch, state.theme.wallpaper]);
 
+  const dockPinnedItems = useMemo(() => {
+    const pinned = state.dockItems.filter((item) => item.isPinned);
+    const order = state.theme.dock.order ?? [];
+    const byId = new Map(pinned.map((item) => [item.appId, item]));
+    const ordered = order
+      .map((appId) => byId.get(appId))
+      .filter((item): item is NonNullable<typeof item> => Boolean(item));
+    const seen = new Set(ordered.map((item) => item.appId));
+    const tail = pinned.filter((item) => !seen.has(item.appId));
+    return [...ordered, ...tail];
+  }, [state.dockItems, state.theme.dock.order]);
+
+  const dockAppById = useMemo(
+    () => new Map(state.apps.map((app) => [app.id, app])),
+    [state.apps],
+  );
+
+  const dockAddableApps = useMemo(() => {
+    const pinned = new Set(state.dockItems.filter((item) => item.isPinned).map((item) => item.appId));
+    return state.apps
+      .filter((app) => !pinned.has(app.id))
+      .filter((app) => showDemoApps || !app.isDemo)
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [showDemoApps, state.apps, state.dockItems]);
+
+  const moveDockApp = useCallback((appId: string, direction: -1 | 1) => {
+    const order = dockPinnedItems.map((item) => item.appId);
+    const idx = order.indexOf(appId);
+    const nextIdx = idx + direction;
+    if (idx < 0 || nextIdx < 0 || nextIdx >= order.length) return;
+    const next = [...order];
+    [next[idx], next[nextIdx]] = [next[nextIdx], next[idx]];
+    dispatch({
+      type: "SET_THEME",
+      theme: { dock: { ...state.theme.dock, order: next } },
+    });
+  }, [dispatch, dockPinnedItems, state.theme.dock]);
+
+  const addDockApp = useCallback(() => {
+    const appId = dockAppToAdd || dockAddableApps[0]?.id;
+    if (!appId) return;
+    const existingOrder = state.theme.dock.order ?? [];
+    dispatch({ type: "PIN_DOCK_ITEM", appId });
+    if (!existingOrder.includes(appId)) {
+      dispatch({
+        type: "SET_THEME",
+        theme: { dock: { ...state.theme.dock, order: [...existingOrder, appId] } },
+      });
+    }
+    setDockAppToAdd("");
+  }, [dispatch, dockAddableApps, dockAppToAdd, state.theme.dock]);
+
   const loadOfficialLanguageCatalog = useCallback(async () => {
     setOfficialLanguageLoading(true);
     setOfficialLanguageErr(null);
@@ -392,19 +469,30 @@ const Settings: React.FC = () => {
       const packs = Array.isArray(json) ? json : json.packs;
       if (!Array.isArray(packs))
         throw new Error("catalog must contain a packs array");
-      const clean = packs.filter(
-        (pack: unknown): pack is OfficialLanguagePackCatalogItem => {
-          if (!pack || typeof pack !== "object") return false;
+      const clean = packs
+        .map((pack: unknown): OfficialLanguagePackCatalogItem | null => {
+          if (!pack || typeof pack !== "object") return null;
           const p = pack as Record<string, unknown>;
-          return (
+          if (
             typeof p.locale === "string" &&
             typeof p.name === "string" &&
             typeof p.version === "string" &&
-            typeof p.url === "string" &&
-            isOfficialLanguageUrl(p.url)
-          );
-        },
-      );
+            typeof p.url === "string"
+          ) {
+            const url = normalizeOfficialLanguageUrl(p.url);
+            if (!isOfficialLanguageUrl(url)) return null;
+            return {
+              locale: p.locale,
+              name: p.name,
+              nativeName: typeof p.nativeName === "string" ? p.nativeName : undefined,
+              version: p.version,
+              url,
+              sha256: typeof p.sha256 === "string" ? p.sha256 : undefined,
+            };
+          }
+          return null;
+        })
+        .filter((pack): pack is OfficialLanguagePackCatalogItem => pack !== null);
       setOfficialLanguagePacks(clean);
       if (clean.length === 0)
         throw new Error("catalog has no installable official packs");
@@ -1575,6 +1663,118 @@ const Settings: React.FC = () => {
                   })
                 }
               />
+            </div>
+            <div
+              className="space-y-3 py-3 border-t"
+              style={{ borderColor: "var(--border-subtle)" }}
+            >
+              <div>
+                <div className="text-sm text-[var(--text-primary)]">
+                  {t("settings.dock.apps.title")}
+                </div>
+                <div className="text-[11px] text-[var(--text-secondary)] mt-0.5">
+                  {t("settings.dock.apps.description")}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                {dockPinnedItems.map((item, index) => {
+                  const app = dockAppById.get(item.appId);
+                  const label = app?.name ?? item.appId;
+                  return (
+                    <div
+                      key={item.appId}
+                      className="flex items-center gap-2 px-3 py-2 rounded-lg"
+                      style={{
+                        background: "var(--bg-card)",
+                        border: "1px solid var(--border-subtle)",
+                      }}
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm text-[var(--text-primary)] truncate">
+                          {label}
+                        </div>
+                        <div className="text-[10px] text-[var(--text-secondary)] truncate">
+                          {item.appId}
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        aria-label={t("settings.dock.apps.moveUp")}
+                        title={t("settings.dock.apps.moveUp")}
+                        disabled={index === 0}
+                        onClick={() => moveDockApp(item.appId, -1)}
+                        className="w-8 h-8 rounded-md flex items-center justify-center disabled:opacity-35"
+                        style={{ border: "1px solid var(--border-default)" }}
+                      >
+                        <ChevronUp size={14} />
+                      </button>
+                      <button
+                        type="button"
+                        aria-label={t("settings.dock.apps.moveDown")}
+                        title={t("settings.dock.apps.moveDown")}
+                        disabled={index === dockPinnedItems.length - 1}
+                        onClick={() => moveDockApp(item.appId, 1)}
+                        className="w-8 h-8 rounded-md flex items-center justify-center disabled:opacity-35"
+                        style={{ border: "1px solid var(--border-default)" }}
+                      >
+                        <ChevronDown size={14} />
+                      </button>
+                      <button
+                        type="button"
+                        aria-label={t("settings.dock.apps.remove")}
+                        title={t("settings.dock.apps.remove")}
+                        onClick={() => dispatch({ type: "UNPIN_DOCK_ITEM", appId: item.appId })}
+                        className="w-8 h-8 rounded-md flex items-center justify-center"
+                        style={{
+                          border: "1px solid var(--border-default)",
+                          color: "var(--accent-error)",
+                        }}
+                      >
+                        <Minus size={14} />
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="flex gap-2">
+                <select
+                  aria-label={t("settings.dock.apps.add")}
+                  value={dockAppToAdd}
+                  onChange={(e) => setDockAppToAdd(e.target.value)}
+                  className="flex-1 h-9 rounded-md px-3 text-sm outline-none"
+                  style={{
+                    background: "var(--bg-input)",
+                    color: "var(--text-primary)",
+                    border: "1px solid var(--border-default)",
+                  }}
+                >
+                  <option value="">
+                    {dockAddableApps.length > 0
+                      ? t("settings.dock.apps.pick")
+                      : t("settings.dock.apps.none")}
+                  </option>
+                  {dockAddableApps.map((app) => (
+                    <option key={app.id} value={app.id}>
+                      {app.name}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  disabled={dockAddableApps.length === 0}
+                  onClick={addDockApp}
+                  className="px-3 h-9 rounded-md text-xs font-medium flex items-center gap-1.5 disabled:opacity-35"
+                  style={{
+                    background: "var(--accent-primary)",
+                    color: "var(--text-on-accent)",
+                  }}
+                >
+                  <Plus size={14} />
+                  {t("settings.dock.apps.add")}
+                </button>
+              </div>
             </div>
             <div
               className="space-y-2 py-3 border-t"

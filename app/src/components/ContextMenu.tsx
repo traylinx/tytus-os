@@ -228,9 +228,30 @@ function handleMenuAction(
     case 'OPEN_TERMINAL':
     case 'CHANGE_BG':
     case 'ARRANGE_ICONS':
-    case 'SHOW_SETTINGS':
-    case 'PIN_DOCK':
-    case 'UNPIN_DOCK':
+    case 'SHOW_SETTINGS': {
+      // Placeholder: will be handled by the component that opens the menu
+      break;
+    }
+    case 'PIN_DOCK': {
+      const appId =
+        args[0] ||
+        (state as { contextMenu?: { contextData?: Record<string, unknown> } })
+          ?.contextMenu?.contextData?.appId;
+      if (typeof appId === 'string') {
+        dispatch({ type: 'PIN_DOCK_ITEM', appId });
+      }
+      break;
+    }
+    case 'UNPIN_DOCK': {
+      const appId =
+        args[0] ||
+        (state as { contextMenu?: { contextData?: Record<string, unknown> } })
+          ?.contextMenu?.contextData?.appId;
+      if (typeof appId === 'string') {
+        dispatch({ type: 'UNPIN_DOCK_ITEM', appId });
+      }
+      break;
+    }
     case 'QUIT_APP': {
       // Placeholder: will be handled by the component that opens the menu
       break;

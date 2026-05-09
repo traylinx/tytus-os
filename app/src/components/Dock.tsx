@@ -239,6 +239,7 @@ const Dock = memo(function Dock() {
     const isHovered = hoveredApp === appId;
     const isOpen = item?.isOpen || false;
     const isFocused = item?.isFocused || false;
+    const isPinned = item?.isPinned || false;
     const isDragGhost = reorderable && draggingAppId === appId;
     const showInsertMarker = reorderable && dropBeforeId === appId;
 
@@ -288,6 +289,32 @@ const Dock = memo(function Dock() {
         className="relative flex flex-col items-center"
         style={{ opacity: isDragGhost ? 0.4 : 1 }}
         {...reorderHandlers}
+        onContextMenu={(e) => {
+          if (isTrash) return;
+          e.preventDefault();
+          dispatch({
+            type: 'SHOW_CONTEXT_MENU',
+            x: e.clientX,
+            y: e.clientY,
+            menuType: 'dockIcon',
+            items: [
+              {
+                id: isPinned ? 'dock-remove' : 'dock-keep',
+                label: isPinned ? t('dock.removeFromDock') : t('dock.keepInDock'),
+                icon: isPinned ? 'PinOff' : 'Pin',
+                action: `${isPinned ? 'UNPIN_DOCK' : 'PIN_DOCK'}:${appId}`,
+              },
+              { id: 'dock-sep-1', label: '', action: '', divider: true },
+              {
+                id: 'dock-open',
+                label: app ? localizedAppName(t, app.id, app.name) : appId,
+                icon: 'ExternalLink',
+                action: `OPEN_APP:${appId}`,
+              },
+            ],
+            contextData: { appId },
+          });
+        }}
         onMouseEnter={(e) => {
           setHoveredApp(appId);
           setTooltipPos({ x: e.currentTarget.offsetLeft, y: 0 });
