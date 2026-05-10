@@ -121,7 +121,7 @@ type VoiceRecording = VoiceRecordingRow;
 // vX.Y.Z") and the Settings dialog footer so users can see exactly
 // which release they're running. Bumped in lockstep with package.json
 // + tytus-app.json on every release.
-const APP_VERSION = '0.3.13';
+const APP_VERSION = '0.3.15';
 
 // ──────────────────────────────────────────────────────────
 // Cross-app drag MIME types
@@ -774,6 +774,55 @@ const formatTime = (ms: number): string => {
   const m = Math.floor(total / 60);
   const s = total % 60;
   return `${m}:${s.toString().padStart(2, '0')}`;
+};
+
+const extractBase64Payload = (src?: string | null): string | null => {
+  if (!src) return null;
+  const marker = 'base64,';
+  const idx = src.indexOf(marker);
+  return idx >= 0 ? src.slice(idx + marker.length) : null;
+};
+
+const audioBlobFromBase64 = (base64: string, mime = 'audio/wav'): Blob => {
+  const clean = base64.replace(/\s+/g, '');
+  const bin = atob(clean);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return new Blob([bytes], { type: mime });
+};
+
+const wavDurationMsFromBase64 = (base64: string): number | null => {
+  try {
+    const clean = base64.replace(/\s+/g, '');
+    // Header + first chunks are enough; our encoder writes fmt/data first,
+    // but this parser still walks chunks so it survives harmless metadata.
+    const bin = atob(clean.slice(0, Math.min(clean.length, 4096)));
+    if (bin.length < 44 || bin.slice(0, 4) !== 'RIFF' || bin.slice(8, 12) !== 'WAVE') return null;
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    const view = new DataView(bytes.buffer);
+    let off = 12;
+    let sampleRate = 0;
+    let blockAlign = 0;
+    let dataSize = 0;
+    while (off + 8 <= bytes.length) {
+      const id = String.fromCharCode(bytes[off], bytes[off + 1], bytes[off + 2], bytes[off + 3]);
+      const size = view.getUint32(off + 4, true);
+      const payload = off + 8;
+      if (id === 'fmt ' && payload + 16 <= bytes.length) {
+        sampleRate = view.getUint32(payload + 4, true);
+        blockAlign = view.getUint16(payload + 12, true);
+      } else if (id === 'data') {
+        dataSize = size;
+        break;
+      }
+      off = payload + size + (size % 2);
+    }
+    if (!sampleRate || !blockAlign || !dataSize) return null;
+    return (dataSize / (sampleRate * blockAlign)) * 1000;
+  } catch {
+    return null;
+  }
 };
 
 const isRemoteTrack = (track: SavedTrack): boolean =>
@@ -5566,6 +5615,77 @@ function PlayerInfoCard({ label, children }: { label: string; children: React.Re
   );
 }
 
+function ReferenceAudioControl({
+  base64,
+  src,
+  onPlay,
+  title = 'Preview reference audio',
+  height = 30,
+  style,
+}: {
+  base64?: string | null;
+  src?: string | null;
+  onPlay?: () => void;
+  title?: string;
+  height?: number;
+  style?: React.CSSProperties;
+}) {
+  const payload = useMemo(() => base64 || extractBase64Payload(src), [base64, src]);
+  const fallbackDurationMs = useMemo(
+    () => (payload ? wavDurationMsFromBase64(payload) : null),
+    [payload],
+  );
+  const [objectUrl, setObjectUrl] = useState<string | null>(null);
+  const [nativeDurationMs, setNativeDurationMs] = useState<number | null>(null);
+
+  useEffect(() => {
+    setNativeDurationMs(null);
+    if (!payload) {
+      setObjectUrl(null);
+      return;
+    }
+    let url: string | null = null;
+    try {
+      url = URL.createObjectURL(audioBlobFromBase64(payload));
+      setObjectUrl(url);
+    } catch {
+      setObjectUrl(null);
+    }
+    return () => {
+      if (url) URL.revokeObjectURL(url);
+    };
+  }, [payload]);
+
+  const readNativeDuration = (el: HTMLAudioElement) => {
+    if (Number.isFinite(el.duration) && el.duration > 0.1) {
+      setNativeDurationMs(el.duration * 1000);
+    }
+  };
+
+  const durationMs = nativeDurationMs ?? fallbackDurationMs;
+  const finalSrc = objectUrl || src || '';
+
+  return (
+    <div style={style}>
+      <audio
+        controls
+        preload="metadata"
+        src={finalSrc}
+        onLoadedMetadata={(e) => readNativeDuration(e.currentTarget)}
+        onDurationChange={(e) => readNativeDuration(e.currentTarget)}
+        onPlay={onPlay}
+        style={{ width: '100%', height }}
+        title={title}
+      />
+      {durationMs && durationMs > 0 && (
+        <div style={{ fontSize: 10, color: 'var(--text-disabled)', marginTop: 4 }}>
+          Reference preview · {formatTime(durationMs)}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Side-by-side A/B card for restyle output. Renders the original
 // reference audio that was fed into the restyle so the user can
 // compare it against the just-generated track without leaving the
@@ -5615,11 +5735,11 @@ function ReferenceAudioCard({
       >
         {sourceLabel}
       </div>
-      <audio
-        controls
+      <ReferenceAudioControl
         src={audioSrc}
         onPlay={onUserPlay}
-        style={{ width: '100%', height: 32 }}
+        title="Preview the exact compact reference sample sent to MiniMax cover mode"
+        height={32}
       />
     </div>
   );
@@ -11032,13 +11152,12 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
                   </div>
                 )}
                 {refAudioBase64 && !extracting && (
-                  <audio
-                    controls
-                    preload="metadata"
-                    src={`data:audio/wav;base64,${refAudioBase64}`}
+                  <ReferenceAudioControl
+                    base64={refAudioBase64}
                     onPlay={() => { if (player.state.playing) player.pause(); }}
-                    style={{ width: '100%', height: 30, marginTop: 8 }}
                     title="Preview the exact compact reference sample sent to MiniMax cover mode"
+                    height={30}
+                    style={{ marginTop: 8 }}
                   />
                 )}
               </div>
