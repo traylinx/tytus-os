@@ -33,19 +33,24 @@
 //
 // Output is always 16-bit PCM WAV (browsers don't ship an mp3 encoder
 // and MiniMax music-cover accepts mp3/wav/flac equally). We downsample
-// reference WAVs to 16 kHz mono and keep them around 18 seconds so the
-// JSON payload stays under common nginx 1 MiB body caps. Raw 30 s / 48 kHz
-// WAV was >3 MB base64 and caused 413 on public pod gateways.
+// reference WAVs to 24 kHz mono and keep them around 14 seconds so the
+// JSON payload stays under common nginx 1 MiB body caps while preserving
+// materially more musical detail than the old 16 kHz speech-grade sample.
+// Raw 30 s / 48 kHz WAV was >3 MB base64 and caused 413 on public pod
+// gateways.
 
 const FRAME_MS = 100;
-const TARGET_SECONDS = 18;
+const TARGET_SECONDS = 14;
 const MIN_SECONDS = 6;
 const MAX_SECONDS = TARGET_SECONDS;
-const REFERENCE_SAMPLE_RATE = 16_000;
+const REFERENCE_SAMPLE_RATE = 24_000;
+const REFERENCE_PEAK = 0.92;
+const REFERENCE_MAX_GAIN = 3;
+const REFERENCE_FADE_SEC = 0.05;
 
-const MIX_SEG_SECONDS = 6;
+const MIX_SEG_SECONDS = 5;
 const MIX_SEG_COUNT = 3;
-const MIX_CROSSFADE_SEC = 0.4;
+const MIX_CROSSFADE_SEC = 0.35;
 
 export interface CoverSampleResult {
   /** Base64 (no data-URL prefix) of the trimmed WAV. */
@@ -471,9 +476,34 @@ const encodeWav = (samples: Float32Array, sampleRate: number): Blob => {
   return new Blob([buffer], { type: 'audio/wav' });
 };
 
+const prepareReferenceSamples = (samples: Float32Array, sampleRate: number): Float32Array => {
+  const out = new Float32Array(samples);
+
+  // Peak-normalize gently. Cover mode is sensitive to a quiet / clipped
+  // reference: too quiet loses melody/timbre; clipped transients make the
+  // generated cover messy. Cap boost so background noise doesn't get blasted.
+  let peak = 0;
+  for (let i = 0; i < out.length; i++) peak = Math.max(peak, Math.abs(out[i]));
+  if (peak > 1e-4) {
+    const gain = Math.min(REFERENCE_PEAK / peak, REFERENCE_MAX_GAIN);
+    for (let i = 0; i < out.length; i++) out[i] *= gain;
+  }
+
+  // Tiny edge fades remove hard-cut clicks from the auto-picked window.
+  const fadeSamples = Math.min(Math.floor(sampleRate * REFERENCE_FADE_SEC), Math.floor(out.length / 2));
+  for (let i = 0; i < fadeSamples; i++) {
+    const t = i / Math.max(1, fadeSamples);
+    out[i] *= t;
+    out[out.length - 1 - i] *= t;
+  }
+
+  return out;
+};
+
 const encodeReferenceWav = (samples: Float32Array, sampleRate: number): Blob => {
   const targetRate = Math.min(sampleRate, REFERENCE_SAMPLE_RATE);
-  const compact = resampleLinear(samples, sampleRate, targetRate);
+  const prepared = prepareReferenceSamples(samples, sampleRate);
+  const compact = resampleLinear(prepared, sampleRate, targetRate);
   return encodeWav(compact, targetRate);
 };
 
@@ -523,7 +553,7 @@ export const buildCoverSample = async (
   };
 };
 
-// ─── Public: best-of mix (3 segments × 12 s with crossfades) ──
+// ─── Public: best-of mix (3 short segments with crossfades) ───
 
 const crossfadeConcat = (
   segments: Float32Array[],
