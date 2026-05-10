@@ -584,6 +584,27 @@ const synthesizeTitleLocal = (
   return 'Untitled';
 };
 
+const titleFromReferenceAudioName = (name: string | null): string => {
+  if (!name) return '';
+  const base = name
+    .replace(/\.[a-z0-9]{2,5}$/i, '')
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return base.length >= 3 ? base : '';
+};
+
+const normalizeCoverStylePrompt = (raw: string): string => {
+  const compact = raw.replace(/\s+/g, ' ').trim();
+  let prompt = compact || 'Polished modern cover, clear vocals, tight rhythm, high-quality mix';
+  if (prompt.length < 10) {
+    prompt = `${prompt}, style cover, polished music production`.replace(/^,\s*/, '');
+  }
+  if (prompt.length <= 300) return prompt;
+  const clipped = prompt.slice(0, 300).replace(/\s+\S*$/, '').trim();
+  return clipped.length >= 10 ? clipped : prompt.slice(0, 300);
+};
+
 // Pure function — turn a TrackSpecs into a single-line prompt suffix
 // suitable for appending to the user's free-text Style. Empty in →
 // empty out, so callers don't need to special-case the "no specs" path.
@@ -741,6 +762,7 @@ const LEGACY_LS_KEY = 'tytus.music-creator.gallery';
 const LEGACY_IDB_NAME = 'tytus.music-creator';
 const LEGACY_IDB_STORE = 'gallery';
 const MAX_LYRICS = 3500;
+const MAX_COVER_LYRICS = 1000;
 const MAX_STYLE = 2000;
 
 // ──────────────────────────────────────────────────────────
@@ -1417,7 +1439,7 @@ Respond with VALID JSON ONLY in exactly this shape, nothing else:
 const callMusic = async (
   endpoint: PodEndpoint,
   args: {
-    lyrics: string;
+    lyrics?: string;
     prompt?: string;
     instrumental?: boolean;
     // Cover-mode args. When refAudioBase64 is set, model switches to
@@ -1460,8 +1482,12 @@ const callMusic = async (
   return tryWithModelFallback(modelIds, async (modelId) => {
     const body: Record<string, unknown> = {
       model: modelId,
-      lyrics: args.lyrics,
     };
+    const cleanedLyrics = args.lyrics?.trim() ?? '';
+    // MiniMax cover mode can extract lyrics directly from the reference audio.
+    // Sending unrelated auto-generated lyrics here makes covers chaotic, so
+    // omit lyrics unless the user explicitly provided/kept text in the form.
+    if (!isCover || cleanedLyrics) body.lyrics = cleanedLyrics;
     if (args.prompt) body.prompt = args.prompt;
     if (args.instrumental) body.instrumental = true;
     if (isCover) body.audio_base64 = args.refAudioBase64;
@@ -1490,7 +1516,7 @@ const callMusic = async (
         throw new GatewayError(
           r.status,
           errBody,
-          'Reference audio was too large for the gateway. JULI3TA now makes compact 16 kHz reference samples; clear and re-pick the reference audio, then retry Restyle.',
+          'Reference audio was too large for the gateway. JULI3TA now makes compact gateway-safe reference samples; clear and re-pick the reference audio, then retry Restyle.',
         );
       }
       throw new GatewayError(r.status, errBody, `Music HTTP ${r.status}: ${errBody.slice(0, 300)}`);
@@ -7880,7 +7906,9 @@ export default function MusicCreator() {
       let resolvedStyle = style.trim();
       let generatedLyrics: Awaited<ReturnType<typeof callLyrics>> | null = null;
 
-      if (!useLyrics && !instrumental) {
+      const restyleUsesReferenceLyrics = mode === 'restyle' && !useLyrics;
+
+      if (!useLyrics && !instrumental && !restyleUsesReferenceLyrics) {
         if (!theme.trim() && !(specs.intent ?? '').trim()) {
           setError(t('musiccreator.error.noInput'));
           return;
@@ -7904,7 +7932,7 @@ export default function MusicCreator() {
         useLyrics = generatedLyrics.lyrics;
         if (!resolvedTitle) resolvedTitle = generatedLyrics.song_title;
         if (!resolvedStyle) resolvedStyle = generatedLyrics.style_tags;
-      } else if (!useLyrics && instrumental) {
+      } else if (!useLyrics && instrumental && mode !== 'restyle') {
         // Instrumental still needs SOMETHING in the lyrics field — the
         // upstream MiniMax music model rejects empty lyrics with
         // "code=2013 lyrics is required" even when instrumental:true is
@@ -7940,6 +7968,11 @@ export default function MusicCreator() {
         setPhase('idle');
         return;
       }
+      if (mode === 'restyle' && useLyrics.trim() && useLyrics.trim().length > MAX_COVER_LYRICS) {
+        setError(`Restyle lyrics must be ${MAX_COVER_LYRICS} characters or fewer for MiniMax cover mode. Shorten them or clear the Lyrics box to let MiniMax extract the original lyrics from the reference audio.`);
+        setPhase('idle');
+        return;
+      }
 
       // Final title resolution. By the time we get here every save path
       // needs a real title — `resolvedTitle` may still be empty if the
@@ -7947,6 +7980,10 @@ export default function MusicCreator() {
       // or instrumental mode skipped lyrics entirely. Synthesize a short
       // local title from lyrics → theme → style so the gallery never
       // shows "Untitled" except when the user had nothing at all.
+      if (!resolvedTitle.trim() && mode === 'restyle') {
+        resolvedTitle = titleFromReferenceAudioName(refAudioName);
+        if (resolvedTitle && !songName.trim()) setSongName(resolvedTitle);
+      }
       if (!resolvedTitle.trim()) {
         resolvedTitle = synthesizeTitleLocal(useLyrics, theme, resolvedStyle || style);
         if (resolvedTitle && resolvedTitle !== 'Untitled' && !songName.trim()) {
@@ -7981,7 +8018,12 @@ export default function MusicCreator() {
         // Only mirror to the VFS when the SQLite write succeeded —
         // otherwise we'd ship a `.lyrics.txt` whose refTrackId points
         // at a non-existent row, leaving a ghost shortcut after reload.
-        if (sheetSaved) mirrorLyricsToVfs(sheetTrack);
+        if (sheetSaved) {
+          mirrorLyricsToVfs(sheetTrack);
+          setSelectedPlayerTrackId(sheetTrack.id);
+          setMusicSearchOpen(false);
+          setView('player');
+        }
         setPhase('idle');
         setProgress(0);
         return;
@@ -8003,7 +8045,12 @@ export default function MusicCreator() {
       // than aborting the whole flow. Music is the gating call: its
       // success/failure decides whether we save the row at all.
       setPhase('song');
-      const musicPrompt = [resolvedStyle, specsText].filter((p) => p && p.length > 0).join('. ');
+      const rawMusicPrompt = [
+        resolvedStyle,
+        specsText,
+        mode === 'restyle' && instrumental ? 'instrumental cover, no lead vocal' : '',
+      ].filter((p) => p && p.length > 0).join('. ');
+      const musicPrompt = mode === 'restyle' ? normalizeCoverStylePrompt(rawMusicPrompt) : rawMusicPrompt;
       const musicPromise = callMusic(
         effectiveEndpoint,
         {
@@ -8100,6 +8147,9 @@ export default function MusicCreator() {
       // would see a "Song ready" toast next to a yellow "couldn't save"
       // banner, plus orphan shortcuts in Files.
       if (saved) {
+        setSelectedPlayerTrackId(newTrack.id);
+        setMusicSearchOpen(false);
+        setView('player');
         // Mirror to the VFS so the song shows up in Files (~/Music/Title.mp3
         // as a shortcut) and the lyrics show up as ~/Music/Title.lyrics.txt.
         mirrorAudioToVfs(newTrack);
@@ -8140,7 +8190,7 @@ export default function MusicCreator() {
       generatingRef.current = false;
     }
   }, [
-    endpoint, theme, lyrics, songName, style, specs, activeTemplate, instrumental, mode, refAudioBase64, refAudioName, t,
+    endpoint, theme, lyrics, songName, style, specs, activeTemplate, instrumental, mode, refAudioBase64, refAudioName, extracting, t,
     saveTrack, creatorSettings, mirrorAudioToVfs, mirrorLyricsToVfs, addNotification, abortAllAiTasks,
     coverAuto, coverDataUrl, coverPrompt, coverBusy, optimizingSpecs,
   ]);
@@ -10981,6 +11031,16 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
                     {extracting ? '🔍  Listening for the best part…' : `✨  ${refSampleInfo}`}
                   </div>
                 )}
+                {refAudioBase64 && !extracting && (
+                  <audio
+                    controls
+                    preload="metadata"
+                    src={`data:audio/wav;base64,${refAudioBase64}`}
+                    onPlay={() => { if (player.state.playing) player.pause(); }}
+                    style={{ width: '100%', height: 30, marginTop: 8 }}
+                    title="Preview the exact compact reference sample sent to MiniMax cover mode"
+                  />
+                )}
               </div>
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-1">
@@ -11119,7 +11179,7 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
                       Record audio for cover
                     </div>
                     <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 4, lineHeight: 1.4 }}>
-                      Capture 1–3 minutes of music for best results. JULI3TA will auto-extract the iconic parts.
+                      Capture 1–3 minutes of music for best results. JULI3TA extracts one clean compact reference for MiniMax cover mode.
                     </div>
                   </div>
 
