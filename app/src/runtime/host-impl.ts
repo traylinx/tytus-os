@@ -706,6 +706,14 @@ function makeLocalApi(): LocalApi {
       source.onerror = (event) => handlers.onError?.(event);
       return () => source.close();
     },
+    async cancelJob(jobId: string, signal?: AbortSignal): Promise<void> {
+      await sameOriginPostJson<{ ok?: boolean }>(
+        `/api/jobs/${encodeURIComponent(jobId)}/cancel`,
+        {},
+        undefined,
+        signal,
+      );
+    },
   };
 }
 

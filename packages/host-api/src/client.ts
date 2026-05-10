@@ -317,11 +317,20 @@ export interface TerminalLaunchInput {
   prompt?: string;
 }
 
+export interface LocalJobMissionContext {
+  missionId?: string;
+  rootPath?: string;
+  taskId?: string;
+  taskTitle?: string;
+  resourceId?: string;
+}
+
 export interface LocalJobInput {
   toolId: string;
   prompt: string;
   cwd?: string;
   context?: string;
+  mission?: LocalJobMissionContext;
 }
 
 export interface LocalJob {
@@ -329,6 +338,8 @@ export interface LocalJob {
   toolId: string;
   status: 'running' | 'queued' | string;
   streamUrl: string;
+  missionId?: string | null;
+  transcriptPath?: string | null;
 }
 
 export type LocalJobEventKind = 'log' | 'done' | 'fail' | 'exit';
@@ -352,6 +363,7 @@ export interface LocalApi {
   openTerminal(input?: TerminalLaunchInput): Promise<void>;
   runJob(input: LocalJobInput, signal?: AbortSignal): Promise<LocalJob>;
   streamJob(jobId: string, handlers: LocalJobHandlers): () => void;
+  cancelJob(jobId: string, signal?: AbortSignal): Promise<void>;
 }
 
 // ─── host.skills ─────────────────────────────────────────────────────
