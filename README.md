@@ -21,7 +21,7 @@ services/tytus-os/
 | Channels | Per-pod channel setup with safe token handling and agent-guided fallback for long-tail messengers |
 | Settings | Account, Plan & Units, Pods, Agents, Daemon, Sharing, Background, Appearance, Dock, Languages, Notifications, Privacy, About |
 | Terminal | Browser terminal backed by the host shell through the tray daemon; starts in `~/Tytus` |
-| Atomek | Monaco workbench for local files, chat, artifacts, AIL model routing, and Computer / Agents local-tool bridge |
+| Atomek | Monaco workbench for local files, chat, artifacts, AIL model routing, and Control Tower local-tool bridge |
 | Music Creator | TytusOS-native app using the included gateway, with pod readiness and session-state awareness |
 | Session state | Expired login is visible and recoverable; running pods stay online while the user signs in again |
 | Themes | Dark/light and accent system use shared tokens. New UI must not hard-code black icons on dark backgrounds. |
@@ -49,7 +49,7 @@ tytus open
 - [`docs/user-manual/getting-started.md`](docs/user-manual/getting-started.md) — first-use flow
 - [`docs/user-manual/settings.md`](docs/user-manual/settings.md) — settings and session recovery
 - [`docs/user-manual/files.md`](docs/user-manual/files.md) — Tytus Home, shared folders, pod workspaces
-- [`docs/user-manual/atomek.md`](docs/user-manual/atomek.md) — Atomek workbench, chat, AIL routing, Computer / Agents
+- [`docs/user-manual/atomek.md`](docs/user-manual/atomek.md) — Atomek workbench, chat, AIL routing, Control Tower
 - [`docs/user-manual/troubleshooting.md`](docs/user-manual/troubleshooting.md) — user-support playbook
 - `tytus os-docs` in `tytus-cli` — AI-agent friendly manual bundled with the CLI
 - `~/Documents/TYTUS-OS/USER-GUIDE.md` — central handbook mirror for humans
