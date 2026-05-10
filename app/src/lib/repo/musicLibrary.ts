@@ -44,6 +44,14 @@ export interface MusicPlaylist {
   items: MusicLibraryTrack[];
 }
 
+export interface MusicLibrarySnapshot {
+  version: number;
+  updatedAt: number;
+  tracks: MusicLibraryTrack[];
+  favorites: FavoriteEntity[];
+  playlists: MusicPlaylist[];
+}
+
 interface TrackDbRow {
   id: string;
   provider: string;
@@ -220,6 +228,20 @@ export const toggleFavorite = async (entity: FavoriteEntity): Promise<boolean> =
   return true;
 };
 
+export const upsertFavoriteEntity = async (entity: FavoriteEntity): Promise<void> => {
+  const db = getDb();
+  if (!db) throw new Error('Database not ready');
+  await db.run(
+    `INSERT OR IGNORE INTO music_favorites (kind, entity_id, provider, title, created_at)
+     VALUES (?, ?, ?, ?, ?)`,
+    [entity.kind, entity.entityId, entity.provider, entity.title ?? '', entity.createdAt ?? now()],
+  );
+  await db.run(
+    `UPDATE music_favorites SET provider = ?, title = ? WHERE kind = ? AND entity_id = ?`,
+    [entity.provider, entity.title ?? '', entity.kind, entity.entityId],
+  );
+};
+
 export const listPlaylists = async (): Promise<MusicPlaylist[]> => {
   const db = getDb();
   if (!db) return [];
@@ -294,3 +316,72 @@ export const removeTrackFromPlaylist = async (playlistId: string, trackId: strin
   await db.run('DELETE FROM music_playlist_items WHERE playlist_id = ? AND track_id = ?', [playlistId, trackId]);
   await db.run('UPDATE music_playlists SET updated_at = ? WHERE id = ?', [now(), playlistId]);
 };
+
+export const importMusicLibrarySnapshot = async (snapshot: MusicLibrarySnapshot): Promise<void> => {
+  const db = getDb();
+  if (!db) return;
+  await db.tx(async () => {
+    for (const track of snapshot.tracks) {
+      const r = fromTrack(track);
+      await db.run(
+        `INSERT OR IGNORE INTO music_library_tracks
+           (id, provider, external_id, title, artist, album, duration_ms, thumbnail_url, external_url, added_at, last_played_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`,
+        [r.id, r.provider, r.external_id, r.title, r.artist, r.album, r.duration_ms, r.thumbnail_url, r.external_url, r.added_at],
+      );
+      await db.run(
+        `UPDATE music_library_tracks
+           SET provider = ?, external_id = ?, title = ?, artist = ?, album = ?, duration_ms = ?, thumbnail_url = ?, external_url = ?
+         WHERE id = ?`,
+        [r.provider, r.external_id, r.title, r.artist, r.album, r.duration_ms, r.thumbnail_url, r.external_url, r.id],
+      );
+    }
+    for (const fav of snapshot.favorites) {
+      await db.run(
+        `INSERT OR IGNORE INTO music_favorites (kind, entity_id, provider, title, created_at)
+         VALUES (?, ?, ?, ?, ?)`,
+        [fav.kind, fav.entityId, fav.provider, fav.title ?? '', fav.createdAt ?? now()],
+      );
+      await db.run(
+        `UPDATE music_favorites SET provider = ?, title = ? WHERE kind = ? AND entity_id = ?`,
+        [fav.provider, fav.title ?? '', fav.kind, fav.entityId],
+      );
+    }
+    for (const playlist of snapshot.playlists) {
+      const createdAt = playlist.createdAt || now();
+      const updatedAt = playlist.updatedAt || createdAt;
+      await db.run(
+        'INSERT OR IGNORE INTO music_playlists (id, name, created_at, updated_at) VALUES (?, ?, ?, ?)',
+        [playlist.id, playlist.name || 'Playlist', createdAt, updatedAt],
+      );
+      await db.run(
+        'UPDATE music_playlists SET name = ?, updated_at = ? WHERE id = ?',
+        [playlist.name || 'Playlist', updatedAt, playlist.id],
+      );
+      await db.run('DELETE FROM music_playlist_items WHERE playlist_id = ?', [playlist.id]);
+      let pos = 0;
+      for (const item of playlist.items) {
+        const r = fromTrack(item);
+        await db.run(
+          `INSERT OR IGNORE INTO music_library_tracks
+             (id, provider, external_id, title, artist, album, duration_ms, thumbnail_url, external_url, added_at, last_played_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`,
+          [r.id, r.provider, r.external_id, r.title, r.artist, r.album, r.duration_ms, r.thumbnail_url, r.external_url, r.added_at],
+        );
+        await db.run(
+          `INSERT OR IGNORE INTO music_playlist_items (playlist_id, track_id, pos, added_at)
+           VALUES (?, ?, ?, ?)`,
+          [playlist.id, item.id, pos++, now()],
+        );
+      }
+    }
+  });
+};
+
+export const snapshotMusicLibrary = async (): Promise<MusicLibrarySnapshot> => ({
+  version: 1,
+  updatedAt: now(),
+  tracks: await listLibraryTracks(),
+  favorites: await listFavoriteEntities(),
+  playlists: await listPlaylists(),
+});

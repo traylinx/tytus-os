@@ -4,8 +4,9 @@
 //
 // Two strategies exposed:
 //
-//   buildCoverSample()    — single best window. Used when you want one
-//                            clean 30-second cover sample.
+//   buildCoverSample()    — single best compact window. Used when you want
+//                            one clean style-reference sample that fits the
+//                            gateway body limit.
 //
 //   buildIconicMix()      — the most distinctive 2–3 windows stitched
 //                            together with crossfades. Closer to a
@@ -31,14 +32,18 @@
 //      apart in time, concat with 0.4 s linear crossfades.
 //
 // Output is always 16-bit PCM WAV (browsers don't ship an mp3 encoder
-// and MiniMax music-cover accepts mp3/wav/flac equally).
+// and MiniMax music-cover accepts mp3/wav/flac equally). We downsample
+// reference WAVs to 16 kHz mono and keep them around 18 seconds so the
+// JSON payload stays under common nginx 1 MiB body caps. Raw 30 s / 48 kHz
+// WAV was >3 MB base64 and caused 413 on public pod gateways.
 
 const FRAME_MS = 100;
-const TARGET_SECONDS = 30;
+const TARGET_SECONDS = 18;
 const MIN_SECONDS = 6;
-const MAX_SECONDS = 360;
+const MAX_SECONDS = TARGET_SECONDS;
+const REFERENCE_SAMPLE_RATE = 16_000;
 
-const MIX_SEG_SECONDS = 12;
+const MIX_SEG_SECONDS = 6;
 const MIX_SEG_COUNT = 3;
 const MIX_CROSSFADE_SEC = 0.4;
 
@@ -72,8 +77,8 @@ export interface IconicMixResult {
 // MediaElementAudioSourceNode → MediaStreamDestination → MediaRecorder
 // chain. The recorder produces a webm/opus blob the SAME browser can
 // always re-decode (since it just produced it). Cost: real-time wall
-// clock for `captureSec` seconds. We cap at 35 s (one cover sample
-// worth) so the rescue completes before the user gets impatient.
+// clock for `captureSec` seconds. We cap near one compact reference
+// sample so the rescue completes before the user gets impatient.
 const decodeViaPlaybackCapture = async (
   blob: Blob,
   ctx: AudioContext,
@@ -412,6 +417,25 @@ const sliceMono = (
   return out;
 };
 
+const resampleLinear = (
+  samples: Float32Array,
+  sourceRate: number,
+  targetRate: number,
+): Float32Array => {
+  if (targetRate >= sourceRate) return samples;
+  const ratio = sourceRate / targetRate;
+  const outLen = Math.max(1, Math.floor(samples.length / ratio));
+  const out = new Float32Array(outLen);
+  for (let i = 0; i < outLen; i++) {
+    const src = i * ratio;
+    const lo = Math.floor(src);
+    const hi = Math.min(samples.length - 1, lo + 1);
+    const t = src - lo;
+    out[i] = samples[lo] * (1 - t) + samples[hi] * t;
+  }
+  return out;
+};
+
 const encodeWav = (samples: Float32Array, sampleRate: number): Blob => {
   const numChannels = 1;
   const bitDepth = 16;
@@ -447,6 +471,12 @@ const encodeWav = (samples: Float32Array, sampleRate: number): Blob => {
   return new Blob([buffer], { type: 'audio/wav' });
 };
 
+const encodeReferenceWav = (samples: Float32Array, sampleRate: number): Blob => {
+  const targetRate = Math.min(sampleRate, REFERENCE_SAMPLE_RATE);
+  const compact = resampleLinear(samples, sampleRate, targetRate);
+  return encodeWav(compact, targetRate);
+};
+
 // ─── Public: single best window ─────────────────────────────
 
 export const buildCoverSample = async (
@@ -465,7 +495,7 @@ export const buildCoverSample = async (
 
   if (totalSec <= desired) {
     const samples = sliceMono(buf, 0, buf.length);
-    const wav = encodeWav(samples, buf.sampleRate);
+    const wav = encodeReferenceWav(samples, buf.sampleRate);
     const base64 = await blobToBase64(wav);
     return { base64, durationSec: totalSec, startSec: 0, sourceDurationSec: totalSec, score: 1 };
   }
@@ -481,7 +511,7 @@ export const buildCoverSample = async (
   const startSample = Math.floor((best.startFrame / feat.framesPerSec) * buf.sampleRate);
   const lenSamples = Math.floor((best.lenFrames / feat.framesPerSec) * buf.sampleRate);
   const samples = sliceMono(buf, startSample, lenSamples);
-  const wav = encodeWav(samples, buf.sampleRate);
+  const wav = encodeReferenceWav(samples, buf.sampleRate);
   const base64 = await blobToBase64(wav);
 
   return {
@@ -589,7 +619,7 @@ export const buildIconicMix = async (
   });
 
   const mixed = crossfadeConcat(segs, buf.sampleRate, MIX_CROSSFADE_SEC);
-  const wav = encodeWav(mixed, buf.sampleRate);
+  const wav = encodeReferenceWav(mixed, buf.sampleRate);
   const base64 = await blobToBase64(wav);
 
   const segments = picks.map((w) => ({

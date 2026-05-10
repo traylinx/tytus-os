@@ -64,6 +64,7 @@ import {
   createPlaylist,
   deleteLibraryTrack,
   deletePlaylist,
+  importMusicLibrarySnapshot,
   listFavoriteEntities,
   listLibraryTracks,
   listPlaylists,
@@ -72,7 +73,15 @@ import {
   toggleFavorite as toggleLibraryFavorite,
   upsertLibraryTrack,
   type MusicPlaylist,
+  type MusicLibrarySnapshot,
 } from '@/lib/repo/musicLibrary';
+import {
+  buildMusicLibrarySnapshot,
+  loadBrowserMusicLibrarySnapshot,
+  loadHostMusicLibrarySnapshot,
+  mergeMusicLibrarySnapshots,
+  saveHostMusicLibrarySnapshot,
+} from '@/lib/musicLibraryPersistence';
 import {
   listRecordings,
   insertRecording,
@@ -112,7 +121,7 @@ type VoiceRecording = VoiceRecordingRow;
 // vX.Y.Z") and the Settings dialog footer so users can see exactly
 // which release they're running. Bumped in lockstep with package.json
 // + tytus-app.json on every release.
-const APP_VERSION = '0.3.2';
+const APP_VERSION = '0.3.12';
 
 // ──────────────────────────────────────────────────────────
 // Cross-app drag MIME types
@@ -1462,7 +1471,6 @@ const callMusic = async (
       r = await gatewayFetch(endpoint, '/music/generations', {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${endpoint.apiKey}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(body),
@@ -1478,6 +1486,13 @@ const callMusic = async (
     }
     if (!r.ok) {
       const errBody = await r.text().catch(() => '');
+      if (isCover && r.status === 413) {
+        throw new GatewayError(
+          r.status,
+          errBody,
+          'Reference audio was too large for the gateway. JULI3TA now makes compact 16 kHz reference samples; clear and re-pick the reference audio, then retry Restyle.',
+        );
+      }
       throw new GatewayError(r.status, errBody, `Music HTTP ${r.status}: ${errBody.slice(0, 300)}`);
     }
     const json = await r.json() as MusicResponse;
@@ -6190,7 +6205,7 @@ function PlayerView({ track, player, restyleOriginal, onEditInCreator, onSwitchT
                     <div className="truncate" style={{ fontSize: 15, fontWeight: 900, color: 'var(--text-primary)' }}>{track.artist || 'Unknown artist'}</div>
                     <div className="truncate" style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>{track.album ? `${track.album} · streamed audio` : 'Streamed audio'}</div>
                     <div style={{ fontSize: 11, color: 'var(--text-disabled)', lineHeight: 1.45, marginTop: 8 }}>
-                      Spotify, Last.fm and Discogs slots are exposed in Sources; once credentials exist this card can expand with bios, listeners, releases and richer artwork.
+                      Spotify/Last.fm/Discogs connector slots are exposed in Sources; once credentials exist this card can expand with bios, listeners, releases and richer artwork.
                     </div>
                   </div>
                 </div>
@@ -6270,6 +6285,7 @@ interface MusicSearchPaneProps {
   addBusyId: string | null;
   savedYoutubeIds: Set<string>;
   player: PlayerControls;
+  onWarmResult: (result: MusicSearchResult) => void;
   onPreview: (result: MusicSearchResult) => void;
   onAdd: (result: MusicSearchResult) => void;
   onOpenTrack: (track: SavedTrack) => void;
@@ -6311,6 +6327,7 @@ function MusicSearchPane({
   addBusyId,
   savedYoutubeIds,
   player,
+  onWarmResult,
   onPreview,
   onAdd,
   onOpenTrack,
@@ -6429,7 +6446,7 @@ function MusicSearchPane({
 
   const albumGroups = Array.from(
     libraryTracks.reduce((m, t) => {
-      const key = (t.album || t.artist || 'Music collection').trim();
+      const key = (t.album || t.artist || 'YouTube collection').trim();
       m.set(key, [...(m.get(key) ?? []), t]);
       return m;
     }, new Map<string, SavedTrack[]>()),
@@ -6691,6 +6708,8 @@ function MusicSearchPane({
               return (
                 <div
                   key={r.id}
+                  onMouseEnter={() => onWarmResult(r)}
+                  onFocus={() => onWarmResult(r)}
                   className="flex items-center gap-3 rounded-xl px-3 py-2 transition-all hover:bg-[var(--bg-hover)]"
                   style={{ background: 'var(--bg-titlebar)', border: '1px solid var(--border-subtle)' }}
                 >
@@ -7157,6 +7176,25 @@ function MusicSearchPane({
 // art — Restyle takes a reference audio clip and re-sings the song in
 // that style. The album-art panel is a separate first-class feature.
 type Mode = 'compose' | 'restyle' | 'lyricsOnly';
+type AiAssistTask = 'theme' | 'style' | 'lyrics' | 'specs' | 'cover';
+
+const EMPTY_AI_BUSY: Record<AiAssistTask, boolean> = {
+  theme: false,
+  style: false,
+  lyrics: false,
+  specs: false,
+  cover: false,
+};
+
+const EMPTY_AI_ABORTS: Record<AiAssistTask, AbortController | null> = {
+  theme: null,
+  style: null,
+  lyrics: null,
+  specs: null,
+  cover: null,
+};
+
+const isAbortError = (e: unknown): boolean => (e as Error | undefined)?.name === 'AbortError';
 
 export default function MusicCreator() {
   const daemon = useDaemonStateContext();
@@ -7234,6 +7272,43 @@ export default function MusicCreator() {
   // the button + show a spinner; cleared in finally so a failed call
   // doesn't leave the button stuck.
   const [optimizingSpecs, setOptimizingSpecs] = useState(false);
+
+  // Operation-scoped helper state. Each AI helper owns its AbortController so
+  // Suggest/Optimize/Cover can run together without accidentally aborting each
+  // other. Generation still cancels all helpers to freeze the submitted form.
+  const [aiBusy, setAiBusy] = useState<Record<AiAssistTask, boolean>>(() => ({ ...EMPTY_AI_BUSY }));
+  const aiBusyRef = useRef<Record<AiAssistTask, boolean>>({ ...EMPTY_AI_BUSY });
+  const aiAbortRefs = useRef<Record<AiAssistTask, AbortController | null>>({ ...EMPTY_AI_ABORTS });
+
+  const setAiTaskBusy = useCallback((task: AiAssistTask, value: boolean) => {
+    aiBusyRef.current = { ...aiBusyRef.current, [task]: value };
+    setAiBusy((prev) => (prev[task] === value ? prev : { ...prev, [task]: value }));
+  }, []);
+
+  const beginAiTask = useCallback((task: AiAssistTask): AbortController | null => {
+    if (aiBusyRef.current[task]) return null;
+    aiAbortRefs.current[task]?.abort();
+    const controller = new AbortController();
+    aiAbortRefs.current[task] = controller;
+    setAiTaskBusy(task, true);
+    return controller;
+  }, [setAiTaskBusy]);
+
+  const finishAiTask = useCallback((task: AiAssistTask, controller: AbortController) => {
+    if (aiAbortRefs.current[task] === controller) aiAbortRefs.current[task] = null;
+    setAiTaskBusy(task, false);
+  }, [setAiTaskBusy]);
+
+  const abortAllAiTasks = useCallback(() => {
+    (Object.keys(aiAbortRefs.current) as AiAssistTask[]).forEach((task) => {
+      aiAbortRefs.current[task]?.abort();
+      aiAbortRefs.current[task] = null;
+    });
+    aiBusyRef.current = { ...EMPTY_AI_BUSY };
+    setAiBusy({ ...EMPTY_AI_BUSY });
+    setCoverBusy(false);
+    setOptimizingSpecs(false);
+  }, []);
 
   // Cover-mode state
   const [refAudioName, setRefAudioName] = useState<string | null>(null);
@@ -7406,17 +7481,23 @@ export default function MusicCreator() {
   const [libraryTracks, setLibraryTracks] = useState<SavedTrack[]>([]);
   const [favoriteMusicIds, setFavoriteMusicIds] = useState<Set<string>>(() => new Set());
   const [musicPlaylists, setMusicPlaylists] = useState<MusicPlaylist[]>([]);
+  const [musicLibraryHydrated, setMusicLibraryHydrated] = useState(false);
   const [playlistNameDraft, setPlaylistNameDraft] = useState('');
   const [playlistBusy, setPlaylistBusy] = useState(false);
   const musicSearchCacheRef = useRef(new Map<string, MusicSearchResult[]>());
   const musicSearchInFlightRef = useRef(new Map<string, Promise<MusicSearchResult[]>>());
-  const prefetchingStreamsRef = useRef(new Set<string>());
+  const runtimeStreamsRef = useRef(runtimeStreams);
+  const musicStreamInFlightRef = useRef(new Map<string, Promise<string>>());
   const [hostLibraryRoot, setHostLibraryRoot] = useState<string | null>(null);
   const [hostLibraryBusy, setHostLibraryBusy] = useState(false);
 
   // Persisted user prefs — model overrides, preferred pod, etc.
   const [creatorSettings, setCreatorSettings] = useState<MusicCreatorSettings>(DEFAULT_CREATOR_SETTINGS);
   const [settingsOpen, setSettingsOpen] = useState(false);
+
+  useEffect(() => {
+    runtimeStreamsRef.current = runtimeStreams;
+  }, [runtimeStreams]);
 
 
   useEffect(() => {
@@ -7439,7 +7520,7 @@ export default function MusicCreator() {
       await migrateCreatorYoutubeRowsToLibrary().catch((e) => {
         console.warn('[Juli3ta] music library bridge migration failed (non-fatal):', e);
       });
-      const [loadedRes, hostFilesRes, prefsRes, recsRes, libraryRes, favoritesRes, playlistsRes] = await Promise.allSettled([
+      const [loadedRes, hostFilesRes, prefsRes, recsRes, libraryRes, favoritesRes, playlistsRes, hostMusicStateRes] = await Promise.allSettled([
         listTracks(),
         listGeneratedTracksFromFiles(),
         loadCreatorSettings(),
@@ -7447,6 +7528,7 @@ export default function MusicCreator() {
         listLibraryTracks(),
         listFavoriteEntities('track'),
         listPlaylists(),
+        loadHostMusicLibrarySnapshot(),
       ]);
       if (cancelled) return;
 
@@ -7470,12 +7552,17 @@ export default function MusicCreator() {
         setGalleryError('Real file library unavailable — generated songs will not be shared across browsers until the tray endpoint is back.');
       }
 
-      // One-time backfill: old prototype rows lived only in this browser's
-      // OPFS SQLite. When this browser opens, push every generated row to the
-      // tray so future browsers read the same real files from ~/Music/JULI3TA.
+      // One-time bidirectional backfill:
+      //   1. old prototype rows lived only in browser OPFS SQLite -> push
+      //      generated rows to the tray so other browsers see ~/Music/JULI3TA.
+      //   2. standalone extraction may open on a fresh app_juli3ta_* schema ->
+      //      cache real-file rows into its own SQLite tables so the extracted
+      //      app remains useful if the tray endpoint is briefly unavailable.
       const hostIds = new Set(hostTracks.map((track) => track.id));
+      const loadedIds = new Set(loadedTracks.map((track) => track.id));
       const rowsToBackfill = loadedTracks.filter((track) => !hostIds.has(track.id) && canMirrorToHostLibrary(track));
-      if (rowsToBackfill.length > 0) {
+      const rowsToCache = hostTracks.filter((track) => !loadedIds.has(track.id));
+      if (rowsToBackfill.length > 0 || rowsToCache.length > 0) {
         void (async () => {
           const saved: SavedTrack[] = [];
           for (const track of rowsToBackfill) {
@@ -7486,8 +7573,15 @@ export default function MusicCreator() {
               console.warn('[Juli3ta] host file backfill failed:', track.id, e);
             }
           }
-          if (!cancelled && saved.length > 0) {
-            setGallery((current) => mergeTrackLists(saved, current));
+          for (const track of rowsToCache) {
+            try {
+              await insertTrackRow({ ...track, source: 'juli3ta' });
+            } catch (e) {
+              console.warn('[Juli3ta] standalone cache backfill failed:', track.id, e);
+            }
+          }
+          if (!cancelled && (saved.length > 0 || rowsToCache.length > 0)) {
+            setGallery((current) => mergeTrackLists(saved, rowsToCache, current));
             void listGeneratedTracksFromFiles().then((res) => setHostLibraryRoot(res.rootPath)).catch(() => {});
           }
         })();
@@ -7495,12 +7589,50 @@ export default function MusicCreator() {
 
       if (prefsRes.status === 'fulfilled') setCreatorSettings(prefsRes.value);
       if (recsRes.status === 'fulfilled') setVoiceRecordings(recsRes.value);
-      if (libraryRes.status === 'fulfilled') setLibraryTracks(libraryRes.value);
-      if (favoritesRes.status === 'fulfilled') setFavoriteMusicIds(new Set(favoritesRes.value.map((f) => f.entityId)));
-      if (playlistsRes.status === 'fulfilled') setMusicPlaylists(playlistsRes.value);
+
+      // Library/Favorites are user intent, not a disposable browser cache.
+      // Browser OPFS can be wiped by profile changes and previously failed
+      // under strict CSP. Merge three sources, then write the union back into
+      // the local AppDb and the tray's host-file snapshot under
+      // ~/Music/JULI3TA/.music-state.json.
+      const localMusicState: MusicLibrarySnapshot = {
+        version: 1,
+        updatedAt: Date.now(),
+        tracks: libraryRes.status === 'fulfilled' ? libraryRes.value : [],
+        favorites: favoritesRes.status === 'fulfilled' ? favoritesRes.value : [],
+        playlists: playlistsRes.status === 'fulfilled' ? playlistsRes.value : [],
+      };
+      const hostMusicState = hostMusicStateRes.status === 'fulfilled' ? hostMusicStateRes.value : null;
+      const browserMusicState = loadBrowserMusicLibrarySnapshot();
+      const mergedMusicState = mergeMusicLibrarySnapshots(
+        mergeMusicLibrarySnapshots(localMusicState, browserMusicState),
+        hostMusicState,
+      );
+      await importMusicLibrarySnapshot(mergedMusicState).catch((e) => {
+        console.warn('[Juli3ta] music library durable import failed:', e);
+      });
+      if (cancelled) return;
+      setLibraryTracks(mergedMusicState.tracks);
+      setFavoriteMusicIds(new Set(mergedMusicState.favorites.filter((f) => f.kind === 'track').map((f) => f.entityId)));
+      setMusicPlaylists(mergedMusicState.playlists);
+      setMusicLibraryHydrated(true);
+      void saveHostMusicLibrarySnapshot(mergedMusicState).catch((e) => {
+        console.warn('[Juli3ta] music library durable save failed:', e);
+      });
     })();
     return () => { cancelled = true; };
   }, []);
+
+  useEffect(() => {
+    if (!musicLibraryHydrated) return;
+    const snapshot = buildMusicLibrarySnapshot(libraryTracks, favoriteMusicIds, musicPlaylists);
+    const timer = window.setTimeout(() => {
+      void saveHostMusicLibrarySnapshot(snapshot).catch((e) => {
+        console.warn('[Juli3ta] music library durable save failed:', e);
+      });
+    }, 450);
+    return () => window.clearTimeout(timer);
+  }, [musicLibraryHydrated, libraryTracks, favoriteMusicIds, musicPlaylists]);
 
   // If the tray restarts while JULI3TA is already open, the first real-file
   // library request can fail and leave a banner behind. Treat that as a
@@ -7595,11 +7727,8 @@ export default function MusicCreator() {
   }, []);
 
   const abortRef = useRef<AbortController | null>(null);
-  // AI-assist controller — separate from `abortRef` because Cancel
-  // (Generate) shouldn't kill an Inspire/Suggest/Polish/Optimize that
-  // happens to be running, and vice versa. Each AI assist call grabs
-  // its signal off this ref; the unmount cleanup aborts both refs.
-  const aiAbortRef = useRef<AbortController | null>(null);
+  // Generation owns abortRef. Helper buttons use aiAbortRefs above, one
+  // controller per operation, so independent helpers do not cross-abort.
   // Forward-ref handles for callbacks declared later in the component
   // body. Lets earlier callbacks (regenerateCover, etc.) call
   // setTrackCover without TDZ-on-render from a deps array. The ref
@@ -7613,7 +7742,9 @@ export default function MusicCreator() {
 
   useEffect(() => () => {
     abortRef.current?.abort();
-    aiAbortRef.current?.abort();
+    (Object.keys(aiAbortRefs.current) as AiAssistTask[]).forEach((task) => {
+      aiAbortRefs.current[task]?.abort();
+    });
   }, []);
 
   // Fake progress + rotating tip while a real call is in flight.
@@ -8219,6 +8350,8 @@ export default function MusicCreator() {
   };
 
   const clearRefAudio = () => {
+    ingestSeqRef.current += 1;
+    setExtracting(false);
     setRefAudioBase64(null);
     setRefAudioName(null);
     setRefSampleInfo(null);
@@ -8290,19 +8423,42 @@ export default function MusicCreator() {
     const userMsg = typeof userPayload === 'string' ? userPayload : JSON.stringify(userPayload);
     const baseTemp = opts?.temperature ?? 0.5;
     const maxTokens = Math.max(opts?.maxTokens ?? 800, 400);
+
+    // Chat-assist buttons need a cheap general text model, not the
+    // gateway's broad compound/search aliases. The remote AIL /models
+    // order is not stable and some provider-prefixed compound aliases
+    // (`minimax/ail-compound`) currently fail hard with
+    // `web_search is not support (2013)`. Rank deterministic text
+    // aliases first and keep reasoning/compound fallbacks last.
+    const chatAssistRank = (id: string): number => {
+      const x = id.toLowerCase();
+      if (/^(deepseek\/)?ail-fast$/.test(x)) return 10;
+      if (/^(deepseek\/)?ail-balanced$/.test(x)) return 20;
+      if (/^(ail-compound-minimax|minimax\/ail-compound-minimax)$/.test(x)) return 30;
+      if (/^minimax\/ail-balanced$/.test(x)) return 40;
+      if (/^minimax\/ail-kimi$/.test(x)) return 50;
+      if (/^moonshot\/ail-balanced$/.test(x)) return 60;
+      if (/^moonshot\/ail-compound$/.test(x)) return 70;
+      if (/^(ail-compound|moonshot\/ail-kimi|ail-kimi|ail-kimi-strict|moonshot\/ail-kimi-strict)$/.test(x)) return 90;
+      if (/search/.test(x)) return 100;
+      return 80;
+    };
+    const isKnownBrokenChatAlias = (id: string): boolean =>
+      /^minimax\/ail-compound$/i.test(id);
+    tryOrder.sort((a, b) => chatAssistRank(a) - chatAssistRank(b));
+    const orderedModels = tryOrder.filter((id) => !isKnownBrokenChatAlias(id));
     // Per-call wall-clock cap. Lyrics path uses 60s; chat assists are
     // shorter prompts so 45s is comfortable but doesn't let a stuck
     // gateway lock the AI button forever (the original bug).
     const ASSIST_TIMEOUT_MS = 45_000;
 
-    return tryWithModelFallback(tryOrder, async (modelId) => {
+    return tryWithModelFallback(orderedModels, async (modelId) => {
       const t = withTimeout(opts?.signal, ASSIST_TIMEOUT_MS);
       let r: Response;
       try {
         r = await gatewayFetch(endpoint, '/chat/completions', {
           method: 'POST',
           headers: {
-            Authorization: `Bearer ${endpoint.apiKey}`,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
@@ -8326,6 +8482,13 @@ export default function MusicCreator() {
       }
       if (!r.ok) {
         const errBody = await r.text().catch(() => '');
+        // Provider-specific 400s are not user/config fatal for these small
+        // text helpers. Example observed on pod 04: `minimax/ail-compound`
+        // returns `invalid params, web_search is not support (2013)`. Treat
+        // that as model-incompatible and continue to the next ranked alias.
+        if (r.status === 400 && /web_search|not support|unsupported|invalid params/i.test(errBody)) {
+          throw new GatewayError(502, errBody, `AI assist model ${modelId} rejected provider params: ${errBody.slice(0, 200)}`);
+        }
         throw new GatewayError(r.status, errBody, `AI assist HTTP ${r.status}: ${errBody.slice(0, 200)}`);
       }
       const rawJson = await r.json();
@@ -8347,6 +8510,8 @@ export default function MusicCreator() {
   // edit any field after, and Clear All resets to empty.
   const optimizeSpecs = useCallback(async () => {
     if (!endpoint) return;
+    const controller = beginAiTask('specs');
+    if (!controller) return;
     setOptimizingSpecs(true);
     setError(null);
     try {
@@ -8391,8 +8556,6 @@ Output schema (every field optional, OMIT fields you can't infer confidently):
 }
 
 Return ONLY the JSON. No markdown, no explanation, no code fences.`;
-      aiAbortRef.current?.abort();
-      aiAbortRef.current = new AbortController();
       const raw = await callAIAssist(sys, {
         theme: theme || null,
         style: style || null,
@@ -8404,7 +8567,7 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
         // truncates roughly half the response and leaves the JSON
         // unparseable mid-string. 2000 fits a complete fill comfortably.
         maxTokens: 2000,
-        signal: aiAbortRef.current.signal,
+        signal: controller.signal,
       });
       // Pull the first balanced JSON object out of the response — the
       // model sometimes prefixes "Here's the JSON:\n" or trails extra
@@ -8419,18 +8582,19 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
       // Preserve the user's free-form lyrics intent — the optimizer's
       // schema doesn't include it, so a naive overwrite would wipe
       // whatever the user typed in the Lyrics Direction field.
+      if (controller.signal.aborted) return;
       setSpecs((prev) => ({ ...parsed, intent: prev.intent }));
     } catch (e) {
+      if (isAbortError(e)) return;
       setError((e as Error).message || 'Optimize failed.');
     } finally {
+      finishAiTask('specs', controller);
       setOptimizingSpecs(false);
     }
-  }, [endpoint, theme, style, lyrics, specs, callAIAssist]);
+  }, [endpoint, theme, style, lyrics, specs, callAIAssist, beginAiTask, finishAiTask]);
 
-  // Three text-driven AI assists. Each shares the same in-flight ref
-  // so a single button at a time is active and we can show a spinner
-  // on whichever is running. callAIAssist normalizes the chat call.
-  const [aiBusy, setAiBusy] = useState<null | 'theme' | 'style' | 'lyrics'>(null);
+  // Text-driven AI assists. Each helper has its own in-flight state and
+  // controller; fields can improve in parallel without killing each other.
 
   // Cover-art regenerate. Uses coverPrompt if set, otherwise derives
   // one from title/theme/style. Same multi-model fallback discipline
@@ -8446,12 +8610,9 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
     // Concurrency guard — rapid double-clicks would otherwise fire
     // parallel image calls and last-writer-wins clobbers coverDataUrl.
     if (coverBusy) return;
-    // Reuse aiAbortRef so the unmount cleanup also kills any in-flight
-    // image gen, and a second click cancels the previous request
-    // instead of layering a new one on top.
-    aiAbortRef.current?.abort();
-    aiAbortRef.current = new AbortController();
-    const signal = aiAbortRef.current.signal;
+    const controller = beginAiTask('cover');
+    if (!controller) return;
+    const signal = controller.signal;
     setCoverBusy(true);
     setError(null);
     try {
@@ -8468,12 +8629,13 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
         setTrackCoverRef.current?.(loadedTrackId, out);
       }
     } catch (e) {
-      if ((e as Error).name === 'AbortError') return;
+      if (isAbortError(e)) return;
       setError((e as Error).message || 'Cover-art generation failed.');
     } finally {
+      finishAiTask('cover', controller);
       setCoverBusy(false);
     }
-  }, [endpoint, coverPrompt, songName, theme, style, coverBusy, loadedTrackId]);
+  }, [endpoint, coverPrompt, songName, theme, style, coverBusy, loadedTrackId, beginAiTask, finishAiTask]);
 
   // Upload-from-disk handler. Reads the file as a base64 data URL and
   // shoves it straight into coverDataUrl so the user can ship a custom
@@ -8506,72 +8668,72 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
   }, [loadedTrackId]);
 
   const inspireTheme = useCallback(async () => {
-    if (aiBusy) return;
-    setAiBusy('theme');
+    const controller = beginAiTask('theme');
+    if (!controller) return;
     setError(null);
     try {
       const sys = `You are a creative songwriter. Given a Style description (genre, mood, instrumentation hints), write a vivid one-paragraph THEME for the song — a setting, a story arc, an emotional core. Keep it 2-4 sentences, evocative but specific. Plain prose only, no headers, no markdown, no quotes.`;
-      aiAbortRef.current?.abort();
-      aiAbortRef.current = new AbortController();
       const out = await callAIAssist(sys, {
         style: style || 'pop',
         existing_theme: theme || null,
-      }, { temperature: 0.85, maxTokens: 200, signal: aiAbortRef.current.signal });
+      }, { temperature: 0.85, maxTokens: 200, signal: controller.signal });
+      if (controller.signal.aborted) return;
       setTheme(out);
     } catch (e) {
+      if (isAbortError(e)) return;
       setError((e as Error).message || 'Theme inspiration failed.');
     } finally {
-      setAiBusy(null);
+      finishAiTask('theme', controller);
     }
-  }, [aiBusy, callAIAssist, style, theme]);
+  }, [beginAiTask, finishAiTask, callAIAssist, style, theme]);
 
   const suggestStyle = useCallback(async () => {
-    if (aiBusy) return;
-    setAiBusy('style');
+    const controller = beginAiTask('style');
+    if (!controller) return;
     setError(null);
     try {
       const sys = `You are a music-production assistant. Given a song THEME, propose a Style description: a comma-separated list of genre + mood + tempo + instrument cues (8-12 tags). Plain text, lowercase, comma-separated, no headers, no markdown, no surrounding prose. Example: "indie folk, acoustic, melancholic, 80 bpm, fingerpicked guitar, soft female vocals, reverb-heavy".`;
-      aiAbortRef.current?.abort();
-      aiAbortRef.current = new AbortController();
       const out = await callAIAssist(sys, {
         theme: theme || 'a quiet evening',
         existing_style: style || null,
-      }, { temperature: 0.7, maxTokens: 120, signal: aiAbortRef.current.signal });
+      }, { temperature: 0.7, maxTokens: 120, signal: controller.signal });
+      if (controller.signal.aborted) return;
       setStyle(out.replace(/^["']|["']$/g, ''));
     } catch (e) {
+      if (isAbortError(e)) return;
       setError((e as Error).message || 'Style suggestion failed.');
     } finally {
-      setAiBusy(null);
+      finishAiTask('style', controller);
     }
-  }, [aiBusy, callAIAssist, theme, style]);
+  }, [beginAiTask, finishAiTask, callAIAssist, theme, style]);
 
   const polishLyrics = useCallback(async () => {
-    if (aiBusy) return;
     if (!lyrics.trim()) {
       setError('Nothing to polish — write some lyrics first.');
       return;
     }
-    setAiBusy('lyrics');
+    const controller = beginAiTask('lyrics');
+    if (!controller) return;
     setError(null);
     try {
       const sys = `You are a senior songwriter. Polish the user's lyrics for flow, rhyme, imagery, and structural balance. Preserve the user's intent and language. Keep [Verse], [Chorus], [Bridge], [Intro], [Outro], [Inst] section markers if present (or add appropriate ones). Return ONLY the polished lyrics — no commentary, no markdown, no quotes.`;
-      aiAbortRef.current?.abort();
-      aiAbortRef.current = new AbortController();
       const out = await callAIAssist(sys, {
         style: style || null,
         lyrics,
-      }, { temperature: 0.6, maxTokens: 1200, signal: aiAbortRef.current.signal });
+      }, { temperature: 0.6, maxTokens: 1200, signal: controller.signal });
+      if (controller.signal.aborted) return;
       if (out.length > MAX_LYRICS) {
         setError(`Polished lyrics exceeded ${MAX_LYRICS} chars (${out.length}). Trimming the original first might help.`);
         return;
       }
       setLyrics(out);
     } catch (e) {
+      if (isAbortError(e)) return;
       setError((e as Error).message || 'Lyrics polish failed.');
     } finally {
-      setAiBusy(null);
+      finishAiTask('lyrics', controller);
     }
-  }, [aiBusy, callAIAssist, style, lyrics]);
+  }, [beginAiTask, finishAiTask, callAIAssist, style, lyrics]);
 
   // (insertTemplate retired — LYRIC_TEMPLATES are now structured
   // {skeleton, prompt} objects and the click handler lives in the
@@ -9002,7 +9164,8 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
             // a track for an abandoned form. Both refs cover music+chat
             // and AI-assist paths.
             abortRef.current?.abort();
-            aiAbortRef.current?.abort();
+            abortAllAiTasks();
+            ingestSeqRef.current += 1;
             generatingRef.current = false;
             setMode('compose');
             setTheme('');
@@ -9022,7 +9185,7 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
             setGalleryError(null);
             setPhase('idle');
             setProgress(0);
-            setAiBusy(null);
+            setAiBusy({ ...EMPTY_AI_BUSY });
             setCoverBusy(false);
             setOptimizingSpecs(false);
             setLoadedTrackId(null);
@@ -9060,7 +9223,7 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
         ],
       },
     ],
-  }), [currentWindow]);
+  }), [currentWindow, abortAllAiTasks, surpriseMe]);
   useShellMenuRegistration(currentWindow?.id ?? null, shellMenuModel);
 
   // Single source of truth for the gallery filter. Previously the
@@ -9112,32 +9275,41 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
       || (t.album || '').toLowerCase().includes(q));
   }, [libraryTracks, libraryChip, gallerySearch, favoriteMusicIds]);
 
-  const warmMusicResults = useCallback((rows: MusicSearchResult[]) => {
-    rows.slice(0, 4).forEach((row) => {
-      const key = musicStreamKey(row.id);
-      const cached = runtimeStreams[key];
-      if (cached && Date.now() - cached.resolvedAt < 90 * 60 * 1000) return;
-      if (prefetchingStreamsRef.current.has(row.id)) return;
-      prefetchingStreamsRef.current.add(row.id);
-      setStreamWarmupIds((prev) => new Set(prev).add(row.id));
-      void getMusicStream(row.id)
-        .then((info) => {
-          setRuntimeStreams((m) => ({
-            ...m,
-            [key]: { src: info.proxyUrl, resolvedAt: Date.now() },
-          }));
-        })
-        .catch(() => { /* best-effort prewarm */ })
-        .finally(() => {
-          prefetchingStreamsRef.current.delete(row.id);
-          setStreamWarmupIds((prev) => {
-            const next = new Set(prev);
-            next.delete(row.id);
-            return next;
-          });
+  const resolveMusicStreamUrl = useCallback((videoId: string, opts?: { force?: boolean }): Promise<string> => {
+    const key = musicStreamKey(videoId);
+    const cached = runtimeStreamsRef.current[key];
+    if (!opts?.force && cached && Date.now() - cached.resolvedAt < 90 * 60 * 1000) {
+      return Promise.resolve(cached.src);
+    }
+
+    const inFlight = musicStreamInFlightRef.current.get(videoId);
+    if (!opts?.force && inFlight) return inFlight;
+
+    setStreamWarmupIds((prev) => new Set(prev).add(videoId));
+    const request = getMusicStream(videoId)
+      .then((info) => {
+        const entry = { src: info.proxyUrl, resolvedAt: Date.now() };
+        runtimeStreamsRef.current = { ...runtimeStreamsRef.current, [key]: entry };
+        setRuntimeStreams((current) => ({ ...current, [key]: entry }));
+        return info.proxyUrl;
+      })
+      .finally(() => {
+        musicStreamInFlightRef.current.delete(videoId);
+        setStreamWarmupIds((prev) => {
+          const next = new Set(prev);
+          next.delete(videoId);
+          return next;
         });
+      });
+    musicStreamInFlightRef.current.set(videoId, request);
+    return request;
+  }, []);
+
+  const warmMusicResults = useCallback((rows: MusicSearchResult[]) => {
+    rows.slice(0, 3).forEach((row) => {
+      void resolveMusicStreamUrl(row.id).catch(() => { /* best-effort prewarm */ });
     });
-  }, [runtimeStreams]);
+  }, [resolveMusicStreamUrl]);
 
   useEffect(() => {
     if (!musicSearchOpen) return;
@@ -9289,12 +9461,10 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
     if (track.audioDataUrl && !opts?.force) return track.audioDataUrl;
     if (!isRemoteTrack(track) || !track.externalId) return track.audioDataUrl || null;
     const key = musicStreamKey(track.externalId);
-    const cached = runtimeStreams[key] ?? runtimeStreams[track.id];
+    const cached = runtimeStreamsRef.current[key] ?? runtimeStreamsRef.current[track.id];
     if (!opts?.force && cached && Date.now() - cached.resolvedAt < 90 * 60 * 1000) return cached.src;
-    const info = await getMusicStream(track.externalId);
-    setRuntimeStreams((m) => ({ ...m, [key]: { src: info.proxyUrl, resolvedAt: Date.now() } }));
-    return info.proxyUrl;
-  }, [runtimeStreams]);
+    return resolveMusicStreamUrl(track.externalId, opts);
+  }, [resolveMusicStreamUrl]);
 
   const allPlayerTracks = useMemo(
     () => [...previewTracks, ...libraryTracks, ...visibleGallery],
@@ -9553,6 +9723,10 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
     // user navigates back to the search pane.
     setPreviewBusyId(null);
   }, [player, resultToTrack, runtimeStreams]);
+
+  const warmMusicResult = useCallback((result: MusicSearchResult) => {
+    void resolveMusicStreamUrl(result.id).catch(() => { /* best-effort interactive warmup */ });
+  }, [resolveMusicStreamUrl]);
 
   const addMusicResult = useCallback(async (result: MusicSearchResult) => {
     setAddBusyId(result.id);
@@ -10438,6 +10612,7 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
               addBusyId={addBusyId}
               savedYoutubeIds={savedYoutubeIds}
               player={player}
+              onWarmResult={warmMusicResult}
               onPreview={previewMusicResult}
               onAdd={addMusicResult}
               onOpenTrack={(track) => {
@@ -10879,7 +11054,7 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
                   >
                     <Sparkles size={13} style={{ color: sampleStrategy === 'best' ? 'var(--accent-primary)' : 'var(--text-secondary)' }} />
                     <div className="text-left flex-1">
-                      <div style={{ fontSize: 11, fontWeight: 600 }}>Best 30 s</div>
+                      <div style={{ fontSize: 11, fontWeight: 600 }}>Best compact</div>
                       <div style={{ fontSize: 9, color: 'var(--text-disabled)' }}>single chorus-like window</div>
                     </div>
                   </button>
@@ -11279,8 +11454,8 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
                 label="Inspire"
                 tooltip="Use AI to write a theme based on your Style"
                 onClick={inspireTheme}
-                busy={aiBusy === 'theme'}
-                disabled={busy || aiBusy !== null}
+                busy={aiBusy.theme}
+                disabled={busy || aiBusy.theme}
               />
             }
           >
@@ -11315,8 +11490,8 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
                 label="Suggest"
                 tooltip="Use AI to suggest a Style from your Theme"
                 onClick={suggestStyle}
-                busy={aiBusy === 'style'}
-                disabled={busy || aiBusy !== null}
+                busy={aiBusy.style}
+                disabled={busy || aiBusy.style}
               />
             }
           >
@@ -11580,8 +11755,8 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
                 label="Polish"
                 tooltip="Use AI to refine flow, rhyme, and structure"
                 onClick={polishLyrics}
-                busy={aiBusy === 'lyrics'}
-                disabled={busy || aiBusy !== null || !lyrics.trim()}
+                busy={aiBusy.lyrics}
+                disabled={busy || aiBusy.lyrics || !lyrics.trim()}
               />
             ) : undefined
           }

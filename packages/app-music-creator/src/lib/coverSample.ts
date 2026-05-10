@@ -4,8 +4,9 @@
 //
 // Two strategies exposed:
 //
-//   buildCoverSample()    — single best window. Used when you want one
-//                            clean 30-second cover sample.
+//   buildCoverSample()    — single best compact window. Used when you want
+//                            one clean style-reference sample that fits the
+//                            gateway body limit.
 //
 //   buildIconicMix()      — the most distinctive 2–3 windows stitched
 //                            together with crossfades. Closer to a
@@ -31,14 +32,18 @@
 //      apart in time, concat with 0.4 s linear crossfades.
 //
 // Output is always 16-bit PCM WAV (browsers don't ship an mp3 encoder
-// and MiniMax music-cover accepts mp3/wav/flac equally).
+// and MiniMax music-cover accepts mp3/wav/flac equally). We downsample
+// reference WAVs to 16 kHz mono and keep them around 18 seconds so the
+// JSON payload stays under common nginx 1 MiB body caps. Raw 30 s / 48 kHz
+// WAV was >3 MB base64 and caused 413 on public pod gateways.
 
 const FRAME_MS = 100;
-const TARGET_SECONDS = 30;
+const TARGET_SECONDS = 18;
 const MIN_SECONDS = 6;
-const MAX_SECONDS = 360;
+const MAX_SECONDS = TARGET_SECONDS;
+const REFERENCE_SAMPLE_RATE = 16_000;
 
-const MIX_SEG_SECONDS = 12;
+const MIX_SEG_SECONDS = 6;
 const MIX_SEG_COUNT = 3;
 const MIX_CROSSFADE_SEC = 0.4;
 
@@ -65,12 +70,102 @@ export interface IconicMixResult {
 
 // ─── Audio I/O helpers ────────────────────────────────────────
 
-const decodeAudio = async (blob: Blob): Promise<AudioBuffer> => {
+// Real-time playback capture rescue. When `decodeAudioData` rejects a
+// codec the browser's HTML5 <audio> element CAN still play (e.g.
+// opus-in-webm in older Safari, weird mp4 box layouts from streaming
+// proxies, mp4a.40.5 HE-AAC), we play the source silently through a
+// MediaElementAudioSourceNode → MediaStreamDestination → MediaRecorder
+// chain. The recorder produces a webm/opus blob the SAME browser can
+// always re-decode (since it just produced it). Cost: real-time wall
+// clock for `captureSec` seconds. We cap near one compact reference
+// sample so the rescue completes before the user gets impatient.
+const decodeViaPlaybackCapture = async (
+  blob: Blob,
+  ctx: AudioContext,
+  captureSec: number,
+): Promise<AudioBuffer> => {
+  if (typeof MediaRecorder === 'undefined') {
+    throw new Error('MediaRecorder unavailable in this environment.');
+  }
+  const mime = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4']
+    .find((m) => MediaRecorder.isTypeSupported(m));
+  if (!mime) {
+    throw new Error('No supported recorder mime type for fallback.');
+  }
+
+  const url = URL.createObjectURL(blob);
+  const audio = new Audio();
+  audio.src = url;
+  audio.muted = true;
+  audio.crossOrigin = 'anonymous';
+  audio.preload = 'auto';
+
+  try {
+    await new Promise<void>((res, rej) => {
+      const onReady = () => res();
+      const onErr = () =>
+        rej(new Error('Audio element rejected the source format too — browser cannot play it.'));
+      audio.addEventListener('canplay', onReady, { once: true });
+      audio.addEventListener('error', onErr, { once: true });
+      audio.load();
+    });
+
+    const srcNode = ctx.createMediaElementSource(audio);
+    const dest = ctx.createMediaStreamDestination();
+    srcNode.connect(dest);
+    // Intentionally NOT connecting to ctx.destination — keep playback silent.
+
+    const recorder = new MediaRecorder(dest.stream, { mimeType: mime });
+    const chunks: Blob[] = [];
+    recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
+
+    const targetMs = Math.max(
+      6_000,
+      Math.min(captureSec, audio.duration || captureSec) * 1000,
+    );
+
+    const stopped = new Promise<void>((res) => { recorder.onstop = () => res(); });
+    recorder.start(250);
+    audio.currentTime = 0;
+    await audio.play();
+    await new Promise<void>((res) => setTimeout(res, targetMs));
+    recorder.stop();
+    audio.pause();
+    await stopped;
+
+    const recBlob = new Blob(chunks, { type: mime });
+    if (recBlob.size === 0) {
+      throw new Error('Fallback capture produced no audio data.');
+    }
+    const recAb = await recBlob.arrayBuffer();
+    return await ctx.decodeAudioData(recAb);
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+};
+
+const decodeAudio = async (
+  blob: Blob,
+  fallbackCaptureSec = 35,
+): Promise<AudioBuffer> => {
   const Ctor = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
   const ctx = new Ctor();
   try {
     const ab = await blob.arrayBuffer();
-    return await ctx.decodeAudioData(ab.slice(0));
+    try {
+      return await ctx.decodeAudioData(ab.slice(0));
+    } catch (primaryErr) {
+      // Codec the static decoder rejects but <audio> may still play.
+      try {
+        return await decodeViaPlaybackCapture(blob, ctx, fallbackCaptureSec);
+      } catch (fallbackErr) {
+        const primaryMsg = (primaryErr as Error).message || 'decodeAudioData failed';
+        const fallbackMsg = (fallbackErr as Error).message || 'fallback failed';
+        throw new Error(
+          `Audio format isn't supported by this browser (${primaryMsg}). Compatibility-mode capture also failed: ${fallbackMsg}`,
+        );
+      }
+    }
   } finally {
     ctx.close().catch(() => undefined);
   }
@@ -322,6 +417,25 @@ const sliceMono = (
   return out;
 };
 
+const resampleLinear = (
+  samples: Float32Array,
+  sourceRate: number,
+  targetRate: number,
+): Float32Array => {
+  if (targetRate >= sourceRate) return samples;
+  const ratio = sourceRate / targetRate;
+  const outLen = Math.max(1, Math.floor(samples.length / ratio));
+  const out = new Float32Array(outLen);
+  for (let i = 0; i < outLen; i++) {
+    const src = i * ratio;
+    const lo = Math.floor(src);
+    const hi = Math.min(samples.length - 1, lo + 1);
+    const t = src - lo;
+    out[i] = samples[lo] * (1 - t) + samples[hi] * t;
+  }
+  return out;
+};
+
 const encodeWav = (samples: Float32Array, sampleRate: number): Blob => {
   const numChannels = 1;
   const bitDepth = 16;
@@ -357,6 +471,12 @@ const encodeWav = (samples: Float32Array, sampleRate: number): Blob => {
   return new Blob([buffer], { type: 'audio/wav' });
 };
 
+const encodeReferenceWav = (samples: Float32Array, sampleRate: number): Blob => {
+  const targetRate = Math.min(sampleRate, REFERENCE_SAMPLE_RATE);
+  const compact = resampleLinear(samples, sampleRate, targetRate);
+  return encodeWav(compact, targetRate);
+};
+
 // ─── Public: single best window ─────────────────────────────
 
 export const buildCoverSample = async (
@@ -375,7 +495,7 @@ export const buildCoverSample = async (
 
   if (totalSec <= desired) {
     const samples = sliceMono(buf, 0, buf.length);
-    const wav = encodeWav(samples, buf.sampleRate);
+    const wav = encodeReferenceWav(samples, buf.sampleRate);
     const base64 = await blobToBase64(wav);
     return { base64, durationSec: totalSec, startSec: 0, sourceDurationSec: totalSec, score: 1 };
   }
@@ -391,7 +511,7 @@ export const buildCoverSample = async (
   const startSample = Math.floor((best.startFrame / feat.framesPerSec) * buf.sampleRate);
   const lenSamples = Math.floor((best.lenFrames / feat.framesPerSec) * buf.sampleRate);
   const samples = sliceMono(buf, startSample, lenSamples);
-  const wav = encodeWav(samples, buf.sampleRate);
+  const wav = encodeReferenceWav(samples, buf.sampleRate);
   const base64 = await blobToBase64(wav);
 
   return {
@@ -499,7 +619,7 @@ export const buildIconicMix = async (
   });
 
   const mixed = crossfadeConcat(segs, buf.sampleRate, MIX_CROSSFADE_SEC);
-  const wav = encodeWav(mixed, buf.sampleRate);
+  const wav = encodeReferenceWav(mixed, buf.sampleRate);
   const base64 = await blobToBase64(wav);
 
   const segments = picks.map((w) => ({
