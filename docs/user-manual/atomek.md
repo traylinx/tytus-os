@@ -74,6 +74,8 @@ Use **Outputs** to inspect saved artifacts and agent job output. Code blocks sho
 
 The **Control Tower** activity is the bridge to real tools installed on the machine. It replaces duplicate extension panels.
 
+Atomek is a control tower for Tytus resources, not another VS Code clone. Use it to coordinate the current file/folder, Tytus pods, local agents, shared folders, and app skills through one mission context.
+
 It discovers local capabilities through the Tytus host bridge, for example:
 
 - Tytus Terminal
@@ -87,6 +89,37 @@ It discovers local capabilities through the Tytus host bridge, for example:
 - Aider
 
 Only allowlisted tools should launch from Atomek. The browser must not run arbitrary shell commands and must not direct-fetch pod or model endpoints that fail CORS. Local work goes through the same-origin Tytus tray/host bridge.
+
+### Mission packs
+
+A mission pack is a tray-managed folder under **Tytus Home / Missions**. It gives agents and pods a shared working context without granting blind write access to your project.
+
+A new mission writes a standard pack:
+
+- `MISSION.md` — human-readable goal, context, resources, constraints, next steps
+- `MISSION.json` — typed machine contract, selected resources, task graph, approval gates
+- `RESOURCES.md` — selected pods, local agents, folders, apps, and skills
+- `TASKS.md` — planned task graph
+- `HANDOFF.md` — copy-paste summary for another agent/window
+- `INBOX.md` / `OUTBOX.md` — lightweight shared-folder exchange points
+- `AUDIT.jsonl` — append-only mission events
+- `NEXT.md` — immediate next action
+
+The Control Tower can list and resume existing mission packs through `host.missions.list()`. Resuming a mission restores the mission badge, task graph, and context prompt.
+
+### Resource graph
+
+Control Tower shows resources as a graph: pods, local agents, apps, shared folders, app skills, and the active workspace. Use **Use** to attach a resource to the current mission prompt. Use **Setup** when a missing dependency needs a local install command or app deep link.
+
+### Task graph
+
+The default mission task graph is deliberately small:
+
+1. plan with selected resources
+2. execute through an allowlisted local/pod/app driver
+3. summarize handoff and outputs
+
+This keeps Atomek useful immediately while leaving room for richer multi-agent orchestration later.
 
 ## Open in Terminal
 
@@ -133,7 +166,7 @@ Do not show fake support. If a skill or app driver is not installed, show it as 
 
 | Problem | Fix |
 |---|---|
-| Old UI or duplicate Control Tower icons | Hard-refresh TytusOS. Confirm Atomek is loaded from `tytus-app-atomek@v0.4.15` or newer. |
+| Old UI or duplicate Control Tower icons | Hard-refresh TytusOS. Confirm Atomek is loaded from `tytus-app-atomek@v0.4.16` or newer. |
 | Files are listed but editor is blank | Reopen the file, then hard-refresh. If still broken, report the file type and console error. |
 | Folder does not expand/collapse | You are likely on an older bundle. Refresh and check the Atomek version. |
 | Chat answer appears only after completion | Streaming path is degraded. Check browser console and host `/v1/chat/completions` proxy errors. |

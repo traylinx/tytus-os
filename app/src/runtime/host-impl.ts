@@ -774,6 +774,13 @@ function makeResourcesApi(): ResourcesApi {
 
 function makeMissionsApi(): MissionsApi {
   return {
+    async list(signal?: AbortSignal) {
+      const body = await sameOriginGetJson<{ missions?: import('@tytus/host-api').TytusMissionSummary[] }>(
+        '/api/missions',
+        signal,
+      );
+      return body.missions ?? [];
+    },
     create(input): Promise<TytusMission> {
       return sameOriginPostJson<TytusMission>(
         '/api/missions',

@@ -57,7 +57,7 @@ Fix:
 1. Hard-refresh TytusOS.
 2. Reopen Atomek.
 3. Reopen the file from Explorer.
-4. Confirm Atomek loads `tytus-app-atomek@v0.4.15` or newer.
+4. Confirm Atomek loads `tytus-app-atomek@v0.4.16` or newer.
 5. If still broken, include the file extension and browser console error in the bug report.
 
 ## Atomek folder rows do not expand or collapse
@@ -66,7 +66,7 @@ Use the folder chevron or click the folder row. If nothing changes, you are like
 
 ## Atomek shows duplicate Control Tower and Extensions icons
 
-That was an old app bundle. The current surface has one **Control Tower** activity. Hard-refresh TytusOS and confirm the app comes from `tytus-app-atomek@v0.4.15` or newer.
+That was an old app bundle. The current surface has one **Control Tower** activity. Hard-refresh TytusOS and confirm the app comes from `tytus-app-atomek@v0.4.16` or newer.
 
 ## Atomek local tools are missing
 

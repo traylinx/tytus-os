@@ -113,6 +113,7 @@ export type {
   MissionWriteResult,
   MissionsApi,
   TytusMission,
+  TytusMissionSummary,
   TytusCapability,
   TytusResource,
   TytusResourceGraph,
