@@ -31,6 +31,12 @@ export interface HostClient {
   /** Agentic app/extension skill registry. Skill packs are data +
    *  instructions; execution remains driver/permission gated. */
   skills?: SkillsApi;
+  /** Tytus resource graph: workspace roots, shared folders, local CLIs,
+   *  pods, AIL routes, and app skills normalized for orchestration UIs. */
+  resources?: ResourcesApi;
+  /** Tray-managed mission folders under Tytus Home/Missions. Local agents can
+   *  receive the returned absolute path as cwd and literally read pack files. */
+  missions?: MissionsApi;
   media: MediaApi;
   assets: AssetsApi;
 }
@@ -397,6 +403,124 @@ export interface SkillsApi {
   list(input?: SkillListInput): Promise<TytusSkillSummary[]>;
   get(id: string, signal?: AbortSignal): Promise<TytusSkillPack>;
   resolve(input: SkillResolveInput): Promise<TytusSkillSummary[]>;
+}
+
+// ─── host.resources ─────────────────────────────────────────────────
+
+export type TytusResourceKind =
+  | 'workspace'
+  | 'shared-folder'
+  | 'local-cli'
+  | 'pod-agent'
+  | 'app-skill'
+  | 'ail-route';
+
+export type TytusCapability =
+  | 'text-gen'
+  | 'code-edit'
+  | 'code-review'
+  | 'test-run'
+  | 'web-fetch'
+  | 'file-read'
+  | 'file-write-preview'
+  | 'file-write-direct'
+  | 'image-edit'
+  | 'image-gen'
+  | 'video-render'
+  | 'audio-gen'
+  | 'shell-exec-allowlist';
+
+export type TytusResourceStatus =
+  | 'ready'
+  | 'degraded'
+  | 'needs-setup'
+  | 'unreachable'
+  | string;
+
+export type TytusTrustTier =
+  | 'local-private'
+  | 'tytus-pod'
+  | 'remote-ail'
+  | 'third-party-app'
+  | string;
+
+export type TytusSandbox =
+  | 'mission-folder'
+  | 'pod'
+  | 'process'
+  | 'browser-app'
+  | 'none'
+  | string;
+
+export interface TytusResource {
+  id: string;
+  kind: TytusResourceKind;
+  label: string;
+  status: TytusResourceStatus;
+  reason?: string | null;
+  capabilities: TytusCapability[];
+  trustTier: TytusTrustTier;
+  sandbox: TytusSandbox;
+  allowedRoots: string[];
+  cost: {
+    unit: 'free' | 'tytus-units' | 'tokens' | 'dollars' | string;
+    tier: 'low' | 'mid' | 'high' | string;
+    perCall?: number;
+  };
+  setupAction?: {
+    label: string;
+    deepLink?: string;
+    commandPreview?: string;
+  } | null;
+  metadata?: Record<string, unknown>;
+}
+
+export interface TytusResourceGraph {
+  generatedAt: string;
+  resources: TytusResource[];
+  warnings: Array<{ code: string; message: string; resourceId?: string }>;
+}
+
+export interface ResourcesApi {
+  list(signal?: AbortSignal): Promise<TytusResourceGraph>;
+  refresh(signal?: AbortSignal): Promise<TytusResourceGraph>;
+}
+
+// ─── host.missions ──────────────────────────────────────────────────
+
+export interface MissionCreateInput {
+  title: string;
+  goal?: string;
+  signal?: AbortSignal;
+}
+
+export interface TytusMission {
+  missionId: string;
+  title: string;
+  goal: string;
+  rootPath: string;
+}
+
+export interface MissionWriteFile {
+  path: string;
+  content: string;
+}
+
+export interface MissionWriteInput {
+  rootPath: string;
+  files: MissionWriteFile[];
+  signal?: AbortSignal;
+}
+
+export interface MissionWriteResult {
+  ok: boolean;
+  rootPath: string;
+  written: string[];
+}
+
+export interface MissionsApi {
+  create(input: MissionCreateInput): Promise<TytusMission>;
+  write(input: MissionWriteInput): Promise<MissionWriteResult>;
 }
 
 export interface DaemonApi {

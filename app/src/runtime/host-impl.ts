@@ -46,6 +46,8 @@ import type {
   Manifest,
   MediaApi,
   MicrophoneStream,
+  MissionWriteResult,
+  MissionsApi,
   MusicConnectorStatus,
   MusicDaemonApi,
   MusicProviderStatus,
@@ -54,6 +56,7 @@ import type {
   MusicStreamInfo,
   NotificationsApi,
   Pod,
+  ResourcesApi,
   SharedDb,
   ShellEventName,
   ShellEventPayload,
@@ -61,6 +64,8 @@ import type {
   ShellMenuSpec,
   SkillsApi,
   StorageApi,
+  TytusResourceGraph,
+  TytusMission,
   TytusSkillPack,
   TytusSkillSummary,
   UnifiedMusicSearchResponse,
@@ -758,6 +763,36 @@ function makeSkillsApi(): SkillsApi {
   };
 }
 
+function makeResourcesApi(): ResourcesApi {
+  const list = (signal?: AbortSignal): Promise<TytusResourceGraph> =>
+    sameOriginGetJson<TytusResourceGraph>('/api/resources', signal);
+  return {
+    list,
+    refresh: list,
+  };
+}
+
+function makeMissionsApi(): MissionsApi {
+  return {
+    create(input): Promise<TytusMission> {
+      return sameOriginPostJson<TytusMission>(
+        '/api/missions',
+        { title: input.title, goal: input.goal ?? '' },
+        undefined,
+        input.signal,
+      );
+    },
+    write(input): Promise<MissionWriteResult> {
+      return sameOriginPostJson<MissionWriteResult>(
+        '/api/missions/write',
+        { rootPath: input.rootPath, files: input.files },
+        undefined,
+        input.signal,
+      );
+    },
+  };
+}
+
 /** Build the windows namespace. The shell wires its useOSStore dispatch
  *  surface in via setWindowsActions; calls before the wiring lands
  *  throw a clear "no shell yet" error rather than a no-op so missing
@@ -1019,6 +1054,8 @@ export function makeHostForApp(
     ai: makeAiApi({ appId, manifest, daemon }),
     local: makeLocalApi(),
     skills: makeSkillsApi(),
+    resources: makeResourcesApi(),
+    missions: makeMissionsApi(),
     media: makeMediaApi(),
     assets: makeAssetsApi(appId, entryUrls.assets),
   };
