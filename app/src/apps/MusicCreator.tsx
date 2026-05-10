@@ -121,7 +121,7 @@ type VoiceRecording = VoiceRecordingRow;
 // vX.Y.Z") and the Settings dialog footer so users can see exactly
 // which release they're running. Bumped in lockstep with package.json
 // + tytus-app.json on every release.
-const APP_VERSION = '0.3.12';
+const APP_VERSION = '0.3.13';
 
 // ──────────────────────────────────────────────────────────
 // Cross-app drag MIME types
@@ -7813,6 +7813,15 @@ export default function MusicCreator() {
       setError(t('musiccreator.error.noPod'));
       return;
     }
+    // Draft helpers mutate the exact fields we submit. Do not let Create/Restyle
+    // race against Inspire/Suggest/Optimize/Cover; the submitted payload becomes
+    // unpredictable and the user sees one flow abort another. The button is
+    // disabled in the UI too; this guard covers keyboard/automation/re-render gaps.
+    if (Object.values(aiBusyRef.current).some(Boolean) || coverBusy || optimizingSpecs) {
+      setError('Finish the active AI helper before generating.');
+      return;
+    }
+
     // Restyle preflight — validate BEFORE any network call so we don't
     // burn lyrics/cover quota only to tell the user mid-flight that
     // they forgot the reference audio. (The same check runs again
@@ -7831,6 +7840,10 @@ export default function MusicCreator() {
     if (generatingRef.current) return;
     generatingRef.current = true;
     setError(null);
+    // Submit wins over draft helpers. By this point the helper-active guard above
+    // passed, so this is normally a no-op; it still freezes any stale controller
+    // left behind by an aborted helper.
+    abortAllAiTasks();
 
     abortRef.current?.abort();
     const controller = new AbortController();
@@ -8128,8 +8141,8 @@ export default function MusicCreator() {
     }
   }, [
     endpoint, theme, lyrics, songName, style, specs, activeTemplate, instrumental, mode, refAudioBase64, refAudioName, t,
-    saveTrack, creatorSettings, mirrorAudioToVfs, mirrorLyricsToVfs, addNotification,
-    coverAuto, coverDataUrl, coverPrompt,
+    saveTrack, creatorSettings, mirrorAudioToVfs, mirrorLyricsToVfs, addNotification, abortAllAiTasks,
+    coverAuto, coverDataUrl, coverPrompt, coverBusy, optimizingSpecs,
   ]);
 
   const handleRefAudioPick = () => refFileInputRef.current?.click();
@@ -9147,6 +9160,7 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
   const lyricsCount = lyrics.length;
   const styleCount = style.length;
   const busy = phase !== 'idle';
+  const anyAiBusy = Object.values(aiBusy).some(Boolean) || coverBusy || optimizingSpecs;
 
   // ─── App menu (Music Creator > … in the global top bar) ───
   // Register a per-window shell menu so the macOS-style top bar shows
@@ -10721,10 +10735,18 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
               // primary action during that window so the user can't
               // submit prematurely + relabel to make the wait obvious.
               const restyleNotReady = mode === 'restyle' && (extracting || !refAudioBase64);
+              const primaryBlocked = restyleNotReady || anyAiBusy;
+              const primaryTitle = anyAiBusy
+                ? 'An AI helper is still working — wait for it to finish before generating.'
+                : restyleNotReady
+                  ? (extracting
+                      ? 'Analyzing reference audio — hold on…'
+                      : 'Drop a reference audio file in the Restyle panel below')
+                  : undefined;
               return (
                 <button
                   onClick={generate}
-                  disabled={restyleNotReady}
+                  disabled={primaryBlocked}
                   className="flex items-center gap-1.5 px-4 rounded-lg transition-all hover:scale-[1.02] active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
                   style={{
                     height: 32,
@@ -10734,20 +10756,18 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
                     background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))',
                     boxShadow: 'var(--shadow-md)',
                   }}
-                  title={restyleNotReady
-                    ? (extracting
-                        ? 'Analyzing reference audio — hold on…'
-                        : 'Drop a reference audio file in the Restyle panel below')
-                    : undefined}
+                  title={primaryTitle}
                 >
-                  {restyleNotReady && extracting
+                  {(restyleNotReady && extracting) || anyAiBusy
                     ? <Loader2 size={13} className="animate-spin" />
                     : <Wand2 size={13} />}
-                  {mode === 'restyle'
-                    ? (extracting ? 'Analyzing audio…' : 'Restyle Song')
-                    : mode === 'lyricsOnly'
-                      ? 'Write Lyrics'
-                      : t('musiccreator.button.create')}
+                  {anyAiBusy
+                    ? 'Waiting for AI…'
+                    : mode === 'restyle'
+                      ? (extracting ? 'Analyzing audio…' : 'Restyle Song')
+                      : mode === 'lyricsOnly'
+                        ? 'Write Lyrics'
+                        : t('musiccreator.button.create')}
                 </button>
               );
             })()}
