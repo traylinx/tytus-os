@@ -324,6 +324,10 @@ const Settings: React.FC = () => {
     "start" | "stop" | "restart" | null
   >(null);
   const [lifecycleErr, setLifecycleErr] = useState<string | null>(null);
+  const [tunnelAction, setTunnelAction] = useState<
+    "connect" | "disconnect" | null
+  >(null);
+  const [tunnelErr, setTunnelErr] = useState<string | null>(null);
   const [configuring, setConfiguring] = useState(false);
   const [configureErr, setConfigureErr] = useState<string | null>(null);
   const [configureStarted, setConfigureStarted] = useState(false);
@@ -663,6 +667,28 @@ const Settings: React.FC = () => {
       } else {
         daemon.refresh();
       }
+    },
+    [client, daemon],
+  );
+
+  const runTunnelAction = useCallback(
+    async (action: "connect" | "disconnect") => {
+      setTunnelAction(action);
+      setTunnelErr(null);
+      const r =
+        action === "connect"
+          ? await client.postConnect()
+          : await client.postDisconnect();
+      setTunnelAction(null);
+      if (!r.ok) {
+        setTunnelErr(r.error.message);
+        return;
+      }
+      // Connect may need a native Terminal window for sudo/Touch ID. Poll
+      // shortly after the POST so the Daemon panel flips from "down" to
+      // "active" without requiring a manual browser refresh.
+      window.setTimeout(() => daemon.refresh(), 1000);
+      window.setTimeout(() => daemon.refresh(), 4000);
     },
     [client, daemon],
   );
@@ -1166,6 +1192,87 @@ const Settings: React.FC = () => {
                   {lifecycleErr}
                 </div>
               )}
+
+              <div
+                className="p-3 rounded-lg space-y-3"
+                style={{
+                  background: "var(--bg-card, rgba(255,255,255,0.03))",
+                  border: "1px solid var(--border-subtle)",
+                }}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <div className="text-sm font-medium text-[var(--text-primary)]">
+                      WireGuard tunnel
+                    </div>
+                    <div className="text-xs text-[var(--text-secondary)] mt-1">
+                      {daemon.state?.tunnel_active
+                        ? "Local AIL is reachable at http://10.42.42.1:18080."
+                        : "Local AIL is provisioned, but the private tunnel is down."}
+                    </div>
+                  </div>
+                  <div
+                    className="text-[11px] px-2 py-1 rounded-full whitespace-nowrap"
+                    style={{
+                      background: daemon.state?.tunnel_active
+                        ? "rgba(76,175,80,0.14)"
+                        : "rgba(255,171,0,0.14)",
+                      color: daemon.state?.tunnel_active
+                        ? "var(--accent-success)"
+                        : "var(--accent-warning)",
+                    }}
+                  >
+                    {daemon.state?.tunnel_active ? "active" : "down"}
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={() => runTunnelAction("connect")}
+                    disabled={tunnelAction !== null || daemon.state?.tunnel_active === true}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs transition-colors disabled:opacity-60"
+                    style={{
+                      background: "var(--accent-primary)",
+                      color: "var(--text-on-accent)",
+                    }}
+                  >
+                    {tunnelAction === "connect" ? (
+                      <Loader2 size={12} className="animate-spin" />
+                    ) : (
+                      <Power size={12} />
+                    )}
+                    {tunnelAction === "connect" ? "Opening connect…" : "Connect tunnel"}
+                  </button>
+                  <button
+                    onClick={() => runTunnelAction("disconnect")}
+                    disabled={tunnelAction !== null || daemon.state?.tunnel_active !== true}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs transition-colors disabled:opacity-60"
+                    style={{
+                      background: "var(--bg-hover, rgba(255,255,255,0.04))",
+                      border: "1px solid var(--border-default)",
+                      color: "var(--text-primary)",
+                    }}
+                  >
+                    {tunnelAction === "disconnect" ? (
+                      <Loader2 size={12} className="animate-spin" />
+                    ) : (
+                      <Power size={12} />
+                    )}
+                    Disconnect tunnel
+                  </button>
+                </div>
+                <div className="text-[11px] text-[var(--text-secondary)]">
+                  Connect may open a native Terminal/Touch ID prompt because
+                  WireGuard activation needs elevated permission.
+                </div>
+                {tunnelErr && (
+                  <div
+                    className="text-xs"
+                    style={{ color: "var(--accent-error)" }}
+                  >
+                    {tunnelErr}
+                  </div>
+                )}
+              </div>
             </div>
 
             <div className="space-y-3">
