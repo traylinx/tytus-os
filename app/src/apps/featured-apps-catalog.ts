@@ -96,7 +96,7 @@ const ALL_FEATURED_APPS: FeaturedApp[] = [
     description: 'Full AI-native music creator for Tytus OS. Create songs, lyrics, covers, and manage your local music workbench.',
     icon: 'juli3ta:mark',
     category: 'Creative',
-    manifestUrl: 'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-juli3ta@juli3ta-0.3.11/tytus-app.json',
+    manifestUrl: 'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-juli3ta@juli3ta-0.3.12/tytus-app.json',
   },
 ];
 
@@ -116,7 +116,7 @@ export const FEATURED_APPS: FeaturedApp[] = ALL_FEATURED_APPS.filter(
  *  not keep users on stale standalone app tags. Individual app manifest URLs
  *  remain pinned to immutable app tags. */
 export const FEATURED_CATALOG_URL =
-  'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-catalog@7d37abd78917fd2ff885fac8cd62b84a3a439001/featured.json';
+  'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-catalog@4703e6b2af429a5b08900f75631c6bfde22169b6/featured.json';
 
 /**
  * Denylist of catalog ids the OS will refuse to auto-install at boot,

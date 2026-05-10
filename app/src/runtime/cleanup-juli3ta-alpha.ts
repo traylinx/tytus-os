@@ -29,11 +29,11 @@ import type { Manifest } from '@tytus/host-api';
 
 const INCOMPLETE_VERSION_PREFIXES = ['0.0.', '0.1.'];
 
-const JULI3TA_GATEWAY_FIX_VERSION = '0.3.11';
+const JULI3TA_GATEWAY_FIX_VERSION = '0.3.12';
 const JULI3TA_GATEWAY_FIX_MANIFEST_URL =
-  'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-juli3ta@juli3ta-0.3.11/tytus-app.json';
+  'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-juli3ta@juli3ta-0.3.12/tytus-app.json';
 const JULI3TA_GATEWAY_FIX_ENTRY_URL =
-  'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-juli3ta@juli3ta-0.3.11/dist/index.js';
+  'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-juli3ta@juli3ta-0.3.12/dist/index.js';
 
 const JULI3TA_GATEWAY_FIX_MANIFEST: Manifest = {
   $schema: 'https://tytus.traylinx.com/schema/app/v1.json',
