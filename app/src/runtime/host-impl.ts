@@ -789,6 +789,13 @@ function makeMissionsApi(): MissionsApi {
       );
       return body.missions ?? [];
     },
+    async listRuns(rootPath: string, signal?: AbortSignal) {
+      const body = await sameOriginGetJson<{ runs?: import('@tytus/host-api').TytusMissionRun[] }>(
+        `/api/missions/runs?rootPath=${encodeURIComponent(rootPath)}`,
+        signal,
+      );
+      return body.runs ?? [];
+    },
     create(input): Promise<TytusMission> {
       return sameOriginPostJson<TytusMission>(
         '/api/missions',

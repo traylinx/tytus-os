@@ -521,6 +521,21 @@ export interface TytusMissionSummary extends TytusMission {
   runCount?: number;
 }
 
+export interface TytusMissionRun {
+  id: string;
+  jobId?: string | null;
+  toolId: string;
+  label: string;
+  status: 'queued' | 'running' | 'canceling' | 'complete' | 'failed' | string;
+  startedAt?: string | null;
+  finishedAt?: string | null;
+  exitCode?: number | null;
+  taskId?: string | null;
+  taskTitle?: string | null;
+  transcriptPath?: string | null;
+  summary?: string | null;
+}
+
 export interface MissionWriteFile {
   path: string;
   content: string;
@@ -540,6 +555,7 @@ export interface MissionWriteResult {
 
 export interface MissionsApi {
   list(signal?: AbortSignal): Promise<TytusMissionSummary[]>;
+  listRuns(rootPath: string, signal?: AbortSignal): Promise<TytusMissionRun[]>;
   create(input: MissionCreateInput): Promise<TytusMission>;
   write(input: MissionWriteInput): Promise<MissionWriteResult>;
 }
