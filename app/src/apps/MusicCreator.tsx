@@ -5741,7 +5741,7 @@ function ReferenceAudioCard({
       <ReferenceAudioControl
         src={audioSrc}
         onPlay={onUserPlay}
-        title="Preview the exact compact reference sample sent to MiniMax cover mode"
+        title="Preview the exact reference audio sent to MiniMax cover mode"
         height={32}
       />
     </div>
@@ -8341,7 +8341,7 @@ export default function MusicCreator() {
     setRefExtractProgress({
       stage: 'loading',
       progress: 0.04,
-      message: 'Preparing compact reference sample…',
+      message: 'Preparing cover reference from the song…',
     });
     setRefAudioBase64(null);
     setRefAudioName(displayName);
@@ -8375,7 +8375,7 @@ export default function MusicCreator() {
               message: 'Creating fast server-side reference cut…',
             });
             const r = await fetch(
-              `/api/music/reference-sample?videoId=${encodeURIComponent(options.videoId)}&durationSec=14`,
+              `/api/music/reference-sample?videoId=${encodeURIComponent(options.videoId)}&durationSec=60`,
             );
             if (!r.ok) throw new Error(`reference sample HTTP ${r.status}`);
             const sample = await r.json() as {
@@ -8392,7 +8392,7 @@ export default function MusicCreator() {
               message: 'Reference sample ready.',
             });
             setRefAudioBase64(sample.base64);
-            const durationSec = sample.durationSec ?? 14;
+            const durationSec = sample.durationSec ?? 60;
             const sourceDurationSec = sample.sourceDurationSec ?? durationSec;
             const startSec = sample.startSec ?? 0;
             const sourceMin = sourceDurationSec / 60;
@@ -8403,7 +8403,7 @@ export default function MusicCreator() {
             setRefSampleInfo(
               sourceDurationSec <= durationSec + 0.5
                 ? `Using whole clip (${durationSec.toFixed(0)} s)`
-                : `Fast-cut compact ${durationSec.toFixed(0)} s starting at ${startStr} of ${sourceMin.toFixed(1)} min`,
+                : `Fast-cut cover reference ${durationSec.toFixed(0)} s starting at ${startStr} of ${sourceMin.toFixed(1)} min`,
             );
             return;
           } catch {
@@ -8428,7 +8428,7 @@ export default function MusicCreator() {
         setRefSampleInfo(
           result.sourceDurationSec <= result.durationSec + 0.5
             ? `Using whole clip (${result.durationSec.toFixed(0)} s)`
-            : `Auto-picked compact ${result.durationSec.toFixed(0)} s starting at ${startStr} of ${sourceMin.toFixed(1)} min`,
+            : `Auto-picked cover reference ${result.durationSec.toFixed(0)} s starting at ${startStr} of ${sourceMin.toFixed(1)} min`,
         );
       }
     } catch (err) {
@@ -11221,7 +11221,7 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
                 </div>
                 {(extracting || refSampleInfo) && (
                   <div style={{ fontSize: 10, color: 'var(--text-disabled)', marginTop: 4 }}>
-                    {extracting ? `🔍  ${refExtractProgress?.message ?? 'Preparing compact reference sample…'}` : `✨  ${refSampleInfo}`}
+                    {extracting ? `🔍  ${refExtractProgress?.message ?? 'Preparing cover reference from the song…'}` : `✨  ${refSampleInfo}`}
                   </div>
                 )}
                 {extracting && (
@@ -11240,7 +11240,7 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
                   <ReferenceAudioControl
                     base64={refAudioBase64}
                     onPlay={() => { if (player.state.playing) player.pause(); }}
-                    title="Preview the exact compact reference sample sent to MiniMax cover mode"
+                    title="Preview the exact reference audio sent to MiniMax cover mode"
                     height={30}
                     style={{ marginTop: 8 }}
                   />
@@ -11339,7 +11339,7 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
                     <Sparkles size={13} style={{ color: sampleStrategy === 'best' ? 'var(--accent-primary)' : 'var(--text-secondary)' }} />
                     <div className="text-left flex-1">
                       <div style={{ fontSize: 11, fontWeight: 600 }}>Best compact</div>
-                      <div style={{ fontSize: 9, color: 'var(--text-disabled)' }}>gateway-safe chorus-like window</div>
+                      <div style={{ fontSize: 9, color: 'var(--text-disabled)' }}>cover-ready song window</div>
                     </div>
                   </button>
                   <button
@@ -11354,7 +11354,7 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
                     <Layers size={13} style={{ color: sampleStrategy === 'mix' ? 'var(--accent-primary)' : 'var(--text-secondary)' }} />
                     <div className="text-left flex-1">
                       <div style={{ fontSize: 11, fontWeight: 600 }}>Iconic mix</div>
-                      <div style={{ fontSize: 9, color: 'var(--text-disabled)' }}>3 compact parts crossfaded</div>
+                      <div style={{ fontSize: 9, color: 'var(--text-disabled)' }}>3 cover-ready parts crossfaded</div>
                     </div>
                   </button>
                 </div>
@@ -11383,7 +11383,7 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
                       Record audio for cover
                     </div>
                     <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 4, lineHeight: 1.4 }}>
-                      Capture 1–3 minutes of music for best results. JULI3TA extracts one clean compact reference for MiniMax cover mode.
+                      Capture 1–3 minutes of music for best results. JULI3TA extracts a cover-ready reference for MiniMax cover mode.
                     </div>
                   </div>
 

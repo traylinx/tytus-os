@@ -33,22 +33,21 @@
 //
 // Output is always 16-bit PCM WAV (browsers don't ship an mp3 encoder
 // and MiniMax music-cover accepts mp3/wav/flac equally). We downsample
-// reference WAVs to 24 kHz mono and keep them around 14 seconds so the
-// JSON payload stays under common nginx 1 MiB body caps while preserving
-// materially more musical detail than the old 16 kHz speech-grade sample.
-// Raw 30 s / 48 kHz WAV was >3 MB base64 and caused 413 on public pod
-// gateways.
+// reference WAVs to 24 kHz mono and prefer 60-second cover references so MiniMax cover mode sees enough
+// rhythmic and lyrical structure to extract stable features. The upstream
+// accepts 6 seconds to 6 minutes and 50 MB; 60 s at 24 kHz mono stays
+// small enough for the local/tray gateway while avoiding brittle 14 s clips.
 
 const FRAME_MS = 100;
-const TARGET_SECONDS = 14;
+const TARGET_SECONDS = 60;
 const MIN_SECONDS = 6;
-const MAX_SECONDS = TARGET_SECONDS;
+const MAX_SECONDS = 90;
 const REFERENCE_SAMPLE_RATE = 24_000;
 const REFERENCE_PEAK = 0.92;
 const REFERENCE_MAX_GAIN = 3;
 const REFERENCE_FADE_SEC = 0.05;
 
-const MIX_SEG_SECONDS = 5;
+const MIX_SEG_SECONDS = 20;
 const MIX_SEG_COUNT = 3;
 const MIX_CROSSFADE_SEC = 0.35;
 const FAST_REMOTE_RATIO = 0.55;
@@ -158,8 +157,8 @@ const parseRemoteHints = (source: string): { durationSec?: number } => {
 // MediaElementAudioSourceNode → MediaStreamDestination → MediaRecorder
 // chain. The recorder produces a webm/opus blob the SAME browser can
 // always re-decode (since it just produced it). Cost: real-time wall
-// clock for `captureSec` seconds. We cap near one compact reference
-// sample so the rescue completes before the user gets impatient.
+// clock for `captureSec` seconds. We cap to the cover-reference
+// window so the rescue completes before the user gets impatient.
 const decodeViaPlaybackCapture = async (
   blob: Blob,
   ctx: AudioContext,
@@ -308,7 +307,7 @@ const decodeRemoteStreamSlice = async (
   if (!mime) throw new Error('No supported recorder mime type for fast streamed reference capture.');
 
   const hints = parseRemoteHints(source);
-  const captureSec = Math.max(MIN_SECONDS, Math.min(18, targetSec + 2));
+  const captureSec = Math.max(MIN_SECONDS, Math.min(MAX_SECONDS, targetSec + 2));
   const hintedDuration = hints.durationSec;
   const sourceOffsetSec = hintedDuration
     ? Math.max(0, Math.min(hintedDuration - captureSec, hintedDuration * FAST_REMOTE_RATIO - captureSec / 2))
@@ -355,11 +354,11 @@ const decodeRemoteStreamSlice = async (
         options,
         'capturing',
         0.18 + 0.52 * Math.min(1, elapsedSec / captureSec),
-        `Capturing compact ${captureSec.toFixed(0)} s reference slice…`,
+        `Capturing ${captureSec.toFixed(0)} s cover reference…`,
       );
     }, 250);
 
-    reportProgress(options, 'capturing', 0.18, `Capturing compact ${captureSec.toFixed(0)} s reference slice…`);
+    reportProgress(options, 'capturing', 0.18, `Capturing ${captureSec.toFixed(0)} s cover reference…`);
     recorder.start(250);
     await ctx.resume().catch(() => undefined);
     await audio.play();
@@ -380,7 +379,7 @@ const decodeRemoteStreamSlice = async (
     const recBlob = new Blob(chunks, { type: mime });
     if (recBlob.size === 0) throw new Error('Fast streamed capture produced no audio.');
 
-    reportProgress(options, 'decoding', 0.75, 'Decoding compact reference slice…');
+    reportProgress(options, 'decoding', 0.75, 'Decoding cover reference…');
     const ab = await recBlob.arrayBuffer();
     const buffer = await ctx.decodeAudioData(ab);
     return {
@@ -742,7 +741,7 @@ const buildCoverSampleFromBuffer = async (
   const desired = Math.min(MAX_SECONDS, Math.max(MIN_SECONDS, targetSec));
 
   if (totalSec <= desired) {
-    reportProgress(options, 'encoding', 0.88, 'Encoding compact gateway-safe reference…');
+    reportProgress(options, 'encoding', 0.88, 'Encoding cover-ready reference…');
     const samples = sliceMono(buf, 0, buf.length);
     const wav = encodeReferenceWav(samples, buf.sampleRate);
     const base64 = await blobToBase64(wav);
@@ -761,7 +760,7 @@ const buildCoverSampleFromBuffer = async (
 
   const startSample = Math.floor((best.startFrame / feat.framesPerSec) * buf.sampleRate);
   const lenSamples = Math.floor((best.lenFrames / feat.framesPerSec) * buf.sampleRate);
-  reportProgress(options, 'encoding', 0.9, 'Encoding compact gateway-safe reference…');
+  reportProgress(options, 'encoding', 0.9, 'Encoding cover-ready reference…');
   const samples = sliceMono(buf, startSample, lenSamples);
   const wav = encodeReferenceWav(samples, buf.sampleRate);
   const base64 = await blobToBase64(wav);
@@ -802,7 +801,7 @@ export const buildCoverSample = async (
   reportProgress(options, 'loading', 0.08, 'Loading reference audio…');
   const blob = typeof source === 'string' ? await blobFromSource(source, options) : source;
   reportProgress(options, 'decoding', 0.28, 'Decoding reference audio…');
-  const buf = await decodeAudio(blob, 35, true, options);
+  const buf = await decodeAudio(blob, MAX_SECONDS + 5, true, options);
   return await buildCoverSampleFromBuffer(buf, desired, options);
 };
 
@@ -870,7 +869,7 @@ export const buildIconicMix = async (
   reportProgress(options, 'loading', 0.08, 'Loading reference audio…');
   const blob = typeof source === 'string' ? await blobFromSource(source, options) : source;
   reportProgress(options, 'decoding', 0.28, 'Decoding reference audio…');
-  const buf = await decodeAudio(blob, 35, true, options);
+  const buf = await decodeAudio(blob, MAX_SECONDS + 5, true, options);
   const totalSec = buf.length / buf.sampleRate;
 
   if (totalSec < MIN_SECONDS * 2) {
@@ -906,7 +905,7 @@ export const buildIconicMix = async (
   });
 
   const mixed = crossfadeConcat(segs, buf.sampleRate, MIX_CROSSFADE_SEC);
-  reportProgress(options, 'encoding', 0.9, 'Encoding compact gateway-safe reference mix…');
+  reportProgress(options, 'encoding', 0.9, 'Encoding cover-ready reference mix…');
   const wav = encodeReferenceWav(mixed, buf.sampleRate);
   const base64 = await blobToBase64(wav);
   reportProgress(options, 'done', 1, 'Reference sample ready.');
