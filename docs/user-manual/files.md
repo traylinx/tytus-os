@@ -31,7 +31,7 @@ A missing pod inbox or downloads directory should render as a friendly empty sta
 | Browse or move through Tytus Home, Shared, Inbox, Outbox, Downloads | Files |
 | Open a local folder for editing | Atomek |
 | Ask AI about the active file | Atomek chat |
-| Run tests or local tools with folder context | Atomek -> Control Tower or Terminal |
+| Run tests or local tools with folder context | Atomek -> Agent Team or Terminal |
 | Inspect generated artifacts and patch previews | Atomek Outputs |
 
 Files owns broad navigation. Atomek owns editing and agent interaction. Do not duplicate full editor behavior in Files.

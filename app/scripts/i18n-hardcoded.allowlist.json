@@ -3140,7 +3140,7 @@
     {
       "file": "src/apps/Settings.tsx",
       "kind": "text",
-      "text": "Units are consumed by allocated agents (nemoclaw = 1 unit, hermes = 2 units). Included AIL pods don't count against your unit budget."
+      "text": "Units are consumed by allocated agents (OpenClaw = 1 unit, Hermes = 2 units). Included AIL pods do not count against your unit budget."
     },
     {
       "file": "src/apps/Settings.tsx",

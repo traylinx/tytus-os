@@ -14,7 +14,7 @@ TytusOS apps fall into two groups:
 | Files | Finder-like browser for `~/Tytus`, Inbox, Outbox, Downloads, Shared, and pod workspaces |
 | Channels | Per-pod messenger/channel setup with token-safe flows |
 | Terminal | Host-backed shell through the local tray daemon, starting in `~/Tytus` |
-| Atomek | Monaco workbench for files, chat, artifacts, AIL routing, Control Tower, and app skills |
+| Atomek | Monaco workbench for files, chat, artifacts, AIL routing, Resource Fabric cockpit, and app skills |
 | Browser | Registered launchers and safe web/app links |
 | Help | Bundled manual, troubleshooting, diagnostic links |
 | Chat | Opens agent chat surfaces and pod UIs |

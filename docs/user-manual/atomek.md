@@ -109,9 +109,25 @@ A new mission writes a standard pack:
 - `HANDOFF.md` — copy-paste summary for another agent/window
 - `INBOX.md` / `OUTBOX.md` — lightweight shared-folder exchange points
 - `AUDIT.jsonl` — append-only mission events
+- `RUNS.jsonl` — reloadable run index for local/pod/app jobs
+- `runs/` — transcripts
+- `outputs/` — generated artifacts and handoff files
+- `proposals/` — patch/write/publish proposals before approval
+- `approvals/` — explicit approve/reject records
 - `NEXT.md` — immediate next action
 
 The Agent Team board can list and resume existing mission packs through `host.missions.list()`. Resuming a mission restores the mission badge, task graph, and context prompt.
+
+### Team presets
+
+Atomek does not ask the user to manually understand every tool. The front door offers presets generated from the live resource graph:
+
+- **Repo Repair** — local implementer plus independent reviewer.
+- **OpenClaw + Local** — OpenClaw/Hermes pod perspective plus local Claude/OpenCode/Codex/pi execution.
+- **Creative Production** — app skills such as JULI3TA, Blender, and Remotion plus shared assets.
+- **Research Watch** — pod/AIL research, local synthesis, shared-folder handoff, optional channels.
+
+Each preset maps roles to real resources: planner, implementer, reviewer, Team Desk, and app tool when relevant. Missing resources show as setup-needed instead of fake availability.
 
 ### Resource graph
 
@@ -121,11 +137,26 @@ The setup view shows resources as a graph: pods, local agents, apps, shared fold
 
 The default mission task graph is deliberately small:
 
-1. plan with selected resources
-2. execute through an allowlisted local/pod/app driver
-3. summarize handoff and outputs
+1. scope the mission and context with the planner role
+2. execute or produce an artifact through the implementer/app role
+3. run app-skill work when relevant
+4. review, approve, and prepare handoff with the reviewer role
 
 This keeps Atomek useful immediately while leaving room for richer multi-agent orchestration later.
+
+
+## Ask pod
+
+**Ask pod** sends the selected mission task to a ready pod agent through `host.daemon.callPodEndpoint()`. Atomek first asks the pod for `/v1/models`, selects the first live model returned by the pod metadata, then sends a non-streaming `/v1/chat/completions` request through the same-origin Tytus bridge. No model id is hardcoded in Atomek.
+
+The pod response is saved like any other run:
+
+- visible in the Runs panel
+- captured in Outputs
+- written under `runs/`
+- indexed in `RUNS.jsonl`
+
+If the pod gateway rejects the request or is unreachable, Atomek writes a failed run transcript instead of silently hiding the error.
 
 ## Open in Terminal
 
@@ -176,7 +207,7 @@ Do not show fake support. If a skill or app driver is not installed, show it as 
 
 | Problem | Fix |
 |---|---|
-| Old UI or duplicate Agent Team icons | Hard-refresh TytusOS. Confirm Atomek is loaded from `tytus-app-atomek@v0.4.18` or newer. |
+| Old UI or duplicate Agent Team icons | Hard-refresh TytusOS. Confirm Atomek is loaded from `tytus-app-atomek@v0.4.19` or newer. |
 | Files are listed but editor is blank | Reopen the file, then hard-refresh. If still broken, report the file type and console error. |
 | Folder does not expand/collapse | You are likely on an older bundle. Refresh and check the Atomek version. |
 | Chat answer appears only after completion | Streaming path is degraded. Check browser console and host `/v1/chat/completions` proxy errors. |
