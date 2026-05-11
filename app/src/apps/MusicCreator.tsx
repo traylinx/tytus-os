@@ -1550,6 +1550,9 @@ const callMusic = async (
     if (isCover) {
       body.audio_base64 = args.refAudioBase64;
       const refDurationMs = wavDurationMsFromBase64(args.refAudioBase64 ?? '');
+      if (refDurationMs !== null && refDurationMs / 1000 < MIN_RESTYLE_REFERENCE_SECONDS) {
+        throw new Error(`Reference sample is only ${(refDurationMs / 1000).toFixed(1)} s. MiniMax cover rejects short song references; pick a longer song or re-load a full ~60 s source sample before Restyle.`);
+      }
       const cleanRef = (args.refAudioBase64 ?? '').replace(/\s+/g, '');
       console.info('[Juli3ta] Sending music-cover reference:', {
         modelId,
@@ -8654,6 +8657,10 @@ export default function MusicCreator() {
     setShowSongsPicker(false);
     if (!t.audioDataUrl) return;
     const cleanTitle = t.title.replace(/\s*\((lyrics|cover|restyle)\)\s*$/, '') || 'Untitled';
+    if (t.durationMs > 0 && t.durationMs / 1000 < MIN_RESTYLE_REFERENCE_SECONDS) {
+      setError(`"${cleanTitle}" is only ${(t.durationMs / 1000).toFixed(1)} s. MiniMax Restyle needs at least ${MIN_RESTYLE_REFERENCE_SECONDS} s of real song audio; choose a longer track or a YouTube/library source.`);
+      return;
+    }
     void ingestSourceAudio(t.audioDataUrl, `${cleanTitle}.mp3`);
   };
 

@@ -21,21 +21,21 @@ import { notifyInstalledAppsChanged } from './installed-apps-events';
 
 export const WORKSPACE_APP_ID = 'atomek';
 export const LEGACY_WORKSPACE_APP_ID = 'forge';
-export const WORKSPACE_APP_VERSION = '0.4.12';
+export const WORKSPACE_APP_VERSION = '0.4.20';
 export const WORKSPACE_APP_MANIFEST_URL =
-  'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-atomek@v0.4.12/tytus-app.json';
+  'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-atomek@v0.4.20/tytus-app.json';
 export const WORKSPACE_APP_ENTRY_URL =
-  'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-atomek@v0.4.12/dist/index.js';
+  'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-atomek@v0.4.20/dist/index.js';
 
 export const WORKSPACE_APP_MANIFEST: Manifest = {
   $schema: 'https://tytus.traylinx.com/schema/app/v1.json',
   id: WORKSPACE_APP_ID,
   name: 'Atomek',
   version: WORKSPACE_APP_VERSION,
-  icon: 'Sparkles',
+  icon: 'atomek:mark',
   category: 'Productivity',
   description:
-    'Monaco workspace with local files, chat/output panels, extension connectors, markdown preview, and search.',
+    'Branded Tytus Resource Fabric cockpit for OpenClaw/Hermes pods, local agents, shared folders, app skills, files, chat, artifacts, and approval-gated outputs.',
   window: {
     defaultSize: { width: 1200, height: 780 },
     minSize: { width: 760, height: 520 },

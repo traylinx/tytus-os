@@ -2,13 +2,13 @@
 // BrandIcon — Render a branded image asset as an app icon.
 // ============================================================
 //
-// Apps that ship their own brand mark (e.g. Juli3ta) declare their
+// Apps that ship their own brand mark (e.g. Atomek, Juli3ta) declare their
 // icon as `juli3ta:mark` instead of a Lucide icon name. The icon
 // resolvers in Dock / Desktop / AppLauncher / WindowFrame / etc.
 // short-circuit on `<slug>:<variant>` strings and render this
 // component instead of looking up Lucide.
 //
-// `juli3ta:mark` (the default) is theme-aware: on dark theme it
+// `<slug>:mark` (the default) is theme-aware: on dark theme it
 // renders the white silhouette, on light theme it renders the ink
 // silhouette. Other variants (`mark-white`, `mark-ink`, `icon`) are
 // pinned and ignore the theme — used for hero / fixed-surface
@@ -32,6 +32,14 @@ type BrandSpec = {
   filter?: string;
 };
 
+const ATOMEK_MARKS: Record<string, BrandSpec> = {
+  'mark-cream': { src: '/brand/atomek/mark-cream-256.png', scale: 1.75 },
+  'mark-ink': { src: '/brand/atomek/mark-ink-256.png', scale: 1.75 },
+  'mark-white': { src: '/brand/atomek/mark-white-256.png', scale: 1.75 },
+  'mark-acid': { src: '/brand/atomek/mark-acid-256.png', scale: 1.75 },
+  icon: { src: '/brand/atomek/icon-void-256.png' },
+};
+
 const JULI3TA_MARKS: Record<string, BrandSpec> = {
   // The mark PNGs ship with ~30% transparent padding on each side
   // (the rendered silhouette fills only ~70% of its bounding box).
@@ -51,6 +59,7 @@ const JULI3TA_MARKS: Record<string, BrandSpec> = {
 };
 
 const REGISTRY: Record<string, Record<string, BrandSpec>> = {
+  atomek: ATOMEK_MARKS,
   juli3ta: JULI3TA_MARKS,
 };
 

@@ -19,6 +19,7 @@ import {
 } from './dynamic-loader';
 import type { InstalledAppRow } from './installed-apps-repo';
 import type { Db, SqlValue } from '@/lib/db/types';
+import { WORKSPACE_APP_ENTRY_URL, WORKSPACE_APP_VERSION } from './app-rebrand-migrations';
 
 const fakeManifest: Manifest = {
   id: 'demo',
@@ -391,11 +392,11 @@ describe('loadAppById', () => {
     });
 
     expect(importModule).toHaveBeenCalledWith(
-      'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-atomek@v0.4.12/dist/index.js',
+      WORKSPACE_APP_ENTRY_URL,
     );
     expect(makeEnv).toHaveBeenCalledWith(
       'atomek',
-      expect.objectContaining({ id: 'atomek', name: 'Atomek', version: '0.4.12' }),
+      expect.objectContaining({ id: 'atomek', name: 'Atomek', version: WORKSPACE_APP_VERSION }),
     );
     expect(result.appId).toBe('atomek');
     expect(result.manifest.id).toBe('atomek');
