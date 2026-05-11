@@ -25,7 +25,7 @@ export const APP_REGISTRY: AppDefinition[] = [
     defaultSize: { width: 800, height: 600 }, minSize: { width: 560, height: 400 } },
 
   { id: 'atomek', name: 'Atomek', icon: 'atomek:mark', category: 'Productivity',
-    description: 'Branded Resource Fabric cockpit for OpenClaw/Hermes pods, local agents, shared folders, app skills, files, chat, artifacts, and approvals.',
+    description: 'Branded Resource Fabric cockpit for OpenClaw/Hermes pods, local agents, shared folders, app skills, embedded docs, files, chat, artifacts, and approvals.',
     defaultSize: { width: 1200, height: 780 }, minSize: { width: 760, height: 520 }, kind: 'installed' },
 
   { id: 'pod-inspector', name: 'Pod Inspector', icon: 'Box', category: 'System',

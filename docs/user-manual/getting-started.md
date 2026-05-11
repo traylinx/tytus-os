@@ -36,6 +36,9 @@ If the top bar says **Session expired**, your pods are still running. Open **Set
 
 ## First useful actions
 
+If you are new to the agent-team workflow, read these next: **Tytus Resource Fabric**, **OpenClaw, Hermes, and Local Agents**, **Shared Folders**, and **Tytus Use Cases**. They explain how the local computer, pods, shared folders, local agents, channels, and apps work as one system.
+
+
 | Need | Open |
 |---|---|
 | See pods and gateway URLs | Pod Inspector |
@@ -44,6 +47,8 @@ If the top bar says **Session expired**, your pods are still running. Open **Set
 | Browse a pod workspace | Files -> Pod NN workspace |
 | Edit local files and ask AI with file context | Atomek |
 | Launch local agents with active file context | Atomek -> Agent Team |
+| Coordinate OpenClaw, Hermes, local agents, shared folders, and apps | Atomek -> Start mission |
+| Learn workflows inside the product | Help -> Resource Fabric / Agents / Shared Folders / Use Cases, or Atomek -> Docs & Skills |
 | Configure Telegram/Discord/Slack/etc. | Channels |
 | Fix expired login | Settings -> Daemon |
 | Check shared folders | Settings -> Sharing or Files -> Shared |
@@ -77,7 +82,7 @@ Real production surfaces:
 - Files over Tytus Home, shared folders, and pod workspaces
 - Channels setup
 - Terminal backed by the host shell through the tray daemon
-- Atomek workbench for local files, chat, artifacts, app skills, and local Resource Fabric cockpit
+- Atomek workbench for local files, chat, artifacts, embedded docs, app skills, and local Resource Fabric cockpit
 - Settings for account, daemon, sharing, appearance, dock, language, privacy, updates
 - Music Creator and other Tytus apps that use the included gateway
 

@@ -36,6 +36,8 @@ A missing pod inbox or downloads directory should render as a friendly empty sta
 
 Files owns broad navigation. Atomek owns editing and agent interaction. Do not duplicate full editor behavior in Files.
 
+For the complete multi-agent exchange model, read **Shared Folders** and **Tytus Resource Fabric** in Help.
+
 ## Safety
 
 File operations must be root-anchored to the selected source. Path traversal, symlink escape, null bytes, and double-encoded traversal must be rejected by daemon-side tests before write operations ship broadly.

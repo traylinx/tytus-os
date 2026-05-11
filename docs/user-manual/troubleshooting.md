@@ -57,7 +57,7 @@ Fix:
 1. Hard-refresh TytusOS.
 2. Reopen Atomek.
 3. Reopen the file from Explorer.
-4. Confirm Atomek loads `tytus-app-atomek@v0.4.20` or newer.
+4. Confirm Atomek loads `tytus-app-atomek@v0.4.21` or newer.
 5. If still broken, include the file extension and browser console error in the bug report.
 
 ## Atomek folder rows do not expand or collapse
@@ -66,7 +66,7 @@ Use the folder chevron or click the folder row. If nothing changes, you are like
 
 ## Atomek shows duplicate Agent Team and stale App Skills icons
 
-That was an old app bundle. The current surface has one **Agent Team** activity. Hard-refresh TytusOS and confirm the app comes from `tytus-app-atomek@v0.4.20` or newer.
+That was an old app bundle. The current surface has one **Agent Team** activity. Hard-refresh TytusOS and confirm the app comes from `tytus-app-atomek@v0.4.21` or newer.
 
 ## Atomek local tools are missing
 
@@ -117,3 +117,11 @@ When reporting a bug, include:
 - Browser console error
 - Exact route/hash URL
 - Whether legacy Tower shows different state
+
+## Shared folder or mission handoff is confusing
+
+Use **Help -> Shared Folders** for the full exchange model. Short version: put raw incoming context in `INBOX.md`, keep transcripts in `runs/`, put generated artifacts in `outputs/`, put proposed edits in `proposals/`, and only move final approved material to `OUTBOX.md`.
+
+## OpenClaw or Hermes does not appear in Atomek
+
+Open **Pod Inspector** first and confirm the agent is allocated and ready. Then return to **Atomek -> Agent Team** and refresh capabilities. Atomek shows real resources only; missing agents are setup work, not UI failure.

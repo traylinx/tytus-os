@@ -145,6 +145,20 @@ The default mission task graph is deliberately small:
 This keeps Atomek useful immediately while leaving room for richer multi-agent orchestration later.
 
 
+## Docs & Skills inside Atomek
+
+Atomek includes a small **Docs & Skills** area on the Agent Team home screen. Open a guide to load it as a markdown tab, then ask Atomek chat about the active guide or combine it with files from the current workspace.
+
+Built-in guides cover:
+
+- Tytus Resource Fabric
+- OpenClaw and Hermes agent teams
+- shared folders and mission folders
+- practical use cases
+- agentic app skills
+
+These docs are bundled with the Atomek app so the user can ask about Tytus workflows directly inside TytusOS, even before opening external documentation.
+
 ## Ask pod
 
 **Ask pod** sends the selected mission task to a ready pod agent through `host.daemon.callPodEndpoint()`. Atomek first asks the pod for `/v1/models`, selects the first live model returned by the pod metadata, then sends a non-streaming `/v1/chat/completions` request through the same-origin Tytus bridge. No model id is hardcoded in Atomek.
@@ -207,7 +221,7 @@ Do not show fake support. If a skill or app driver is not installed, show it as 
 
 | Problem | Fix |
 |---|---|
-| Old UI or duplicate Agent Team icons | Hard-refresh TytusOS. Confirm Atomek is loaded from `tytus-app-atomek@v0.4.20` or newer. |
+| Old UI or duplicate Agent Team icons | Hard-refresh TytusOS. Confirm Atomek is loaded from `tytus-app-atomek@v0.4.21` or newer. |
 | Files are listed but editor is blank | Reopen the file, then hard-refresh. If still broken, report the file type and console error. |
 | Folder does not expand/collapse | You are likely on an older bundle. Refresh and check the Atomek version. |
 | Chat answer appears only after completion | Streaming path is degraded. Check browser console and host `/v1/chat/completions` proxy errors. |

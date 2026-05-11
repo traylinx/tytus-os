@@ -24,6 +24,10 @@ import {
 
 const EXPECTED_SLUGS = [
   "getting-started",
+  "resource-fabric",
+  "agents",
+  "shared-folders",
+  "use-cases",
   "windows",
   "desktop",
   "dock",

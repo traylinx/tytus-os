@@ -21,11 +21,11 @@ import { notifyInstalledAppsChanged } from './installed-apps-events';
 
 export const WORKSPACE_APP_ID = 'atomek';
 export const LEGACY_WORKSPACE_APP_ID = 'forge';
-export const WORKSPACE_APP_VERSION = '0.4.20';
+export const WORKSPACE_APP_VERSION = '0.4.21';
 export const WORKSPACE_APP_MANIFEST_URL =
-  'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-atomek@v0.4.20/tytus-app.json';
+  'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-atomek@v0.4.21/tytus-app.json';
 export const WORKSPACE_APP_ENTRY_URL =
-  'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-atomek@v0.4.20/dist/index.js';
+  'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-atomek@v0.4.21/dist/index.js';
 
 export const WORKSPACE_APP_MANIFEST: Manifest = {
   $schema: 'https://tytus.traylinx.com/schema/app/v1.json',
@@ -35,7 +35,7 @@ export const WORKSPACE_APP_MANIFEST: Manifest = {
   icon: 'atomek:mark',
   category: 'Productivity',
   description:
-    'Branded Tytus Resource Fabric cockpit for OpenClaw/Hermes pods, local agents, shared folders, app skills, files, chat, artifacts, and approval-gated outputs.',
+    'Branded Tytus Resource Fabric cockpit with embedded docs for OpenClaw/Hermes pods, local agents, shared folders, app skills, files, chat, artifacts, and approval-gated outputs.',
   window: {
     defaultSize: { width: 1200, height: 780 },
     minSize: { width: 760, height: 520 },
@@ -63,6 +63,12 @@ export const WORKSPACE_APP_MANIFEST: Manifest = {
       { extension: '.js', mimeType: 'text/javascript' },
       { extension: '.css', mimeType: 'text/css' },
       { extension: '.html', mimeType: 'text/html' },
+    ],
+    agentSkills: [
+      { id: 'atomek.docs-resource-fabric', title: 'Explain Tytus Resource Fabric', description: 'Explain how local computer, pods, shared folders, OpenClaw/Hermes, local agents, app skills, channels, and AIL routes work together.', driver: 'host-api', skillUrl: 'skills/atomek.docs-resource-fabric.md', triggers: ['resource fabric', 'tytus', 'mission', 'orchestration'] },
+      { id: 'atomek.docs-openclaw-hermes', title: 'Explain OpenClaw and Hermes', description: 'Explain how OpenClaw, Hermes, and local agents cooperate through missions and shared folders.', driver: 'host-api', skillUrl: 'skills/atomek.docs-openclaw-hermes.md', triggers: ['openclaw', 'hermes', 'agents', 'pods'] },
+      { id: 'atomek.docs-shared-folders', title: 'Explain shared folders', description: 'Explain shared folders, mission folders, pod inbox/outbox, Garage bindings, and file handoff rules.', driver: 'host-api', skillUrl: 'skills/atomek.docs-shared-folders.md', triggers: ['shared folders', 'mission folder', 'handoff', 'files'] },
+      { id: 'atomek.docs-use-cases', title: 'Explain Tytus use cases', description: 'Explain practical Tytus agent-team workflows for repo repair, documents, creative production, app automation, and research.', driver: 'host-api', skillUrl: 'skills/atomek.docs-use-cases.md', triggers: ['use cases', 'workflow', 'repo repair', 'creative production'] },
     ],
   },
 };

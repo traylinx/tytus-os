@@ -55,6 +55,10 @@ import {
   Wrench,
   ClipboardList,
   FileText,
+  Network,
+  UsersRound,
+  FolderSync,
+  Workflow,
 } from 'lucide-react';
 import LogPane from '@/components/LogPane';
 import { useDaemonClient } from '@/hooks/useDaemonClient';
@@ -91,6 +95,10 @@ const DOC_ICON: Record<string, ReactNode> = {
   ClipboardList: <ClipboardList size={16} />,
   Info: <Info size={16} />,
   FileText: <FileText size={16} />,
+  Network: <Network size={16} />,
+  UsersRound: <UsersRound size={16} />,
+  FolderSync: <FolderSync size={16} />,
+  Workflow: <Workflow size={16} />,
 };
 
 const isDocTab = (id: TabId): id is `docs:${string}` => id.startsWith('docs:');

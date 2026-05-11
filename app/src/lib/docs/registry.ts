@@ -54,6 +54,10 @@ export interface DocEntry {
 // settings.md / apps-catalog.md tone — no decorative icons.
 const ICON_FOR_SLUG: Record<string, string> = {
   'getting-started': 'Rocket',
+  'resource-fabric': 'Network',
+  agents: 'UsersRound',
+  'shared-folders': 'FolderSync',
+  'use-cases': 'Workflow',
   windows: 'AppWindow',
   desktop: 'Monitor',
   dock: 'LayoutPanelTop',
@@ -74,6 +78,10 @@ const ICON_FOR_SLUG: Record<string, string> = {
 // tytus-cli/scripts/regen-os-docs.sh.
 const RECOMMENDED_ORDER: string[] = [
   'getting-started',
+  'resource-fabric',
+  'agents',
+  'shared-folders',
+  'use-cases',
   'windows',
   'desktop',
   'dock',

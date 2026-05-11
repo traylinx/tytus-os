@@ -7,9 +7,13 @@ This folder documents the TytusOS desktop that ships with the `tytus` tray daemo
 | Doc | What it covers |
 |---|---|
 | [getting-started.md](user-manual/getting-started.md) | Fresh install, sign-in, desktop, pods, first actions |
+| [resource-fabric.md](user-manual/resource-fabric.md) | How local computer, pods, shared folders, local agents, app skills, channels, and AIL routes work together |
+| [agents.md](user-manual/agents.md) | OpenClaw, Hermes, local agents, dispatch surfaces, and team workflows |
+| [shared-folders.md](user-manual/shared-folders.md) | Local shared folders, mission folders, pod inbox/outbox, Garage bindings, exchange rules |
+| [use-cases.md](user-manual/use-cases.md) | Practical multi-agent workflows for repo repair, docs, creative production, app automation, and research |
 | [settings.md](user-manual/settings.md) | Real Settings panels, session expiry, daemon recovery, updates |
 | [files.md](user-manual/files.md) | Tytus Home, shared folders, pod workspace, Inbox/Outbox/Downloads |
-| [atomek.md](user-manual/atomek.md) | Atomek workbench, editor, chat, AIL routing, Resource Fabric cockpit, app skills |
+| [atomek.md](user-manual/atomek.md) | Atomek workbench, editor, chat, AIL routing, Resource Fabric cockpit, embedded docs, app skills |
 | [troubleshooting.md](user-manual/troubleshooting.md) | Session, readiness, CORS, files, terminal, Atomek, theme issues |
 | [about.md](user-manual/about.md) | Product positioning, naming, install surfaces |
 | [windows.md](user-manual/windows.md) | Window controls |

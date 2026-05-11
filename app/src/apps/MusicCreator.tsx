@@ -123,7 +123,7 @@ type VoiceRecording = VoiceRecordingRow;
 // vX.Y.Z") and the Settings dialog footer so users can see exactly
 // which release they're running. Bumped in lockstep with package.json
 // + tytus-app.json on every release.
-const APP_VERSION = '0.3.17';
+const APP_VERSION = '0.3.18';
 
 // ──────────────────────────────────────────────────────────
 // Cross-app drag MIME types
@@ -782,15 +782,26 @@ const formatTime = (ms: number): string => {
   return `${m}:${s.toString().padStart(2, '0')}`;
 };
 
+const normaliseAudioBase64 = (value?: string | null): string => {
+  if (!value) return '';
+  const marker = 'base64,';
+  const idx = value.indexOf(marker);
+  const payload = idx >= 0 ? value.slice(idx + marker.length) : value;
+  return payload.replace(/\s+/g, '');
+};
+
 const extractBase64Payload = (src?: string | null): string | null => {
   if (!src) return null;
   const marker = 'base64,';
   const idx = src.indexOf(marker);
-  return idx >= 0 ? src.slice(idx + marker.length) : null;
+  if (idx >= 0) return normaliseAudioBase64(src.slice(idx + marker.length)) || null;
+  const clean = normaliseAudioBase64(src);
+  // Plain base64 is accepted, but do not mistake a URL/path for base64.
+  return /^[A-Za-z0-9+/=]+$/.test(clean) ? clean : null;
 };
 
 const audioBlobFromBase64 = (base64: string, mime = 'audio/wav'): Blob => {
-  const clean = base64.replace(/\s+/g, '');
+  const clean = normaliseAudioBase64(base64);
   const bin = atob(clean);
   const bytes = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
@@ -799,7 +810,7 @@ const audioBlobFromBase64 = (base64: string, mime = 'audio/wav'): Blob => {
 
 const wavDurationMsFromBase64 = (base64: string): number | null => {
   try {
-    const clean = base64.replace(/\s+/g, '');
+    const clean = normaliseAudioBase64(base64);
     const padding = clean.endsWith('==') ? 2 : clean.endsWith('=') ? 1 : 0;
     const totalBytes = Math.max(0, Math.floor(clean.length * 3 / 4) - padding);
     // Header + first chunks are enough; our encoder writes fmt/data first,
@@ -1163,7 +1174,7 @@ const LYRICS_TIMEOUT_MS = 60_000;   // /music/lyrics is text — fast.
 // covers the slow case without leaving the user with a runaway
 // request that never resolves. Set per smoke pass 2026-05-01 where
 // remote `ail-music` exceeded the previous 3-min ceiling.
-const MUSIC_TIMEOUT_MS = 300_000;
+const MUSIC_TIMEOUT_MS = 420_000;
 const PROBE_TIMEOUT_MS = 8_000;     // /v1/models reachability probe — must be quick.
 
 // Combine an optional user-driven AbortSignal with a wall-clock timeout.
@@ -1204,6 +1215,10 @@ const withTimeout = (
 // errors. Hard 4xx (400/401/403/404) are NOT here — those are config
 // bugs that retrying won't fix.
 const RETRYABLE_GATEWAY_STATUSES = new Set([402, 408, 425, 429, 500, 502, 503, 504]);
+// Music generation can be billed once the upstream accepts the request. Do not
+// auto-advance on 5xx/timeout-looking gateway statuses; surface the first
+// failure so one user click maps to one music POST.
+const MUSIC_RETRYABLE_GATEWAY_STATUSES = new Set([402, 425, 429]);
 
 // Error subclass that carries the HTTP status. Lets the multi-model
 // fallback loop tell "retryable" (try next model) from "fatal" (throw
@@ -1264,6 +1279,7 @@ const tryWithModelFallback = async <T,>(
   modelIds: readonly string[],
   attempt: (modelId: string) => Promise<T>,
   kind: string,
+  retryableStatuses: ReadonlySet<number> = RETRYABLE_GATEWAY_STATUSES,
 ): Promise<T> => {
   if (modelIds.length === 0) {
     throw new Error(`No ${kind}-capable models available on this endpoint.`);
@@ -1280,7 +1296,7 @@ const tryWithModelFallback = async <T,>(
       // Network errors (TypeError on fetch) → try next.
       if (e instanceof TypeError) { lastErr = e; continue; }
       // Gateway errors with a retryable status → try next.
-      if (e instanceof GatewayError && RETRYABLE_GATEWAY_STATUSES.has(e.status)) {
+      if (e instanceof GatewayError && retryableStatuses.has(e.status)) {
         lastErr = e;
         continue;
       }
@@ -1290,7 +1306,18 @@ const tryWithModelFallback = async <T,>(
     }
   }
   const lastMsg = (lastErr as Error)?.message ?? 'unknown';
-  throw new Error(`All ${kind} models exhausted. Last error: ${lastMsg}. Wait for the rate limit to reset, or pick a different endpoint in Settings.`);
+  const advice = lastErr instanceof GatewayError
+    ? lastErr.status === 429
+      ? 'Wait for the rate limit to reset, or pick a different endpoint in Settings.'
+      : [408, 500, 502, 503, 504].includes(lastErr.status)
+        ? 'Remote AIL/provider timed out or returned an empty gateway response. Retry once, then switch endpoint in Settings if it repeats.'
+        : lastErr.status === 402
+          ? 'That provider/model is out of credits; pick a different endpoint in Settings.'
+          : 'Pick a different endpoint in Settings or check the provider configuration.'
+    : lastErr instanceof TypeError
+      ? 'Network/CORS failed before the gateway answered; check the selected endpoint in Settings.'
+      : 'Pick a different endpoint in Settings.';
+  throw new Error(`All ${kind} models exhausted. Last error: ${lastMsg}. ${advice}`);
 };
 
 interface LyricsResponse {
@@ -1503,6 +1530,7 @@ const callMusic = async (
     // ail-music-cover and the upstream uses the reference audio for
     // style transfer.
     refAudioBase64?: string;
+    refAudioDurationSec?: number | null;
   },
   signal?: AbortSignal,
 ): Promise<MusicResponse> => {
@@ -1514,7 +1542,7 @@ const callMusic = async (
   // since it ignores audio_base64. Without a list at all, the call fails
   // with a friendly "no music model" error.
   const isMusicy = (id: string) =>
-    /music/i.test(id) && !/cover/i.test(id);
+    /music/i.test(id) && !/cover|lyric/i.test(id);
   const isCoverModel = (id: string) => /cover/i.test(id);
   const seen = new Set<string>();
   const pushUniq = (acc: string[], id: string | null | undefined) => {
@@ -1524,7 +1552,6 @@ const callMusic = async (
   if (isCover) {
     pushUniq(modelIds, endpoint.models.cover);
     endpoint.models.allIds.filter(isCoverModel).forEach((id) => pushUniq(modelIds, id));
-    pushUniq(modelIds, endpoint.models.music);
   } else {
     pushUniq(modelIds, endpoint.models.music);
     endpoint.models.allIds.filter(isMusicy).forEach((id) => pushUniq(modelIds, id));
@@ -1548,15 +1575,18 @@ const callMusic = async (
     if (args.prompt) body.prompt = args.prompt;
     if (args.instrumental) body.instrumental = true;
     if (isCover) {
-      body.audio_base64 = args.refAudioBase64;
-      const refDurationMs = wavDurationMsFromBase64(args.refAudioBase64 ?? '');
-      if (refDurationMs !== null && refDurationMs / 1000 < MIN_RESTYLE_REFERENCE_SECONDS) {
-        throw new Error(`Reference sample is only ${(refDurationMs / 1000).toFixed(1)} s. MiniMax cover rejects short song references; pick a longer song or re-load a full ~60 s source sample before Restyle.`);
+      const cleanRef = normaliseAudioBase64(args.refAudioBase64 ?? '');
+      body.audio_base64 = cleanRef;
+      const parsedDurationMs = wavDurationMsFromBase64(cleanRef);
+      const refDurationSec = parsedDurationMs !== null
+        ? parsedDurationMs / 1000
+        : args.refAudioDurationSec ?? null;
+      if (refDurationSec !== null && refDurationSec < MIN_RESTYLE_REFERENCE_SECONDS) {
+        throw new Error(`Reference sample is only ${refDurationSec.toFixed(1)} s. MiniMax cover rejects short song references; pick a longer song or re-load a full ~60 s source sample before Restyle.`);
       }
-      const cleanRef = (args.refAudioBase64 ?? '').replace(/\s+/g, '');
       console.info('[Juli3ta] Sending music-cover reference:', {
         modelId,
-        refDurationSec: refDurationMs !== null ? Number((refDurationMs / 1000).toFixed(2)) : null,
+        refDurationSec: refDurationSec !== null ? Number(refDurationSec.toFixed(2)) : null,
         refBytesApprox: Math.max(0, Math.floor(cleanRef.length * 3 / 4)),
         prompt: args.prompt ?? '',
         lyricsProvided: Boolean(cleanedLyrics),
@@ -1575,7 +1605,7 @@ const callMusic = async (
       });
     } catch (e) {
       if ((e as Error).name === 'TimeoutError') {
-        throw new Error(`Music generation timed out after ${MUSIC_TIMEOUT_MS / 1000}s. Try a shorter lyric or a different endpoint.`);
+        throw new Error(`Music generation timed out after ${MUSIC_TIMEOUT_MS / 1000}s. Remote music can take several minutes; retry once or switch endpoint in Settings.`);
       }
       throw e;
     } finally {
@@ -1587,7 +1617,7 @@ const callMusic = async (
         throw new GatewayError(
           r.status,
           errBody,
-          'Reference audio was too large for the gateway. JULI3TA now makes compact gateway-safe reference samples; clear and re-pick the reference audio, then retry Restyle.',
+          'Reference audio was too large for the gateway. JULI3TA now makes compact cover-ready reference samples; clear and re-pick the reference audio, then retry Restyle.',
         );
       }
       throw new GatewayError(r.status, errBody, `Music HTTP ${r.status}: ${errBody.slice(0, 300)}`);
@@ -1600,7 +1630,7 @@ const callMusic = async (
       throw new GatewayError(502, '', 'Music gen returned no audio data — gateway accepted the call but upstream returned nothing.');
     }
     return json;
-  }, isCover ? 'music-cover' : 'music');
+  }, isCover ? 'music-cover' : 'music', MUSIC_RETRYABLE_GATEWAY_STATUSES);
 };
 
 // ──────────────────────────────────────────────────────────
@@ -8232,6 +8262,7 @@ export default function MusicCreator() {
           prompt: musicPrompt || undefined,
           instrumental,
           refAudioBase64: mode === 'restyle' ? refAudioBase64 ?? undefined : undefined,
+          refAudioDurationSec: mode === 'restyle' ? refAudioDurationSec : null,
         },
         controller.signal,
       );
