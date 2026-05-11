@@ -1,8 +1,8 @@
 # Atomek
 
-Atomek is the TytusOS workbench for local files, code, markdown, chat, artifacts, and local computer agents. It runs inside TytusOS, but it is published as its own Tytus app so it can move faster than the OS shell.
+Atomek is the TytusOS Resource Fabric cockpit for local files, code, markdown, chat, artifacts, mission folders, shared folders, local agents, OpenClaw/Hermes pods, and app skills. It runs inside TytusOS, but it is published as its own Tytus app so it can move faster than the OS shell.
 
-Use Atomek when you want to open a real folder, inspect or edit files, ask an AI about the active file, preview patches, or launch an installed local agent with the same context.
+Use Atomek when you want to open a real folder, inspect or edit files, ask an AI about the active file, preview patches, or coordinate local agents and Tytus pod agents through one shared mission context.
 
 ## Open files and folders
 
@@ -70,14 +70,16 @@ Expected flow:
 
 Use **Outputs** to inspect saved artifacts and agent job output. Code blocks should render as rich output with copy controls.
 
-## Control Tower
+## Resource Fabric / Agent Team
 
-The **Control Tower** activity is the bridge to real tools installed on the machine. It replaces duplicate extension panels.
+The **Agent Team** activity is the bridge to the Tytus Resource Fabric. It replaces duplicate extension panels and avoids turning Atomek into another IDE clone.
 
-Atomek is a control tower for Tytus resources, not another VS Code clone. Use it to coordinate the current file/folder, Tytus pods, local agents, shared folders, and app skills through one mission context.
+Atomek coordinates local computer resources, shared folders, OpenClaw/Hermes pods, local agents, AIL routes, channels, and app skills through one mission context.
 
-It discovers local capabilities through the Tytus host bridge, for example:
+It discovers capabilities through the Tytus host bridge, for example:
 
+- OpenClaw pod agents
+- Hermes pod agents when allocated
 - Tytus Terminal
 - pi
 - OpenCode
@@ -89,6 +91,10 @@ It discovers local capabilities through the Tytus host bridge, for example:
 - Aider
 
 Only allowlisted tools should launch from Atomek. The browser must not run arbitrary shell commands and must not direct-fetch pod or model endpoints that fail CORS. Local work goes through the same-origin Tytus tray/host bridge.
+
+### Why shared folders matter
+
+Shared folders are the exchange layer between the local computer and Tytus pods. Local agents can write plans, transcripts, patches, screenshots, and artifacts into the shared/mission folder; OpenClaw or Hermes pods can pick that context up and return their own outputs. This is the main Atomek workflow: local resources and remote resources working as one team while the user keeps the files visible and controllable.
 
 ### Mission packs
 
@@ -105,11 +111,11 @@ A new mission writes a standard pack:
 - `AUDIT.jsonl` — append-only mission events
 - `NEXT.md` — immediate next action
 
-The Control Tower can list and resume existing mission packs through `host.missions.list()`. Resuming a mission restores the mission badge, task graph, and context prompt.
+The Agent Team board can list and resume existing mission packs through `host.missions.list()`. Resuming a mission restores the mission badge, task graph, and context prompt.
 
 ### Resource graph
 
-Control Tower shows resources as a graph: pods, local agents, apps, shared folders, app skills, and the active workspace. Use **Use** to attach a resource to the current mission prompt. Use **Setup** when a missing dependency needs a local install command or app deep link.
+The setup view shows resources as a graph: pods, local agents, apps, shared folders, app skills, and the active workspace. Use **Use** to attach a resource to the current mission prompt. Use **Setup** when a missing dependency needs a local install command or app deep link.
 
 ### Task graph
 
@@ -136,9 +142,9 @@ The terminal is backed by the Tytus tray PTY bridge and starts in the relevant l
 
 ## Run local job
 
-A local job is for supervised background work by an installed local agent. It receives a selected mission task, the mission folder, selected resources, and Atomek context. Output streams into Control Tower, is saved under `runs/`, and is also captured in **Outputs** so patches can become reviewable edit previews.
+A local job is for supervised background work by an installed local agent. It receives a selected mission task, the mission folder, selected resources, and Atomek context. Output streams into Atomek, is saved under `runs/`, and is also captured in **Outputs** so patches can become reviewable edit previews.
 
-Atomek also writes `RUNS.jsonl` in the mission folder. That run index stores job id, tool, task, status, exit code, and transcript path so Control Tower can reload mission history after a refresh or app restart. Older transcript files still appear as legacy run entries.
+Atomek also writes `RUNS.jsonl` in the mission folder. That run index stores job id, tool, task, status, exit code, and transcript path so Atomek can reload mission history after a refresh or app restart. Older transcript files still appear as legacy run entries.
 
 Use **Cancel** to stop a running job through the tray job bridge. Canceling sends a safe terminate request to the tracked child process; it does not delete the mission folder, `RUNS.jsonl`, or prior transcript output.
 
@@ -170,12 +176,12 @@ Do not show fake support. If a skill or app driver is not installed, show it as 
 
 | Problem | Fix |
 |---|---|
-| Old UI or duplicate Control Tower icons | Hard-refresh TytusOS. Confirm Atomek is loaded from `tytus-app-atomek@v0.4.18` or newer. |
+| Old UI or duplicate Agent Team icons | Hard-refresh TytusOS. Confirm Atomek is loaded from `tytus-app-atomek@v0.4.18` or newer. |
 | Files are listed but editor is blank | Reopen the file, then hard-refresh. If still broken, report the file type and console error. |
 | Folder does not expand/collapse | You are likely on an older bundle. Refresh and check the Atomek version. |
 | Chat answer appears only after completion | Streaming path is degraded. Check browser console and host `/v1/chat/completions` proxy errors. |
 | Remote pod call gets CORS errors | The app is calling a remote endpoint directly. Route through the Tytus host proxy instead. |
-| Local tool missing | Install the CLI/tool, then click **Refresh capabilities** in Control Tower. |
+| Local tool missing | Install the CLI/tool, then click **Refresh capabilities** in Agent Team / Setup. |
 | Model picker shows an obsolete model | Update global AIL configuration. Do not hardcode the model in Atomek. |
 
 ## Contributor rules

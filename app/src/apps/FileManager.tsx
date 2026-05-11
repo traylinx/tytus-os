@@ -91,6 +91,13 @@ import { refFromDaemonPath, type FileRef } from "@/lib/files/fileRef";
 
 type TabId = "browse" | "inbox" | "downloads" | "shared";
 
+const displayAgentType = (agentType: string | null | undefined): string => {
+  if (!agentType) return "agent";
+  if (agentType === "nemoclaw" || agentType === "openclaw") return "OpenClaw";
+  if (agentType === "hermes") return "Hermes";
+  return agentType;
+};
+
 const FileManager: FC = () => {
   const { dispatch } = useOS();
   const client = useDaemonClient();
@@ -287,7 +294,7 @@ const Header: FC<{
             : isShared
               ? "Bindings are account-scoped, synced across all your pods"
               : podId
-                ? `Inbox + Downloads · ${agentType ?? "agent"}`
+                ? `Inbox + Downloads · ${displayAgentType(agentType)}`
                 : "Per-pod inbox and local Downloads folder"}
         </div>
       </div>
@@ -353,7 +360,7 @@ const Sidebar: FC<{
               opacity: 0.7,
             }}
           >
-            {a.agent_type}
+            {displayAgentType(a.agent_type)}
           </span>
         </button>
       );
@@ -2420,7 +2427,7 @@ const BindFolderModal: FC<BindFolderModalProps> = ({
                           className="text-[10px]"
                           style={{ color: "var(--text-secondary)" }}
                         >
-                          ({a.agent_type})
+                          ({displayAgentType(a.agent_type)})
                         </span>
                       </span>
                     </label>

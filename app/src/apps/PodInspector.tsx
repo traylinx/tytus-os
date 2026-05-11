@@ -1258,7 +1258,7 @@ const PodTab: FC<PodTabProps> = ({
         appName: "Pod Inspector",
         appIcon: "Power",
         title: `Pod ${agent.pod_id} restarted`,
-        message: `${agent.agent_type} container is back up.`,
+        message: `${resolveAgentDisplay(agent.agent_type, null, t).name} container is back up.`,
         isRead: false,
       });
     }
@@ -1268,6 +1268,7 @@ const PodTab: FC<PodTabProps> = ({
     addNotification,
     agent.pod_id,
     agent.agent_type,
+    t,
   ]);
 
   return (
@@ -1748,7 +1749,7 @@ const PodTab: FC<PodTabProps> = ({
       {confirmUninstall && (
         <UninstallConfirmModal
           podId={agent.pod_id}
-          agentType={agent.agent_type}
+          agentType={resolveAgentDisplay(agent.agent_type, null, t).name}
           onCancel={() => setConfirmUninstall(false)}
           onConfirm={onUninstallConfirmed}
         />
@@ -1757,7 +1758,7 @@ const PodTab: FC<PodTabProps> = ({
       {confirmRevoke && (
         <RevokeConfirmModal
           podId={agent.pod_id}
-          agentType={agent.agent_type}
+          agentType={resolveAgentDisplay(agent.agent_type, null, t).name}
           units={agent.units}
           onCancel={() => setConfirmRevoke(false)}
           onConfirm={onRevokeConfirmed}

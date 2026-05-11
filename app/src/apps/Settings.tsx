@@ -3343,6 +3343,7 @@ const readyDotFromReadiness = (
 };
 
 const PodCard: React.FC<PodCardProps> = ({ agent, refreshNonce = 0 }) => {
+  const { t } = useI18n();
   const client = useDaemonClient();
   const [keyRevealed, setKeyRevealed] = useState(false);
   const [uiRevealed, setUiRevealed] = useState(false);
@@ -3446,7 +3447,7 @@ const PodCard: React.FC<PodCardProps> = ({ agent, refreshNonce = 0 }) => {
         </div>
         <div className="flex-1 min-w-0">
           <div className="text-sm font-medium text-[var(--text-primary)] truncate">
-            Pod {agent.pod_id} · {agent.agent_type}
+            Pod {agent.pod_id} · {resolveAgentDisplay(agent.agent_type, null, t).name}
           </div>
           <div className="text-[11px] text-[var(--text-secondary)] mt-0.5">
             {agent.units} unit{agent.units === 1 ? "" : "s"} ·{" "}

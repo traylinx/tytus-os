@@ -71,6 +71,13 @@ type LoadState =
   | { status: 'ok'; data: ChannelsResponse }
   | { status: 'error'; message: string };
 
+const displayAgentType = (agentType: string | null | undefined): string => {
+  if (!agentType) return 'agent';
+  if (agentType === 'nemoclaw' || agentType === 'openclaw') return 'OpenClaw';
+  if (agentType === 'hermes') return 'Hermes';
+  return agentType;
+};
+
 const Channels: FC = () => {
   const { dispatch } = useOS();
   const client = useDaemonClient();
@@ -255,7 +262,7 @@ const Channels: FC = () => {
                   className="text-[10px] shrink-0"
                   style={{ color: 'var(--text-disabled)' }}
                 >
-                  {a.agent_type}
+                  {displayAgentType(a.agent_type)}
                 </span>
               </button>
             );
