@@ -733,7 +733,7 @@ function terminalLaunchLine(input: { toolId?: string; command?: string; prompt?:
     lines.push(`${command}${args ? ` ${args}` : ''}`);
   }
   const text = lines.filter(Boolean).join('\n');
-  return text ? `${text}` : '';
+  return text ? `${text}\n` : '';
 }
 
 function makeSkillsApi(): SkillsApi {

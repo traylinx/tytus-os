@@ -37,10 +37,10 @@ const ALL_FEATURED_APPS: FeaturedApp[] = [
   {
     id: 'atomek',
     name: 'Atomek',
-    description: 'Monaco workspace with intelligent AIL chat, dynamic file context, semantic retrieval, AI edit previews, embedded docs, and Tytus Resource Fabric cockpit.',
+    description: 'Monaco workspace with persistent local state, intelligent AIL chat, dynamic file context, semantic retrieval, AI edit previews, embedded docs, and Tytus Resource Fabric cockpit.',
     icon: 'atomek:mark',
     category: 'Productivity',
-    manifestUrl: 'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-atomek@v0.4.21/tytus-app.json',
+    manifestUrl: 'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-atomek@v0.4.22/tytus-app.json',
   },
   {
     id: 'text-editor',
