@@ -599,10 +599,11 @@ const titleFromReferenceAudioName = (name: string | null): string => {
 
 const normalizeCoverStylePrompt = (raw: string): string => {
   const compact = raw.replace(/\s+/g, ' ').trim();
-  let prompt = compact || 'Polished modern cover, clear vocals, tight rhythm, high-quality mix';
-  if (prompt.length < 10) {
-    prompt = `${prompt}, style cover, polished music production`.replace(/^,\s*/, '');
-  }
+  const weakStyle = /^(youtube|spotify|soundcloud|uploaded audio|recording|audio|music|song|—|-|n\/a)$/i.test(compact);
+  const style = !compact || weakStyle
+    ? 'polished modern cover, clear vocals, tight rhythm, high-quality mix'
+    : compact;
+  const prompt = `Preserve the reference melody, phrasing, rhythm, chord movement, and song structure; change only the production style: ${style}`;
   if (prompt.length <= 300) return prompt;
   const clipped = prompt.slice(0, 300).replace(/\s+\S*$/, '').trim();
   return clipped.length >= 10 ? clipped : prompt.slice(0, 300);
@@ -767,6 +768,8 @@ const LEGACY_IDB_STORE = 'gallery';
 const MAX_LYRICS = 3500;
 const MAX_COVER_LYRICS = 1000;
 const MAX_STYLE = 2000;
+const MIN_RESTYLE_REFERENCE_SECONDS = 30;
+const MIN_LONG_SOURCE_REFERENCE_SECONDS = 45;
 
 // ──────────────────────────────────────────────────────────
 // Helpers
@@ -797,6 +800,8 @@ const audioBlobFromBase64 = (base64: string, mime = 'audio/wav'): Blob => {
 const wavDurationMsFromBase64 = (base64: string): number | null => {
   try {
     const clean = base64.replace(/\s+/g, '');
+    const padding = clean.endsWith('==') ? 2 : clean.endsWith('=') ? 1 : 0;
+    const totalBytes = Math.max(0, Math.floor(clean.length * 3 / 4) - padding);
     // Header + first chunks are enough; our encoder writes fmt/data first,
     // but this parser still walks chunks so it survives harmless metadata.
     const bin = atob(clean.slice(0, Math.min(clean.length, 4096)));
@@ -816,7 +821,9 @@ const wavDurationMsFromBase64 = (base64: string): number | null => {
         sampleRate = view.getUint32(payload + 4, true);
         blockAlign = view.getUint16(payload + 12, true);
       } else if (id === 'data') {
-        dataSize = size;
+        dataSize = size === 0xffffffff || payload + size > totalBytes
+          ? Math.max(0, totalBytes - payload)
+          : size;
         break;
       }
       off = payload + size + (size % 2);
@@ -1540,7 +1547,18 @@ const callMusic = async (
     if (!isCover || cleanedLyrics) body.lyrics = cleanedLyrics;
     if (args.prompt) body.prompt = args.prompt;
     if (args.instrumental) body.instrumental = true;
-    if (isCover) body.audio_base64 = args.refAudioBase64;
+    if (isCover) {
+      body.audio_base64 = args.refAudioBase64;
+      const refDurationMs = wavDurationMsFromBase64(args.refAudioBase64 ?? '');
+      const cleanRef = (args.refAudioBase64 ?? '').replace(/\s+/g, '');
+      console.info('[Juli3ta] Sending music-cover reference:', {
+        modelId,
+        refDurationSec: refDurationMs !== null ? Number((refDurationMs / 1000).toFixed(2)) : null,
+        refBytesApprox: Math.max(0, Math.floor(cleanRef.length * 3 / 4)),
+        prompt: args.prompt ?? '',
+        lyricsProvided: Boolean(cleanedLyrics),
+      });
+    }
     const musicTimeout = withTimeout(signal, MUSIC_TIMEOUT_MS);
     let r: Response;
     try {
@@ -7462,6 +7480,8 @@ export default function MusicCreator() {
   // Cover-mode state
   const [refAudioName, setRefAudioName] = useState<string | null>(null);
   const [refAudioBase64, setRefAudioBase64] = useState<string | null>(null);
+  const [refAudioDurationSec, setRefAudioDurationSec] = useState<number | null>(null);
+  const [refSourceDurationSec, setRefSourceDurationSec] = useState<number | null>(null);
   const [refSampleInfo, setRefSampleInfo] = useState<string | null>(null);
   const [extracting, setExtracting] = useState(false);
   const [refExtractProgress, setRefExtractProgress] = useState<CoverSampleProgress | null>(null);
@@ -7983,6 +8003,19 @@ export default function MusicCreator() {
         : 'Restyle needs a reference audio file. Drop one in below.');
       return;
     }
+    if (mode === 'restyle' && refAudioBase64) {
+      const inferredMs = wavDurationMsFromBase64(refAudioBase64);
+      const durationSec = refAudioDurationSec ?? (inferredMs !== null ? inferredMs / 1000 : null);
+      const sourceDurationSec = refSourceDurationSec ?? durationSec;
+      if (durationSec !== null && durationSec < MIN_RESTYLE_REFERENCE_SECONDS) {
+        setError(`Reference sample is only ${durationSec.toFixed(1)} s. Clear it and re-pick the song so JULI3TA sends a real ~60 s cover reference, not the stale short sample.`);
+        return;
+      }
+      if (durationSec !== null && sourceDurationSec !== null && sourceDurationSec > 60 && durationSec < MIN_LONG_SOURCE_REFERENCE_SECONDS) {
+        setError(`Reference sample is only ${durationSec.toFixed(1)} s from a ${Math.round(sourceDurationSec)} s source. Clear it and re-pick; Restyle needs a representative ~60 s window to preserve the song.`);
+        return;
+      }
+    }
     // In-flight guard: drop duplicate clicks before phase flips.
     // The button swaps to Cancel via `busy = phase !== 'idle'`, but
     // there's a render-frame gap between this handler firing and the
@@ -8160,6 +8193,21 @@ export default function MusicCreator() {
         setPhase('idle');
         return;
       }
+      if (mode === 'restyle' && refAudioBase64) {
+        const inferredMs = wavDurationMsFromBase64(refAudioBase64);
+        const durationSec = refAudioDurationSec ?? (inferredMs !== null ? inferredMs / 1000 : null);
+        const sourceDurationSec = refSourceDurationSec ?? durationSec;
+        if (durationSec !== null && durationSec < MIN_RESTYLE_REFERENCE_SECONDS) {
+          setError(`Reference sample is only ${durationSec.toFixed(1)} s. Clear it and re-pick the song so JULI3TA sends a real ~60 s cover reference, not the stale short sample.`);
+          setPhase('idle');
+          return;
+        }
+        if (durationSec !== null && sourceDurationSec !== null && sourceDurationSec > 60 && durationSec < MIN_LONG_SOURCE_REFERENCE_SECONDS) {
+          setError(`Reference sample is only ${durationSec.toFixed(1)} s from a ${Math.round(sourceDurationSec)} s source. Clear it and re-pick; Restyle needs a representative ~60 s window to preserve the song.`);
+          setPhase('idle');
+          return;
+        }
+      }
 
       // Step 2: music (or restyle) + cover art in parallel. Cover art
       // is opt-out (coverAuto) and only kicks in when the endpoint has
@@ -8313,7 +8361,7 @@ export default function MusicCreator() {
       generatingRef.current = false;
     }
   }, [
-    endpoint, theme, lyrics, songName, style, specs, activeTemplate, instrumental, mode, refAudioBase64, refAudioName, extracting, t,
+    endpoint, theme, lyrics, songName, style, specs, activeTemplate, instrumental, mode, refAudioBase64, refAudioName, refAudioDurationSec, refSourceDurationSec, extracting, t,
     saveTrack, creatorSettings, mirrorAudioToVfs, mirrorLyricsToVfs, addNotification, abortAllAiTasks,
     coverAuto, coverDataUrl, coverPrompt, coverBusy, optimizingSpecs,
   ]);
@@ -8344,6 +8392,8 @@ export default function MusicCreator() {
       message: 'Preparing cover reference from the song…',
     });
     setRefAudioBase64(null);
+    setRefAudioDurationSec(null);
+    setRefSourceDurationSec(null);
     setRefAudioName(displayName);
     setRefSampleInfo(null);
     const fastRemote = typeof source === 'string' && /^https?:\/\//i.test(source);
@@ -8355,6 +8405,8 @@ export default function MusicCreator() {
         const result = await buildIconicMix(source, { onProgress });
         if (!isCurrent()) return;
         setRefAudioBase64(result.base64);
+        setRefAudioDurationSec(result.durationSec);
+        setRefSourceDurationSec(result.sourceDurationSec);
         const sourceMin = result.sourceDurationSec / 60;
         if (result.segments.length > 1) {
           const segDesc = result.segments
@@ -8391,9 +8443,11 @@ export default function MusicCreator() {
               progress: 1,
               message: 'Reference sample ready.',
             });
-            setRefAudioBase64(sample.base64);
             const durationSec = sample.durationSec ?? 60;
             const sourceDurationSec = sample.sourceDurationSec ?? durationSec;
+            setRefAudioBase64(sample.base64);
+            setRefAudioDurationSec(durationSec);
+            setRefSourceDurationSec(sourceDurationSec);
             const startSec = sample.startSec ?? 0;
             const sourceMin = sourceDurationSec / 60;
             const startMin = startSec / 60;
@@ -8420,6 +8474,8 @@ export default function MusicCreator() {
         });
         if (!isCurrent()) return;
         setRefAudioBase64(result.base64);
+        setRefAudioDurationSec(result.durationSec);
+        setRefSourceDurationSec(result.sourceDurationSec);
         const sourceMin = result.sourceDurationSec / 60;
         const startMin = result.startSec / 60;
         const startStr = result.startSec < 60
@@ -8434,6 +8490,9 @@ export default function MusicCreator() {
     } catch (err) {
       if (!isCurrent()) return;
       setError((err as Error).message || 'Could not analyze that audio.');
+      setRefAudioBase64(null);
+      setRefAudioDurationSec(null);
+      setRefSourceDurationSec(null);
       setRefAudioName(null);
     } finally {
       if (isCurrent()) {
@@ -8602,6 +8661,8 @@ export default function MusicCreator() {
     ingestSeqRef.current += 1;
     setExtracting(false);
     setRefAudioBase64(null);
+    setRefAudioDurationSec(null);
+    setRefSourceDurationSec(null);
     setRefAudioName(null);
     setRefSampleInfo(null);
     setRefExtractProgress(null);
@@ -9221,6 +9282,8 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
     if (!hasPlayableAudio(track)) {
       // No audio → can only edit the lyric sheet.
       setRefAudioBase64(null);
+      setRefAudioDurationSec(null);
+      setRefSourceDurationSec(null);
       setRefAudioName(null);
       setRefSampleInfo(null);
       setMode('lyricsOnly');
@@ -9238,6 +9301,8 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
       // the form looks ready to submit.
       setMode('restyle');
       setRefAudioBase64(null);
+      setRefAudioDurationSec(null);
+      setRefSourceDurationSec(null);
       setRefAudioName(`${cleanTitle}.mp3`);
       setRefSampleInfo('Resolving streamed audio…');
       setExtracting(true);
@@ -9254,6 +9319,8 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
         } catch (e) {
           setExtracting(false);
           setRefAudioBase64(null);
+          setRefAudioDurationSec(null);
+          setRefSourceDurationSec(null);
           setRefAudioName(null);
           setRefSampleInfo(null);
           setError(`Could not load streamed track for restyle: ${(e as Error).message || 'unknown error'}`);
@@ -9451,6 +9518,8 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
             setCoverPrompt('');
             setCoverPromptOpen(false);
             setRefAudioBase64(null);
+            setRefAudioDurationSec(null);
+            setRefSourceDurationSec(null);
             setRefAudioName(null);
             setRefSampleInfo(null);
             setError(null);
