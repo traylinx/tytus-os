@@ -51,6 +51,7 @@ const REFERENCE_FADE_SEC = 0.05;
 const MIX_SEG_SECONDS = 5;
 const MIX_SEG_COUNT = 3;
 const MIX_CROSSFADE_SEC = 0.35;
+const FAST_REMOTE_RATIO = 0.55;
 
 export interface CoverSampleResult {
   /** Base64 (no data-URL prefix) of the trimmed WAV. */
@@ -72,6 +73,81 @@ export interface IconicMixResult {
   segments: { startSec: number; endSec: number; score: number }[];
   sourceDurationSec: number;
 }
+
+export type CoverSampleStage =
+  | 'loading'
+  | 'decoding'
+  | 'capturing'
+  | 'analyzing'
+  | 'encoding'
+  | 'done';
+
+export interface CoverSampleProgress {
+  stage: CoverSampleStage;
+  progress: number;
+  message: string;
+}
+
+export interface CoverSampleOptions {
+  targetSec?: number;
+  /**
+   * For streamed/library URLs, avoid the old "download + decode the whole song"
+   * path. Capture one compact seeked slice through the browser media pipeline.
+   */
+  fastRemote?: boolean;
+  signal?: AbortSignal;
+  onProgress?: (progress: CoverSampleProgress) => void;
+}
+
+const normalizeOptions = (
+  targetSecOrOptions: number | CoverSampleOptions | undefined,
+): Required<Pick<CoverSampleOptions, 'targetSec' | 'fastRemote'>> & Omit<CoverSampleOptions, 'targetSec' | 'fastRemote'> => {
+  if (typeof targetSecOrOptions === 'number') {
+    return { targetSec: targetSecOrOptions, fastRemote: false };
+  }
+  return {
+    targetSec: targetSecOrOptions?.targetSec ?? TARGET_SECONDS,
+    fastRemote: targetSecOrOptions?.fastRemote ?? false,
+    signal: targetSecOrOptions?.signal,
+    onProgress: targetSecOrOptions?.onProgress,
+  };
+};
+
+const reportProgress = (
+  options: Pick<CoverSampleOptions, 'onProgress'> | undefined,
+  stage: CoverSampleStage,
+  progress: number,
+  message: string,
+) => {
+  options?.onProgress?.({
+    stage,
+    progress: Math.max(0, Math.min(1, progress)),
+    message,
+  });
+};
+
+const isRemoteUrl = (source: string) => /^https?:\/\//i.test(source);
+
+const parseRemoteHints = (source: string): { durationSec?: number } => {
+  const candidates = [source];
+  try {
+    const encoded = source.split('/api/music/proxy/')[1];
+    if (encoded) candidates.push(decodeURIComponent(encoded));
+  } catch {
+    // Best-effort only.
+  }
+
+  for (const candidate of candidates) {
+    try {
+      const url = new URL(candidate);
+      const dur = Number(url.searchParams.get('dur') || url.searchParams.get('duration'));
+      if (Number.isFinite(dur) && dur > 0) return { durationSec: dur };
+    } catch {
+      // Ignore malformed embedded URL candidates.
+    }
+  }
+  return {};
+};
 
 // ─── Audio I/O helpers ────────────────────────────────────────
 
@@ -152,6 +228,8 @@ const decodeViaPlaybackCapture = async (
 const decodeAudio = async (
   blob: Blob,
   fallbackCaptureSec = 35,
+  allowPlaybackCapture = true,
+  options?: Pick<CoverSampleOptions, 'onProgress'>,
 ): Promise<AudioBuffer> => {
   const Ctor = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
   const ctx = new Ctor();
@@ -160,8 +238,10 @@ const decodeAudio = async (
     try {
       return await ctx.decodeAudioData(ab.slice(0));
     } catch (primaryErr) {
+      if (!allowPlaybackCapture) throw primaryErr;
       // Codec the static decoder rejects but <audio> may still play.
       try {
+        reportProgress(options, 'capturing', 0.32, 'Browser decoder needs compatibility capture…');
         return await decodeViaPlaybackCapture(blob, ctx, fallbackCaptureSec);
       } catch (fallbackErr) {
         const primaryMsg = (primaryErr as Error).message || 'decodeAudioData failed';
@@ -176,9 +256,145 @@ const decodeAudio = async (
   }
 };
 
-const blobFromDataUrl = async (dataUrl: string): Promise<Blob> => {
-  const r = await fetch(dataUrl);
+const blobFromSource = async (source: string, options?: Pick<CoverSampleOptions, 'signal'>): Promise<Blob> => {
+  const r = await fetch(source, { signal: options?.signal });
+  if (!r.ok) throw new Error(`Could not load audio (${r.status}).`);
   return r.blob();
+};
+
+const waitForMediaEvent = (
+  audio: HTMLAudioElement,
+  event: keyof HTMLMediaElementEventMap,
+  signal?: AbortSignal,
+  timeoutMs = 12_000,
+): Promise<void> =>
+  new Promise((resolve, reject) => {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const cleanup = () => {
+      audio.removeEventListener(event, onOk);
+      audio.removeEventListener('error', onErr);
+      signal?.removeEventListener('abort', onAbort);
+      if (timer) clearTimeout(timer);
+    };
+    const onOk = () => { cleanup(); resolve(); };
+    const onErr = () => {
+      cleanup();
+      reject(new Error('Browser media element rejected the streamed audio.'));
+    };
+    const onAbort = () => {
+      cleanup();
+      reject(new DOMException('Reference extraction was cancelled.', 'AbortError'));
+    };
+    audio.addEventListener(event, onOk, { once: true });
+    audio.addEventListener('error', onErr, { once: true });
+    signal?.addEventListener('abort', onAbort, { once: true });
+    timer = setTimeout(() => {
+      cleanup();
+      reject(new Error(`Timed out waiting for audio ${String(event)}.`));
+    }, timeoutMs);
+  });
+
+const decodeRemoteStreamSlice = async (
+  source: string,
+  targetSec: number,
+  options: CoverSampleOptions,
+): Promise<{ buffer: AudioBuffer; sourceOffsetSec: number; sourceDurationSec?: number }> => {
+  if (typeof MediaRecorder === 'undefined') {
+    throw new Error('MediaRecorder unavailable for fast streamed reference capture.');
+  }
+
+  const mime = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4']
+    .find((m) => MediaRecorder.isTypeSupported(m));
+  if (!mime) throw new Error('No supported recorder mime type for fast streamed reference capture.');
+
+  const hints = parseRemoteHints(source);
+  const captureSec = Math.max(MIN_SECONDS, Math.min(18, targetSec + 2));
+  const hintedDuration = hints.durationSec;
+  const sourceOffsetSec = hintedDuration
+    ? Math.max(0, Math.min(hintedDuration - captureSec, hintedDuration * FAST_REMOTE_RATIO - captureSec / 2))
+    : 0;
+
+  reportProgress(options, 'loading', 0.08, 'Opening streamed audio without downloading the full song…');
+
+  const Ctor = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+  const ctx = new Ctor();
+  const audio = new Audio();
+  audio.crossOrigin = 'anonymous';
+  audio.preload = 'auto';
+  audio.src = source;
+
+  let progressTimer: ReturnType<typeof setInterval> | null = null;
+  try {
+    await waitForMediaEvent(audio, 'canplay', options.signal, 15_000);
+    if (sourceOffsetSec > 0 && Number.isFinite(audio.duration)) {
+      reportProgress(options, 'loading', 0.15, `Seeking to ${Math.floor(sourceOffsetSec / 60)}:${Math.floor(sourceOffsetSec % 60).toString().padStart(2, '0')}…`);
+      audio.currentTime = sourceOffsetSec;
+      await waitForMediaEvent(audio, 'seeked', options.signal, 12_000);
+    } else if (sourceOffsetSec > 0) {
+      // Some proxied streams do not expose duration to <audio>; try anyway.
+      audio.currentTime = sourceOffsetSec;
+      await Promise.race([
+        waitForMediaEvent(audio, 'seeked', options.signal, 12_000),
+        new Promise<void>((res) => setTimeout(res, 1200)),
+      ]);
+    }
+
+    const srcNode = ctx.createMediaElementSource(audio);
+    const dest = ctx.createMediaStreamDestination();
+    srcNode.connect(dest);
+
+    const recorder = new MediaRecorder(dest.stream, { mimeType: mime });
+    const chunks: Blob[] = [];
+    recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
+
+    const stopped = new Promise<void>((res) => { recorder.onstop = () => res(); });
+    const captureStartedAt = performance.now();
+    progressTimer = setInterval(() => {
+      const elapsedSec = (performance.now() - captureStartedAt) / 1000;
+      reportProgress(
+        options,
+        'capturing',
+        0.18 + 0.52 * Math.min(1, elapsedSec / captureSec),
+        `Capturing compact ${captureSec.toFixed(0)} s reference slice…`,
+      );
+    }, 250);
+
+    reportProgress(options, 'capturing', 0.18, `Capturing compact ${captureSec.toFixed(0)} s reference slice…`);
+    recorder.start(250);
+    await ctx.resume().catch(() => undefined);
+    await audio.play();
+    await new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(resolve, captureSec * 1000);
+      const onAbort = () => {
+        clearTimeout(timer);
+        reject(new DOMException('Reference extraction was cancelled.', 'AbortError'));
+      };
+      options.signal?.addEventListener('abort', onAbort, { once: true });
+    });
+    recorder.stop();
+    audio.pause();
+    await stopped;
+    if (progressTimer) clearInterval(progressTimer);
+    progressTimer = null;
+
+    const recBlob = new Blob(chunks, { type: mime });
+    if (recBlob.size === 0) throw new Error('Fast streamed capture produced no audio.');
+
+    reportProgress(options, 'decoding', 0.75, 'Decoding compact reference slice…');
+    const ab = await recBlob.arrayBuffer();
+    const buffer = await ctx.decodeAudioData(ab);
+    return {
+      buffer,
+      sourceOffsetSec,
+      sourceDurationSec: hintedDuration || (Number.isFinite(audio.duration) ? audio.duration : undefined),
+    };
+  } finally {
+    if (progressTimer) clearInterval(progressTimer);
+    audio.pause();
+    audio.removeAttribute('src');
+    audio.load();
+    ctx.close().catch(() => undefined);
+  }
 };
 
 const blobToBase64 = (blob: Blob): Promise<string> =>
@@ -509,13 +725,15 @@ const encodeReferenceWav = (samples: Float32Array, sampleRate: number): Blob => 
 
 // ─── Public: single best window ─────────────────────────────
 
-export const buildCoverSample = async (
-  source: Blob | string,
-  targetSec: number = TARGET_SECONDS,
+const buildCoverSampleFromBuffer = async (
+  buf: AudioBuffer,
+  targetSec: number,
+  options: CoverSampleOptions,
+  sourceOffsetSec = 0,
+  sourceDurationSec?: number,
 ): Promise<CoverSampleResult> => {
-  const blob = typeof source === 'string' ? await blobFromDataUrl(source) : source;
-  const buf = await decodeAudio(blob);
   const totalSec = buf.length / buf.sampleRate;
+  const fullSourceDurationSec = sourceDurationSec ?? totalSec;
 
   if (totalSec < MIN_SECONDS) {
     throw new Error(`Source is too short (${totalSec.toFixed(1)} s). Need at least ${MIN_SECONDS} s.`);
@@ -524,12 +742,15 @@ export const buildCoverSample = async (
   const desired = Math.min(MAX_SECONDS, Math.max(MIN_SECONDS, targetSec));
 
   if (totalSec <= desired) {
+    reportProgress(options, 'encoding', 0.88, 'Encoding compact gateway-safe reference…');
     const samples = sliceMono(buf, 0, buf.length);
     const wav = encodeReferenceWav(samples, buf.sampleRate);
     const base64 = await blobToBase64(wav);
-    return { base64, durationSec: totalSec, startSec: 0, sourceDurationSec: totalSec, score: 1 };
+    reportProgress(options, 'done', 1, 'Reference sample ready.');
+    return { base64, durationSec: totalSec, startSec: sourceOffsetSec, sourceDurationSec: fullSourceDurationSec, score: 1 };
   }
 
+  reportProgress(options, 'analyzing', 0.78, 'Analyzing loudness and musical shape…');
   const feat = extractFeatures(buf);
   const scored = computeWindowScores(feat, desired);
   if (scored.length === 0) {
@@ -540,17 +761,49 @@ export const buildCoverSample = async (
 
   const startSample = Math.floor((best.startFrame / feat.framesPerSec) * buf.sampleRate);
   const lenSamples = Math.floor((best.lenFrames / feat.framesPerSec) * buf.sampleRate);
+  reportProgress(options, 'encoding', 0.9, 'Encoding compact gateway-safe reference…');
   const samples = sliceMono(buf, startSample, lenSamples);
   const wav = encodeReferenceWav(samples, buf.sampleRate);
   const base64 = await blobToBase64(wav);
+  reportProgress(options, 'done', 1, 'Reference sample ready.');
 
   return {
     base64,
     durationSec: lenSamples / buf.sampleRate,
-    startSec: startSample / buf.sampleRate,
-    sourceDurationSec: totalSec,
+    startSec: sourceOffsetSec + startSample / buf.sampleRate,
+    sourceDurationSec: fullSourceDurationSec,
     score: Math.max(0, Math.min(1, best.score)),
   };
+};
+
+export const buildCoverSample = async (
+  source: Blob | string,
+  targetSecOrOptions: number | CoverSampleOptions = TARGET_SECONDS,
+): Promise<CoverSampleResult> => {
+  const options = normalizeOptions(targetSecOrOptions);
+  const desired = Math.min(MAX_SECONDS, Math.max(MIN_SECONDS, options.targetSec));
+
+  if (typeof source === 'string' && options.fastRemote && isRemoteUrl(source)) {
+    try {
+      const fast = await decodeRemoteStreamSlice(source, desired, options);
+      return await buildCoverSampleFromBuffer(
+        fast.buffer,
+        desired,
+        options,
+        fast.sourceOffsetSec,
+        fast.sourceDurationSec,
+      );
+    } catch (err) {
+      if ((err as Error).name === 'AbortError') throw err;
+      reportProgress(options, 'loading', 0.08, 'Fast streamed capture failed — falling back to full decode…');
+    }
+  }
+
+  reportProgress(options, 'loading', 0.08, 'Loading reference audio…');
+  const blob = typeof source === 'string' ? await blobFromSource(source, options) : source;
+  reportProgress(options, 'decoding', 0.28, 'Decoding reference audio…');
+  const buf = await decodeAudio(blob, 35, true, options);
+  return await buildCoverSampleFromBuffer(buf, desired, options);
 };
 
 // ─── Public: best-of mix (3 short segments with crossfades) ───
@@ -612,14 +865,17 @@ const pickTopNonOverlapping = (
 
 export const buildIconicMix = async (
   source: Blob | string,
+  options: CoverSampleOptions = {},
 ): Promise<IconicMixResult> => {
-  const blob = typeof source === 'string' ? await blobFromDataUrl(source) : source;
-  const buf = await decodeAudio(blob);
+  reportProgress(options, 'loading', 0.08, 'Loading reference audio…');
+  const blob = typeof source === 'string' ? await blobFromSource(source, options) : source;
+  reportProgress(options, 'decoding', 0.28, 'Decoding reference audio…');
+  const buf = await decodeAudio(blob, 35, true, options);
   const totalSec = buf.length / buf.sampleRate;
 
   if (totalSec < MIN_SECONDS * 2) {
     // Too short for a meaningful mix — fall through to a single sample.
-    const single = await buildCoverSample(blob);
+    const single = await buildCoverSample(blob, { ...options, targetSec: TARGET_SECONDS });
     return {
       base64: single.base64,
       durationSec: single.durationSec,
@@ -628,6 +884,7 @@ export const buildIconicMix = async (
     };
   }
 
+  reportProgress(options, 'analyzing', 0.68, 'Finding iconic moments…');
   const feat = extractFeatures(buf);
   const scored = computeWindowScores(feat, MIX_SEG_SECONDS);
   if (scored.length === 0) {
@@ -649,8 +906,10 @@ export const buildIconicMix = async (
   });
 
   const mixed = crossfadeConcat(segs, buf.sampleRate, MIX_CROSSFADE_SEC);
+  reportProgress(options, 'encoding', 0.9, 'Encoding compact gateway-safe reference mix…');
   const wav = encodeReferenceWav(mixed, buf.sampleRate);
   const base64 = await blobToBase64(wav);
+  reportProgress(options, 'done', 1, 'Reference sample ready.');
 
   const segments = picks.map((w) => ({
     startSec: w.startFrame / feat.framesPerSec,

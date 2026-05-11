@@ -18,10 +18,12 @@
 // we hit `/v1/models` and pick the first id that matches a music regex.
 // If no match, music generation is disabled for that endpoint.
 //
-// Talks to account AIL pods through the same-origin tray proxy. Browser
-// CORS preflights must never hit `*.tytus.traylinx.com` directly; the tray
-// attaches the pod bearer token and forwards `/v1/*` requests server-side.
-// Local switchAILocal remains a direct localhost call.
+// Browser code must never call public pod origins directly: those
+// endpoints intentionally do not advertise permissive CORS. Account
+// AIL calls route through the tray's same-origin pod proxy, which
+// injects auth server-side and keeps the console clean. If the user
+// has no pod allocated, we surface an empty-state pointing them at
+// PodInspector.
 
 import { useState, useEffect, useRef, useCallback, useMemo, Fragment } from 'react';
 import {
@@ -89,7 +91,7 @@ import {
   type VoiceRecordingRow,
 } from '@/lib/repo/voiceRecordings';
 import { buildJuli3taGatewayCandidates } from '@/lib/juli3taGatewayCandidates';
-import { buildCoverSample, buildIconicMix } from '@/lib/coverSample';
+import { buildCoverSample, buildIconicMix, type CoverSampleProgress } from '@/lib/coverSample';
 import {
   getMusicStatus,
   getMusicProviders,
@@ -121,7 +123,7 @@ type VoiceRecording = VoiceRecordingRow;
 // vX.Y.Z") and the Settings dialog footer so users can see exactly
 // which release they're running. Bumped in lockstep with package.json
 // + tytus-app.json on every release.
-const APP_VERSION = '0.3.15';
+const APP_VERSION = '0.3.17';
 
 // ──────────────────────────────────────────────────────────
 // Cross-app drag MIME types
@@ -221,7 +223,8 @@ interface PodEndpoint {
   source: 'agent' | 'included' | 'local';
   // Display label for the connection badge.
   label: string;
-  // Same-origin tray proxy pod id. Present for account AIL pods; local switchAILocal stays direct.
+  // Same-origin tray proxy pod id. Present for account AIL pods so
+  // browser code never calls pod origins directly.
   proxyPodId?: string;
   // Resolved model ids for this endpoint. Different deployments expose
   // different aliases — the local switchAILocal might register
@@ -1330,7 +1333,6 @@ const callLyrics = async (
     const r = await gatewayFetch(endpoint, '/music/lyrics', {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${endpoint.apiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(body),
@@ -1419,7 +1421,6 @@ Respond with VALID JSON ONLY in exactly this shape, nothing else:
         resp = await gatewayFetch(endpoint, '/chat/completions', {
           method: 'POST',
           headers: {
-            Authorization: `Bearer ${endpoint.apiKey}`,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify(
@@ -1664,7 +1665,6 @@ const callImageGen = async (
       resp = await gatewayFetch(endpoint, '/images/generations', {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${endpoint.apiKey}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(body),
@@ -1831,6 +1831,9 @@ interface PlayerControls {
 
 type ResolveTrackSrc = (track: SavedTrack, opts?: { force?: boolean }) => Promise<string | null>;
 
+const audioPreloadMode = (track: SavedTrack): HTMLMediaElement['preload'] =>
+  isRemoteTrack(track) ? 'metadata' : 'auto';
+
 // usePlayer takes the queue + the audio ref as parameters so the
 // consumer owns the ref (React rules disallow surfacing refs from
 // hook return values through render). The hook only exposes plain
@@ -1939,7 +1942,7 @@ function usePlayer(
       }
       if (state.trackId !== track.id || a.src !== src) {
         a.src = src;
-        a.preload = 'auto';
+        a.preload = audioPreloadMode(track);
         a.load();
         a.pause();
         setState((s) => ({
@@ -1990,7 +1993,7 @@ function usePlayer(
       }
       if (state.trackId !== track.id || a.src !== src) {
         a.src = src;
-        a.preload = 'auto';
+        a.preload = audioPreloadMode(track);
         setState((s) => ({ ...s, trackId: track.id, positionMs: 0, durationMs: track.durationMs || 0 }));
       }
       void a.play()
@@ -2164,7 +2167,7 @@ function usePlayer(
         .then((src) => {
           if (!src) throw new Error('No refreshed stream URL');
           a.src = src;
-          a.preload = 'auto';
+          a.preload = audioPreloadMode(current);
           return a.play();
         })
         .then(() => setState((s) => ({ ...s, playing: true, loadingTrackId: null })))
@@ -2560,60 +2563,6 @@ function MiniPlayer({ player, allTracks }: { player: PlayerControls; allTracks: 
   );
 }
 
-// PLAYBACK_SPEEDS — values the SpeedChip cycles through on click. 1
-// is the "default" anchor, then ascending. Click cycles forward and
-// wraps; right-click resets to 1x. We deliberately stop at 2x — the
-// browser's pitch-preservation gets noticeably wonky past that, and
-// 4x feels like a different track entirely. 0.5/0.75 cover the
-// transcription/study use-cases.
-const PLAYBACK_SPEEDS = [1, 1.25, 1.5, 2, 0.5, 0.75] as const;
-
-function SpeedChip({
-  rate,
-  setRate,
-}: {
-  rate: number;
-  setRate: (r: number) => void;
-}) {
-  const isDefault = Math.abs(rate - 1) < 0.001;
-  const onClick = () => {
-    const idx = PLAYBACK_SPEEDS.findIndex((s) => Math.abs(s - rate) < 0.001);
-    const next = PLAYBACK_SPEEDS[(idx + 1) % PLAYBACK_SPEEDS.length];
-    setRate(next);
-  };
-  // Right-click resets to 1x — quick escape hatch when the user has
-  // cycled into a slow-down they want to undo without click-spamming.
-  const onContextMenu = (e: React.MouseEvent) => {
-    e.preventDefault();
-    if (!isDefault) setRate(1);
-  };
-  // Format: drop trailing zero so 1x reads as "1×" not "1.00×". Keep
-  // one decimal for 0.5 → "0.5×" so the reader sees fractional speed
-  // unambiguously without the row of zeros.
-  const label = `${Number.isInteger(rate) ? rate.toString() : rate.toString().replace(/\.?0+$/, '')}×`;
-  return (
-    <button
-      onClick={onClick}
-      onContextMenu={onContextMenu}
-      className="flex items-center justify-center flex-shrink-0 transition-all hover:bg-[var(--bg-hover)] rounded-md tabular-nums"
-      style={{
-        height: 22,
-        minWidth: 36,
-        padding: '0 6px',
-        fontSize: 10,
-        fontWeight: 700,
-        letterSpacing: 0.3,
-        color: isDefault ? 'var(--text-disabled)' : 'var(--accent-primary)',
-        border: `1px solid ${isDefault ? 'var(--border-subtle)' : 'var(--accent-primary)'}`,
-        background: isDefault ? 'transparent' : 'var(--bg-hover)',
-      }}
-      title={isDefault ? 'Playback speed (click to change)' : `Playback speed ${label} — click to cycle, right-click to reset`}
-    >
-      {label}
-    </button>
-  );
-}
-
 // SLEEP_TIMER_OPTIONS — minutes the chip cycles through. Spans the
 // useful range for music: 5 (a single track), 15 (a couple of tracks),
 // 30 (a typical winding-down session), 45 (full album), 60 (extended).
@@ -2692,6 +2641,60 @@ function SleepTimerChip({
     >
       <Moon size={11} />
       {label && <span>{label}</span>}
+    </button>
+  );
+}
+
+// PLAYBACK_SPEEDS — values the SpeedChip cycles through on click. 1
+// is the "default" anchor, then ascending. Click cycles forward and
+// wraps; right-click resets to 1x. We deliberately stop at 2x — the
+// browser's pitch-preservation gets noticeably wonky past that, and
+// 4x feels like a different track entirely. 0.5/0.75 cover the
+// transcription/study use-cases.
+const PLAYBACK_SPEEDS = [1, 1.25, 1.5, 2, 0.5, 0.75] as const;
+
+function SpeedChip({
+  rate,
+  setRate,
+}: {
+  rate: number;
+  setRate: (r: number) => void;
+}) {
+  const isDefault = Math.abs(rate - 1) < 0.001;
+  const onClick = () => {
+    const idx = PLAYBACK_SPEEDS.findIndex((s) => Math.abs(s - rate) < 0.001);
+    const next = PLAYBACK_SPEEDS[(idx + 1) % PLAYBACK_SPEEDS.length];
+    setRate(next);
+  };
+  // Right-click resets to 1x — quick escape hatch when the user has
+  // cycled into a slow-down they want to undo without click-spamming.
+  const onContextMenu = (e: React.MouseEvent) => {
+    e.preventDefault();
+    if (!isDefault) setRate(1);
+  };
+  // Format: drop trailing zero so 1x reads as "1×" not "1.00×". Keep
+  // one decimal for 0.5 → "0.5×" so the reader sees fractional speed
+  // unambiguously without the row of zeros.
+  const label = `${Number.isInteger(rate) ? rate.toString() : rate.toString().replace(/\.?0+$/, '')}×`;
+  return (
+    <button
+      onClick={onClick}
+      onContextMenu={onContextMenu}
+      className="flex items-center justify-center flex-shrink-0 transition-all hover:bg-[var(--bg-hover)] rounded-md tabular-nums"
+      style={{
+        height: 22,
+        minWidth: 36,
+        padding: '0 6px',
+        fontSize: 10,
+        fontWeight: 700,
+        letterSpacing: 0.3,
+        color: isDefault ? 'var(--text-disabled)' : 'var(--accent-primary)',
+        border: `1px solid ${isDefault ? 'var(--border-subtle)' : 'var(--accent-primary)'}`,
+        background: isDefault ? 'transparent' : 'var(--bg-hover)',
+      }}
+      title={isDefault ? 'Playback speed (click to change)' : `Playback speed ${label} — click to cycle, right-click to reset`}
+    >
+      {label}
     </button>
   );
 }
@@ -7461,6 +7464,7 @@ export default function MusicCreator() {
   const [refAudioBase64, setRefAudioBase64] = useState<string | null>(null);
   const [refSampleInfo, setRefSampleInfo] = useState<string | null>(null);
   const [extracting, setExtracting] = useState(false);
+  const [refExtractProgress, setRefExtractProgress] = useState<CoverSampleProgress | null>(null);
   const [showRecordingsPicker, setShowRecordingsPicker] = useState(false);
   // Juli3ta-track picker. Lets the user grab a saved song from the
   // gallery as the reference audio for Restyle — without re-uploading
@@ -7986,9 +7990,8 @@ export default function MusicCreator() {
     if (generatingRef.current) return;
     generatingRef.current = true;
     setError(null);
-    // Submit wins over draft helpers. By this point the helper-active guard above
-    // passed, so this is normally a no-op; it still freezes any stale controller
-    // left behind by an aborted helper.
+    // Submit wins over draft helpers. Freeze the form snapshot and stop any
+    // Inspire/Suggest/Polish/Optimize/Cover work that could mutate it mid-run.
     abortAllAiTasks();
 
     abortRef.current?.abort();
@@ -8329,17 +8332,27 @@ export default function MusicCreator() {
   const ingestSourceAudio = useCallback(async (
     source: Blob | string,
     displayName: string,
+    options: { videoId?: string } = {},
   ) => {
     const seq = ++ingestSeqRef.current;
     const isCurrent = () => ingestSeqRef.current === seq;
     setError(null);
     setExtracting(true);
+    setRefExtractProgress({
+      stage: 'loading',
+      progress: 0.04,
+      message: 'Preparing compact reference sample…',
+    });
     setRefAudioBase64(null);
     setRefAudioName(displayName);
     setRefSampleInfo(null);
+    const fastRemote = typeof source === 'string' && /^https?:\/\//i.test(source);
+    const onProgress = (progress: CoverSampleProgress) => {
+      if (isCurrent()) setRefExtractProgress(progress);
+    };
     try {
       if (sampleStrategy === 'mix') {
-        const result = await buildIconicMix(source);
+        const result = await buildIconicMix(source, { onProgress });
         if (!isCurrent()) return;
         setRefAudioBase64(result.base64);
         const sourceMin = result.sourceDurationSec / 60;
@@ -8354,7 +8367,57 @@ export default function MusicCreator() {
           setRefSampleInfo(`Using whole clip (${result.durationSec.toFixed(0)} s)`);
         }
       } else {
-        const result = await buildCoverSample(source);
+        if (options.videoId) {
+          try {
+            onProgress({
+              stage: 'loading',
+              progress: 0.12,
+              message: 'Creating fast server-side reference cut…',
+            });
+            const r = await fetch(
+              `/api/music/reference-sample?videoId=${encodeURIComponent(options.videoId)}&durationSec=14`,
+            );
+            if (!r.ok) throw new Error(`reference sample HTTP ${r.status}`);
+            const sample = await r.json() as {
+              base64?: string;
+              durationSec?: number;
+              startSec?: number;
+              sourceDurationSec?: number | null;
+            };
+            if (!sample.base64) throw new Error('reference sample response missing audio');
+            if (!isCurrent()) return;
+            onProgress({
+              stage: 'done',
+              progress: 1,
+              message: 'Reference sample ready.',
+            });
+            setRefAudioBase64(sample.base64);
+            const durationSec = sample.durationSec ?? 14;
+            const sourceDurationSec = sample.sourceDurationSec ?? durationSec;
+            const startSec = sample.startSec ?? 0;
+            const sourceMin = sourceDurationSec / 60;
+            const startMin = startSec / 60;
+            const startStr = startSec < 60
+              ? `${startSec.toFixed(1)} s`
+              : `${Math.floor(startMin)}:${Math.floor(startSec % 60).toString().padStart(2, '0')}`;
+            setRefSampleInfo(
+              sourceDurationSec <= durationSec + 0.5
+                ? `Using whole clip (${durationSec.toFixed(0)} s)`
+                : `Fast-cut compact ${durationSec.toFixed(0)} s starting at ${startStr} of ${sourceMin.toFixed(1)} min`,
+            );
+            return;
+          } catch {
+            onProgress({
+              stage: 'loading',
+              progress: 0.08,
+              message: 'Fast server cut unavailable — using browser fallback…',
+            });
+          }
+        }
+        const result = await buildCoverSample(source, {
+          fastRemote,
+          onProgress,
+        });
         if (!isCurrent()) return;
         setRefAudioBase64(result.base64);
         const sourceMin = result.sourceDurationSec / 60;
@@ -8365,7 +8428,7 @@ export default function MusicCreator() {
         setRefSampleInfo(
           result.sourceDurationSec <= result.durationSec + 0.5
             ? `Using whole clip (${result.durationSec.toFixed(0)} s)`
-            : `Auto-picked best ${result.durationSec.toFixed(0)} s starting at ${startStr} of ${sourceMin.toFixed(1)} min`,
+            : `Auto-picked compact ${result.durationSec.toFixed(0)} s starting at ${startStr} of ${sourceMin.toFixed(1)} min`,
         );
       }
     } catch (err) {
@@ -8373,7 +8436,10 @@ export default function MusicCreator() {
       setError((err as Error).message || 'Could not analyze that audio.');
       setRefAudioName(null);
     } finally {
-      if (isCurrent()) setExtracting(false);
+      if (isCurrent()) {
+        setExtracting(false);
+        setRefExtractProgress(null);
+      }
     }
   }, [sampleStrategy]);
 
@@ -8538,6 +8604,7 @@ export default function MusicCreator() {
     setRefAudioBase64(null);
     setRefAudioName(null);
     setRefSampleInfo(null);
+    setRefExtractProgress(null);
   };
 
   const cancel = () => {
@@ -8558,7 +8625,7 @@ export default function MusicCreator() {
   //  - Tries multiple response shapes (some MiniMax/legacy chat-
   //    compat APIs expose `text` or `delta.content` instead of
   //    `message.content`).
-  //  - Single in-flight request per button (callers gate on aiBusy).
+  //  - Single in-flight request per operation (callers gate by task).
   const callAIAssist = useCallback(async (
     systemPrompt: string,
     userPayload: unknown,
@@ -8607,27 +8674,27 @@ export default function MusicCreator() {
     const baseTemp = opts?.temperature ?? 0.5;
     const maxTokens = Math.max(opts?.maxTokens ?? 800, 400);
 
-    // Chat-assist buttons need a cheap general text model, not the
-    // gateway's broad compound/search aliases. The remote AIL /models
-    // order is not stable and some provider-prefixed compound aliases
-    // (`minimax/ail-compound`) currently fail hard with
-    // `web_search is not support (2013)`. Rank deterministic text
-    // aliases first and keep reasoning/compound fallbacks last.
+    // Chat-assist buttons need a plain text model, not the gateway's
+    // broad compound/search aliases. The remote AIL /models order is
+    // not stable. In live pod 04 testing, DeepSeek/Kimi aliases often
+    // returned reasoning_content with empty content, wasting 20s+ before
+    // fallback; MiniMax provider-prefixed chat aliases returned usable
+    // content and did not inject unsupported web_search params.
     const chatAssistRank = (id: string): number => {
       const x = id.toLowerCase();
-      if (/^(deepseek\/)?ail-fast$/.test(x)) return 10;
-      if (/^(deepseek\/)?ail-balanced$/.test(x)) return 20;
-      if (/^(ail-compound-minimax|minimax\/ail-compound-minimax)$/.test(x)) return 30;
-      if (/^minimax\/ail-balanced$/.test(x)) return 40;
-      if (/^minimax\/ail-kimi$/.test(x)) return 50;
+      if (/^minimax\/ail-compound-minimax$/.test(x)) return 10;
+      if (/^minimax\/ail-balanced$/.test(x)) return 20;
+      if (/^minimax\/ail-kimi$/.test(x)) return 30;
       if (/^moonshot\/ail-balanced$/.test(x)) return 60;
       if (/^moonshot\/ail-compound$/.test(x)) return 70;
+      if (/^(deepseek\/)?ail-fast$/.test(x)) return 85;
+      if (/^(deepseek\/)?ail-balanced$/.test(x)) return 86;
       if (/^(ail-compound|moonshot\/ail-kimi|ail-kimi|ail-kimi-strict|moonshot\/ail-kimi-strict)$/.test(x)) return 90;
       if (/search/.test(x)) return 100;
       return 80;
     };
     const isKnownBrokenChatAlias = (id: string): boolean =>
-      /^minimax\/ail-compound$/i.test(id);
+      /^minimax\/ail-compound$/i.test(id) || /^ail-compound-minimax$/i.test(id);
     tryOrder.sort((a, b) => chatAssistRank(a) - chatAssistRank(b));
     const orderedModels = tryOrder.filter((id) => !isKnownBrokenChatAlias(id));
     // Per-call wall-clock cap. Lyrics path uses 60s; chat assists are
@@ -8939,6 +9006,27 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
     setTheme(themes[Math.floor(Math.random() * themes.length)]);
   };
 
+  // Player-side surprise: take the track currently shown in the Player
+  // view, drop it into Creator > Restyle as the reference audio
+  // (loadTrack does the heavy lifting — audio ingest, lyrics, style,
+  // cover, specs), then re-randomize the theme on top. The user lands
+  // in a remix-ready form with a fresh creative direction, one click.
+  // Resolver mirrors the PlayerView track lookup at the render site so
+  // "what's currently playing/selected" always matches what the button
+  // operates on. Falls back to a plain creator-side surprise when the
+  // library is empty.
+  const surpriseFromPlayer = () => {
+    const candId =
+      selectedPlayerTrackId ??
+      player.state.trackId ??
+      visibleGallery[0]?.id ??
+      libraryTracks[0]?.id ??
+      null;
+    const track = candId ? allPlayerTracks.find((t) => t.id === candId) ?? null : null;
+    if (track) loadTrack(track);
+    setView('creator');
+    surpriseMe();
+  };
 
   const deleteTrack = useCallback((id: string) => {
     setGallery((g) => g.filter((track) => track.id !== id));
@@ -9162,7 +9250,7 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
           const src = cached && Date.now() - cached.resolvedAt < 90 * 60 * 1000
             ? cached.src
             : (await getMusicStream(externalId)).proxyUrl;
-          await ingestSourceAudio(src, `${cleanTitle}.mp3`);
+          await ingestSourceAudio(src, `${cleanTitle}.mp3`, { videoId: externalId });
         } catch (e) {
           setExtracting(false);
           setRefAudioBase64(null);
@@ -9407,7 +9495,7 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
         ],
       },
     ],
-  }), [currentWindow, abortAllAiTasks, surpriseMe]);
+  }), [currentWindow, abortAllAiTasks]);
   useShellMenuRegistration(currentWindow?.id ?? null, shellMenuModel);
 
   // Single source of truth for the gallery filter. Previously the
@@ -9659,8 +9747,8 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
   // track. We only run this AFTER the hydration sources have settled
   // (≥1 track loaded somewhere) — running it eagerly on first paint
   // would clear the persisted id while data is still loading. The
-  // allPlayerTracks.length > 0 check is a heuristic: when at least
-  // one row is loaded, we're past initial hydration and can trust
+  // useFullGallery + libraryTracks check is a heuristic: when at least
+  // one of those has rows, we're past initial hydration and can trust
   // the lookup.
   useEffect(() => {
     if (!selectedPlayerTrackId) return;
@@ -9668,7 +9756,6 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
     const exists = allPlayerTracks.some((t) => t.id === selectedPlayerTrackId);
     if (!exists) setSelectedPlayerTrackId(null);
   }, [selectedPlayerTrackId, allPlayerTracks]);
-
 
   // Player owns one <audio> element shared by every play surface
   // (TrackCard, TrackTable row, MiniPlayer). The ref is created here
@@ -9679,28 +9766,6 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
   // currently sees — search-filtered or not.
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const player = usePlayer(allPlayerTracks, audioRef, resolveTrackAudioSrc);
-
-  // Player-side surprise: take the track currently shown in the Player
-  // view, drop it into Creator > Restyle as the reference audio
-  // (loadTrack does the heavy lifting — audio ingest, lyrics, style,
-  // cover, specs), then re-randomize the theme on top. The user lands
-  // in a remix-ready form with a fresh creative direction, one click.
-  // Resolver mirrors the PlayerView track lookup at the render site so
-  // "what's currently playing/selected" always matches what the button
-  // operates on. Falls back to a plain creator-side surprise when the
-  // library is empty.
-  const surpriseFromPlayer = () => {
-    const candId =
-      selectedPlayerTrackId ??
-      player.state.trackId ??
-      visibleGallery[0]?.id ??
-      libraryTracks[0]?.id ??
-      null;
-    const track = candId ? allPlayerTracks.find((t) => t.id === candId) ?? null : null;
-    if (track) loadTrack(track);
-    setView('creator');
-    surpriseMe();
-  };
 
   // Whenever a new track becomes the active player track, prepend it
   // to the recently-played MRU stack (dedupe, cap at 8). We watch the
@@ -9890,14 +9955,12 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
     // player.state.loadingTrackId === track.id) instead of staring at
     // a tiny row spinner for 2-3s while YouTube's URL resolves. The
     // stream URL resolves lazily inside player.play() →
-    // resolveTrackAudioSrc → getMusicStream, so there's no need to
-    // await it here.
+    // resolveTrackAudioSrc. If search prewarm is still in flight,
+    // player.play joins that exact promise instead of launching a
+    // duplicate yt-dlp resolve. Do not stuff the proxy URL into
+    // audioDataUrl: remote URLs expire and must stay refreshable.
     const key = musicStreamKey(result.id);
-    const cached = runtimeStreams[key];
-    const stub = resultToTrack(
-      result,
-      cached ? { id: key, audioDataUrl: cached.src } : undefined,
-    );
+    const stub = resultToTrack(result, { id: key });
     setPreviewTracks((rows) => [stub, ...rows.filter((t) => t.id !== stub.id)]);
     setSelectedPlayerTrackId(stub.id);
     setView('player');
@@ -9906,7 +9969,7 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
     // but clear it so the row's button isn't permanently disabled if the
     // user navigates back to the search pane.
     setPreviewBusyId(null);
-  }, [player, resultToTrack, runtimeStreams]);
+  }, [player, resultToTrack]);
 
   const warmMusicResult = useCallback((result: MusicSearchResult) => {
     void resolveMusicStreamUrl(result.id).catch(() => { /* best-effort interactive warmup */ });
@@ -11016,7 +11079,7 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
             now?". Apple-Music-inspired layout, but uses the same
             bg-titlebar / accent gradient as the rest of Tytus OS so
             it visually disappears into the chrome when idle. */}
-        {(busy || error || galleryError) && (
+        {(busy || extracting || error || galleryError) && (
           <div
             className="flex-shrink-0"
             style={{
@@ -11028,11 +11091,11 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
                   : 'var(--bg-titlebar)',
             }}
           >
-            {busy && (
+            {(busy || extracting) && (
               <div className="overflow-hidden" style={{ height: 2, background: 'var(--bg-hover)' }}>
                 <div
                   style={{
-                    width: `${progress * 100}%`,
+                    width: `${(busy ? progress : (refExtractProgress?.progress ?? 0.08)) * 100}%`,
                     height: '100%',
                     background: 'linear-gradient(to right, var(--accent-primary), var(--accent-secondary))',
                     transition: 'width 0.25s ease',
@@ -11066,6 +11129,16 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
                   </span>
                   <span style={{ fontSize: 10, color: 'var(--text-disabled)', flexShrink: 0 }}>
                     {phase === 'lyrics' ? 'Step 1 / 2 · Lyrics' : 'Step 2 / 2 · Music'}
+                  </span>
+                </>
+              ) : extracting ? (
+                <>
+                  <Loader2 size={11} className="animate-spin" style={{ color: 'var(--accent-primary)', flexShrink: 0 }} />
+                  <span className="flex-1 truncate" style={{ color: 'var(--text-secondary)' }} title={refExtractProgress?.message ?? ''}>
+                    {refExtractProgress?.message ?? 'Preparing reference audio…'}
+                  </span>
+                  <span style={{ fontSize: 10, color: 'var(--text-disabled)', flexShrink: 0 }}>
+                    Reference · {Math.round((refExtractProgress?.progress ?? 0.08) * 100)}%
                   </span>
                 </>
               ) : (
@@ -11148,7 +11221,19 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
                 </div>
                 {(extracting || refSampleInfo) && (
                   <div style={{ fontSize: 10, color: 'var(--text-disabled)', marginTop: 4 }}>
-                    {extracting ? '🔍  Listening for the best part…' : `✨  ${refSampleInfo}`}
+                    {extracting ? `🔍  ${refExtractProgress?.message ?? 'Preparing compact reference sample…'}` : `✨  ${refSampleInfo}`}
+                  </div>
+                )}
+                {extracting && (
+                  <div className="overflow-hidden rounded-full" style={{ height: 3, background: 'var(--bg-hover)', marginTop: 7 }}>
+                    <div
+                      style={{
+                        width: `${(refExtractProgress?.progress ?? 0.08) * 100}%`,
+                        height: '100%',
+                        background: 'linear-gradient(to right, var(--accent-primary), var(--accent-secondary))',
+                        transition: 'width 0.25s ease',
+                      }}
+                    />
                   </div>
                 )}
                 {refAudioBase64 && !extracting && (
@@ -11254,7 +11339,7 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
                     <Sparkles size={13} style={{ color: sampleStrategy === 'best' ? 'var(--accent-primary)' : 'var(--text-secondary)' }} />
                     <div className="text-left flex-1">
                       <div style={{ fontSize: 11, fontWeight: 600 }}>Best compact</div>
-                      <div style={{ fontSize: 9, color: 'var(--text-disabled)' }}>single chorus-like window</div>
+                      <div style={{ fontSize: 9, color: 'var(--text-disabled)' }}>gateway-safe chorus-like window</div>
                     </div>
                   </button>
                   <button
@@ -11269,7 +11354,7 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
                     <Layers size={13} style={{ color: sampleStrategy === 'mix' ? 'var(--accent-primary)' : 'var(--text-secondary)' }} />
                     <div className="text-left flex-1">
                       <div style={{ fontSize: 11, fontWeight: 600 }}>Iconic mix</div>
-                      <div style={{ fontSize: 9, color: 'var(--text-disabled)' }}>3 best parts crossfaded</div>
+                      <div style={{ fontSize: 9, color: 'var(--text-disabled)' }}>3 compact parts crossfaded</div>
                     </div>
                   </button>
                 </div>
@@ -11428,9 +11513,9 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
               style={{ display: 'none' }}
             />
             <div style={{ fontSize: 10, color: 'var(--text-disabled)', marginTop: 6, lineHeight: 1.4 }}>
-              💡 JULI3TA will <strong>auto-pick the best 30&nbsp;s</strong> of the clip
-              by analyzing energy + steadiness. Long recordings get trimmed to
-              the most musical chunk.
+              💡 JULI3TA will <strong>auto-pick a compact gateway-safe sample</strong> of the clip
+              by analyzing energy + steadiness. Long recordings get trimmed and
+              downsampled before Restyle so the request stays small.
             </div>
 
             {/* Voice recordings picker modal */}

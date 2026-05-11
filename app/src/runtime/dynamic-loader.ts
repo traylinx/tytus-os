@@ -131,11 +131,11 @@ function isRemoteEntryUrl(entryUrl: string): boolean {
   return /^https?:\/\//i.test(entryUrl);
 }
 
-const JULI3TA_GATEWAY_FIX_VERSION = '0.3.12';
+const JULI3TA_GATEWAY_FIX_VERSION = '0.3.17';
 const JULI3TA_GATEWAY_FIX_MANIFEST_URL =
-  'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-juli3ta@juli3ta-0.3.12/tytus-app.json';
+  'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-juli3ta@juli3ta-0.3.17/tytus-app.json';
 const JULI3TA_GATEWAY_FIX_ENTRY_URL =
-  'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-juli3ta@juli3ta-0.3.12/dist/index.js';
+  'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-juli3ta@juli3ta-0.3.17/dist/index.js';
 
 const JULI3TA_GATEWAY_FIX_MANIFEST: Manifest = {
   $schema: 'https://tytus.traylinx.com/schema/app/v1.json',
