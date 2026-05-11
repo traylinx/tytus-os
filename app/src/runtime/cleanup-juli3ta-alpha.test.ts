@@ -174,32 +174,32 @@ describe('cleanupJuli3taAlphaIfPresent', () => {
 
 
 describe('upgradeJuli3taGatewayFixIfStale', () => {
-  it('upgrades existing standalone JULI3TA rows below v0.3.12 to the gateway-fix tag', async () => {
+  it('upgrades existing standalone JULI3TA rows below v0.3.17 to the gateway-fix tag', async () => {
     await insertInstalledApp(db, alphaRow('0.3.2'));
 
     const report = await upgradeJuli3taGatewayFixIfStale(db);
 
     expect(report.upgraded).toBe(true);
-    expect(report.reason).toMatch(/0\.3\.2 to 0\.3\.12/);
+    expect(report.reason).toMatch(/0\.3\.2 to 0\.3\.17/);
     const [row] = await listInstalledApps(db);
-    expect(row?.manifest.version).toBe('0.3.12');
+    expect(row?.manifest.version).toBe('0.3.17');
     expect(row?.entryUrl).toBe(
-      'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-juli3ta@juli3ta-0.3.12/dist/index.js',
+      'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-juli3ta@juli3ta-0.3.17/dist/index.js',
     );
     expect(row?.manifestUrl).toBe(
-      'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-juli3ta@juli3ta-0.3.12/tytus-app.json',
+      'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-juli3ta@juli3ta-0.3.17/tytus-app.json',
     );
   });
 
   it('keeps current standalone JULI3TA rows unchanged', async () => {
-    await insertInstalledApp(db, alphaRow('0.3.12'));
+    await insertInstalledApp(db, alphaRow('0.3.17'));
 
     const report = await upgradeJuli3taGatewayFixIfStale(db);
 
     expect(report.upgraded).toBe(false);
-    expect(report.reason).toBe('version 0.3.12 is current');
+    expect(report.reason).toBe('version 0.3.17 is current');
     const [row] = await listInstalledApps(db);
-    expect(row?.manifest.version).toBe('0.3.12');
+    expect(row?.manifest.version).toBe('0.3.17');
     expect(row?.entryUrl).toBe('https://cdn.example.com/juli3ta.js');
   });
 });

@@ -76,6 +76,18 @@ export const buildJuli3taGatewayCandidates = (
   const out: Juli3taGatewayCandidate[] = [];
   const seenUrls = new Set<string>();
 
+  // Prefer the user's local switchAILocal first. JULI3TA Restyle/Cover can need
+  // gateway-side provider compatibility shims (MiniMax cover preprocessing);
+  // the local gateway is the one we can update immediately. Account AIL remains
+  // the fallback when local AIL is not running.
+  pushUnique(out, seenUrls, {
+    url: LOCAL_AIL_URL,
+    apiKey: LOCAL_AIL_KEY,
+    podId: 'local',
+    source: 'local',
+    label: 'Local AIL',
+  });
+
   for (const p of included) {
     const rawPod = p as RawIncludedPod;
     const meta = isRecord(rawPod.meta) ? rawPod.meta : {};
@@ -124,14 +136,6 @@ export const buildJuli3taGatewayCandidates = (
       });
     }
   }
-
-  pushUnique(out, seenUrls, {
-    url: LOCAL_AIL_URL,
-    apiKey: LOCAL_AIL_KEY,
-    podId: 'local',
-    source: 'local',
-    label: 'Local AIL',
-  });
 
   return out;
 };

@@ -23,19 +23,21 @@ describe('JULI3TA gateway candidate building', () => {
     expect(normalizeAilGatewayUrl('')).toBeNull();
   });
 
-  it('tries remote included AIL before tunnel endpoint before local switchAILocal', () => {
+  it('tries local switchAILocal before remote included AIL and tunnel endpoint', () => {
     const candidates = buildJuli3taGatewayCandidates([included()]);
 
     expect(candidates.map((c) => c.url)).toEqual([
+      'http://localhost:18080/v1',
       'https://pod-04.tytus.traylinx.com/v1',
       'http://10.42.42.1:18080/v1',
-      'http://localhost:18080/v1',
     ]);
-    expect(candidates.map((c) => c.podId)).toEqual(['04:remote', '04:tunnel', 'local']);
-    expect(candidates[0]?.label).toBe('AIL gateway 04 (remote)');
-    expect(candidates[0]?.proxyPodId).toBe('04');
-    expect(candidates[1]?.label).toBe('AIL gateway 04 (tunnel)');
+    expect(candidates.map((c) => c.podId)).toEqual(['local', '04:remote', '04:tunnel']);
+    expect(candidates[0]?.label).toBe('Local AIL');
+    expect(candidates[0]?.proxyPodId).toBeUndefined();
+    expect(candidates[1]?.label).toBe('AIL gateway 04 (remote)');
     expect(candidates[1]?.proxyPodId).toBe('04');
+    expect(candidates[2]?.label).toBe('AIL gateway 04 (tunnel)');
+    expect(candidates[2]?.proxyPodId).toBe('04');
   });
 
   it('de-duplicates identical public and tunnel gateway URLs', () => {
@@ -44,8 +46,8 @@ describe('JULI3TA gateway candidate building', () => {
     ]);
 
     expect(candidates.map((c) => c.url)).toEqual([
-      'https://pod-04.tytus.traylinx.com/v1',
       'http://localhost:18080/v1',
+      'https://pod-04.tytus.traylinx.com/v1',
     ]);
   });
 
@@ -54,7 +56,7 @@ describe('JULI3TA gateway candidate building', () => {
       included({ user_key: 'sk-raw-daemon-key' as unknown as IncludedPod['user_key'] }),
     ]);
 
-    expect(candidates[0]?.apiKey).toBe('sk-raw-daemon-key');
+    expect(candidates[1]?.apiKey).toBe('sk-raw-daemon-key');
   });
 
   it('accepts camelCase and apiKey variants from embedded app host state', () => {
@@ -69,13 +71,13 @@ describe('JULI3TA gateway candidate building', () => {
     ]);
 
     expect(candidates.map((c) => c.url)).toEqual([
+      'http://localhost:18080/v1',
       'https://public.example.com/v1',
       'http://10.0.0.2:18080/v1',
-      'http://localhost:18080/v1',
     ]);
-    expect(candidates[0]?.apiKey).toBe('sk-camel-key');
-    expect(candidates[0]?.podId).toBe('pod-camel:remote');
-    expect(candidates[0]?.proxyPodId).toBe('pod-camel');
+    expect(candidates[1]?.apiKey).toBe('sk-camel-key');
+    expect(candidates[1]?.podId).toBe('pod-camel:remote');
+    expect(candidates[1]?.proxyPodId).toBe('pod-camel');
   });
 
   it('accepts host-api pod meta gateway fields from standalone apps', () => {
@@ -93,12 +95,12 @@ describe('JULI3TA gateway candidate building', () => {
     ]);
 
     expect(candidates.map((c) => c.url)).toEqual([
+      'http://localhost:18080/v1',
       'https://host-public.example.com/v1',
       'http://10.42.42.1:18080/v1',
-      'http://localhost:18080/v1',
     ]);
-    expect(candidates[0]?.apiKey).toBe('sk-meta-key');
-    expect(candidates[0]?.podId).toBe('04:remote');
-    expect(candidates[0]?.proxyPodId).toBe('04');
+    expect(candidates[1]?.apiKey).toBe('sk-meta-key');
+    expect(candidates[1]?.podId).toBe('04:remote');
+    expect(candidates[1]?.proxyPodId).toBe('04');
   });
 });
