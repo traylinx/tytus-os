@@ -40,7 +40,7 @@ const ALL_FEATURED_APPS: FeaturedApp[] = [
     description: 'Monaco workspace with persistent local state, intelligent AIL chat, dynamic file context, semantic retrieval, AI edit previews, embedded docs, and Tytus Resource Fabric cockpit.',
     icon: 'atomek:mark',
     category: 'Productivity',
-    manifestUrl: 'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-atomek@v0.4.23/tytus-app.json',
+    manifestUrl: 'https://raw.githubusercontent.com/traylinx/tytus-app-atomek/v0.4.23/tytus-app.json',
   },
   {
     id: 'text-editor',
@@ -132,22 +132,9 @@ interface RemoteCatalogShape {
 }
 
 function normalizeCatalogManifestUrl(url: string): string {
-  try {
-    const parsed = new URL(url);
-    if (
-      parsed.protocol === 'https:' &&
-      parsed.hostname === 'raw.githubusercontent.com'
-    ) {
-      const [owner, repo, ref, ...path] = parsed.pathname
-        .split('/')
-        .filter(Boolean);
-      if (owner === 'traylinx' && repo && ref && path.length > 0) {
-        return `https://cdn.jsdelivr.net/gh/traylinx/${repo}@${ref}/${path.join('/')}`;
-      }
-    }
-  } catch {
-    return url;
-  }
+  // Preserve raw.githubusercontent.com URLs. They are HTTPS + CORS-safe, and
+  // jsDelivr currently mis-resolves the Atomek v0.4.23 manifest ref while the
+  // raw GitHub URL works. Entry bundles still load from CDN when manifests say so.
   return url;
 }
 
