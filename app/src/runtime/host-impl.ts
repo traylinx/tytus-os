@@ -660,12 +660,17 @@ function makeLocalApi(): LocalApi {
         );
       }
       const launchLine = terminalLaunchLine(input);
-      WINDOWS_ACTIONS.openOrFocus('terminal', {
+      const args = {
         terminal: {
           command: 'shell',
           initialInput: launchLine,
         },
-      } as unknown as AnyWindowArgs);
+      } as unknown as AnyWindowArgs;
+      if (launchLine) {
+        WINDOWS_ACTIONS.open('terminal', args);
+      } else {
+        WINDOWS_ACTIONS.openOrFocus('terminal', args);
+      }
     },
     async runJob(input: LocalJobInput, signal?: AbortSignal): Promise<LocalJob> {
       return sameOriginPostJson<LocalJob>(

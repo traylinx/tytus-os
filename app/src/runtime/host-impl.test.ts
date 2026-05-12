@@ -554,6 +554,60 @@ describe('windows.openOrFocus', () => {
   });
 });
 
+// ─── local.openTerminal ───────────────────────────────────────────────
+
+describe('local.openTerminal', () => {
+  it('opens a fresh terminal window when launching a concrete CLI command', async () => {
+    const opened: Array<[string, AnyWindowArgs | undefined]> = [];
+    const focused: Array<[string, AnyWindowArgs | undefined]> = [];
+    setWindowsActions({
+      open: (id, args) => {
+        opened.push([id, args]);
+        return 'terminal-new';
+      },
+      openOrFocus: (id, args) => {
+        focused.push([id, args]);
+        return 'terminal-existing';
+      },
+      close: () => {},
+      addDesktopIcon: () => {},
+      current: (appId) => ({ id: 'cur', appId }),
+    });
+    const host = makeHostForApp('demo', fakeManifest, fakeEntryUrls);
+    await host.local!.openTerminal({ command: 'opencode', cwd: '/tmp/work', prompt: 'Ship it' });
+    expect(focused).toEqual([]);
+    expect(opened).toHaveLength(1);
+    expect(opened[0][0]).toBe('terminal');
+    const args = opened[0][1] as { terminal: { command: string; initialInput: string } };
+    expect(args.terminal.command).toBe('shell');
+    expect(args.terminal.initialInput).toContain("cd \'/tmp/work\'\n");
+    expect(args.terminal.initialInput).toContain('opencode\n');
+  });
+
+  it('focuses an existing terminal for a plain shell request', async () => {
+    const opened: Array<[string, AnyWindowArgs | undefined]> = [];
+    const focused: Array<[string, AnyWindowArgs | undefined]> = [];
+    setWindowsActions({
+      open: (id, args) => {
+        opened.push([id, args]);
+        return 'terminal-new';
+      },
+      openOrFocus: (id, args) => {
+        focused.push([id, args]);
+        return 'terminal-existing';
+      },
+      close: () => {},
+      addDesktopIcon: () => {},
+      current: (appId) => ({ id: 'cur', appId }),
+    });
+    const host = makeHostForApp('demo', fakeManifest, fakeEntryUrls);
+    await host.local!.openTerminal({ command: 'shell' });
+    expect(opened).toEqual([]);
+    expect(focused).toHaveLength(1);
+    expect(focused[0][0]).toBe('terminal');
+  });
+});
+
 // ─── W2 — shellMenu.register ──────────────────────────────────────────
 
 describe('shellMenu.register', () => {
