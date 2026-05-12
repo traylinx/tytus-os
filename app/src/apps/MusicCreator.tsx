@@ -8,7 +8,7 @@
 //
 // Flow:
 //   1. /v1/music/lyrics  → song_title + lyrics
-//   2. /v1/music/generations (model: discovered from /v1/models) → base64 MP3
+//   2. /v1/music/generations (model: discovered from /v1/models) → MP3 stream/base64
 //   3. Save MP3 + lyrics + metadata as real files under ~/Music/JULI3TA
 //   4. Real <audio> playback in the gallery row
 //
@@ -123,7 +123,7 @@ type VoiceRecording = VoiceRecordingRow;
 // vX.Y.Z") and the Settings dialog footer so users can see exactly
 // which release they're running. Bumped in lockstep with package.json
 // + tytus-app.json on every release.
-const APP_VERSION = '0.3.18';
+const APP_VERSION = '0.3.19';
 
 // ──────────────────────────────────────────────────────────
 // Cross-app drag MIME types
@@ -806,6 +806,17 @@ const audioBlobFromBase64 = (base64: string, mime = 'audio/wav'): Blob => {
   const bytes = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
   return new Blob([bytes], { type: mime });
+};
+
+const arrayBufferToBase64 = (buffer: ArrayBuffer): string => {
+  const bytes = new Uint8Array(buffer);
+  const chunkSize = 0x8000;
+  let binary = '';
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    const chunk = bytes.subarray(i, i + chunkSize);
+    binary += String.fromCharCode(...chunk);
+  }
+  return btoa(binary);
 };
 
 const wavDurationMsFromBase64 = (base64: string): number | null => {
@@ -1574,6 +1585,15 @@ const callMusic = async (
     if (!isCover || cleanedLyrics) body.lyrics = cleanedLyrics;
     if (args.prompt) body.prompt = args.prompt;
     if (args.instrumental) body.instrumental = true;
+    // MiniMax's sync JSON music endpoint can accept the job and then close the
+    // long-running response with a transport-level `unexpected EOF`, which
+    // switchAILocal correctly surfaces as HTTP 500. For normal song generation
+    // prefer the gateway's streaming path: same single upstream request, earlier
+    // first byte, no giant hex JSON response to keep open. Restyle/cover stays
+    // on JSON because the cover adapter may run a preprocess step and returns
+    // richer validation errors for bad references.
+    const preferStreamingAudio = !isCover;
+    if (preferStreamingAudio) body.stream = true;
     if (isCover) {
       const cleanRef = normaliseAudioBase64(args.refAudioBase64 ?? '');
       body.audio_base64 = cleanRef;
@@ -1621,6 +1641,26 @@ const callMusic = async (
         );
       }
       throw new GatewayError(r.status, errBody, `Music HTTP ${r.status}: ${errBody.slice(0, 300)}`);
+    }
+    const contentType = r.headers.get('content-type')?.toLowerCase() ?? '';
+    if (preferStreamingAudio && (contentType.includes('audio/') || contentType.includes('application/octet-stream'))) {
+      const audioBytes = await r.arrayBuffer();
+      if (audioBytes.byteLength < 100) {
+        throw new GatewayError(502, '', 'Music stream returned no audio data — gateway accepted the call but upstream returned nothing.');
+      }
+      return {
+        data: {
+          audio: arrayBufferToBase64(audioBytes),
+          duration_ms: 0,
+          bitrate: 0,
+          sample_rate: 0,
+          channels: 0,
+          format: 'mp3',
+          size_bytes: audioBytes.byteLength,
+        },
+        model: modelId,
+        trace_id: '',
+      };
     }
     const json = await r.json() as MusicResponse;
     // Validate inside the helper so multi-model fallback can retry on
