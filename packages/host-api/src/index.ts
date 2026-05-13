@@ -78,6 +78,8 @@ export type {
 export type {
   HostClient,
   AppBootEnv,
+  AppUpdateStatus,
+  AppsApi,
   FsApi,
   FsChangeEvent,
   UserFolderName,

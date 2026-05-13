@@ -40,7 +40,7 @@ const ALL_FEATURED_APPS: FeaturedApp[] = [
     description: 'Monaco workspace with persistent local state, intelligent AIL chat, dynamic file context, semantic retrieval, AI edit previews, embedded docs, and Tytus Resource Fabric cockpit.',
     icon: 'atomek:mark',
     category: 'Productivity',
-    manifestUrl: 'https://raw.githubusercontent.com/traylinx/tytus-app-atomek/v0.4.23/tytus-app.json',
+    manifestUrl: 'https://raw.githubusercontent.com/traylinx/tytus-app-atomek/v0.4.24/tytus-app.json',
   },
   {
     id: 'text-editor',
@@ -96,7 +96,7 @@ const ALL_FEATURED_APPS: FeaturedApp[] = [
     description: 'Full AI-native music creator for Tytus OS. Create songs, lyrics, covers, and manage your local music workbench.',
     icon: 'juli3ta:mark',
     category: 'Creative',
-    manifestUrl: 'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-juli3ta@juli3ta-0.3.19/tytus-app.json',
+    manifestUrl: 'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-juli3ta@juli3ta-0.3.20/tytus-app.json',
   },
 ];
 
@@ -116,7 +116,7 @@ export const FEATURED_APPS: FeaturedApp[] = ALL_FEATURED_APPS.filter(
  *  not keep users on stale standalone app tags. Individual app manifest URLs
  *  remain pinned to immutable app tags. */
 export const FEATURED_CATALOG_URL =
-  'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-catalog@614ed4a601bac6209638ac1de0b36c2227fdd3b1/featured.json';
+  'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-catalog@8ec11e67eba548a235ddc66c260fd9b0026a3f5a/featured.json';
 
 /**
  * Denylist of catalog ids the OS will refuse to auto-install at boot,
@@ -133,7 +133,7 @@ interface RemoteCatalogShape {
 
 function normalizeCatalogManifestUrl(url: string): string {
   // Preserve raw.githubusercontent.com URLs. They are HTTPS + CORS-safe, and
-  // jsDelivr currently mis-resolves the Atomek v0.4.23 manifest ref while the
+  // jsDelivr currently mis-resolves the Atomek v0.4.24 manifest ref while the
   // raw GitHub URL works. Entry bundles still load from CDN when manifests say so.
   return url;
 }

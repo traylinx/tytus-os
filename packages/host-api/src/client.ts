@@ -34,6 +34,9 @@ export interface HostClient {
   /** Tytus resource graph: workspace roots, shared folders, local CLIs,
    *  pods, AIL routes, and app skills normalized for orchestration UIs. */
   resources?: ResourcesApi;
+  /** Self-update surface for installed apps. Bound to the current app id;
+   * apps cannot update another app through this namespace. */
+  apps?: AppsApi;
   /** Tray-managed mission folders under Tytus Home/Missions. Local agents can
    *  receive the returned absolute path as cwd and literally read pack files. */
   missions?: MissionsApi;
@@ -51,6 +54,27 @@ export interface HostClient {
 export interface AppBootEnv {
   host: HostClient;
   createSession: AppCreateSession;
+}
+
+// ─── host.apps ───────────────────────────────────────────────────────
+
+export interface AppUpdateStatus {
+  appId: string;
+  currentVersion: string | null;
+  latestVersion: string | null;
+  updateAvailable: boolean;
+  manifestUrl: string | null;
+  checkedAt: number;
+  source: 'featured-catalog' | 'installed-row' | 'none';
+  error?: string;
+}
+
+export interface AppsApi {
+  /** Check the featured catalog / stored manifest source for a newer
+   * version of the currently-bound installed app. */
+  checkUpdate(): Promise<AppUpdateStatus>;
+  /** Update the currently-bound app in-place from the latest manifest URL. */
+  updateSelf(): Promise<AppUpdateStatus>;
 }
 
 // ─── host.fs ─────────────────────────────────────────────────────────

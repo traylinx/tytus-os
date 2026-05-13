@@ -26,6 +26,8 @@ import type {
   AnyWindowArgs,
   AppBootEnv,
   AppCreateSession,
+  AppsApi,
+  AppUpdateStatus,
   AppDb,
   AssetsApi,
   DaemonApi,
@@ -83,11 +85,14 @@ import { createLocalStorageFs } from './host-fs-localstorage';
 import { createAppDb } from './storage-impl';
 import { resolveManifestMigrations } from './app-migrations';
 import {
+  getInstalledApp,
   listInstalledApps,
   resolveSharedTableNames,
 } from './installed-apps-repo';
 import { getDb } from '@/lib/db';
 import { makeAiApi } from './ai/host-api';
+import { loadFeaturedApps } from '@/apps/featured-apps-catalog';
+import { updateInstalledAppFromManifestUrl } from './installer';
 
 const ASSET_SIZE_LIMIT_BYTES = 1024 * 1024; // 1 MB per spec.
 
@@ -776,6 +781,136 @@ function makeSkillsApi(): SkillsApi {
   };
 }
 
+
+// ─── host.apps ───────────────────────────────────────────────────────
+
+function normalizeVersion(version: string | null | undefined): number[] {
+  if (!version) return [];
+  return version
+    .trim()
+    .replace(/^v/i, '')
+    .split(/[^0-9]+/)
+    .filter(Boolean)
+    .map((part) => Number.parseInt(part, 10))
+    .filter((part) => Number.isFinite(part));
+}
+
+function compareVersions(a: string | null | undefined, b: string | null | undefined): number {
+  const left = normalizeVersion(a);
+  const right = normalizeVersion(b);
+  const len = Math.max(left.length, right.length);
+  for (let i = 0; i < len; i += 1) {
+    const delta = (left[i] ?? 0) - (right[i] ?? 0);
+    if (delta !== 0) return delta;
+  }
+  return 0;
+}
+
+async function fetchManifestVersion(manifestUrl: string, appId: string): Promise<string | null> {
+  const res = await fetch(manifestUrl, { cache: 'no-store' });
+  if (!res.ok) throw new Error(`manifest fetch failed: HTTP ${res.status}`);
+  const body = await res.json() as { id?: unknown; version?: unknown };
+  if (body.id !== appId) {
+    throw new Error(`manifest id mismatch: ${String(body.id)} !== ${appId}`);
+  }
+  return typeof body.version === 'string' ? body.version : null;
+}
+
+async function resolveAppUpdateStatus(appId: string): Promise<AppUpdateStatus> {
+  const db = getDb();
+  const checkedAt = Date.now();
+  if (!db) {
+    return {
+      appId,
+      currentVersion: null,
+      latestVersion: null,
+      updateAvailable: false,
+      manifestUrl: null,
+      checkedAt,
+      source: 'none',
+      error: 'App registry is not ready yet.',
+    };
+  }
+
+  const row = await getInstalledApp(db, appId);
+  const currentVersion = row?.manifest.version ?? null;
+  let manifestUrl = row?.manifestUrl ?? null;
+  let source: AppUpdateStatus['source'] = manifestUrl ? 'installed-row' : 'none';
+
+  try {
+    const featured = await loadFeaturedApps();
+    const match = featured.find((app) => app.id === appId);
+    if (match?.manifestUrl) {
+      manifestUrl = match.manifestUrl;
+      source = 'featured-catalog';
+    }
+  } catch {
+    // loadFeaturedApps already falls back internally; keep stored manifest URL.
+  }
+
+  try {
+    const latestVersion = manifestUrl
+      ? await fetchManifestVersion(manifestUrl, appId)
+      : currentVersion;
+    return {
+      appId,
+      currentVersion,
+      latestVersion,
+      updateAvailable: compareVersions(latestVersion, currentVersion) > 0,
+      manifestUrl,
+      checkedAt: Date.now(),
+      source,
+    };
+  } catch (err) {
+    return {
+      appId,
+      currentVersion,
+      latestVersion: currentVersion,
+      updateAvailable: false,
+      manifestUrl,
+      checkedAt: Date.now(),
+      source,
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
+}
+
+function makeAppsApi(appId: string): AppsApi {
+  return {
+    checkUpdate: () => resolveAppUpdateStatus(appId),
+    updateSelf: async () => {
+      const status = await resolveAppUpdateStatus(appId);
+      if (!status.updateAvailable || !status.manifestUrl) return status;
+      const db = getDb();
+      if (!db) {
+        return { ...status, error: 'App registry is not ready yet.' };
+      }
+      try {
+        const updated = await updateInstalledAppFromManifestUrl({
+          appId,
+          manifestUrl: status.manifestUrl,
+          db,
+        });
+        const currentVersion = updated.manifest.version ?? status.latestVersion ?? status.currentVersion;
+        return {
+          ...status,
+          currentVersion,
+          latestVersion: status.latestVersion ?? currentVersion,
+          updateAvailable: false,
+          checkedAt: Date.now(),
+          error: undefined,
+        };
+      } catch (err) {
+        return {
+          ...status,
+          checkedAt: Date.now(),
+          error: err instanceof Error ? err.message : String(err),
+        };
+      }
+    },
+  };
+}
+
 function makeResourcesApi(): ResourcesApi {
   const list = (signal?: AbortSignal): Promise<TytusResourceGraph> =>
     sameOriginGetJson<TytusResourceGraph>('/api/resources', signal);
@@ -1082,6 +1217,7 @@ export function makeHostForApp(
     local: makeLocalApi(),
     skills: makeSkillsApi(),
     resources: makeResourcesApi(),
+    apps: makeAppsApi(appId),
     missions: makeMissionsApi(),
     media: makeMediaApi(),
     assets: makeAssetsApi(appId, entryUrls.assets),
