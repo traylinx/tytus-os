@@ -42,6 +42,7 @@ import {
   AlertTriangle,
   ExternalLink,
   Search,
+  MessageCircle,
   // Icons resolved dynamically by the docs registry — keep this
   // import alive so tree-shaking can't drop them.
   Rocket,
@@ -67,10 +68,22 @@ import { useCurrentWindowArgs } from '@/hooks/useCurrentWindow';
 import { useJobStream } from '@/hooks/useJobStream';
 import type { LogChunk } from '@/types/daemon';
 import { markdownToHtml } from '@/lib/markdown';
-import { DOCS, findDoc, readingTimeMin, type DocEntry } from '@/lib/docs/registry';
+import {
+  BUNDLED_DOCS_VINTAGE_HASH,
+  DOCS,
+  findDoc,
+  readingTimeMin,
+  resolveCitation,
+  type DocEntry,
+} from '@/lib/docs/registry';
+import {
+  answerCortexDocs,
+  getCortexDocsSources,
+  type CortexDocCitation,
+} from '@/lib/docs/cortexClient';
 
 type DiagnosticTabId = 'doctor' | 'test' | 'logs' | 'about' | 'channels-catalog';
-type TabId = DiagnosticTabId | `docs:${string}`;
+type TabId = DiagnosticTabId | 'live-docs' | `docs:${string}`;
 
 const DIAGNOSTIC_TABS: { id: DiagnosticTabId; label: string; icon: ReactNode }[] = [
   { id: 'doctor', label: 'Doctor', icon: <Stethoscope size={16} /> },
@@ -165,6 +178,15 @@ const Help: FC = () => {
         </div>
 
         <div className="flex-1 overflow-y-auto custom-scrollbar pb-2">
+          <SidebarGroup label="Live Cortex">
+            <SidebarButton
+              active={active === 'live-docs'}
+              onClick={() => setActive('live-docs')}
+              icon={<MessageCircle size={16} />}
+              label="Ask Tytus Docs"
+            />
+          </SidebarGroup>
+
           <SidebarGroup label="User Manual">
             {filteredDocs.length === 0 ? (
               <div className="px-4 py-2 text-[11px] text-[var(--text-secondary)]">
@@ -198,6 +220,7 @@ const Help: FC = () => {
       </div>
 
       <div className="flex-1 overflow-hidden flex flex-col">
+        {active === 'live-docs' && <LiveDocsPanel onOpenDoc={(slug) => setActive(`docs:${slug}`)} />}
         {isDocTab(active) && <DocPanel slug={slugFromTab(active)!} />}
         {active === 'doctor' && (
           <RunPanel
@@ -311,6 +334,214 @@ const DocPanel: FC<{ slug: string }> = ({ slug }) => {
           // folder. No user input flows here.
           dangerouslySetInnerHTML={{ __html: html }}
         />
+      </div>
+    </div>
+  );
+};
+
+// ============================================================
+// LiveDocsPanel — shared Cortex docs bridge
+// ============================================================
+
+const LiveDocsPanel: FC<{ onOpenDoc: (slug: string) => void }> = ({ onOpenDoc }) => {
+  const client = useDaemonClient();
+  const [query, setQuery] = useState('How do I install and use TytusOS?');
+  const [answer, setAnswer] = useState('');
+  const [citations, setCitations] = useState<CortexDocCitation[]>([]);
+  const [corpusHash, setCorpusHash] = useState<string | null>(null);
+  const [sourcesLabel, setSourcesLabel] = useState('checking live docs…');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const ctrl = new AbortController();
+    void getCortexDocsSources(client, ctrl.signal).then((res) => {
+      if (!res.ok) {
+        setSourcesLabel('live docs offline · bundled manual ready');
+        return;
+      }
+      setCorpusHash(res.value.corpus_hash ?? null);
+      const sources = res.value.sources?.length
+        ? res.value.sources.join(', ')
+        : 'Cortex docs';
+      setSourcesLabel(`${sources} · ${res.value.api_version ?? 'docs bridge'}`);
+    });
+    return () => ctrl.abort();
+  }, [client]);
+
+  const ask = useCallback(async () => {
+    const q = query.trim();
+    if (!q) return;
+    setLoading(true);
+    setError(null);
+    const res = await answerCortexDocs(client, {
+      query: q,
+      k: 6,
+      min_score: 0.45,
+      app: 'tytus-os',
+      source: ['docs-hub', 'traylinx-public-references', 'traylinx-user-manuals'],
+    });
+    setLoading(false);
+    if (!res.ok) {
+      setAnswer('');
+      setCitations([]);
+      setError(`${res.error.message}. Using bundled docs fallback.`);
+      return;
+    }
+    setAnswer(res.value.answer || 'Cortex returned citations but no prose answer yet.');
+    setCitations(res.value.citations?.length ? res.value.citations : res.value.results ?? []);
+    setCorpusHash(res.value.corpus_hash ?? corpusHash);
+  }, [client, corpusHash, query]);
+
+  const drift = Boolean(corpusHash && corpusHash !== BUNDLED_DOCS_VINTAGE_HASH);
+
+  return (
+    <div className="flex-1 overflow-y-auto custom-scrollbar">
+      <div className="max-w-[880px] mx-auto px-8 py-6 space-y-4">
+        <div>
+          <div className="flex items-center gap-2 text-[10px] uppercase tracking-wider text-[var(--text-secondary)]">
+            <MessageCircle size={13} />
+            Shared Cortex documentation
+          </div>
+          <h1 className="text-2xl font-semibold mt-2 text-[var(--text-primary)]">
+            Ask Tytus Docs
+          </h1>
+          <p className="text-sm mt-1 text-[var(--text-secondary)]">
+            Live answers use the same Traylinx Cortex documentation database as the web chatbot.
+            Bundled docs stay available offline.
+          </p>
+        </div>
+
+        <div
+          className="rounded-lg p-3 text-xs"
+          style={{
+            border: '1px solid var(--border-subtle)',
+            background: drift ? 'rgba(245,158,11,0.10)' : 'var(--bg-card)',
+            color: drift ? '#facc15' : 'var(--text-secondary)',
+          }}
+        >
+          {sourcesLabel}
+          {drift && ' · bundled docs differ from live Cortex; external citations preferred'}
+        </div>
+
+        <div
+          className="rounded-xl p-3"
+          style={{
+            border: '1px solid var(--border-subtle)',
+            background: 'var(--bg-card)',
+          }}
+        >
+          <textarea
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            rows={3}
+            className="w-full resize-none bg-transparent outline-none text-sm text-[var(--text-primary)] placeholder:text-[var(--text-secondary)]"
+            placeholder="Ask about installs, private pods, shared folders, OpenClaw, Hermes, JULI3TA…"
+          />
+          <div className="flex justify-between items-center pt-3">
+            <span className="text-[11px] text-[var(--text-secondary)]">
+              Routed through local Tytus bridge. No Cortex credentials in the browser.
+            </span>
+            <button
+              onClick={() => void ask()}
+              disabled={loading || !query.trim()}
+              className="px-3 py-1.5 rounded-md text-xs font-semibold disabled:opacity-50"
+              style={{
+                background: 'var(--accent-primary)',
+                color: 'var(--accent-on-primary, #080808)',
+              }}
+            >
+              {loading ? 'Asking…' : 'Ask'}
+            </button>
+          </div>
+        </div>
+
+        {error && (
+          <div
+            className="rounded-lg p-3 text-sm"
+            style={{
+              border: '1px solid rgba(245,158,11,0.35)',
+              background: 'rgba(245,158,11,0.10)',
+              color: '#facc15',
+            }}
+          >
+            {error}
+          </div>
+        )}
+
+        {answer && (
+          <div
+            className="rounded-xl p-4 whitespace-pre-wrap text-sm leading-6 text-[var(--text-primary)]"
+            style={{
+              border: '1px solid var(--border-subtle)',
+              background: 'var(--bg-card)',
+            }}
+          >
+            {answer}
+          </div>
+        )}
+
+        {citations.length > 0 && (
+          <div className="space-y-2">
+            <div className="text-[10px] uppercase tracking-wider text-[var(--text-secondary)]">
+              Citations
+            </div>
+            {citations.map((c, idx) => {
+              const resolved = resolveCitation(c.doc_id, c.anchor, corpusHash);
+              const canOpenBundled = resolved.kind === 'bundled';
+              return (
+                <div
+                  key={`${c.doc_id}-${idx}`}
+                  className="rounded-lg p-3"
+                  style={{
+                    border: '1px solid var(--border-subtle)',
+                    background: 'var(--bg-titlebar)',
+                  }}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="font-medium text-sm text-[var(--text-primary)]">
+                        {c.title}
+                      </div>
+                      <div className="text-xs mt-1 text-[var(--text-secondary)] line-clamp-2">
+                        {c.snippet}
+                      </div>
+                    </div>
+                    {canOpenBundled ? (
+                      <button
+                        className="shrink-0 px-2 py-1 rounded text-xs"
+                        style={{
+                          border: '1px solid var(--accent-primary)',
+                          color: 'var(--accent-primary)',
+                        }}
+                        onClick={() => onOpenDoc(resolved.doc.slug)}
+                      >
+                        Open bundled
+                      </button>
+                    ) : c.url ? (
+                      <a
+                        className="shrink-0 px-2 py-1 rounded text-xs"
+                        style={{
+                          border: '1px solid var(--accent-primary)',
+                          color: 'var(--accent-primary)',
+                        }}
+                        href={c.url}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        Open source
+                      </a>
+                    ) : null}
+                  </div>
+                  <div className="text-[10px] mt-2 text-[var(--text-secondary)]">
+                    {c.source ?? 'cortex'} · {c.doc_id}
+                    {canOpenBundled && !c.anchor && ' · section opens at top'}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );

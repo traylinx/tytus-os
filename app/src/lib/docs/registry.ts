@@ -37,6 +37,8 @@ const troubleshootingGlob = import.meta.glob(
 export interface DocEntry {
   /** filename without .md, e.g. "getting-started" */
   slug: string;
+  /** stable citation id used by the live Cortex docs bridge */
+  docId: string;
   /** parsed from the first H1, falls back to slug */
   title: string;
   /** raw markdown body */
@@ -115,6 +117,7 @@ const buildEntries = (
     const slug = slugFromPath(path);
     return {
       slug,
+      docId: slug,
       title: titleFromBody(body, slug),
       body,
       section,
@@ -143,6 +146,33 @@ export const DOCS: DocEntry[] = [
 
 export const findDoc = (slug: string): DocEntry | undefined =>
   DOCS.find((d) => d.slug === slug);
+
+export const findDocById = (docId: string): DocEntry | undefined => {
+  const id = docId.trim();
+  if (!id) return undefined;
+  return DOCS.find((d) => d.docId === id || d.slug === id);
+};
+
+export type CitationResolution =
+  | { kind: 'bundled'; doc: DocEntry; anchor?: string }
+  | { kind: 'external'; reason: 'unknown-doc' | 'hash-drift' };
+
+export const BUNDLED_DOCS_VINTAGE_HASH = DOCS
+  .map((d) => `${d.docId}:${d.wordCount}`)
+  .join('|');
+
+export const resolveCitation = (
+  docId: string,
+  anchor?: string | null,
+  corpusHash?: string | null,
+): CitationResolution => {
+  const doc = findDocById(docId);
+  if (!doc) return { kind: 'external', reason: 'unknown-doc' };
+  if (corpusHash && corpusHash !== BUNDLED_DOCS_VINTAGE_HASH) {
+    return { kind: 'external', reason: 'hash-drift' };
+  }
+  return { kind: 'bundled', doc, anchor: anchor ?? undefined };
+};
 
 /** Substring search across title + body. Case-insensitive. */
 export const searchDocs = (query: string): DocEntry[] => {

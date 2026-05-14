@@ -73,6 +73,7 @@ The important part is not one specific model. The important part is shared conte
 
 - Apps must use the Tytus host/tray bridge for local files, pods, terminals, and model routes.
 - Browser apps must not direct-fetch pod or gateway URLs that need same-origin proxying.
+- Live Help / Ask Tytus Docs uses `/api/help/*` on the local tray bridge, which proxies to Traylinx Cortex; the browser never receives Cortex database credentials or service tokens.
 - Apps must not hardcode model names. AIL routes define available model aliases globally.
 - Local jobs must use allowlisted tools, not arbitrary shell from model text.
 - Destructive actions need explicit confirmation.

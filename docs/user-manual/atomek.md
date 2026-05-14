@@ -172,7 +172,7 @@ Built-in guides cover:
 - practical use cases
 - agentic app skills
 
-These docs are bundled with the Atomek app so the user can ask about Tytus workflows directly inside TytusOS, even before opening external documentation.
+These docs are bundled as the offline fallback. When the local Tytus help bridge is reachable and live docs are enabled, Atomek and Help can ask the shared Traylinx Cortex documentation database for current TytusOS, OpenClaw, Hermes, JULI3TA, shared-folder, and install guidance without duplicating embeddings locally.
 
 ## Ask pod
 
