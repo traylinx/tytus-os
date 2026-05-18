@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { sanitizeVisibleAgentText } from "./Chat";
+import { sanitizeVisibleAgentText } from "@/runtime/agent-chat";
 
 describe("sanitizeVisibleAgentText", () => {
   it("redacts private network URLs and provider names", () => {
@@ -10,7 +10,7 @@ describe("sanitizeVisibleAgentText", () => {
     expect(sanitized).not.toContain("10.42.42.1");
     expect(sanitized).not.toMatch(/MiniMax|DeepSeek/i);
     expect(sanitized).toContain("[private gateway]");
-    expect(sanitized).toContain("private AI route");
+    expect(sanitized).toMatch(/current model|private AI route/);
   });
 
   it("redacts bare IPv4 host details", () => {

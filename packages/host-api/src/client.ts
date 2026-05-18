@@ -161,6 +161,29 @@ export interface DaemonState {
   included: Pod[];
 }
 
+export type AgentChatTarget = 'agent';
+export type AgentChatMode = 'operator';
+export type AgentChatPreference = 'fast' | 'balanced' | 'deep';
+
+export interface AgentChatRequest {
+  /** Stable internal pod id from daemon state/resources. Never display directly. */
+  podId: string;
+  message: string;
+  /** Optional internal route id from resource metadata. Apps must not display it. */
+  routeId?: string | null;
+  sessionId?: string | null;
+  mode?: AgentChatMode;
+  target?: AgentChatTarget;
+  modelPreference?: AgentChatPreference;
+  signal?: AbortSignal;
+}
+
+export type AgentChatEvent =
+  | { type: 'session'; sessionId: string }
+  | { type: 'token'; text: string }
+  | { type: 'done' }
+  | { type: 'error'; message: string; retryable?: boolean };
+
 // ─── Music daemon (same-origin /api/music/*) ─────────────────────────
 
 export interface MusicStatus {
@@ -592,6 +615,10 @@ export interface DaemonApi {
     path: string,
     init?: RequestInit,
   ): Promise<Response>;
+  /** Stream a pod-agent chat through Cortex first, with direct agent fallback.
+   *  The host runtime fills `app_id` from the bound HostClient app id and
+   *  sanitizes visible output before yielding it to apps. */
+  chatAgent(request: AgentChatRequest): AsyncIterable<AgentChatEvent>;
   /** Same-origin music gateway. Gated by `daemon.network`. */
   music: MusicDaemonApi;
   /** JULI3TA generated-tracks library. Gated by `daemon.network`. */

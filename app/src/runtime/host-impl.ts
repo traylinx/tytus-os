@@ -30,6 +30,7 @@ import type {
   AppUpdateStatus,
   AppDb,
   AssetsApi,
+  AgentChatRequest,
   DaemonApi,
   DaemonState,
   EventsApi,
@@ -93,6 +94,7 @@ import { getDb } from '@/lib/db';
 import { makeAiApi } from './ai/host-api';
 import { loadFeaturedApps } from '@/apps/featured-apps-catalog';
 import { updateInstalledAppFromManifestUrl } from './installer';
+import { streamAgentChat } from './agent-chat';
 
 const ASSET_SIZE_LIMIT_BYTES = 1024 * 1024; // 1 MB per spec.
 
@@ -486,7 +488,7 @@ function makeFsApi(): FsApi {
  *  the same-origin tray proxy so browser apps never call public pod
  *  origins directly (CORS) and never receive gateway secrets. The music
  *  and juli3taLibrary sub-clients hit same-origin daemon HTTP routes. */
-function makeDaemonApi(): DaemonApi {
+function makeDaemonApi(appId: string): DaemonApi {
   const callPodEndpoint = async (
     podId: string,
     path: string,
@@ -518,6 +520,32 @@ function makeDaemonApi(): DaemonApi {
     },
     onStateChange: subscribeDaemonState,
     callPodEndpoint,
+    chatAgent(request: AgentChatRequest) {
+      const provider = DAEMON_STATE_PROVIDER;
+      if (!provider) {
+        return (async function* () {
+          yield {
+            type: 'error' as const,
+            message: 'Agent is offline. Restart the pod or pick another agent.',
+            retryable: true,
+          };
+        })();
+      }
+      const state = provider.getState();
+      const visible =
+        state.agents.some((agent) => agent.id === request.podId) ||
+        state.included.some((pod) => pod.id === request.podId);
+      if (!visible) {
+        return (async function* () {
+          yield {
+            type: 'error' as const,
+            message: 'Agent is offline. Restart the pod or pick another agent.',
+            retryable: true,
+          };
+        })();
+      }
+      return streamAgentChat(request, { appId });
+    },
     music: makeMusicDaemonApi(),
     juli3taLibrary: makeJuli3taLibraryApi(),
   };
@@ -1202,7 +1230,7 @@ export function makeHostForApp(
   manifest: Manifest,
   entryUrls: EntryUrls,
 ): HostClient {
-  const daemon = makeDaemonApi();
+  const daemon = makeDaemonApi(appId);
   return {
     appId,
     fs: makeFsApi(),

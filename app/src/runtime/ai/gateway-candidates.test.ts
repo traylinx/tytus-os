@@ -9,6 +9,9 @@ const daemon = (included: DaemonApi['state']['included']): DaemonApi => ({
   callPodEndpoint: vi.fn(async () => new Response(JSON.stringify({ data: [] }), {
     headers: { 'content-type': 'application/json' },
   })),
+  chatAgent: vi.fn(async function* () {
+    yield { type: 'done' as const };
+  }),
   music: {} as DaemonApi['music'],
   juli3taLibrary: {} as DaemonApi['juli3taLibrary'],
 });

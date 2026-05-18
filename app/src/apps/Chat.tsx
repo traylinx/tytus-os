@@ -55,6 +55,7 @@ import { navigate } from "@/lib/router";
 import { includedLabel } from "@/lib/includedLabel";
 import { resolveAgentDisplay } from "@/lib/agentCatalog";
 import { getChannelLauncher } from "@/lib/chatChannelLaunchers";
+import { sanitizeVisibleAgentText } from "@/runtime/agent-chat";
 import type {
   Agent,
   ChannelsResponse,
@@ -523,18 +524,6 @@ const eventErrorMessage = (data: unknown): string => {
     "Agent chat failed."
   );
 };
-
-export const sanitizeVisibleAgentText = (text: string): string =>
-  text
-    .replace(
-      /https?:\/\/10\.\d{1,3}\.\d{1,3}\.\d{1,3}:[0-9]+[^\s)]*/g,
-      "[private gateway]",
-    )
-    .replace(/\b(?:\d{1,3}\.){3}\d{1,3}\b/g, "[private network]")
-    .replace(
-      /\b(strato|scalesys|wannolot|minimax|moonshot|kimi|deepseek|openrouter|alibaba|xiaomi|mimo|qwen|nous(?:\s+research)?)\b/gi,
-      "private AI route",
-    );
 
 const readCortexStream = async (
   res: Response,
