@@ -453,6 +453,22 @@ export interface ConditionalStateResult {
   notModified: boolean;
 }
 
+export interface AgentChatRequest {
+  message: string;
+  session_id?: string | null;
+  chat_target?: "agent";
+  agent_mode?: "operator" | "brain";
+  model_preference?: "balanced" | "fast" | "deep";
+  stream?: boolean;
+}
+
+export interface AgentDirectChatResponse {
+  message: string;
+  source: "agent_direct";
+  agent_type?: string;
+  session_id?: string | null;
+}
+
 export interface LoginStartResult {
   verification_uri: string;
   user_code: string;
@@ -609,6 +625,21 @@ export interface DaemonClient {
     signal?: AbortSignal,
     idempotencyKey?: string,
   ): Promise<DaemonResult<null>>;
+  /**
+   * Stream Cortex-backed chat for a real OpenClaw/Hermes agent pod.
+   * Returns raw Response because the body is text/event-stream.
+   */
+  postPodCortexChat(
+    podId: string,
+    body: AgentChatRequest,
+    signal?: AbortSignal,
+  ): Promise<Response>;
+  /** Direct non-streaming agent fallback when Cortex is still warming. */
+  postPodAgentChat(
+    podId: string,
+    body: AgentChatRequest,
+    signal?: AbortSignal,
+  ): Promise<DaemonResult<AgentDirectChatResponse>>;
   postPodRestart(
     podId: string,
     signal?: AbortSignal,
@@ -1022,7 +1053,11 @@ export const createDaemonClient = (
 
     getGaragetytusStatus: (signal) =>
       runRequest(deps, "/api/garagetytus/status", { signal }, (b) =>
-        expectShape(b, isGaragetytusStatus, "malformed /api/garagetytus/status"),
+        expectShape(
+          b,
+          isGaragetytusStatus,
+          "malformed /api/garagetytus/status",
+        ),
       ),
 
     postLogout: (signal, idempotencyKey) =>
@@ -1148,6 +1183,32 @@ export const createDaemonClient = (
         `/api/pod/open?pod=${encodeURIComponent(podId)}`,
         { method: "POST", signal, idempotencyKey },
         noBody,
+      ),
+
+    postPodCortexChat: (podId, body, signal) =>
+      f(`${baseUrl}/api/pods/${encodeURIComponent(podId)}/cortex/chat`, {
+        method: "POST",
+        headers: {
+          Accept: "text/event-stream, application/json",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
+        signal,
+        credentials: "same-origin",
+      }),
+
+    postPodAgentChat: (podId, body, signal) =>
+      runRequest(
+        deps,
+        `/api/pods/${encodeURIComponent(podId)}/agent/chat`,
+        { method: "POST", body, signal },
+        (b) =>
+          expectShape(
+            b,
+            (v): v is AgentDirectChatResponse =>
+              isObject(v) && typeof v.message === "string",
+            "malformed /api/pods/:pod/agent/chat",
+          ),
       ),
 
     postPodRestart: (podId, signal, idempotencyKey) =>
@@ -1304,7 +1365,8 @@ export const createDaemonClient = (
       const q = new URLSearchParams();
       q.set("source", params.source);
       if (params.path) q.set("path", params.path);
-      if (params.binding !== undefined) q.set("binding", String(params.binding));
+      if (params.binding !== undefined)
+        q.set("binding", String(params.binding));
       return `${baseUrl}/api/files/download?${q.toString()}`;
     },
 

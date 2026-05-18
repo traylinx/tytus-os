@@ -23,6 +23,8 @@ export type AgentStatus =
 export interface Agent {
   agent_type: AgentType;
   pod_id: string;
+  /** Optional user-defined friendly label. Real identity remains pod_id. */
+  display_name?: string;
   api_url: string;
   public_url: string;
   ui_url: Secret;

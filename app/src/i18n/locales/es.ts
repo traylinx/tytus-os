@@ -1,4 +1,4 @@
-import type { TranslationMap } from '../index';
+import type { TranslationMap } from "../index";
 
 export const es: TranslationMap = {
   "appLauncher.aria": "Lanzador de aplicaciones",
@@ -52,46 +52,59 @@ export const es: TranslationMap = {
   "settings.background.custom.label": "Imagen propia",
   "settings.background.custom.uploadCta": "Subir imagen",
   "settings.background.custom.uploadHint": "JPEG, PNG o WebP",
-  "settings.background.custom.previewAlt": "Vista previa del fondo personalizado",
+  "settings.background.custom.previewAlt":
+    "Vista previa del fondo personalizado",
   "settings.background.custom.remove": "Quitar",
-  "settings.background.custom.footer": "Tu imagen se queda en esta máquina — nunca se sube a ningún servidor. Máx. {maxMb} MB.",
+  "settings.background.custom.footer":
+    "Tu imagen se queda en esta máquina — nunca se sube a ningún servidor. Máx. {maxMb} MB.",
   "settings.background.color.label": "Color sólido",
   "settings.background.color.cta": "Elige un color",
   "settings.languages.title": "Idiomas",
   "settings.languages.defaultTitle": "Idioma predeterminado",
-  "settings.languages.defaultDescription": "Elige el idioma de visualización del sistema. Los paquetes comunitarios pueden añadir más idiomas sin reconstruir la app.",
+  "settings.languages.defaultDescription":
+    "Elige el idioma de visualización del sistema. Los paquetes comunitarios pueden añadir más idiomas sin reconstruir la app.",
   "settings.appearance.language.title": "Idioma",
-  "settings.appearance.language.description": "Elige el idioma de visualización de Tytus OS.",
+  "settings.appearance.language.description":
+    "Elige el idioma de visualización de Tytus OS.",
   "settings.appearance.language.system": "Idioma del sistema",
   "settings.appearance.language.current": "Idioma actual",
   "settings.appearance.language.bundled": "Incluido",
   "settings.appearance.language.community": "Comunidad",
   "settings.appearance.language.import": "Importar paquete de idioma",
-  "settings.appearance.language.importHint": "Importa un paquete JSON de la comunidad. Las claves faltantes usan inglés.",
+  "settings.appearance.language.importHint":
+    "Importa un paquete JSON de la comunidad. Las claves faltantes usan inglés.",
   "settings.appearance.language.importSuccess": "{name} instalado.",
-  "settings.appearance.language.importError": "No se pudo importar el paquete de idioma: {message}",
+  "settings.appearance.language.importError":
+    "No se pudo importar el paquete de idioma: {message}",
   "settings.appearance.language.remove": "Eliminar",
   "settings.appearance.language.format": "Formato del paquete de idioma",
-  "settings.appearance.language.downloadRoadmap": "Los paquetes descargables empiezan como JSON local; luego se puede conectar un catálogo firmado sin cambiar los textos de la app.",
+  "settings.appearance.language.downloadRoadmap":
+    "Los paquetes descargables empiezan como JSON local; luego se puede conectar un catálogo firmado sin cambiar los textos de la app.",
   // ── Phase 1.1 Custom accent ──
   "settings.appearance.accent.title": "Color de acento",
-  "settings.appearance.accent.description": "Define el color de resalte principal del shell del SO y las apps compatibles.",
+  "settings.appearance.accent.description":
+    "Define el color de resalte principal del shell del SO y las apps compatibles.",
   "settings.appearance.accent.custom": "Personalizado",
-  "settings.appearance.accent.customHint": "Elige cualquier color hex. Botones, anillos de foco y selecciones lo siguen.",
+  "settings.appearance.accent.customHint":
+    "Elige cualquier color hex. Botones, anillos de foco y selecciones lo siguen.",
   // ── Phase 1.3 Font scale ──
   "settings.appearance.fontScale.title": "Tamaño de texto",
-  "settings.appearance.fontScale.description": "Escala todos los textos de Tytus OS. 100% es el valor por defecto.",
+  "settings.appearance.fontScale.description":
+    "Escala todos los textos de Tytus OS. 100% es el valor por defecto.",
   "settings.appearance.fontScale.reset": "Restablecer al 100%",
   // ── Phase 1.4 Mode schedule ──
   "settings.appearance.schedule.title": "Programación claro/oscuro",
-  "settings.appearance.schedule.description": "Elige cómo Tytus OS decide el modo claro u oscuro.",
+  "settings.appearance.schedule.description":
+    "Elige cómo Tytus OS decide el modo claro u oscuro.",
   "settings.appearance.schedule.manual": "Manual (usa el interruptor arriba)",
   "settings.appearance.schedule.alwaysLight": "Siempre claro",
   "settings.appearance.schedule.alwaysDark": "Siempre oscuro",
   "settings.appearance.schedule.auto": "Auto (claro 06:00–18:00 local)",
   // ── Phase 1.5 Lock-screen wallpaper ──
-  "settings.background.lockMatch.title": "Sincronizar pantalla de bloqueo con el escritorio",
-  "settings.background.lockMatch.description": "Si está activo, las pantallas de bloqueo y de inicio muestran tu fondo. Si no, usa el fondo Tytus por defecto.",
+  "settings.background.lockMatch.title":
+    "Sincronizar pantalla de bloqueo con el escritorio",
+  "settings.background.lockMatch.description":
+    "Si está activo, las pantallas de bloqueo y de inicio muestran tu fondo. Si no, usa el fondo Tytus por defecto.",
   // ── Phase 1.2 Dock customization ──
   "settings.category.dock": "Dock",
   "settings.dock.title": "Dock",
@@ -104,9 +117,11 @@ export const es: TranslationMap = {
   "settings.dock.size.medium": "Mediano",
   "settings.dock.size.large": "Grande",
   "settings.dock.autoHide.title": "Ocultar automáticamente",
-  "settings.dock.autoHide.description": "Oculta el Dock hasta que apuntes al borde de la pantalla.",
+  "settings.dock.autoHide.description":
+    "Oculta el Dock hasta que apuntes al borde de la pantalla.",
   "settings.dock.apps.title": "Apps del Dock",
-  "settings.dock.apps.description": "Mantén apps en el Dock, quítalas o cambia su orden sin usar clic derecho.",
+  "settings.dock.apps.description":
+    "Mantén apps en el Dock, quítalas o cambia su orden sin usar clic derecho.",
   "settings.dock.apps.moveUp": "Mover arriba",
   "settings.dock.apps.moveDown": "Mover abajo",
   "settings.dock.apps.remove": "Quitar",
@@ -114,22 +129,27 @@ export const es: TranslationMap = {
   "settings.dock.apps.pick": "Elige una app…",
   "settings.dock.apps.none": "Todas las apps visibles ya están en el Dock",
   "settings.dock.order.reset": "Restablecer orden del Dock",
-  "settings.dock.order.resetHint": "Restaura el orden por defecto. La Papelera siempre queda al final.",
+  "settings.dock.order.resetHint":
+    "Restaura el orden por defecto. La Papelera siempre queda al final.",
   // ── Sprint B Fase 7 sonidos del sistema ──
   "settings.sounds.title": "Sonidos del sistema",
-  "settings.sounds.description": "Reproduce un breve sonido para notificaciones, errores y acciones de papelera.",
+  "settings.sounds.description":
+    "Reproduce un breve sonido para notificaciones, errores y acciones de papelera.",
   // ── Sprint B Fase 6.4 reducir movimiento ──
   "settings.appearance.reduceMotion.title": "Reducir movimiento",
-  "settings.appearance.reduceMotion.description": "Desactiva las animaciones de abrir/cerrar, minimizar y ajustar. Tytus OS sigue respetando la preferencia del sistema.",
+  "settings.appearance.reduceMotion.description":
+    "Desactiva las animaciones de abrir/cerrar, minimizar y ajustar. Tytus OS sigue respetando la preferencia del sistema.",
   // ── Sprint B Fase 5.4 portapapeles del navegador ──
-  "clipboard.permission.deniedToast": "Acceso al portapapeles denegado — actívalo en la configuración de {browser}.",
+  "clipboard.permission.deniedToast":
+    "Acceso al portapapeles denegado — actívalo en la configuración de {browser}.",
   "clipboard.permission.deniedToast.help": "Ayuda",
   "clipboard.paste.success.image": "Imagen pegada en {target}",
   "clipboard.paste.success.text": "Texto pegado en {target}",
   "clipboard.paste.success.files": "{count} archivo(s) pegado(s) en {target}",
   "clipboard.paste.empty": "No hay nada que pegar desde el portapapeles",
   "settings.privacy.clipboard.title": "Permiso del portapapeles",
-  "settings.privacy.clipboard.description": "Tytus pregunta una vez por sesión antes de leer del portapapeles del navegador. Restablece para volver a preguntar.",
+  "settings.privacy.clipboard.description":
+    "Tytus pregunta una vez por sesión antes de leer del portapapeles del navegador. Restablece para volver a preguntar.",
   "settings.privacy.clipboard.reset": "Restablecer permiso del portapapeles",
   "settings.privacy.clipboard.statusGranted": "Concedido",
   "settings.privacy.clipboard.statusDenied": "Denegado",
@@ -190,19 +210,26 @@ export const es: TranslationMap = {
   "shell.Cover Mode": "Modo cover",
   "shell.Music Creator Settings…": "Ajustes de JULI3TA…",
   "app.app-store.name": "Tienda de aplicaciones",
-  "app.app-store.description": "Explora y descubre apps recomendadas. Consulta el estado de instalación en tu máquina.",
+  "app.app-store.description":
+    "Explora y descubre apps recomendadas. Consulta el estado de instalación en tu máquina.",
   "app.pod-inspector.name": "Inspector de pods",
-  "app.pod-inspector.description": "Inspecciona, reinicia, desinstala y revoca pods. Registros de trabajos en vivo.",
+  "app.pod-inspector.description":
+    "Inspecciona, reinicia, desinstala y revoca pods. Registros de trabajos en vivo.",
   "app.channels.name": "Canales",
-  "app.channels.description": "Conexiones de Telegram, Slack, iMessage y Matrix por pod.",
+  "app.channels.description":
+    "Conexiones de Telegram, Slack, iMessage y Matrix por pod.",
   "app.help.name": "Ayuda",
-  "app.help.description": "Doctor, ciclo de vida del daemon, cola de logs y solución de problemas.",
+  "app.help.description":
+    "Doctor, ciclo de vida del daemon, cola de logs y solución de problemas.",
   "app.settings.name": "Configuración del sistema",
-  "app.settings.description": "Cuenta, plan, pods, agentes, daemon, apariencia, notificaciones y privacidad.",
+  "app.settings.description":
+    "Cuenta, plan, pods, agentes, daemon, apariencia, notificaciones y privacidad.",
   "app.filemanager.name": "Archivos",
-  "app.filemanager.description": "Explora archivos locales, bandeja del pod, descargas y carpetas compartidas de Garage.",
+  "app.filemanager.description":
+    "Explora archivos locales, bandeja del pod, descargas y carpetas compartidas de Garage.",
   "app.terminal.name": "Terminal",
-  "app.terminal.description": "Shell local y tytus exec dentro de contenedores de pods.",
+  "app.terminal.description":
+    "Shell local y tytus exec dentro de contenedores de pods.",
   "app.systemmonitor.name": "Monitor del sistema",
   "app.systemmonitor.description": "CPU, memoria, disco y red — host + pods.",
   "app.archivemanager.name": "Gestor de archivos comprimidos",
@@ -210,11 +237,13 @@ export const es: TranslationMap = {
   "app.chat.name": "Chat",
   "app.chat.description": "Habla con la IA de tu pod.",
   "app.browser.name": "Navegador",
-  "app.browser.description": "Abre URLs de pods Tytus, documentación de agentes y GitHub.",
+  "app.browser.description":
+    "Abre URLs de pods Tytus, documentación de agentes y GitHub.",
   "app.weather.name": "Clima",
   "app.weather.description": "Pronóstico del tiempo por ubicación.",
   "app.rssreader.name": "Lector RSS",
-  "app.rssreader.description": "Lector de feeds para suscripciones de noticias.",
+  "app.rssreader.description":
+    "Lector de feeds para suscripciones de noticias.",
   "app.notes.name": "Notas",
   "app.notes.description": "Notas rápidas con carpetas.",
   "app.todo.name": "Tareas",
@@ -234,7 +263,8 @@ export const es: TranslationMap = {
   "app.documentviewer.name": "Visor de documentos",
   "app.documentviewer.description": "Visor de PDF y documentos.",
   "app.markdownpreview.name": "Editor Markdown",
-  "app.markdownpreview.description": "Edita Markdown con vista previa en vivo estilo GitHub.",
+  "app.markdownpreview.description":
+    "Edita Markdown con vista previa en vivo estilo GitHub.",
   "app.imageviewer.name": "Visor de imágenes",
   "app.imageviewer.description": "Visualiza imágenes con zoom y presentación.",
   "app.imagegallery.name": "Galería de imágenes",
@@ -242,9 +272,11 @@ export const es: TranslationMap = {
   "app.photoeditor.name": "Editor de fotos",
   "app.photoeditor.description": "Edición básica de fotos con filtros.",
   "app.musicplayer.name": "Reproductor de música",
-  "app.musicplayer.description": "Reproductor de audio con lista de reproducción.",
+  "app.musicplayer.description":
+    "Reproductor de audio con lista de reproducción.",
   "app.musiccreator.name": "JULI3TA",
-  "app.musiccreator.description": "Genera canciones completas con letras y música por IA. Funciona con tu pod.",
+  "app.musiccreator.description":
+    "Genera canciones completas con letras y música por IA. Funciona con tu pod.",
   "app.videoplayer.name": "Reproductor de vídeo",
   "app.videoplayer.description": "Reproductor de vídeo con controles.",
   "app.voicerecorder.name": "Grabadora de voz",
@@ -254,9 +286,11 @@ export const es: TranslationMap = {
   "app.mediaconverter.name": "Conversor multimedia",
   "app.mediaconverter.description": "Convierte entre formatos multimedia.",
   "app.codeeditor.name": "Editor de código",
-  "app.codeeditor.description": "Editor de código con resaltado de sintaxis y pestañas.",
+  "app.codeeditor.description":
+    "Editor de código con resaltado de sintaxis y pestañas.",
   "app.apitester.name": "Probador de API",
-  "app.apitester.description": "Constructor de solicitudes HTTP estilo Postman. Fetch real.",
+  "app.apitester.description":
+    "Constructor de solicitudes HTTP estilo Postman. Fetch real.",
   "app.jsonformatter.name": "Formateador JSON",
   "app.jsonformatter.description": "Formatea, valida y embellece JSON.",
   "app.regextester.name": "Probador Regex",
@@ -276,9 +310,11 @@ export const es: TranslationMap = {
   "app.matrixrain.name": "Lluvia Matrix",
   "app.matrixrain.description": "Caracteres animados en caída.",
   "app.minesweeper.name": "Buscaminas",
-  "app.minesweeper.description": "Buscaminas clásico con 3 niveles de dificultad.",
+  "app.minesweeper.description":
+    "Buscaminas clásico con 3 niveles de dificultad.",
   "app.snake.name": "Snake",
-  "app.snake.description": "Juego clásico de serpiente con velocidad creciente.",
+  "app.snake.description":
+    "Juego clásico de serpiente con velocidad creciente.",
   "app.tetris.name": "Tetris",
   "app.tetris.description": "Juego de rompecabezas de bloques apilables.",
   "app.tictactoe.name": "Tres en raya",
@@ -297,301 +333,368 @@ export const es: TranslationMap = {
   "app.solitaire.description": "Solitario clásico de cartas.",
   "app.flappybird.name": "Flappy Bird",
   "app.flappybird.description": "Juego arcade de desplazamiento lateral.",
-  'shell.Languages': 'Idiomas',
-  'top.aboutTytusOS': 'Acerca de Tytus OS',
-  'top.systemSettings': 'Configuración del sistema…',
-  'top.openApps': 'Abrir aplicaciones',
-  'top.lockScreen': 'Bloquear pantalla',
-  'top.signingOut': 'Cerrando sesión…',
-  'top.logOutUser': 'Cerrar sesión de {user}…',
-  'top.confirmLogoutTitle': '¿Cerrar sesión en Tytus?',
-  'top.confirmLogoutBody': 'Esto revoca los pods activos y borra las credenciales locales. Bloquear pantalla es más seguro si solo quieres ocultar el escritorio.',
-  'top.cancel': 'Cancelar',
-  'top.logOut': 'Cerrar sesión',
-  'desktop.podLabel': 'Pod {podId}',
-  'desktop.unpin': 'Desanclar',
-  'desktop.notify.dropTitle': 'Añadido al escritorio',
-  'desktop.notify.dropBody': '{name}',
-  'context.open': 'Abrir',
-  'context.cut': 'Cortar',
-  'context.copy': 'Copiar',
-  'context.rename': 'Renombrar',
-  'context.moveToTrash': 'Mover a la papelera',
-  'dock.trash': 'Papelera',
-  'dock.aria': 'Dock de aplicaciones',
-  'dock.showApplications': 'Mostrar aplicaciones',
-  'dock.keepInDock': 'Mantener en el Dock',
-  'dock.removeFromDock': 'Quitar del Dock',
-  'status.Checking': 'Comprobando',
-  'status.Offline': 'Sin conexión',
-  'status.No state': 'Sin estado',
-  'status.Stopped': 'Detenido',
-  'status.Degraded': 'Degradado',
-  'status.Connected': 'Conectado',
-  'status.Session expired': 'Sesión caducada',
-  'status.daemonTitle': 'Daemon {label}: {detail}',
-  'plan.unitsFootnote':
-    'Los agentes asignados consumen unidades (OpenClaw = 1 unidad, Hermes = 2 unidades). Los pods de AIL incluidos no cuentan en tu presupuesto.',
-  'status.unitsUsed': '{used}/{limit} unidades',
-  'status.unitsUnknown': 'unidades desconocidas',
-  'status.podSingular': '{count} pod',
-  'status.podPlural': '{count} pods',
-  'status.noPodsYet': 'Aún no hay pods de agente — haz clic para asignar. (AIL siempre está incluido gratis.)',
-  'status.podsDetail': '{count} asignados · {jobs} trabajos activos · {units}',
-  'settings.languages.officialTitle': 'Añadir desde GitHub oficial de Tytus OS',
-  'settings.languages.officialHint': 'Aquí solo se pueden descargar paquetes listados en el catálogo oficial de GitHub de Tytus OS. Las URL arbitrarias están bloqueadas.',
-  'settings.languages.officialRefresh': 'Buscar paquetes oficiales',
-  'settings.languages.officialLoadError': 'No se pudo cargar el catálogo oficial de idiomas: {message}',
-  'settings.languages.officialInstallError': 'No se pudo instalar el paquete oficial de idioma: {message}',
-  'settings.languages.officialPackMeta': '{locale} · v{version} · GitHub oficial',
-  'settings.languages.installed': 'instalado',
-  'settings.languages.catalogLink': 'Catálogo oficial de idiomas',
-  'settings.languages.spanishRepoLink': 'Repo del paquete español',
-  'settings.languages.helpFooter': 'Tytus ya habla inglés y español. Ayúdanos a enseñarle más idiomas antes de que empiece a inventar mensajes de error en klingon.',
-  'settings.languages.contributeTitle': '¿Quieres mantener un nuevo idioma?',
-  'settings.languages.contributeBody': 'Abre el catálogo, copia la estructura del paquete español y envía un PR. Tytus necesita humanos para los matices, los chistes y para no sonar como una tostadora con Google Translate.',
-  'settings.languages.createPackLink': 'Crear un nuevo paquete de idioma',
+  "shell.Languages": "Idiomas",
+  "top.aboutTytusOS": "Acerca de Tytus OS",
+  "top.systemSettings": "Configuración del sistema…",
+  "top.openApps": "Abrir aplicaciones",
+  "top.lockScreen": "Bloquear pantalla",
+  "top.signingOut": "Cerrando sesión…",
+  "top.logOutUser": "Cerrar sesión de {user}…",
+  "top.confirmLogoutTitle": "¿Cerrar sesión en Tytus?",
+  "top.confirmLogoutBody":
+    "Esto revoca los pods activos y borra las credenciales locales. Bloquear pantalla es más seguro si solo quieres ocultar el escritorio.",
+  "top.cancel": "Cancelar",
+  "top.logOut": "Cerrar sesión",
+  "desktop.podLabel": "Pod {podId}",
+  "desktop.unpin": "Desanclar",
+  "desktop.notify.dropTitle": "Añadido al escritorio",
+  "desktop.notify.dropBody": "{name}",
+  "context.open": "Abrir",
+  "context.cut": "Cortar",
+  "context.copy": "Copiar",
+  "context.rename": "Renombrar",
+  "context.moveToTrash": "Mover a la papelera",
+  "dock.trash": "Papelera",
+  "dock.aria": "Dock de aplicaciones",
+  "dock.showApplications": "Mostrar aplicaciones",
+  "dock.keepInDock": "Mantener en el Dock",
+  "dock.removeFromDock": "Quitar del Dock",
+  "status.Checking": "Comprobando",
+  "status.Offline": "Sin conexión",
+  "status.No state": "Sin estado",
+  "status.Stopped": "Detenido",
+  "status.Degraded": "Degradado",
+  "status.Connected": "Conectado",
+  "status.Session expired": "Sesión caducada",
+  "status.daemonTitle": "Daemon {label}: {detail}",
+  "plan.unitsFootnote":
+    "Los agentes asignados consumen unidades (OpenClaw = 1 unidad, Hermes = 2 unidades). Los pods de AIL incluidos no cuentan en tu presupuesto.",
+  "status.unitsUsed": "{used}/{limit} unidades",
+  "status.unitsUnknown": "unidades desconocidas",
+  "status.podSingular": "{count} pod",
+  "status.podPlural": "{count} pods",
+  "status.noPodsYet":
+    "Aún no hay pods de agente — haz clic para asignar. (AIL siempre está incluido gratis.)",
+  "status.podsDetail": "{count} asignados · {jobs} trabajos activos · {units}",
+  "settings.languages.officialTitle": "Añadir desde GitHub oficial de Tytus OS",
+  "settings.languages.officialHint":
+    "Aquí solo se pueden descargar paquetes listados en el catálogo oficial de GitHub de Tytus OS. Las URL arbitrarias están bloqueadas.",
+  "settings.languages.officialRefresh": "Buscar paquetes oficiales",
+  "settings.languages.officialLoadError":
+    "No se pudo cargar el catálogo oficial de idiomas: {message}",
+  "settings.languages.officialInstallError":
+    "No se pudo instalar el paquete oficial de idioma: {message}",
+  "settings.languages.officialPackMeta":
+    "{locale} · v{version} · GitHub oficial",
+  "settings.languages.installed": "instalado",
+  "settings.languages.catalogLink": "Catálogo oficial de idiomas",
+  "settings.languages.spanishRepoLink": "Repo del paquete español",
+  "settings.languages.helpFooter":
+    "Tytus ya habla inglés y español. Ayúdanos a enseñarle más idiomas antes de que empiece a inventar mensajes de error en klingon.",
+  "settings.languages.contributeTitle": "¿Quieres mantener un nuevo idioma?",
+  "settings.languages.contributeBody":
+    "Abre el catálogo, copia la estructura del paquete español y envía un PR. Tytus necesita humanos para los matices, los chistes y para no sonar como una tostadora con Google Translate.",
+  "settings.languages.createPackLink": "Crear un nuevo paquete de idioma",
 
   // Panel de agentes (Configuración → Agentes)
-  'agents.panel.title': 'Agentes',
-  'agents.panel.subtitle':
-    'Instala un agente en un pod. Cada instalación consume las unidades del agente.',
-  'agents.panel.loading': 'Cargando catálogo…',
-  'agents.panel.loadError': 'No se pudo cargar el catálogo: {message}',
-  'agents.panel.retry': 'Reintentar',
-  'agents.panel.install': 'Instalar',
-  'agents.panel.website': 'Sitio web',
-  'agents.panel.github': 'GitHub',
-  'agents.panel.unitSingular': 'unidad',
-  'agents.panel.unitPlural': 'unidades',
-  'agents.panel.runningOnSingular': '{count} en ejecución en el pod {pods}',
-  'agents.panel.runningOnPlural': '{count} en ejecución en los pods {pods}',
-  'agents.panel.reasonPlan': 'Requiere el plan {plan} o superior',
-  'agents.panel.reasonUnits':
-    'Necesita {needed} {unit}, solo hay {available} disponibles',
+  "agents.panel.title": "Agentes",
+  "agents.panel.subtitle":
+    "Instala un agente en un pod. Cada instalación consume las unidades del agente.",
+  "agents.panel.loading": "Cargando catálogo…",
+  "agents.panel.loadError": "No se pudo cargar el catálogo: {message}",
+  "agents.panel.retry": "Reintentar",
+  "agents.panel.install": "Instalar",
+  "agents.panel.website": "Sitio web",
+  "agents.panel.github": "GitHub",
+  "agents.panel.unitSingular": "unidad",
+  "agents.panel.unitPlural": "unidades",
+  "agents.panel.runningOnSingular": "{count} en ejecución en el pod {pods}",
+  "agents.panel.runningOnPlural": "{count} en ejecución en los pods {pods}",
+  "agents.panel.reasonPlan": "Requiere el plan {plan} o superior",
+  "agents.panel.reasonUnits":
+    "Necesita {needed} {unit}, solo hay {available} disponibles",
 
   // Textos de presentación de cada agente (Configuración + Chat)
-  'agents.openclaw.name': 'OpenClaw',
-  'agents.openclaw.tagline':
-    'Tu IA personal en cada canal que ya usas',
-  'agents.openclaw.description':
-    'Habla con tu asistente desde Telegram, WhatsApp, Signal, Discord, Slack, iMessage, Matrix y más de 20 canales — todo desde un único cerebro siempre activo. Voz de entrada y de salida. Canvas en vivo al que puedes señalar y dirigir.',
-  'agents.openclaw.highlight.0':
-    'Más de 25 canales de mensajería — un asistente, todas las apps',
-  'agents.openclaw.highlight.1':
-    'Voz + Canvas — habla, escucha y míralo dibujar',
-  'agents.openclaw.highlight.2':
-    'Reforzado con un sandbox seguro de agentes de NVIDIA para mayor protección',
-  'agents.openclaw.highlight.3':
-    'Siempre activo — listo cuando lo necesites',
-  'agents.hermes.name': 'Hermes',
-  'agents.hermes.tagline':
-    'El agente IA que se mejora a sí mismo cuanto más lo usas',
-  'agents.hermes.description':
-    'Aprende de cada tarea. Crea sus propias habilidades, recuerda cada conversación pasada, ejecuta tareas programadas y reparte trabajos complejos en subagentes paralelos. Háblale desde tu terminal, Telegram, Discord o Slack.',
-  'agents.hermes.highlight.0':
-    'Habilidades que se autoperfeccionan — más afiladas con cada uso',
-  'agents.hermes.highlight.1':
-    'Memoria total — busca en cada conversación pasada',
-  'agents.hermes.highlight.2':
-    'Automatizaciones programadas — informes diarios, auditorías nocturnas',
-  'agents.hermes.highlight.3':
-    'Subagentes en paralelo — divide trabajos grandes en tareas concurrentes',
+  "agents.openclaw.name": "OpenClaw",
+  "agents.openclaw.tagline": "Tu IA personal en cada canal que ya usas",
+  "agents.openclaw.description":
+    "Habla con tu asistente desde Telegram, WhatsApp, Signal, Discord, Slack, iMessage, Matrix y más de 20 canales — todo desde un único cerebro siempre activo. Voz de entrada y de salida. Canvas en vivo al que puedes señalar y dirigir.",
+  "agents.openclaw.highlight.0":
+    "Más de 25 canales de mensajería — un asistente, todas las apps",
+  "agents.openclaw.highlight.1":
+    "Voz + Canvas — habla, escucha y míralo dibujar",
+  "agents.openclaw.highlight.2":
+    "Reforzado con un sandbox seguro de agentes de NVIDIA para mayor protección",
+  "agents.openclaw.highlight.3": "Siempre activo — listo cuando lo necesites",
+  "agents.hermes.name": "Hermes",
+  "agents.hermes.tagline":
+    "El agente IA que se mejora a sí mismo cuanto más lo usas",
+  "agents.hermes.description":
+    "Aprende de cada tarea. Crea sus propias habilidades, recuerda cada conversación pasada, ejecuta tareas programadas y reparte trabajos complejos en subagentes paralelos. Háblale desde tu terminal, Telegram, Discord o Slack.",
+  "agents.hermes.highlight.0":
+    "Habilidades que se autoperfeccionan — más afiladas con cada uso",
+  "agents.hermes.highlight.1":
+    "Memoria total — busca en cada conversación pasada",
+  "agents.hermes.highlight.2":
+    "Automatizaciones programadas — informes diarios, auditorías nocturnas",
+  "agents.hermes.highlight.3":
+    "Subagentes en paralelo — divide trabajos grandes en tareas concurrentes",
 
   // App Chat
-  'chat.sidebar.podsHeader': 'Pods',
-  'chat.sidebar.includedHeader': 'Incluido',
-  'chat.sidebar.podLabel': 'Pod {podId}',
-  'chat.sidebar.empty': 'No hay pods asignados.',
-  'chat.sidebar.loading': 'Cargando…',
-  'chat.empty.title': 'No hay pods con los que chatear',
-  'chat.empty.body':
-    'Asigna primero un pod — en cuanto esté en marcha, podrás abrirlo aquí mismo.',
-  'chat.empty.cta': 'Asignar un pod →',
-  'chat.picker.hint': 'Selecciona un pod a la izquierda para empezar.',
-  'chat.agent.podLabel': 'Pod {podId}',
-  'chat.agent.openInBrowser': 'Abrir el pod {podId} en el navegador →',
-  'chat.agent.openError':
-    'No se pudo abrir el pod {podId} en tu navegador. Revisa el túnel. ({message})',
-  'chat.agent.dismissError': 'Descartar',
-  'chat.agent.docs': 'Documentación',
-  'chat.agent.connectedApps': 'Apps conectadas',
-  'chat.agent.manageChannels': 'Gestionar canales',
-  'chat.agent.loadingChannels': 'Comprobando apps conectadas…',
-  'chat.agent.channelsError': 'No se pudieron cargar los canales: {message}',
-  'chat.agent.noChannels':
-    'Aún no hay apps conectadas — abre Canales para conectar Telegram, Discord, Slack y más.',
-  'chat.ail.tooltip':
-    'AIL — un endpoint, todos los modelos. Gratis con tu cuenta Tytus.',
-  'chat.ail.title': 'AIL',
-  'chat.ail.tagline': 'Un endpoint. Todos los proveedores de IA.',
-  'chat.ail.body':
-    'AIL es tu pasarela LLM privada: un único endpoint que enruta sobre MiniMax, Kimi, DeepSeek, Qwen, OpenAI, Anthropic, Gemini y tus herramientas CLI locales — con failover automático cuando un proveedor falla. Habla los protocolos OpenAI y Anthropic, así que lo que ya usas funciona directamente.',
-  'chat.ail.feature.0': 'Habla OpenAI y Anthropic — funciona en Cursor, Claude Code, OpenCode, el SDK de Anthropic',
-  'chat.ail.feature.1': 'Enruta entre varios proveedores de frontera con failover automático',
-  'chat.ail.feature.2': 'Reutiliza tus suscripciones (Gemini CLI, Claude Code, Codex) sin claves extra',
-  'chat.ail.feature.3': 'Incluido gratis con cada cuenta Tytus — sin coste de unidades ni sorpresas de límite',
-  'chat.ail.cta.docs': 'Abrir la documentación',
-  'chat.ail.cta.podInspector': 'Copiar URL y clave',
+  "chat.sidebar.podsHeader": "Pods",
+  "chat.sidebar.includedHeader": "Incluido",
+  "chat.sidebar.podLabel": "Pod {podId}",
+  "chat.sidebar.empty": "No hay pods asignados.",
+  "chat.sidebar.loading": "Cargando…",
+  "chat.empty.title": "No hay pods con los que chatear",
+  "chat.empty.body":
+    "Asigna primero un pod — en cuanto esté en marcha, podrás abrirlo aquí mismo.",
+  "chat.empty.cta": "Asignar un pod →",
+  "chat.picker.hint": "Selecciona un pod a la izquierda para empezar.",
+  "chat.agent.podLabel": "Pod {podId}",
+  "chat.agent.openInBrowser": "Abrir el pod {podId} en el navegador →",
+  "chat.agent.openError":
+    "No se pudo abrir el pod {podId} en tu navegador. Revisa el túnel. ({message})",
+  "chat.agent.dismissError": "Descartar",
+  "chat.agent.docs": "Documentación",
+  "chat.agent.connectedApps": "Apps conectadas",
+  "chat.agent.manageChannels": "Gestionar canales",
+  "chat.agent.inlineTagline":
+    "Chat por Cortex cuando esté listo, con fallback directo al agente.",
+  "chat.agent.visit": "Visitar",
+  "chat.agent.channels": "Canales",
+  "chat.agent.clear": "Limpiar",
+  "chat.agent.messageTitle": "Mensaje a {pod}",
+  "chat.agent.emptyHint":
+    "Pregunta por estado, ayuda de runbook, configuración o qué necesita este agente.",
+  "chat.agent.placeholder": "Mensaje a {pod}",
+  "chat.agent.continuing": "Continuando esta conversación del pod.",
+  "chat.agent.thinking": "Pensando…",
+  "chat.agent.send": "Enviar",
+  "chat.agent.emptyResponse": "El agente devolvió una respuesta vacía.",
+  "chat.agent.finishedEmpty": "El agente terminó sin texto de respuesta.",
+  "chat.agent.cancelled": "Cancelado.",
+  "chat.agent.warming":
+    "El chat del agente se está iniciando. Prueba de nuevo en un momento o abre la interfaz web.",
+  "chat.agent.chatFailed": "Falló el chat del agente: {message}",
+  "chat.agent.loadingChannels": "Comprobando apps conectadas…",
+  "chat.agent.channelsError": "No se pudieron cargar los canales: {message}",
+  "chat.agent.noChannels":
+    "Aún no hay apps conectadas — abre Canales para conectar Telegram, Discord, Slack y más.",
+  "chat.ail.tooltip":
+    "AIL — un endpoint, todos los modelos. Gratis con tu cuenta Tytus.",
+  "chat.ail.title": "AIL",
+  "chat.ail.tagline": "Un endpoint. Todos los proveedores de IA.",
+  "chat.ail.body":
+    "AIL es tu pasarela LLM privada: un único endpoint que enruta sobre MiniMax, Kimi, DeepSeek, Qwen, OpenAI, Anthropic, Gemini y tus herramientas CLI locales — con failover automático cuando un proveedor falla. Habla los protocolos OpenAI y Anthropic, así que lo que ya usas funciona directamente.",
+  "chat.ail.feature.0":
+    "Habla OpenAI y Anthropic — funciona en Cursor, Claude Code, OpenCode, el SDK de Anthropic",
+  "chat.ail.feature.1":
+    "Enruta entre varios proveedores de frontera con failover automático",
+  "chat.ail.feature.2":
+    "Reutiliza tus suscripciones (Gemini CLI, Claude Code, Codex) sin claves extra",
+  "chat.ail.feature.3":
+    "Incluido gratis con cada cuenta Tytus — sin coste de unidades ni sorpresas de límite",
+  "chat.ail.cta.docs": "Abrir la documentación",
+  "chat.ail.cta.podInspector": "Copiar URL y clave",
 
   // Music Creator ─────────────────────────────────────────
-  'musiccreator.empty.title': 'No hay pod conectado',
-  'musiccreator.empty.body':
-    'Creador de música usa la pasarela de IA de tu pod Tytus. Asigna un pod desde Pod Inspector para empezar a componer.',
-  'musiccreator.header.title': 'Creación de música',
-  'musiccreator.header.subtitle': 'Pod {podId} · ail-music',
-  'musiccreator.header.surprise': 'Sorpréndeme',
-  'musiccreator.header.surpriseTitle': 'Tema aleatorio',
-  'musiccreator.header.surpriseFromPlayerTitle': 'Remezcla esta canción con un tema aleatorio',
-  'musiccreator.theme.label': 'Tema',
-  'musiccreator.theme.placeholder': 'Describe la canción: vibra, mood, historia, época…',
-  'musiccreator.theme.hint': 'Escribiremos letras estructuradas a partir de esto. O pega las tuyas abajo.',
-  'musiccreator.lyrics.label': 'Letra (opcional)',
-  'musiccreator.lyrics.placeholder': '[Verso]\nAñade tu propia letra…\n[Estribillo]\n…',
-  'musiccreator.lyrics.instrumental': 'Instrumental',
-  'musiccreator.lyrics.template': 'Plantilla {n}',
-  'musiccreator.lyrics.templateTitle': 'Insertar plantilla de estructura',
-  'musiccreator.style.label': 'Estilo',
-  'musiccreator.style.placeholder': 'Género, mood, tempo, instrumentos, tipo de voz…',
-  'musiccreator.songName.label': 'Nombre de la canción (opcional)',
-  'musiccreator.songName.placeholder': 'Se generará desde el tema si lo dejas vacío',
-  'musiccreator.button.create': 'Crear canción',
-  'musiccreator.button.cancel': 'Cancelar',
-  'musiccreator.phase.lyrics': 'Escribiendo la letra…',
-  'musiccreator.phase.song': 'Generando música… (~30–90 s)',
-  'musiccreator.error.noPod': 'No hay un pod Tytus disponible. Asigna uno desde Pod Inspector.',
-  'musiccreator.error.noInput': 'Añade un tema/prompt o pega tu propia letra.',
-  'musiccreator.error.lyricsTooLong': 'Letra demasiado larga: {count} > {max} caracteres.',
-  'musiccreator.gallery.title': 'Mis creaciones',
-  'musiccreator.gallery.count.one': '{n} canción',
-  'musiccreator.gallery.count.other': '{n} canciones',
-  'musiccreator.error.dismiss': 'Descartar',
-  'musiccreator.gallery.searchPlaceholder': 'Buscar en Mi obra…',
-  'musiccreator.gallery.searchEmpty': 'Ningún tema coincide con “{q}”.',
-  'musiccreator.gallery.empty.title': 'Aún no hay nada',
-  'musiccreator.gallery.empty.body':
-    'Describe una canción a la izquierda y pulsa Crear canción. Tus pistas aparecerán aquí con reproducción y descarga.',
-  'musiccreator.gallery.empty.footer': '100 canciones/día · ail-music · MiniMax 2.6',
-  'musiccreator.track.untitled': 'Sin título',
-  'musiccreator.track.download': 'Descargar MP3',
-  'musiccreator.track.delete': 'Eliminar',
-  'musiccreator.track.lyricsOnly': 'Solo letras',
-  'musiccreator.track.openInEditor': 'Abrir letra',
-  'musiccreator.track.saveToDesktop': 'Guardar en Escritorio',
-  'musiccreator.track.saveSongToDesktop': 'Guardar canción en Escritorio',
-  'musiccreator.track.saveLyricsToDesktop': 'Guardar letra en Escritorio',
-  'musiccreator.track.playInPlayer': 'Reproducir en Music Player',
-  'musiccreator.track.loadIntoForm': 'Cargar en el formulario',
-  'musiccreator.track.section.song': 'Canción',
-  'musiccreator.track.section.lyrics': 'Letra',
-  'musiccreator.notify.savedToDesktopTitle': 'Guardado en Escritorio',
-  'musiccreator.notify.savedToDesktopBody': '{name} está en tu Escritorio.',
-  'musiccreator.notify.songReadyTitle': 'Canción lista',
-  'musiccreator.notify.songReadyBody': '"{title}" está en Mi obra y en la carpeta Música.',
-  'musiccreator.notify.noLyricsTitle': 'No hay letra para abrir',
-  'musiccreator.notify.noLyricsBody': 'Este tema aún no tiene letra — genera o pega una primero.',
+  "musiccreator.empty.title": "No hay pod conectado",
+  "musiccreator.empty.body":
+    "Creador de música usa la pasarela de IA de tu pod Tytus. Asigna un pod desde Pod Inspector para empezar a componer.",
+  "musiccreator.header.title": "Creación de música",
+  "musiccreator.header.subtitle": "Pod {podId} · ail-music",
+  "musiccreator.header.surprise": "Sorpréndeme",
+  "musiccreator.header.surpriseTitle": "Tema aleatorio",
+  "musiccreator.header.surpriseFromPlayerTitle":
+    "Remezcla esta canción con un tema aleatorio",
+  "musiccreator.theme.label": "Tema",
+  "musiccreator.theme.placeholder":
+    "Describe la canción: vibra, mood, historia, época…",
+  "musiccreator.theme.hint":
+    "Escribiremos letras estructuradas a partir de esto. O pega las tuyas abajo.",
+  "musiccreator.lyrics.label": "Letra (opcional)",
+  "musiccreator.lyrics.placeholder":
+    "[Verso]\nAñade tu propia letra…\n[Estribillo]\n…",
+  "musiccreator.lyrics.instrumental": "Instrumental",
+  "musiccreator.lyrics.template": "Plantilla {n}",
+  "musiccreator.lyrics.templateTitle": "Insertar plantilla de estructura",
+  "musiccreator.style.label": "Estilo",
+  "musiccreator.style.placeholder":
+    "Género, mood, tempo, instrumentos, tipo de voz…",
+  "musiccreator.songName.label": "Nombre de la canción (opcional)",
+  "musiccreator.songName.placeholder":
+    "Se generará desde el tema si lo dejas vacío",
+  "musiccreator.button.create": "Crear canción",
+  "musiccreator.button.cancel": "Cancelar",
+  "musiccreator.phase.lyrics": "Escribiendo la letra…",
+  "musiccreator.phase.song": "Generando música… (~30–90 s)",
+  "musiccreator.error.noPod":
+    "No hay un pod Tytus disponible. Asigna uno desde Pod Inspector.",
+  "musiccreator.error.noInput": "Añade un tema/prompt o pega tu propia letra.",
+  "musiccreator.error.lyricsTooLong":
+    "Letra demasiado larga: {count} > {max} caracteres.",
+  "musiccreator.gallery.title": "Mis creaciones",
+  "musiccreator.gallery.count.one": "{n} canción",
+  "musiccreator.gallery.count.other": "{n} canciones",
+  "musiccreator.error.dismiss": "Descartar",
+  "musiccreator.gallery.searchPlaceholder": "Buscar en Mi obra…",
+  "musiccreator.gallery.searchEmpty": "Ningún tema coincide con “{q}”.",
+  "musiccreator.gallery.empty.title": "Aún no hay nada",
+  "musiccreator.gallery.empty.body":
+    "Describe una canción a la izquierda y pulsa Crear canción. Tus pistas aparecerán aquí con reproducción y descarga.",
+  "musiccreator.gallery.empty.footer":
+    "100 canciones/día · ail-music · MiniMax 2.6",
+  "musiccreator.track.untitled": "Sin título",
+  "musiccreator.track.download": "Descargar MP3",
+  "musiccreator.track.delete": "Eliminar",
+  "musiccreator.track.lyricsOnly": "Solo letras",
+  "musiccreator.track.openInEditor": "Abrir letra",
+  "musiccreator.track.saveToDesktop": "Guardar en Escritorio",
+  "musiccreator.track.saveSongToDesktop": "Guardar canción en Escritorio",
+  "musiccreator.track.saveLyricsToDesktop": "Guardar letra en Escritorio",
+  "musiccreator.track.playInPlayer": "Reproducir en Music Player",
+  "musiccreator.track.loadIntoForm": "Cargar en el formulario",
+  "musiccreator.track.section.song": "Canción",
+  "musiccreator.track.section.lyrics": "Letra",
+  "musiccreator.notify.savedToDesktopTitle": "Guardado en Escritorio",
+  "musiccreator.notify.savedToDesktopBody": "{name} está en tu Escritorio.",
+  "musiccreator.notify.songReadyTitle": "Canción lista",
+  "musiccreator.notify.songReadyBody":
+    '"{title}" está en Mi obra y en la carpeta Música.',
+  "musiccreator.notify.noLyricsTitle": "No hay letra para abrir",
+  "musiccreator.notify.noLyricsBody":
+    "Este tema aún no tiene letra — genera o pega una primero.",
 
   // View tabs (Creator / Player) and Player view ──────────────
-  'musiccreator.view.creator': 'Creador',
-  'musiccreator.view.player': 'Reproductor',
-  'musiccreator.view.creator.tip': 'Compón canciones nuevas y edita borradores',
-  'musiccreator.view.player.tip': 'Escucha tus pistas guardadas con todos sus metadatos',
-  'musiccreator.player.eyebrow.track': 'Pista de JULI3TA',
-  'musiccreator.player.eyebrow.lyricSheet': 'Letra de JULI3TA',
-  'musiccreator.player.empty.title': 'No hay nada sonando',
-  'musiccreator.player.empty.body': 'Elige una pista de la barra lateral para abrirla aquí, o cambia a la pestaña Creador para componer una nueva.',
-  'musiccreator.player.empty.openCreator': 'Abrir Creador',
-  'musiccreator.player.play': 'Reproducir',
-  'musiccreator.player.pause': 'Pausa',
-  'musiccreator.player.remixInRestyle': 'Remezclar en Restyle',
-  'musiccreator.player.remixInRestyle.tip': 'Abre esta pista en Restyle para remezclarla con un nuevo estilo y letra',
-  'musiccreator.player.lyrics': 'Letra',
-  'musiccreator.player.lyrics.empty': 'Esta pista no tiene letra guardada.',
-  'musiccreator.player.theme': 'Tema',
-  'musiccreator.player.lyricsDirection': 'Dirección de la letra',
-  'musiccreator.player.about': 'Sobre esta pista',
-  'musiccreator.player.about.created': 'Creada',
-  'musiccreator.player.about.duration': 'Duración',
-  'musiccreator.player.about.bitrate': 'Bitrate',
-  'musiccreator.player.about.sampleRate': 'Frecuencia',
-  'musiccreator.player.about.size': 'Tamaño',
-  'musiccreator.player.about.style': 'Estilo',
-  'musiccreator.player.about.format': 'Formato',
-  'musiccreator.player.about.format.mp3': 'Audio MP3',
-  'musiccreator.player.about.format.lyricSheet': 'Hoja de letra',
+  "musiccreator.view.creator": "Creador",
+  "musiccreator.view.player": "Reproductor",
+  "musiccreator.view.creator.tip": "Compón canciones nuevas y edita borradores",
+  "musiccreator.view.player.tip":
+    "Escucha tus pistas guardadas con todos sus metadatos",
+  "musiccreator.player.eyebrow.track": "Pista de JULI3TA",
+  "musiccreator.player.eyebrow.lyricSheet": "Letra de JULI3TA",
+  "musiccreator.player.empty.title": "No hay nada sonando",
+  "musiccreator.player.empty.body":
+    "Elige una pista de la barra lateral para abrirla aquí, o cambia a la pestaña Creador para componer una nueva.",
+  "musiccreator.player.empty.openCreator": "Abrir Creador",
+  "musiccreator.player.play": "Reproducir",
+  "musiccreator.player.pause": "Pausa",
+  "musiccreator.player.remixInRestyle": "Remezclar en Restyle",
+  "musiccreator.player.remixInRestyle.tip":
+    "Abre esta pista en Restyle para remezclarla con un nuevo estilo y letra",
+  "musiccreator.player.lyrics": "Letra",
+  "musiccreator.player.lyrics.empty": "Esta pista no tiene letra guardada.",
+  "musiccreator.player.theme": "Tema",
+  "musiccreator.player.lyricsDirection": "Dirección de la letra",
+  "musiccreator.player.about": "Sobre esta pista",
+  "musiccreator.player.about.created": "Creada",
+  "musiccreator.player.about.duration": "Duración",
+  "musiccreator.player.about.bitrate": "Bitrate",
+  "musiccreator.player.about.sampleRate": "Frecuencia",
+  "musiccreator.player.about.size": "Tamaño",
+  "musiccreator.player.about.style": "Estilo",
+  "musiccreator.player.about.format": "Formato",
+  "musiccreator.player.about.format.mp3": "Audio MP3",
+  "musiccreator.player.about.format.lyricSheet": "Hoja de letra",
 
   // Restyle reference-audio pickers ───────────────────────────
-  'musiccreator.restyle.songsPicker.title': 'Elige una canción de tu biblioteca',
-  'musiccreator.restyle.songsPicker.empty.title': 'Aún no hay canciones en tu biblioteca',
-  'musiccreator.restyle.songsPicker.empty.body': 'Cambia a la pestaña Canción y crea una pista primero — aparecerá aquí para remezclarla.',
-  'musiccreator.restyle.songsPicker.tooShort': 'demasiado corta para una versión (mín. 6 s)',
-  'musiccreator.restyle.button.mySongs': 'Mis canciones',
-  'musiccreator.restyle.button.mySongs.count': '{count} en biblioteca',
-  'musiccreator.restyle.button.voiceClips': 'Notas de voz',
-  'musiccreator.restyle.button.voiceClips.count': '{count} guardadas',
+  "musiccreator.restyle.songsPicker.title":
+    "Elige una canción de tu biblioteca",
+  "musiccreator.restyle.songsPicker.empty.title":
+    "Aún no hay canciones en tu biblioteca",
+  "musiccreator.restyle.songsPicker.empty.body":
+    "Cambia a la pestaña Canción y crea una pista primero — aparecerá aquí para remezclarla.",
+  "musiccreator.restyle.songsPicker.tooShort":
+    "demasiado corta para una versión (mín. 6 s)",
+  "musiccreator.restyle.button.mySongs": "Mis canciones",
+  "musiccreator.restyle.button.mySongs.count": "{count} en biblioteca",
+  "musiccreator.restyle.button.voiceClips": "Notas de voz",
+  "musiccreator.restyle.button.voiceClips.count": "{count} guardadas",
 
   // JULI3TA in-app help ─────────────────────────────────────
-  'julietaHelp.title': 'JULI3TA — Cómo funciona',
-  'julietaHelp.subtitle': 'Manual del creador de música',
-  'julietaHelp.tab.start': 'Empezar',
-  'julietaHelp.tab.recipes': 'Recetas',
-  'julietaHelp.tab.help': 'Ayuda',
+  "julietaHelp.title": "JULI3TA — Cómo funciona",
+  "julietaHelp.subtitle": "Manual del creador de música",
+  "julietaHelp.tab.start": "Empezar",
+  "julietaHelp.tab.recipes": "Recetas",
+  "julietaHelp.tab.help": "Ayuda",
 
   // Start tab
-  'julietaHelp.start.workflow.title': 'Crea tu primera canción',
-  'julietaHelp.start.s1.title': 'Describe la vibra',
-  'julietaHelp.start.s1.body': 'Escribe un tema — de qué va la canción, el mood, la época. Una o dos frases bastan. Pulsa "Sorpréndeme" para una al azar.',
-  'julietaHelp.start.s2.title': 'Elige un estilo (opcional)',
-  'julietaHelp.start.s2.body': 'Añade género, instrumentos, tempo, tipo de voz. O simplemente toca chips como Lo-fi, Jazz, Synthwave para construirlo.',
-  'julietaHelp.start.s3.title': 'Pulsa Crear canción',
-  'julietaHelp.start.s3.body': 'JULI3TA escribe la letra primero (~3 s) y luego renderiza la música (~30–90 s). Un MP3 real aparece en Mis creaciones a la derecha.',
-  'julietaHelp.start.s4.title': 'Escucha, descarga, comparte',
-  'julietaHelp.start.s4.body': 'Pulsa play para escuchar inline, el icono de descarga para el MP3, o abre Reproductor de música para disfrutar toda la biblioteca junta.',
+  "julietaHelp.start.workflow.title": "Crea tu primera canción",
+  "julietaHelp.start.s1.title": "Describe la vibra",
+  "julietaHelp.start.s1.body":
+    'Escribe un tema — de qué va la canción, el mood, la época. Una o dos frases bastan. Pulsa "Sorpréndeme" para una al azar.',
+  "julietaHelp.start.s2.title": "Elige un estilo (opcional)",
+  "julietaHelp.start.s2.body":
+    "Añade género, instrumentos, tempo, tipo de voz. O simplemente toca chips como Lo-fi, Jazz, Synthwave para construirlo.",
+  "julietaHelp.start.s3.title": "Pulsa Crear canción",
+  "julietaHelp.start.s3.body":
+    "JULI3TA escribe la letra primero (~3 s) y luego renderiza la música (~30–90 s). Un MP3 real aparece en Mis creaciones a la derecha.",
+  "julietaHelp.start.s4.title": "Escucha, descarga, comparte",
+  "julietaHelp.start.s4.body":
+    "Pulsa play para escuchar inline, el icono de descarga para el MP3, o abre Reproductor de música para disfrutar toda la biblioteca junta.",
 
-  'julietaHelp.start.modes.title': 'Tres modos',
-  'julietaHelp.start.mode.song.name': 'Canción — pista completa',
-  'julietaHelp.start.mode.song.body': 'Tema → letra IA → música. Por defecto. Lo mejor para canciones originales nuevas.',
-  'julietaHelp.start.mode.cover.name': 'Cover — reestilizar audio',
-  'julietaHelp.start.mode.cover.body': 'Suelta un clip de referencia (una grabación, un MP3) y JULI3TA lo reestiliza según tu prompt. La vibra de la fuente se mantiene; el género cambia.',
-  'julietaHelp.start.mode.lyrics.name': 'Letra — solo palabras',
-  'julietaHelp.start.mode.lyrics.body': 'Genera solo la letra sin renderizar audio. Rápido y sin gastar la cuota de música.',
+  "julietaHelp.start.modes.title": "Tres modos",
+  "julietaHelp.start.mode.song.name": "Canción — pista completa",
+  "julietaHelp.start.mode.song.body":
+    "Tema → letra IA → música. Por defecto. Lo mejor para canciones originales nuevas.",
+  "julietaHelp.start.mode.cover.name": "Cover — reestilizar audio",
+  "julietaHelp.start.mode.cover.body":
+    "Suelta un clip de referencia (una grabación, un MP3) y JULI3TA lo reestiliza según tu prompt. La vibra de la fuente se mantiene; el género cambia.",
+  "julietaHelp.start.mode.lyrics.name": "Letra — solo palabras",
+  "julietaHelp.start.mode.lyrics.body":
+    "Genera solo la letra sin renderizar audio. Rápido y sin gastar la cuota de música.",
 
-  'julietaHelp.start.recorder.title': 'Integración con Grabadora',
-  'julietaHelp.start.recorder.body': 'Abre Grabadora de voz, captura audio (tarareo, música en la habitación, un instrumento), luego vuelve a JULI3TA → Cover → "Desde grabaciones". JULI3TA auto-elige los mejores 30 s de una grabación larga, así que puedes grabar varios minutos y dejar que encuentre la magia.',
+  "julietaHelp.start.recorder.title": "Integración con Grabadora",
+  "julietaHelp.start.recorder.body":
+    'Abre Grabadora de voz, captura audio (tarareo, música en la habitación, un instrumento), luego vuelve a JULI3TA → Cover → "Desde grabaciones". JULI3TA auto-elige los mejores 30 s de una grabación larga, así que puedes grabar varios minutos y dejar que encuentre la magia.',
 
-  'julietaHelp.start.tip.title': '✨ Truco pro',
-  'julietaHelp.start.tip.body': 'Para covers, las grabaciones largas suelen funcionar mejor — JULI3TA tiene más material para encontrar una buena ventana de 30 segundos. Apunta a 1–3 minutos de audio limpio (evita silencios largos al principio o al final).',
+  "julietaHelp.start.tip.title": "✨ Truco pro",
+  "julietaHelp.start.tip.body":
+    "Para covers, las grabaciones largas suelen funcionar mejor — JULI3TA tiene más material para encontrar una buena ventana de 30 segundos. Apunta a 1–3 minutos de audio limpio (evita silencios largos al principio o al final).",
 
   // Recipes tab
-  'julietaHelp.recipes.intro': 'Pulsa "Usar" para meter una receta directo en el formulario, o "Copiar" para pegarla en otro sitio. Son puntos de partida — cambia lo que quieras antes de Crear canción.',
-  'julietaHelp.recipe.use': 'Usar',
-  'julietaHelp.recipe.copy': 'Copiar',
+  "julietaHelp.recipes.intro":
+    'Pulsa "Usar" para meter una receta directo en el formulario, o "Copiar" para pegarla en otro sitio. Son puntos de partida — cambia lo que quieras antes de Crear canción.',
+  "julietaHelp.recipe.use": "Usar",
+  "julietaHelp.recipe.copy": "Copiar",
 
   // Help tab
-  'julietaHelp.help.connection.title': 'Conexión',
-  'julietaHelp.help.usage.title': 'Uso',
-  'julietaHelp.help.troubleshoot.title': 'Solución de problemas',
+  "julietaHelp.help.connection.title": "Conexión",
+  "julietaHelp.help.usage.title": "Uso",
+  "julietaHelp.help.troubleshoot.title": "Solución de problemas",
 
-  'julietaHelp.help.q.failed.title': '¿Por qué veo "Failed to fetch"?',
-  'julietaHelp.help.q.failed.body': 'JULI3TA intenta tres lugares en orden: tu pod Tytus (cloud), switchAILocal local, y la pantalla de suscripción. "Failed to fetch" significa que los dos primeros no están alcanzables. Pulsa "Try again" — JULI3TA volverá a probar cada candidato. Si tu pod se durmió, reinícialo desde Pod Inspector.',
-  'julietaHelp.help.q.nopod.title': 'No tengo un pod Tytus',
-  'julietaHelp.help.q.nopod.body': 'No hay problema — JULI3TA también funciona con switchAILocal corriendo en esta máquina (gratis, local). Si ninguno está disponible, la pantalla de suscripción tiene un enlace a Tytus donde puedes reclamar un pod Explorer gratis.',
-  'julietaHelp.help.q.local.title': '¿Cómo funciona el fallback local?',
-  'julietaHelp.help.q.local.body': 'Si el pod Tytus no está alcanzable, JULI3TA prueba http://localhost:18080/v1 con la clave de dev sk-test-123. Ahí es donde switchAILocal escucha por defecto. El punto ámbar en el header significa que JULI3TA está usando AIL local.',
+  "julietaHelp.help.q.failed.title": '¿Por qué veo "Failed to fetch"?',
+  "julietaHelp.help.q.failed.body":
+    'JULI3TA intenta tres lugares en orden: tu pod Tytus (cloud), switchAILocal local, y la pantalla de suscripción. "Failed to fetch" significa que los dos primeros no están alcanzables. Pulsa "Try again" — JULI3TA volverá a probar cada candidato. Si tu pod se durmió, reinícialo desde Pod Inspector.',
+  "julietaHelp.help.q.nopod.title": "No tengo un pod Tytus",
+  "julietaHelp.help.q.nopod.body":
+    "No hay problema — JULI3TA también funciona con switchAILocal corriendo en esta máquina (gratis, local). Si ninguno está disponible, la pantalla de suscripción tiene un enlace a Tytus donde puedes reclamar un pod Explorer gratis.",
+  "julietaHelp.help.q.local.title": "¿Cómo funciona el fallback local?",
+  "julietaHelp.help.q.local.body":
+    "Si el pod Tytus no está alcanzable, JULI3TA prueba http://localhost:18080/v1 con la clave de dev sk-test-123. Ahí es donde switchAILocal escucha por defecto. El punto ámbar en el header significa que JULI3TA está usando AIL local.",
 
-  'julietaHelp.help.q.howlong.title': '¿Cuánto tarda una canción?',
-  'julietaHelp.help.q.howlong.body': 'Letra: 2–5 segundos. Música: 30–90 segundos para una canción de 1–2 minutos. La barra de progreso curva hacia 95% para que nunca veas un "100%" falso antes de que el audio aparezca.',
-  'julietaHelp.help.q.quota.title': '¿Cuántas canciones puedo hacer?',
-  'julietaHelp.help.q.quota.body': 'En el plan Plus de MiniMax: 100 canciones/día para música, 100/día para covers, 100/día para letras. Cada bucket cuenta de forma independiente. El dashboard muestra el uso en vivo.',
-  'julietaHelp.help.q.length.title': '¿Qué longitud tienen las canciones?',
-  'julietaHelp.help.q.length.body': 'JULI3TA elige la duración según la forma de tu letra — más versos y estribillos → canción más larga. Rango típico: 1–3 minutos. Aún no hay control manual de longitud.',
-  'julietaHelp.help.q.coverlen.title': '¿Qué audio sirve para covers?',
-  'julietaHelp.help.q.coverlen.body': 'mp3, wav o flac. Mínimo 6 segundos, máximo 6 minutos, 50 MB de tamaño máx. Si tu clip dura más de 30 s, JULI3TA elige automáticamente la sección sostenida más fuerte como referencia.',
+  "julietaHelp.help.q.howlong.title": "¿Cuánto tarda una canción?",
+  "julietaHelp.help.q.howlong.body":
+    'Letra: 2–5 segundos. Música: 30–90 segundos para una canción de 1–2 minutos. La barra de progreso curva hacia 95% para que nunca veas un "100%" falso antes de que el audio aparezca.',
+  "julietaHelp.help.q.quota.title": "¿Cuántas canciones puedo hacer?",
+  "julietaHelp.help.q.quota.body":
+    "En el plan Plus de MiniMax: 100 canciones/día para música, 100/día para covers, 100/día para letras. Cada bucket cuenta de forma independiente. El dashboard muestra el uso en vivo.",
+  "julietaHelp.help.q.length.title": "¿Qué longitud tienen las canciones?",
+  "julietaHelp.help.q.length.body":
+    "JULI3TA elige la duración según la forma de tu letra — más versos y estribillos → canción más larga. Rango típico: 1–3 minutos. Aún no hay control manual de longitud.",
+  "julietaHelp.help.q.coverlen.title": "¿Qué audio sirve para covers?",
+  "julietaHelp.help.q.coverlen.body":
+    "mp3, wav o flac. Mínimo 6 segundos, máximo 6 minutos, 50 MB de tamaño máx. Si tu clip dura más de 30 s, JULI3TA elige automáticamente la sección sostenida más fuerte como referencia.",
 
-  'julietaHelp.help.q.silentmic.title': 'Mi grabación salió en silencio',
-  'julietaHelp.help.q.silentmic.body': 'Mira la onda en vivo mientras grabas — si las barras no bailan, la entrada del micro está vacía. Prueba: 1) Aprueba el permiso de micrófono en el navegador. 2) Elige la entrada correcta en Ajustes del Sistema → Sonido. 3) Acércate al micro.',
-  'julietaHelp.help.q.shortrec.title': '"Grabación demasiado corta" al elegirla para cover',
-  'julietaHelp.help.q.shortrec.body': 'El modo Cover necesita al menos 6 segundos de audio. Graba un clip más largo e inténtalo de nuevo — la reproducción sostenida (música, un instrumento, tarareando un verso) funciona mucho mejor que ráfagas cortas.',
-  'julietaHelp.help.q.privacy.title': '¿Dónde va mi audio?',
-  'julietaHelp.help.q.privacy.body': 'Las grabaciones viven en el localStorage del navegador — nunca salen de tu máquina hasta que decides usar una para un cover. Cuando lo haces, JULI3TA auto-extrae un trozo de 30 s y solo envía ese trozo a tu pod Tytus (o al AIL local). Las grabaciones originales se quedan locales.',
+  "julietaHelp.help.q.silentmic.title": "Mi grabación salió en silencio",
+  "julietaHelp.help.q.silentmic.body":
+    "Mira la onda en vivo mientras grabas — si las barras no bailan, la entrada del micro está vacía. Prueba: 1) Aprueba el permiso de micrófono en el navegador. 2) Elige la entrada correcta en Ajustes del Sistema → Sonido. 3) Acércate al micro.",
+  "julietaHelp.help.q.shortrec.title":
+    '"Grabación demasiado corta" al elegirla para cover',
+  "julietaHelp.help.q.shortrec.body":
+    "El modo Cover necesita al menos 6 segundos de audio. Graba un clip más largo e inténtalo de nuevo — la reproducción sostenida (música, un instrumento, tarareando un verso) funciona mucho mejor que ráfagas cortas.",
+  "julietaHelp.help.q.privacy.title": "¿Dónde va mi audio?",
+  "julietaHelp.help.q.privacy.body":
+    "Las grabaciones viven en el localStorage del navegador — nunca salen de tu máquina hasta que decides usar una para un cover. Cuando lo haces, JULI3TA auto-extrae un trozo de 30 s y solo envía ese trozo a tu pod Tytus (o al AIL local). Las grabaciones originales se quedan locales.",
 };
