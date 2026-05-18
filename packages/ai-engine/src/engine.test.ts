@@ -29,6 +29,7 @@ function fakeHost(): HostClient {
       state: { agents: [], included: [] },
       onStateChange: () => () => {},
       callPodEndpoint: async () => new Response('{"data":[]}'),
+      chatAgent: async function* () {},
       music: {} as MusicDaemonApi,
       juli3taLibrary: {} as Juli3taLibraryApi,
     },

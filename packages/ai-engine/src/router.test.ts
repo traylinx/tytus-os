@@ -16,6 +16,7 @@ import type {
 
 const stubMusic = {} as MusicDaemonApi;
 const stubJuli3ta = {} as Juli3taLibraryApi;
+const stubChatAgent = async function* () {};
 
 function makeHost(pods: Pod[]): HostClient {
   return {
@@ -26,6 +27,7 @@ function makeHost(pods: Pod[]): HostClient {
       onStateChange: () => () => {},
       callPodEndpoint: async (_id, _path) =>
         new Response(JSON.stringify({ data: [] })),
+      chatAgent: stubChatAgent,
       music: stubMusic,
       juli3taLibrary: stubJuli3ta,
     },
@@ -107,6 +109,7 @@ describe('router — discoverModels', () => {
               ],
             }),
           ),
+        chatAgent: stubChatAgent,
         music: stubMusic,
         juli3taLibrary: stubJuli3ta,
       },
@@ -137,6 +140,7 @@ describe('router — discoverModels', () => {
         onStateChange: () => () => {},
         callPodEndpoint: async () =>
           new Response('forbidden', { status: 403 }),
+        chatAgent: stubChatAgent,
         music: stubMusic,
         juli3taLibrary: stubJuli3ta,
       },
