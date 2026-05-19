@@ -104,6 +104,31 @@ describe('agent-chat runtime bridge', () => {
     expect(events.at(-1)).toEqual({ type: 'done' });
   });
 
+  it('falls back from Cortex 500 before the stream opens', async () => {
+    const fetchImpl = vi.fn<typeof fetch>(async (url) => {
+      if (String(url).endsWith('/cortex/chat')) {
+        return jsonResponse({ message: 'cortex internal error from MiniMax route' }, 500);
+      }
+      return jsonResponse({ message: 'Direct fallback answer from DeepSeek' });
+    });
+
+    const events = await collect(
+      streamAgentChat(
+        { podId: 'pod-1', message: 'status' },
+        { appId: 'atomek', fetchImpl },
+      ),
+    );
+
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    expect(fetchImpl.mock.calls.map((call) => call[0])).toEqual([
+      '/api/pods/pod-1/cortex/chat',
+      '/api/pods/pod-1/agent/chat',
+    ]);
+    const token = events.find((event) => event.type === 'token');
+    expect(token && 'text' in token ? token.text : '').not.toMatch(/DeepSeek/i);
+    expect(events.at(-1)).toEqual({ type: 'done' });
+  });
+
   it('does not fallback on auth failures', async () => {
     const fetchImpl = vi.fn<typeof fetch>(async () =>
       jsonResponse({ message: 'forbidden by MiniMax route' }, 403),

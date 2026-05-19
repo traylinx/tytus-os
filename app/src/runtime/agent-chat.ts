@@ -21,7 +21,7 @@ type ParsedSseBlock = {
   data: unknown;
 };
 
-const FALLBACK_STATUSES = new Set([404, 502, 503, 504]);
+const FALLBACK_STATUSES = new Set([404, 500, 502, 503, 504]);
 const NO_FALLBACK_STATUSES = new Set([400, 401, 403]);
 const REDACTION_TAIL_CHARS = 160;
 

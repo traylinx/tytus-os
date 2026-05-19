@@ -159,6 +159,10 @@ export interface Pod {
 export interface DaemonState {
   agents: Agent[];
   included: Pod[];
+  /** Present when the tray daemon advertises its runtime version. */
+  daemon_version?: string;
+  /** Process-stable daemon start timestamp; changes after daemon restart. */
+  daemon_started_at?: number;
 }
 
 export type AgentChatTarget = 'agent';

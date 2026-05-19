@@ -95,8 +95,10 @@ import { makeAiApi } from './ai/host-api';
 import { loadFeaturedApps } from '@/apps/featured-apps-catalog';
 import { updateInstalledAppFromManifestUrl } from './installer';
 import { streamAgentChat } from './agent-chat';
+import { isDaemonVersionSupported } from '@/lib/version';
 
 const ASSET_SIZE_LIMIT_BYTES = 1024 * 1024; // 1 MB per spec.
+const MIN_AGENT_CHAT_DAEMON_VERSION = '0.6.19';
 
 const notImpl = (name: string, milestone: string) => {
   return () => {
@@ -532,6 +534,16 @@ function makeDaemonApi(appId: string): DaemonApi {
         })();
       }
       const state = provider.getState();
+      const daemonVersion = state.daemon_version ?? null;
+      if (!isDaemonVersionSupported(daemonVersion, MIN_AGENT_CHAT_DAEMON_VERSION)) {
+        return (async function* () {
+          yield {
+            type: 'error' as const,
+            message: `Update Tytus CLI to ${MIN_AGENT_CHAT_DAEMON_VERSION} or newer to use pod agent chat.`,
+            retryable: false,
+          };
+        })();
+      }
       const visible =
         state.agents.some((agent) => agent.id === request.podId) ||
         state.included.some((pod) => pod.id === request.podId);

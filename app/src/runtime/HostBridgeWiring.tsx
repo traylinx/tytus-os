@@ -70,8 +70,18 @@ export function HostBridgeWiring() {
       kind: a.agent_type,
       status: a.status ?? 'unknown',
     }));
-    return { agents, included };
-  }, [ds.state?.included, ds.state?.agents]);
+    return {
+      agents,
+      included,
+      daemon_version: ds.state?.daemon_version,
+      daemon_started_at: ds.state?.daemon_started_at,
+    };
+  }, [
+    ds.state?.included,
+    ds.state?.agents,
+    ds.state?.daemon_version,
+    ds.state?.daemon_started_at,
+  ]);
 
   useEffect(() => {
     stateRef.current = projected;

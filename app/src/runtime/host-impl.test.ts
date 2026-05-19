@@ -3,6 +3,7 @@ import {
   AssetEscapeError,
   AssetTooLargeError,
   PermissionDeniedError,
+  type AgentChatEvent,
   type AnyWindowArgs,
   type DaemonState,
   type Manifest,
@@ -45,6 +46,12 @@ const fakeEntryUrls = {
   module: '/demo/index.js',
   assets: 'http://localhost/_apps/demo/assets',
   css: null,
+};
+
+const collectAgentEvents = async (iterable: AsyncIterable<AgentChatEvent>) => {
+  const events: AgentChatEvent[] = [];
+  for await (const event of iterable) events.push(event);
+  return events;
 };
 
 afterEach(() => {
@@ -405,6 +412,38 @@ describe('daemon state bridge', () => {
     off();
 
     expect(seen).toEqual(['ail-04']);
+  });
+});
+
+describe('daemon.chatAgent', () => {
+  it('fails closed with an upgrade message when the tray daemon is too old for pod chat', async () => {
+    const state: DaemonState = {
+      daemon_version: '0.6.18',
+      daemon_started_at: 1,
+      agents: [{ id: 'p1', status: 'running' }],
+      included: [{ id: 'p1', status: 'running' }],
+    };
+    const fetchSpy = vi.fn<typeof fetch>(async () => new Response('should not be called'));
+    vi.stubGlobal('fetch', fetchSpy);
+    setDaemonStateProvider({
+      getState: () => state,
+      getPod: () => null,
+      subscribe: () => () => {},
+    });
+
+    const host = makeHostForApp('demo', fakeManifest, fakeEntryUrls);
+    const events = await collectAgentEvents(
+      host.daemon.chatAgent({ podId: 'p1', message: 'hello' }),
+    );
+
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(events).toEqual([
+      {
+        type: 'error',
+        message: 'Update Tytus CLI to 0.6.19 or newer to use pod agent chat.',
+        retryable: false,
+      },
+    ]);
   });
 });
 
