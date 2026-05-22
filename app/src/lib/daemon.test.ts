@@ -526,6 +526,79 @@ describe("daemon client — other GETs", () => {
     expect(r.value.helpers[0].name).toBe("garagetytus-folder-bind");
   });
 
+  // M3 — sprint 2026-05-21-chat-with-pods-local-cortex-parity
+  it("getCortexStatus parses cloud-profile fixture", async () => {
+    const { fetch } = makeFakeFetch([
+      {
+        method: "GET",
+        path: "/api/cortex/status",
+        body: {
+          profile: "cloud",
+          local_port: 8098,
+          local_version_pinned: null,
+          local_started_at: null,
+          local_token_present: false,
+          local_user_id_present: false,
+          internal_service_token_present: false,
+          api_reachable: false,
+          api_health: null,
+        },
+      },
+    ]);
+    const r = await createDaemonClient({ fetch }).getCortexStatus();
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.value.profile).toBe("cloud");
+    expect(r.value.local_port).toBe(8098);
+    expect(r.value.api_reachable).toBe(false);
+  });
+
+  it("getCortexStatus parses local-active fixture with health detail", async () => {
+    const { fetch } = makeFakeFetch([
+      {
+        method: "GET",
+        path: "/api/cortex/status",
+        body: {
+          profile: "local",
+          local_port: 8098,
+          local_version_pinned: "2026-05-17",
+          local_started_at: "2026-05-21T10:00:00Z",
+          local_token_present: true,
+          local_user_id_present: true,
+          internal_service_token_present: true,
+          api_reachable: true,
+          api_health: { postgres: "ok", redis: "ok", llm_config: "ok" },
+        },
+      },
+    ]);
+    const r = await createDaemonClient({ fetch }).getCortexStatus();
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.value.profile).toBe("local");
+    expect(r.value.api_reachable).toBe(true);
+    expect(r.value.api_health?.postgres).toBe("ok");
+    expect(r.value.local_version_pinned).toBe("2026-05-17");
+  });
+
+  it("postCortexProfile sends the profile in the body", async () => {
+    const { fetch, calls } = makeFakeFetch([
+      {
+        method: "POST",
+        path: "/api/cortex/profile",
+        body: { ok: true, profile: "local" },
+      },
+    ]);
+    const r = await createDaemonClient({ fetch }).postCortexProfile("local");
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.value.profile).toBe("local");
+    // Pin the wire shape — body must contain {profile}.
+    const sentBody = calls[0]?.init?.body;
+    expect(sentBody).toBeDefined();
+    const parsed = JSON.parse(sentBody as string);
+    expect(parsed).toEqual({ profile: "local" });
+  });
+
   it("getSharingDefaults parses global kill switch state", async () => {
     const { fetch } = makeFakeFetch([
       {

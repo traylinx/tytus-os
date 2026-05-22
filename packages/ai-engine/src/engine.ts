@@ -220,6 +220,17 @@ export function createSessionWithTransport(
 
     const messages: ChatMessage[] = [];
     if (prompt) messages.push({ role: 'system', content: prompt });
+
+    // Sprint 2026-05-21-chat-with-pods-local-cortex-parity (M6):
+    // when the host runs local Cortex and the app opts in via
+    // `SessionOptions.useCortex`, prepend top-K memory hits as a
+    // system block. host.ai.cortexSearch returns [] when profile=cloud
+    // or when Cortex is unreachable — no error handling needed here.
+    if (opts.useCortex) {
+      const cortexBlock = await loadCortexMemoryBlock(host, opts, req.prompt);
+      if (cortexBlock) messages.push({ role: 'system', content: cortexBlock });
+    }
+
     messages.push({ role: 'user', content: req.prompt });
 
     const chatReq: ChatRequest = {
@@ -424,6 +435,50 @@ function errorEvent(
     errorKind,
     details,
   };
+}
+
+/**
+ * Format Cortex memory hits as a system prompt block. Stable shape so
+ * downstream prompt-eval tooling can match on the wrapper tags.
+ * Exported for unit tests.
+ */
+export function formatCortexMemoryBlock(
+  hits: ReadonlyArray<{ content: string; similarity: number }>,
+): string | null {
+  if (hits.length === 0) return null;
+  const items = hits
+    .map((hit, idx) => {
+      const score = hit.similarity.toFixed(2);
+      // One memory per numbered line — readable for the model and easy
+      // to truncate if the context window is tight. Strip newlines from
+      // the content so a single hit can't smuggle in extra structure.
+      const clean = hit.content.replace(/\s+/g, ' ').trim();
+      return `${idx + 1}. (similarity ${score}) ${clean}`;
+    })
+    .join('\n');
+  return `<cortex_memory>\nRelevant prior context recalled from the user's local Cortex:\n${items}\n</cortex_memory>`;
+}
+
+/**
+ * Fetch top-K hits from `host.ai.cortexSearch` and turn them into a
+ * system block. Never throws — Cortex unreachable / cloud profile /
+ * permission denied all degrade to `null` (no injection).
+ */
+async function loadCortexMemoryBlock(
+  host: HostClient,
+  opts: SessionOptions,
+  query: string,
+): Promise<string | null> {
+  const ai = host.ai;
+  if (!ai || typeof ai.cortexSearch !== 'function') return null;
+  const limit = Math.min(Math.max(opts.cortexLimit ?? 3, 1), 10);
+  const appId = opts.cortexAppId ?? opts.app;
+  try {
+    const hits = await ai.cortexSearch({ query, limit, appId });
+    return formatCortexMemoryBlock(hits);
+  } catch {
+    return null;
+  }
 }
 
 function defaultPreview(patches: Patch[]): PreviewBlock[] {

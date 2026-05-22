@@ -46,6 +46,59 @@ describe('agent-chat runtime bridge', () => {
     expect(sanitized).toContain('[private gateway]');
   });
 
+  // Sprint 2026-05-21-chat-with-pods-local-cortex-parity:
+  it('emits a profile event when the tray daemon injects event:profile first', async () => {
+    const fetchImpl = vi.fn<typeof fetch>(async () =>
+      sseResponse(
+        [
+          'event: profile\ndata: {"profile":"local","cortex_version":"2026-05-17"}',
+          'data: {"session_id":"sess_local"}',
+          'data: {"chunk":"hi"}',
+          'event: done\ndata: {}',
+          '',
+        ].join('\n\n'),
+      ),
+    );
+    const events = await collect(
+      streamAgentChat(
+        { podId: 'pod-1', message: 'hi' },
+        { appId: 'atomek', fetchImpl },
+      ),
+    );
+    // Profile must be the first event so apps can label the chat
+    // accurately before the first token renders.
+    expect(events[0]).toEqual({
+      type: 'profile',
+      profile: 'local',
+      cortexVersion: '2026-05-17',
+    });
+    expect(events.find((e) => e.type === 'session')).toEqual({
+      type: 'session',
+      sessionId: 'sess_local',
+    });
+  });
+
+  it('defaults profile event to cloud when payload is missing or malformed', async () => {
+    const fetchImpl = vi.fn<typeof fetch>(async () =>
+      sseResponse(
+        [
+          'event: profile\ndata: {}',
+          'event: done\ndata: {}',
+          '',
+        ].join('\n\n'),
+      ),
+    );
+    const events = await collect(
+      streamAgentChat(
+        { podId: 'pod-1', message: 'hi' },
+        { appId: 'atomek', fetchImpl },
+      ),
+    );
+    // Default to cloud rather than skipping the frame entirely — apps
+    // get a consistent contract regardless of upstream daemon version.
+    expect(events[0]).toEqual({ type: 'profile', profile: 'cloud' });
+  });
+
   it('streams sanitized session, token, and done events from Cortex SSE', async () => {
     const fetchImpl = vi.fn<typeof fetch>(async () =>
       sseResponse(

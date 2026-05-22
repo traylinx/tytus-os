@@ -117,4 +117,23 @@ export interface SessionOptions {
   tools: ToolDef[];
   assets: AssetResolver;
   promptVersion?: string;
+  /**
+   * When true, prepend top-K hits from Cortex long-term memory as a
+   * `<cortex_memory>` system block before each user turn. Recall only —
+   * Cortex has no public memory-write endpoint today (sprint Q19), so
+   * memories accumulate implicitly via chat-driven consolidation, not
+   * via this engine. Defaults to false. Set true when the user's
+   * profile is local (host.ai.cortexProfile().profile === 'local').
+   */
+  useCortex?: boolean;
+  /**
+   * Scope memory search to a particular app id. Defaults to the
+   * `app` value (so Memo recalls Memo, Sheet recalls Sheet). Set to
+   * `'tytus-os'` to share memories across all apps in the OS.
+   */
+  cortexAppId?: string;
+  /**
+   * How many memory hits to prepend. Default 3, hard cap 10.
+   */
+  cortexLimit?: number;
 }

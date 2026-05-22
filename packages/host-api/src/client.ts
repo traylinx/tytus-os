@@ -183,6 +183,7 @@ export interface AgentChatRequest {
 }
 
 export type AgentChatEvent =
+  | { type: 'profile'; profile: 'cloud' | 'local'; cortexVersion?: string }
   | { type: 'session'; sessionId: string }
   | { type: 'token'; text: string }
   | { type: 'done' }

@@ -43,6 +43,7 @@ import {
   ChevronDown,
   Plus,
   Minus,
+  BrainCircuit,
 } from "lucide-react";
 import LogPane from "@/components/LogPane";
 import { useOS } from "@/hooks/useOSStore";
@@ -97,6 +98,7 @@ const TYTUS_CATEGORIES: SettingCategory[] = [
   { id: "pods", label: "Pods", icon: <Box size={18} /> },
   { id: "agents", label: "Agents", icon: <Sparkles size={18} /> },
   { id: "daemon", label: "Daemon", icon: <Server size={18} /> },
+  { id: "ai", label: "AI", icon: <BrainCircuit size={18} /> },
   { id: "sharing", label: "Sharing", icon: <FolderSync size={18} /> },
 ];
 
@@ -1017,6 +1019,9 @@ const Settings: React.FC = () => {
             </div>
           </div>
         );
+
+      case "ai":
+        return <AISettingsPanel />;
 
       case "sharing":
         return <SharingSettingsPanel />;
@@ -4878,6 +4883,262 @@ type SharingAction = (typeof SHARING_DIAGNOSTICS)[number]["action"];
 
 const normalizeSharingPodId = (pod: string): string =>
   pod.trim().replace(/^(wannolot|tytus)-/, "");
+
+// ============================================================
+// AI / Local Cortex (sprint: 2026-05-21-chat-with-pods-local-cortex-parity)
+//
+// Opt-in: cloud Cortex stays default. Toggling to "local" only flips the
+// routing flag in state.json; the user runs `tytus cortex up` in a terminal
+// to install the stack itself (Phase M4 will surface an in-OS installer SSE
+// pane). Status polls /api/cortex/status every 5s while the panel is open.
+// ============================================================
+const AISettingsPanel: React.FC = () => {
+  const client = useDaemonClient();
+  const { t } = useI18n();
+  const [status, setStatus] = useState<
+    import("@/types/daemon").CortexStatus | null
+  >(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [pendingProfile, setPendingProfile] =
+    useState<"cloud" | "local" | null>(null);
+  const [profileError, setProfileError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const controller = new AbortController();
+    const tick = async () => {
+      const res = await client.getCortexStatus(controller.signal);
+      if (cancelled) return;
+      if (res.ok) {
+        setStatus(res.value);
+        setLoadError(null);
+      } else if (res.error.kind !== "abort") {
+        setLoadError(res.error.message);
+      }
+    };
+    void tick();
+    const id = window.setInterval(() => void tick(), 5000);
+    return () => {
+      cancelled = true;
+      controller.abort();
+      window.clearInterval(id);
+    };
+  }, [client]);
+
+  const profile = (status?.profile ?? "cloud") as "cloud" | "local";
+  const isLocalActive =
+    status?.profile === "local" &&
+    status.api_reachable &&
+    status.internal_service_token_present;
+
+  const setProfile = async (next: "cloud" | "local") => {
+    if (next === profile || pendingProfile) return;
+    setPendingProfile(next);
+    setProfileError(null);
+    const res = await client.postCortexProfile(next);
+    setPendingProfile(null);
+    if (!res.ok) {
+      setProfileError(res.error.message);
+      return;
+    }
+    // Optimistic + next poll re-confirms.
+    setStatus((prev) =>
+      prev ? { ...prev, profile: res.value.profile } : prev,
+    );
+  };
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-2xl font-semibold text-[var(--text-primary)]">
+          {t("settings.ai.title")}
+        </h2>
+        <p className="text-sm text-[var(--text-secondary)] mt-1">
+          {t("settings.ai.subtitle")}
+        </p>
+      </div>
+
+      {/* Profile picker -------------------------------------------------- */}
+      <div
+        className="p-4 rounded-lg space-y-3"
+        style={{
+          background: "var(--bg-card, rgba(255,255,255,0.03))",
+          border: "1px solid var(--border-subtle, rgba(255,255,255,0.06))",
+        }}
+      >
+        <div className="text-sm font-medium text-[var(--text-primary)]">
+          {t("settings.ai.profile.label")}
+        </div>
+        <div className="flex flex-col gap-2">
+          {(["cloud", "local"] as const).map((opt) => (
+            <label
+              key={opt}
+              className="flex items-start gap-3 cursor-pointer"
+              style={{ opacity: pendingProfile ? 0.6 : 1 }}
+            >
+              <input
+                type="radio"
+                name="cortex-profile"
+                value={opt}
+                checked={profile === opt}
+                disabled={pendingProfile !== null}
+                onChange={() => void setProfile(opt)}
+                className="mt-1"
+              />
+              <div className="flex-1">
+                <div className="text-sm text-[var(--text-primary)]">
+                  {t(`settings.ai.profile.${opt}.label`)}
+                </div>
+                <div className="text-[12px] text-[var(--text-secondary)]">
+                  {t(`settings.ai.profile.${opt}.desc`)}
+                </div>
+              </div>
+            </label>
+          ))}
+        </div>
+        {profileError && (
+          <div
+            className="text-xs"
+            style={{ color: "var(--accent-error)" }}
+            role="alert"
+          >
+            {profileError}
+          </div>
+        )}
+      </div>
+
+      {/* Local status panel --------------------------------------------- */}
+      {profile === "local" && (
+        <div
+          className="p-4 rounded-lg space-y-3"
+          style={{
+            background: "var(--bg-card, rgba(255,255,255,0.03))",
+            border: "1px solid var(--border-subtle, rgba(255,255,255,0.06))",
+          }}
+        >
+          <div className="text-sm font-medium text-[var(--text-primary)]">
+            {t("settings.ai.status.label")}
+          </div>
+          {loadError && (
+            <div
+              className="text-xs"
+              style={{ color: "var(--accent-error)" }}
+              role="alert"
+            >
+              {loadError}
+            </div>
+          )}
+          {!status && !loadError && (
+            <div className="text-xs text-[var(--text-secondary)]">
+              {t("settings.ai.status.loading")}
+            </div>
+          )}
+          {status && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-[12px]">
+              <Row
+                label={t("settings.ai.status.health")}
+                value={
+                  isLocalActive
+                    ? t("settings.ai.status.health.active")
+                    : t("settings.ai.status.health.inactive")
+                }
+              />
+              <Row
+                label={t("settings.ai.status.port")}
+                value={String(status.local_port)}
+              />
+              <Row
+                label={t("settings.ai.status.version")}
+                value={status.local_version_pinned ?? "—"}
+              />
+              <Row
+                label={t("settings.ai.status.started")}
+                value={
+                  status.local_started_at
+                    ? new Date(status.local_started_at).toLocaleString()
+                    : "—"
+                }
+              />
+              <Row
+                label={t("settings.ai.status.ctx_token")}
+                value={
+                  status.local_token_present
+                    ? t("settings.ai.status.present")
+                    : t("settings.ai.status.absent")
+                }
+              />
+              <Row
+                label={t("settings.ai.status.service_token")}
+                value={
+                  status.internal_service_token_present
+                    ? t("settings.ai.status.present")
+                    : t("settings.ai.status.absent")
+                }
+              />
+              {status.api_health?.postgres && (
+                <Row
+                  label="Postgres"
+                  value={String(status.api_health.postgres)}
+                />
+              )}
+              {status.api_health?.redis && (
+                <Row label="Redis" value={String(status.api_health.redis)} />
+              )}
+              {status.api_health?.llm_config && (
+                <Row
+                  label="LLM config"
+                  value={String(status.api_health.llm_config)}
+                />
+              )}
+            </div>
+          )}
+
+          {/* Installation guidance — M4 will replace this with an in-OS
+              SSE installer pane wired to /api/cortex/install. */}
+          {status && !isLocalActive && (
+            <div
+              className="p-3 rounded text-[12px] space-y-1"
+              style={{
+                background: "var(--accent-warning-soft, rgba(255,180,0,0.08))",
+                border:
+                  "1px solid var(--accent-warning, rgba(255,180,0,0.25))",
+              }}
+            >
+              <div className="text-[var(--text-primary)] font-medium">
+                {t("settings.ai.install.needed.title")}
+              </div>
+              <div className="text-[var(--text-secondary)]">
+                {t("settings.ai.install.needed.body")}
+              </div>
+              <pre
+                className="mt-2 px-2 py-1 rounded text-[11px]"
+                style={{
+                  background: "rgba(0,0,0,0.25)",
+                  color: "var(--text-primary)",
+                }}
+              >
+                tytus cortex up
+              </pre>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Cloud-active reminder when profile is cloud --------------------- */}
+      {profile === "cloud" && (
+        <div
+          className="p-3 rounded text-[12px]"
+          style={{
+            background: "var(--bg-card, rgba(255,255,255,0.03))",
+            color: "var(--text-secondary)",
+          }}
+        >
+          {t("settings.ai.cloud.note")}
+        </div>
+      )}
+    </div>
+  );
+};
 
 const SharingSettingsPanel: React.FC = () => {
   const client = useDaemonClient();

@@ -12,6 +12,8 @@ import type {
   DaemonStatus,
   DaemonVersion,
   ErrorEnvelope,
+  CortexProfileSetResponse,
+  CortexStatus,
   FileCopyMoveBody,
   FileList,
   FileListEntry,
@@ -393,6 +395,23 @@ const isSharingDefaults = (v: unknown): v is SharingDefaults =>
   typeof v.default_bucket === "string" &&
   typeof v.default_local_root === "string";
 
+const isCortexStatus = (v: unknown): v is CortexStatus =>
+  isObject(v) &&
+  typeof v.profile === "string" &&
+  typeof v.local_port === "number" &&
+  typeof v.local_token_present === "boolean" &&
+  typeof v.local_user_id_present === "boolean" &&
+  typeof v.internal_service_token_present === "boolean" &&
+  typeof v.api_reachable === "boolean";
+
+const isCortexProfileSetResponse = (
+  v: unknown,
+): v is CortexProfileSetResponse =>
+  isObject(v) &&
+  typeof v.ok === "boolean" &&
+  typeof v.profile === "string" &&
+  (v.profile === "cloud" || v.profile === "local");
+
 const isGaragetytusStatus = (v: unknown): v is GaragetytusStatus =>
   isObject(v) &&
   typeof v.available === "boolean" &&
@@ -556,6 +575,25 @@ export interface DaemonClient {
   getGaragetytusStatus(
     signal?: AbortSignal,
   ): Promise<DaemonResult<GaragetytusStatus>>;
+  /**
+   * Local Cortex profile + health snapshot. Settings → AI polls every 5s.
+   *
+   * `profile === "local"` AND `api_reachable === true` means chat will route
+   * through the local stack on `127.0.0.1:<local_port>`. Other combinations
+   * fall back to cloud (the tray daemon's `resolve_cortex_upstream` enforces
+   * this safety net).
+   */
+  getCortexStatus(signal?: AbortSignal): Promise<DaemonResult<CortexStatus>>;
+  /**
+   * Flip the active Cortex profile. Idempotent. Does NOT install or
+   * uninstall containers — `tytus cortex up` / `tytus cortex down` handle
+   * lifecycle, this only flips the routing flag in state.json.
+   */
+  postCortexProfile(
+    profile: "cloud" | "local",
+    signal?: AbortSignal,
+    idempotencyKey?: string,
+  ): Promise<DaemonResult<CortexProfileSetResponse>>;
 
   // POST
   //
@@ -1058,6 +1096,29 @@ export const createDaemonClient = (
           isGaragetytusStatus,
           "malformed /api/garagetytus/status",
         ),
+      ),
+
+    getCortexStatus: (signal) =>
+      runRequest(deps, "/api/cortex/status", { signal }, (b) =>
+        expectShape(b, isCortexStatus, "malformed /api/cortex/status"),
+      ),
+
+    postCortexProfile: (profile, signal, idempotencyKey) =>
+      runRequest(
+        deps,
+        "/api/cortex/profile",
+        {
+          method: "POST",
+          body: { profile },
+          signal,
+          idempotencyKey,
+        },
+        (b) =>
+          expectShape(
+            b,
+            isCortexProfileSetResponse,
+            "malformed /api/cortex/profile",
+          ),
       ),
 
     postLogout: (signal, idempotencyKey) =>

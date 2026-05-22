@@ -168,6 +168,40 @@ export interface AiCreateArtifactInput {
   body: string;
 }
 
+/**
+ * Local Cortex profile snapshot — sprint
+ * `2026-05-21-chat-with-pods-local-cortex-parity`.
+ *
+ * `cloud` means chat routes through the Provider → remote Cortex on Strato.
+ * `local` means chat routes through the bundled Cortex docker stack on
+ * `127.0.0.1:<port>`. `available === false` means the user is in local
+ * profile but the stack is unreachable — apps must treat this as cloud
+ * for routing decisions, but they can surface a "fix in Settings" hint.
+ */
+export interface CortexProfile {
+  profile: 'cloud' | 'local';
+  available: boolean;
+  cortexVersion?: string;
+  port?: number;
+}
+
+export interface CortexSearchInput {
+  query: string;
+  /** Default: 5. Hard cap: 50 (Cortex-side). */
+  limit?: number;
+  /** Default: "tytus-os". Scope memories to a particular app. */
+  appId?: string;
+  /** 0..1. Filters out hits below this cosine similarity. */
+  minSimilarity?: number;
+}
+
+export interface CortexMemoryHit {
+  id: string;
+  content: string;
+  similarity: number;
+  createdAt: string;
+}
+
 export interface AiApi {
   status(signal?: AbortSignal): Promise<AiStatus>;
   listModels(input?: AiListModelsInput): Promise<AiModelInfo[]>;
@@ -184,4 +218,30 @@ export interface AiApi {
   listArtifacts(input: AiListArtifactsInput): Promise<AiArtifact[]>;
   createArtifact(input: AiCreateArtifactInput): Promise<AiArtifact>;
   deleteArtifact(artifactId: string): Promise<void>;
+
+  /**
+   * Local Cortex profile + reachability. Apps call this to decide whether
+   * to show Cortex-backed UI (recall, status chip) and to label which
+   * Cortex is serving the current chat. Resolves with `{profile:'cloud',
+   * available:true}` when the user is on cloud (today's default).
+   *
+   * Never throws — daemon unreachable returns
+   * `{profile:'cloud', available:false}` (safer default than crashing).
+   */
+  cortexProfile(signal?: AbortSignal): Promise<CortexProfile>;
+
+  /**
+   * Semantic search over local Cortex's long-term memory. Read-only.
+   * Returns `[]` when profile=cloud, when no user token is present, or
+   * when local Cortex is unreachable — callers can render "no recall
+   * available" without branching on errors.
+   *
+   * Cortex has no public memory-write endpoint today (sprint Q19);
+   * memories are populated implicitly by chats that route through
+   * `/v1/chat`. Search results reflect those consolidated turns.
+   */
+  cortexSearch(
+    input: CortexSearchInput,
+    signal?: AbortSignal,
+  ): Promise<CortexMemoryHit[]>;
 }

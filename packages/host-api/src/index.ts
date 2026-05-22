@@ -55,6 +55,9 @@ export type {
   AiThreadStatus,
   AiUpdateThreadInput,
   AiWriteMemoryInput,
+  CortexMemoryHit,
+  CortexProfile,
+  CortexSearchInput,
 } from './ai';
 
 export type {

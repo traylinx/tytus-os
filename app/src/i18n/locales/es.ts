@@ -39,7 +39,36 @@ export const es: TranslationMap = {
   "settings.category.pods": "Pods",
   "settings.category.agents": "Agentes",
   "settings.category.daemon": "Daemon",
+  "settings.category.ai": "IA",
   "settings.category.sharing": "Compartir",
+  "settings.ai.title": "Perfil de memoria de IA",
+  "settings.ai.subtitle":
+    "Chatea con tu pod a través del Cortex en la nube (por defecto) o un Cortex que corre en tu Mac. Local mantiene la memoria fuera de los servidores de Traylinx.",
+  "settings.ai.profile.label": "Perfil de Cortex",
+  "settings.ai.profile.cloud.label": "Cortex en la nube (por defecto)",
+  "settings.ai.profile.cloud.desc":
+    "El chat pasa por tytus.traylinx.com. La memoria vive en Strato.",
+  "settings.ai.profile.local.label": "Cortex local (opcional)",
+  "settings.ai.profile.local.desc":
+    "El chat pasa por 127.0.0.1:8098. La memoria vive en esta Mac. Requiere Docker Desktop y un paso en la terminal.",
+  "settings.ai.status.label": "Estado del Cortex local",
+  "settings.ai.status.loading": "Cargando…",
+  "settings.ai.status.health": "Salud",
+  "settings.ai.status.health.active": "Activo",
+  "settings.ai.status.health.inactive":
+    "Inactivo — el chat usa el Cortex en la nube",
+  "settings.ai.status.port": "Puerto",
+  "settings.ai.status.version": "Imagen fijada",
+  "settings.ai.status.started": "Iniciado",
+  "settings.ai.status.ctx_token": "Token de usuario",
+  "settings.ai.status.service_token": "Token de servicio",
+  "settings.ai.status.present": "Presente",
+  "settings.ai.status.absent": "Ausente",
+  "settings.ai.install.needed.title": "Cortex local no está corriendo",
+  "settings.ai.install.needed.body":
+    "Abre una terminal y ejecuta el comando de abajo. La primera vez descarga las imágenes (~30–90s) y se queda corriendo hasta que la detengas.",
+  "settings.ai.cloud.note":
+    "El chat usa Cortex en la nube. Para cambiar a local, instala Docker Desktop, elige Cortex local arriba y sigue el comando de instalación.",
   "settings.category.background": "Fondo",
   "settings.category.appearance": "Apariencia",
   "settings.category.language": "Idiomas",

@@ -13,6 +13,7 @@ Settings is split into **Tytus** panels and **System** panels. Production docs s
 | Pods | Allocated pods, API/UI URLs, keys, status, allocate action |
 | Agents | Install OpenClaw/Hermes-style agents into pods and follow install progress |
 | Daemon | Local daemon health, session expiry, sign-in recovery, lifecycle buttons, autostart toggles |
+| AI | Cortex memory profile (Cloud / Local), local Cortex status, install guidance. See [Local Cortex](./local-cortex.md). |
 | Sharing | Garagetytus/shared-folder bindings, diagnostics, defaults, cache/open-folder actions |
 
 ## System panels

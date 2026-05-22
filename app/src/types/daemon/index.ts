@@ -35,6 +35,12 @@ export type {
 } from "./Binding";
 export type { PodEnv, PodEnvVar, EnvVarSource } from "./PodEnv";
 export type {
+  CortexStatus,
+  CortexHealthDetail,
+  CortexProfileSetRequest,
+  CortexProfileSetResponse,
+} from "./Cortex";
+export type {
   StoreApp,
   StoreAppCheckResult,
   StoreAppCheckResponse,

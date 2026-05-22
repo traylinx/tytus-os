@@ -242,6 +242,26 @@ async function* eventsFromSseResponse(res: Response): AsyncGenerator<AgentChatEv
   const consumeBlock = function* (block: string): Generator<AgentChatEvent> {
     const parsed = parseAgentSseBlock(block);
     if (!parsed) return;
+    // Sprint 2026-05-21-chat-with-pods-local-cortex-parity:
+    // tray daemon injects `event: profile` as the FIRST frame of every
+    // cortex/chat stream. Apps use it to label which Cortex served the
+    // chat ("Cloud Cortex" vs "Local Cortex"). Tolerate the data shape
+    // being missing — fall through to the cloud default rather than
+    // breaking the rest of the stream.
+    if (parsed.event === 'profile') {
+      const obj = asRecord(parsed.data);
+      const rawProfile = obj?.profile;
+      const profile: 'cloud' | 'local' =
+        rawProfile === 'local' ? 'local' : 'cloud';
+      const cortexVersion =
+        typeof obj?.cortex_version === 'string'
+          ? (obj.cortex_version as string)
+          : undefined;
+      yield cortexVersion
+        ? { type: 'profile', profile, cortexVersion }
+        : { type: 'profile', profile };
+      return;
+    }
     if (parsed.event === 'error') {
       yield friendlyAgentError(null, agentEventErrorMessage(parsed.data));
       errored = true;
