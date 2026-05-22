@@ -4912,7 +4912,9 @@ const AISettingsPanel: React.FC = () => {
       if (res.ok) {
         setStatus(res.value);
         setLoadError(null);
-      } else if (res.error.kind !== "abort") {
+      } else if (res.error.code !== "network_timeout") {
+        // network_timeout covers AbortController-initiated cancels; everything
+        // else (daemon offline, auth gone, etc.) surfaces to the panel.
         setLoadError(res.error.message);
       }
     };
