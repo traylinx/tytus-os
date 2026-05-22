@@ -36,6 +36,7 @@ import type {
   StateSnapshot,
   StoreApp,
   StoreAppCheckResponse,
+  UpdateInstallResult,
   UpdateStatus,
 } from "@/types/daemon";
 
@@ -265,6 +266,11 @@ const isUpdateStatus = (v: unknown): v is UpdateStatus =>
   typeof v.current_version === "string" &&
   typeof v.installed_version === "string" &&
   (v.latest_version === null || typeof v.latest_version === "string") &&
+  (v.release_tag === null || typeof v.release_tag === "string") &&
+  (v.release_url === null || typeof v.release_url === "string") &&
+  (v.install_url === null || typeof v.install_url === "string") &&
+  typeof v.install_command === "string" &&
+  typeof v.can_install === "boolean" &&
   typeof v.channel === "string" &&
   (v.status === "up_to_date" ||
     v.status === "update_available" ||
@@ -273,6 +279,12 @@ const isUpdateStatus = (v: unknown): v is UpdateStatus =>
   (v.last_checked_at === null || typeof v.last_checked_at === "number") &&
   (v.checked_at === null || typeof v.checked_at === "number") &&
   typeof v.detail === "string";
+
+const isUpdateInstallResult = (v: unknown): v is UpdateInstallResult =>
+  isObject(v) &&
+  typeof v.ok === "boolean" &&
+  typeof v.command === "string" &&
+  typeof v.message === "string";
 
 const isJobResponse = (v: unknown): v is JobResponse =>
   isObject(v) && typeof v.job_id === "string";
@@ -856,6 +868,10 @@ export interface DaemonClient {
     signal?: AbortSignal,
     idempotencyKey?: string,
   ): Promise<DaemonResult<UpdateStatus>>;
+  postUpdateInstall(
+    signal?: AbortSignal,
+    idempotencyKey?: string,
+  ): Promise<DaemonResult<UpdateInstallResult>>;
   postUpdateAutomaticChecks(
     enabled: boolean,
     signal?: AbortSignal,
@@ -1564,6 +1580,15 @@ export const createDaemonClient = (
         "/api/update/check",
         { method: "POST", signal, idempotencyKey },
         (b) => expectShape(b, isUpdateStatus, "malformed /api/update/check"),
+      ),
+
+    postUpdateInstall: (signal, idempotencyKey) =>
+      runRequest(
+        deps,
+        "/api/update/install",
+        { method: "POST", signal, idempotencyKey },
+        (b) =>
+          expectShape(b, isUpdateInstallResult, "malformed /api/update/install"),
       ),
 
     postUpdateAutomaticChecks: (enabled, signal, idempotencyKey) =>

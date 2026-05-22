@@ -14,7 +14,7 @@ export type {
 export type { ChannelsCatalogResult } from "./ChannelsCatalog";
 export type { JobResponse, JobCancelResult } from "./JobResponse";
 export type { DaemonVersion } from "./Version";
-export type { UpdateStatus, UpdateStatusKind } from "./UpdateStatus";
+export type { UpdateInstallResult, UpdateStatus, UpdateStatusKind } from "./UpdateStatus";
 export type { ErrorEnvelope } from "./ErrorEnvelope";
 export type { Launchers } from "./Launchers";
 export type { LogChunk } from "./Logs";

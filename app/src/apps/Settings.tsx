@@ -344,6 +344,7 @@ const Settings: React.FC = () => {
   const [updateStatus, setUpdateStatus] = useState<UpdateStatus | null>(null);
   const [updateErr, setUpdateErr] = useState<string | null>(null);
   const [checkingUpdates, setCheckingUpdates] = useState(false);
+  const [installingUpdate, setInstallingUpdate] = useState(false);
   const [updatingAutoChecks, setUpdatingAutoChecks] = useState(false);
   const [languageImportStatus, setLanguageImportStatus] = useState<{
     kind: "ok" | "error";
@@ -717,6 +718,25 @@ const Settings: React.FC = () => {
           r.value.status === "update_available"
             ? `Tytus OS ${r.value.latest_version} is available.`
             : r.value.detail,
+        isRead: false,
+      });
+    } else {
+      setUpdateErr(r.error.message);
+    }
+  }, [addNotification, client]);
+
+  const installUpdate = useCallback(async () => {
+    setInstallingUpdate(true);
+    setUpdateErr(null);
+    const r = await client.postUpdateInstall();
+    setInstallingUpdate(false);
+    if (r.ok) {
+      addNotification({
+        appId: "settings",
+        appName: "Settings",
+        appIcon: "HardDriveDownload",
+        title: "Tytus update started",
+        message: r.value.message,
         isRead: false,
       });
     } else {
@@ -2629,7 +2649,12 @@ const Settings: React.FC = () => {
             ? `Tytus OS ${updateStatus.latest_version} available`
             : updateStatus?.status === "up_to_date"
               ? "Tytus OS is up to date"
-              : "Local build installed";
+              : "Update status unknown";
+        const canInstallUpdate = Boolean(
+          updateStatus?.status === "update_available" &&
+            updateStatus.can_install &&
+            daemon.status === "online",
+        );
         const updateStatusColor =
           updateStatus?.status === "update_available"
             ? "#FF9800"
@@ -2680,26 +2705,49 @@ const Settings: React.FC = () => {
                     Installed Tytus OS {softwareVersion}
                   </div>
                 </div>
-                <button
-                  className="px-3 py-1.5 rounded-md text-xs font-medium transition-colors disabled:opacity-60"
-                  style={{
-                    background: "var(--bg-hover)",
-                    color: "var(--text-primary)",
-                    border: "1px solid var(--border-subtle)",
-                  }}
-                  disabled={checkingUpdates || daemon.status !== "online"}
-                  onClick={checkForUpdates}
-                >
-                  {checkingUpdates ? (
-                    <span className="inline-flex items-center gap-1">
-                      <Loader2 size={12} className="animate-spin" /> Checking…
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center gap-1">
-                      <RefreshCw size={12} /> Check for updates
-                    </span>
+                <div className="flex items-center gap-2">
+                  {canInstallUpdate && (
+                    <button
+                      className="px-3 py-1.5 rounded-md text-xs font-semibold transition-colors disabled:opacity-60"
+                      style={{
+                        background: "linear-gradient(135deg, var(--accent-purple), #8B5CF6)",
+                        color: "#fff",
+                      }}
+                      disabled={installingUpdate}
+                      onClick={installUpdate}
+                    >
+                      {installingUpdate ? (
+                        <span className="inline-flex items-center gap-1">
+                          <Loader2 size={12} className="animate-spin" /> Starting…
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1">
+                          <HardDriveDownload size={12} /> Update now
+                        </span>
+                      )}
+                    </button>
                   )}
-                </button>
+                  <button
+                    className="px-3 py-1.5 rounded-md text-xs font-medium transition-colors disabled:opacity-60"
+                    style={{
+                      background: "var(--bg-hover)",
+                      color: "var(--text-primary)",
+                      border: "1px solid var(--border-subtle)",
+                    }}
+                    disabled={checkingUpdates || daemon.status !== "online"}
+                    onClick={checkForUpdates}
+                  >
+                    {checkingUpdates ? (
+                      <span className="inline-flex items-center gap-1">
+                        <Loader2 size={12} className="animate-spin" /> Checking…
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1">
+                        <RefreshCw size={12} /> Check for updates
+                      </span>
+                    )}
+                  </button>
+                </div>
               </div>
               <div
                 className="divide-y"
@@ -2716,6 +2764,14 @@ const Settings: React.FC = () => {
                     >
                       {updateStatus?.detail ?? "Loading update status…"}
                     </div>
+                    {updateStatus?.status === "update_available" && updateStatus.install_command && (
+                      <div
+                        className="text-[11px] mt-1 font-mono"
+                        style={{ color: "var(--text-muted)" }}
+                      >
+                        {updateStatus.install_command}
+                      </div>
+                    )}
                   </div>
                   <div
                     className="text-xs font-medium"
