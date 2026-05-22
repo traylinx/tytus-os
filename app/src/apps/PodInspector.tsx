@@ -93,11 +93,17 @@ type SortMode = "attention" | "pod_id";
 interface FleetRow {
   kind: "agent" | "included";
   pod_id: string;
+  route_id?: string;
   agent_type: string;
   units: number;
   agent?: Agent;
   included?: IncludedPod;
 }
+
+const rowIdentity = (row: { pod_id: string; route_id?: string }) =>
+  row.route_id || row.pod_id;
+
+const agentIdentity = (agent: Agent) => agent.route_id || agent.pod_id;
 
 type ReadyState = {
   status: "probing" | "ready" | "not_ready" | "probe_failed" | "included";
@@ -231,6 +237,7 @@ const PodInspector: FC = () => {
       out.push({
         kind: "agent",
         pod_id: a.pod_id,
+        route_id: a.route_id,
         agent_type: a.agent_type,
         units: a.units,
         agent: a,
@@ -253,13 +260,14 @@ const PodInspector: FC = () => {
     setReadyByPod((prev) => {
       const next = new Map(prev);
       for (const r of rows) {
+        const id = rowIdentity(r);
         if (r.kind === "included") {
-          next.set(r.pod_id, { status: "included" });
+          next.set(id, { status: "included" });
         } else if (r.agent?.status !== undefined) {
           // Immediate optimistic state while structured readiness loads.
-          next.set(r.pod_id, agentStatusToReadyState(r.agent.status));
-        } else if (!next.has(r.pod_id)) {
-          next.set(r.pod_id, { status: "probing" });
+          next.set(id, agentStatusToReadyState(r.agent.status));
+        } else if (!next.has(id)) {
+          next.set(id, { status: "probing" });
         }
       }
       return next;
@@ -268,12 +276,13 @@ const PodInspector: FC = () => {
     const promises = rows
       .filter((r) => r.kind === "agent")
       .map(async (r) => {
+        const id = rowIdentity(r);
         const readiness = await client.getPodReadiness(r.pod_id);
         if (cancelled) return;
         if (readiness.ok) {
           setReadyByPod((prev) => {
             const next = new Map(prev);
-            next.set(r.pod_id, readinessToReadyState(readiness.value));
+            next.set(id, readinessToReadyState(readiness.value));
             return next;
           });
           return;
@@ -286,14 +295,14 @@ const PodInspector: FC = () => {
         setReadyByPod((prev) => {
           const next = new Map(prev);
           if (!probe.ok) {
-            next.set(r.pod_id, {
+            next.set(id, {
               status: "probe_failed",
               reason: probe.error.message,
             });
           } else if (probe.value.ready) {
-            next.set(r.pod_id, { status: "ready" });
+            next.set(id, { status: "ready" });
           } else {
-            next.set(r.pod_id, {
+            next.set(id, {
               status: "not_ready",
               reason: probe.value.reason || "Not ready",
             });
@@ -314,7 +323,7 @@ const PodInspector: FC = () => {
   // with the result of an external poll.
   useEffect(() => {
     if (!daemon.state) return;
-    const liveIds = new Set(daemon.state.agents.map((a) => a.pod_id));
+    const liveIds = new Set(daemon.state.agents.map(agentIdentity));
     /* eslint-disable react-hooks/set-state-in-effect */
     setOpenTabs((prev) => prev.filter((p) => liveIds.has(p)));
     setActiveTab((prev) =>
@@ -361,7 +370,7 @@ const PodInspector: FC = () => {
   // Find the agent for the active per-pod tab.
   const activeAgent =
     activeTab !== "fleet"
-      ? daemon.state?.agents.find((a) => a.pod_id === activeTab)
+      ? daemon.state?.agents.find((a) => agentIdentity(a) === activeTab)
       : undefined;
 
   return (
@@ -376,7 +385,7 @@ const PodInspector: FC = () => {
         onClose={closePodTab}
         agentsByPod={
           daemon.state
-            ? new Map(daemon.state.agents.map((a) => [a.pod_id, a]))
+            ? new Map(daemon.state.agents.map((a) => [agentIdentity(a), a]))
             : new Map()
         }
         readyByPod={readyByPod}
@@ -435,11 +444,11 @@ const PodInspector: FC = () => {
       {activeTab !== "fleet" && activeAgent && (
         <PodTab
           agent={activeAgent}
-          ready={readyByPod.get(activeAgent.pod_id)}
+          ready={readyByPod.get(agentIdentity(activeAgent))}
           client={client}
           onError={setErrToast}
-          isPinned={pins.has(activeAgent.pod_id)}
-          onTogglePin={() => onTogglePin(activeAgent.pod_id)}
+          isPinned={pins.has(agentIdentity(activeAgent))}
+          onTogglePin={() => onTogglePin(agentIdentity(activeAgent))}
           routeAction={
             routeAction?.podId === activeAgent.pod_id ? routeAction : undefined
           }
@@ -675,8 +684,8 @@ const FleetView: FC<FleetViewProps> = ({
 
     // Pinned pods always sort above non-pinned, regardless of mode.
     const pinSort = (a: FleetRow, b: FleetRow): number => {
-      const pa = isPinned(a.pod_id) ? 0 : 1;
-      const pb = isPinned(b.pod_id) ? 0 : 1;
+      const pa = isPinned(rowIdentity(a)) ? 0 : 1;
+      const pb = isPinned(rowIdentity(b)) ? 0 : 1;
       return pa - pb;
     };
 
@@ -684,8 +693,8 @@ const FleetView: FC<FleetViewProps> = ({
       out.sort((a, b) => {
         const p = pinSort(a, b);
         if (p !== 0) return p;
-        const sa = readyByPod.get(a.pod_id)?.status ?? "probing";
-        const sb = readyByPod.get(b.pod_id)?.status ?? "probing";
+        const sa = readyByPod.get(rowIdentity(a))?.status ?? "probing";
+        const sb = readyByPod.get(rowIdentity(b))?.status ?? "probing";
         const r = STATUS_RANK[sb] - STATUS_RANK[sa];
         if (r !== 0) return r;
         return a.pod_id.localeCompare(b.pod_id);
@@ -855,7 +864,8 @@ const FleetView: FC<FleetViewProps> = ({
             </thead>
             <tbody>
               {filteredSorted.map((row) => {
-                const ready = readyByPod.get(row.pod_id) ?? {
+                const rowId = rowIdentity(row);
+                const ready = readyByPod.get(rowId) ?? {
                   status: "probing" as const,
                 };
                 const visual = STATUS_VISUAL[ready.status];
@@ -863,10 +873,10 @@ const FleetView: FC<FleetViewProps> = ({
                 const canOpen = isAgent && ready.status === "ready";
                 return (
                   <tr
-                    key={`${row.kind}-${row.pod_id}`}
+                    key={`${row.kind}-${rowId}`}
                     className="transition-colors cursor-pointer"
                     style={{ borderBottom: "1px solid var(--border-subtle)" }}
-                    onClick={() => isAgent && onOpenTab(row.pod_id)}
+                    onClick={() => isAgent && onOpenTab(rowId)}
                   >
                     <td
                       className="px-2 py-2.5 text-center"
@@ -874,24 +884,24 @@ const FleetView: FC<FleetViewProps> = ({
                     >
                       {isAgent && (
                         <button
-                          onClick={() => onTogglePin(row.pod_id)}
+                          onClick={() => onTogglePin(rowId)}
                           aria-label={
-                            isPinned(row.pod_id)
+                            isPinned(rowId)
                               ? `Unpin pod ${row.pod_id}`
                               : `Pin pod ${row.pod_id}`
                           }
                           className="p-0.5 rounded-sm transition-colors"
                           style={{
-                            color: isPinned(row.pod_id)
+                            color: isPinned(rowId)
                               ? "var(--accent-warning)"
                               : "var(--text-disabled, rgba(255,255,255,0.25))",
                           }}
-                          title={isPinned(row.pod_id) ? "Unpin" : "Pin to top"}
+                          title={isPinned(rowId) ? "Unpin" : "Pin to top"}
                         >
                           <Star
                             size={12}
                             style={{
-                              fill: isPinned(row.pod_id)
+                              fill: isPinned(rowId)
                                 ? "var(--accent-warning)"
                                 : "none",
                             }}
@@ -946,7 +956,7 @@ const FleetView: FC<FleetViewProps> = ({
                       {isAgent && (
                         <button
                           onClick={() => onOpenAgentUi(row.pod_id)}
-                          disabled={openingPod === row.pod_id || !canOpen}
+                          disabled={openingPod === rowId || !canOpen}
                           title={
                             canOpen
                               ? row.agent_type === "hermes"
@@ -962,7 +972,7 @@ const FleetView: FC<FleetViewProps> = ({
                             color: "var(--text-primary)",
                           }}
                         >
-                          {openingPod === row.pod_id ? (
+                          {openingPod === rowId ? (
                             <Loader2 size={11} className="animate-spin" />
                           ) : (
                             <ExternalLink size={11} />

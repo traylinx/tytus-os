@@ -66,8 +66,8 @@ import type {
 const AIL_DOCS_URL = "https://ail.traylinx.com/introduction";
 
 type Selection =
-  | { kind: "agent"; pod_id: string }
-  | { kind: "included"; pod_id: string }
+  | { kind: "agent"; pod_id: string; route_id?: string }
+  | { kind: "included"; pod_id: string; route_id?: string }
   | null;
 
 type ChannelsLoad =
@@ -89,6 +89,17 @@ const chatSessionKey = (accountKey: string, podId: string) =>
   `tytus_os_agent_chat_session:${accountKey}:${podId}`;
 const chatMessagesKey = (accountKey: string, podId: string) =>
   `tytus_os_agent_chat_messages:${accountKey}:${podId}`;
+
+const podIdentity = (pod: { pod_id: string; route_id?: string }) =>
+  pod.route_id || pod.pod_id;
+
+const selectionMatches = (
+  selection: Exclude<Selection, null>,
+  pod: { pod_id: string; route_id?: string },
+) =>
+  selection.route_id
+    ? selection.route_id === pod.route_id
+    : selection.pod_id === pod.pod_id;
 
 const newMessageId = () =>
   globalThis.crypto?.randomUUID?.() ??
@@ -130,8 +141,8 @@ const Chat: FC = () => {
     if (!selection) return;
     const stillThere =
       selection.kind === "agent"
-        ? agents.some((a) => a.pod_id === selection.pod_id)
-        : included.some((p) => p.pod_id === selection.pod_id);
+        ? agents.some((a) => selectionMatches(selection, a))
+        : included.some((p) => selectionMatches(selection, p));
     if (!stillThere) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setSelection(null);
@@ -165,13 +176,21 @@ const Chat: FC = () => {
   }, [client, selection]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
-  const selectAgent = useCallback((podId: string) => {
-    setSelection({ kind: "agent", pod_id: podId });
+  const selectAgent = useCallback((agent: Agent) => {
+    setSelection({
+      kind: "agent",
+      pod_id: agent.pod_id,
+      route_id: agent.route_id,
+    });
     setOpenError(null);
   }, []);
 
-  const selectIncluded = useCallback((podId: string) => {
-    setSelection({ kind: "included", pod_id: podId });
+  const selectIncluded = useCallback((pod: IncludedPod) => {
+    setSelection({
+      kind: "included",
+      pod_id: pod.pod_id,
+      route_id: pod.route_id,
+    });
     setOpenError(null);
   }, []);
 
@@ -251,11 +270,11 @@ const Chat: FC = () => {
 
           {agents.map((a) => {
             const active =
-              selection?.kind === "agent" && selection.pod_id === a.pod_id;
+              selection?.kind === "agent" && selectionMatches(selection, a);
             return (
               <button
-                key={`agent-${a.pod_id}`}
-                onClick={() => selectAgent(a.pod_id)}
+                key={`agent-${podIdentity(a)}`}
+                onClick={() => selectAgent(a)}
                 className="w-full flex items-center gap-2.5 px-4 py-2 text-left text-sm transition-colors"
                 style={{
                   background: active ? "var(--bg-selected)" : "transparent",
@@ -289,12 +308,12 @@ const Chat: FC = () => {
 
           {included.map((p) => {
             const active =
-              selection?.kind === "included" && selection.pod_id === p.pod_id;
+              selection?.kind === "included" && selectionMatches(selection, p);
             const label = includedLabel(p, included);
             return (
               <button
-                key={`included-${p.pod_id}`}
-                onClick={() => selectIncluded(p.pod_id)}
+                key={`included-${podIdentity(p)}`}
+                onClick={() => selectIncluded(p)}
                 className="w-full flex items-center gap-2.5 px-4 py-2 text-left text-sm transition-colors opacity-60"
                 style={{
                   background: active ? "var(--bg-selected)" : "transparent",
@@ -329,8 +348,9 @@ const Chat: FC = () => {
         ) : selection.kind === "agent" ? (
           <AgentChatPanel
             agent={
-              agents.find((a) => a.pod_id === selection.pod_id) ?? {
+              agents.find((a) => selectionMatches(selection, a)) ?? {
                 pod_id: selection.pod_id,
+                route_id: selection.route_id,
                 agent_type: "nemoclaw",
                 api_url: "",
                 public_url: "",
@@ -590,6 +610,7 @@ const AgentChatPanel: FC<AgentChatPanelProps> = ({
   const display = resolveAgentDisplay(agent.agent_type, null, t);
   const podLabel = safePodLabel(agent, t);
   const sourceLabel = `${display.name} · ${podLabel}`;
+  const agentStorageKey = podIdentity(agent);
   const abortRef = useRef<AbortController | null>(null);
   const [draft, setDraft] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -604,32 +625,32 @@ const AgentChatPanel: FC<AgentChatPanelProps> = ({
     setChatError(null);
     try {
       const rawMessages = localStorage.getItem(
-        chatMessagesKey(accountKey, agent.pod_id),
+        chatMessagesKey(accountKey, agentStorageKey),
       );
       setMessages(
         rawMessages ? (JSON.parse(rawMessages) as ChatMessage[]) : [],
       );
       setSessionId(
-        localStorage.getItem(chatSessionKey(accountKey, agent.pod_id)),
+        localStorage.getItem(chatSessionKey(accountKey, agentStorageKey)),
       );
     } catch {
       setMessages([]);
       setSessionId(null);
     }
     return () => abortRef.current?.abort();
-  }, [accountKey, agent.pod_id]);
+  }, [accountKey, agentStorageKey]);
 
   useEffect(() => {
     try {
       const trimmed = messages.slice(-100);
       localStorage.setItem(
-        chatMessagesKey(accountKey, agent.pod_id),
+        chatMessagesKey(accountKey, agentStorageKey),
         JSON.stringify(trimmed),
       );
     } catch {
       // Local transcript is best effort only.
     }
-  }, [accountKey, agent.pod_id, messages]);
+  }, [accountKey, agentStorageKey, messages]);
 
   const updateAssistant = useCallback(
     (id: string, patch: Partial<ChatMessage>) => {
@@ -645,14 +666,14 @@ const AgentChatPanel: FC<AgentChatPanelProps> = ({
       setSessionId(nextSessionId);
       try {
         localStorage.setItem(
-          chatSessionKey(accountKey, agent.pod_id),
+          chatSessionKey(accountKey, agentStorageKey),
           nextSessionId,
         );
       } catch {
         // best effort
       }
     },
-    [accountKey, agent.pod_id],
+    [accountKey, agentStorageKey],
   );
 
   const sendMessage = useCallback(async () => {
@@ -686,6 +707,7 @@ const AgentChatPanel: FC<AgentChatPanelProps> = ({
         agent.pod_id,
         {
           message: text,
+          route_id: agent.route_id,
           session_id: sessionId,
           chat_target: "agent",
           agent_mode: "operator",
@@ -708,6 +730,7 @@ const AgentChatPanel: FC<AgentChatPanelProps> = ({
         agent.pod_id,
         {
           message: text,
+          route_id: agent.route_id,
           session_id: sessionId,
           chat_target: "agent",
           agent_mode: "operator",
@@ -791,6 +814,7 @@ const AgentChatPanel: FC<AgentChatPanelProps> = ({
     }
   }, [
     agent.pod_id,
+    agent.route_id,
     client,
     draft,
     persistSession,
@@ -810,10 +834,12 @@ const AgentChatPanel: FC<AgentChatPanelProps> = ({
     try {
       localStorage.removeItem(chatSessionKey(accountKey, agent.pod_id));
       localStorage.removeItem(chatMessagesKey(accountKey, agent.pod_id));
+      localStorage.removeItem(chatSessionKey(accountKey, agentStorageKey));
+      localStorage.removeItem(chatMessagesKey(accountKey, agentStorageKey));
     } catch {
       // best effort
     }
-  }, [accountKey, agent.pod_id]);
+  }, [accountKey, agent.pod_id, agentStorageKey]);
 
   return (
     <div className="flex-1 flex flex-col min-h-0">

@@ -3,23 +3,28 @@
 // ============================================================
 //
 // Shown on Desktop when the user is logged in but has no allocated
-// pods. Per the manifest, ignore state.included[] when gating —
-// AIL freebies are pre-allocated for every account and would never
-// trigger this overlay if counted as pods.
+// agent pods. Included AIL gateway pods are not counted as agents,
+// but they DO change the copy/action: users who already have a
+// gateway should be guided to connect Tytus, not told to allocate
+// their first pod from scratch.
 //
 // Primary CTA opens Settings → Agents (the in-app install wizard).
 // Secondary "Refresh" triggers a state poll in case the user just
 // allocated from another surface and wants the UI to catch up.
 
-import { memo, useCallback } from "react";
-import { Sparkles, RefreshCw } from "lucide-react";
+import { memo, useCallback, useState } from "react";
+import { Loader2, PlugZap, RefreshCw, Sparkles } from "lucide-react";
 import { useOS } from "@/hooks/useOSStore";
 import { useDaemonStateContext } from "@/hooks/useDaemonStateContext";
+import { useDaemonClient } from "@/hooks/useDaemonClient";
 import { navigate } from "@/lib/router";
 
 const ZeroPodsOverlay = memo(function ZeroPodsOverlay() {
   const { state: osState, dispatch } = useOS();
   const { state, refresh } = useDaemonStateContext();
+  const client = useDaemonClient();
+  const [connecting, setConnecting] = useState(false);
+  const [connectError, setConnectError] = useState<string | null>(null);
 
   const onAllocate = useCallback(() => {
     dispatch({ type: "OPEN_WINDOW", appId: "settings" });
@@ -33,11 +38,37 @@ const ZeroPodsOverlay = memo(function ZeroPodsOverlay() {
     });
   }, [dispatch]);
 
+  const onOpenPods = useCallback(() => {
+    dispatch({ type: "OPEN_WINDOW", appId: "pod-inspector" });
+  }, [dispatch]);
+
+  const onConnect = useCallback(async () => {
+    setConnecting(true);
+    setConnectError(null);
+    const r = await client.postConnect();
+    setConnecting(false);
+    if (!r.ok) {
+      setConnectError(r.error.message);
+      return;
+    }
+    // `tytus connect` may continue inside a native Terminal window
+    // while sudo/Touch ID brings up WireGuard. Poll a few times so the
+    // desktop catches the connected state without a manual tray click
+    // or browser refresh.
+    window.setTimeout(refresh, 1000);
+    window.setTimeout(refresh, 3500);
+    window.setTimeout(refresh, 7000);
+  }, [client, refresh]);
+
   // Only render when we have a real signal: logged in, state loaded,
   // zero allocated agents. Don't render during boot or login screens.
   if (!osState.auth.isAuthenticated) return null;
   if (!state || !state.logged_in) return null;
   if (state.agents.length > 0) return null;
+
+  const hasIncludedGateway = state.included.length > 0;
+  const gatewayConnected = hasIncludedGateway && state.connected && state.tunnel_active;
+  const needsTunnel = hasIncludedGateway && !gatewayConnected;
 
   // Suppress while any window is open OR the AppLauncher / Notification
   // Center is up — user is actively interacting with another surface and
@@ -75,15 +106,29 @@ const ZeroPodsOverlay = memo(function ZeroPodsOverlay() {
         </div>
 
         <h2 className="text-xl font-semibold text-[#E0E0E0]">
-          Welcome to Tytus
+          {needsTunnel
+            ? "Connect Tytus to your pod"
+            : gatewayConnected
+              ? "Tytus is connected"
+              : "Welcome to Tytus"}
         </h2>
         <p
           className="text-sm mt-2 leading-relaxed"
           style={{ color: "#B0B0B0" }}
         >
-          You don't have any pods yet. Allocate your first pod to start
-          using your private AI infrastructure.
+          {needsTunnel
+            ? "Your account is ready. Start the secure WireGuard tunnel from here — no tray-menu hunting."
+            : gatewayConnected
+              ? "Your private gateway is online. Open Pods to inspect or allocate agent pods when you need them."
+              : "You don't have any pods yet. Allocate your first pod to start using your private AI infrastructure."}
         </p>
+
+        {needsTunnel && (
+          <p className="mt-2 text-[11px] leading-relaxed text-[#8C8C8C]">
+            A Terminal window may ask for your Mac password or Touch ID to
+            activate the secure tunnel.
+          </p>
+        )}
 
         {state.tier && state.units_limit > 0 && (
           <div
@@ -97,23 +142,61 @@ const ZeroPodsOverlay = memo(function ZeroPodsOverlay() {
             <Sparkles size={11} />
             <span>
               {state.tier.charAt(0).toUpperCase() + state.tier.slice(1)} tier
-              · {state.units_limit} unit{state.units_limit === 1 ? "" : "s"}{" "}
-              available
+              ·{" "}
+              {gatewayConnected
+                ? `${state.units_used}/${state.units_limit} units in use`
+                : `${state.units_limit} unit${state.units_limit === 1 ? "" : "s"} available`}
             </span>
           </div>
         )}
 
-        <button
-          onClick={onAllocate}
-          className="mt-6 w-full px-4 py-3 rounded-lg text-sm font-semibold transition-colors"
-          style={{
-            background: "linear-gradient(135deg, #7C4DFF, #6037E0)",
-            color: "white",
-            boxShadow: "0 4px 16px rgba(124,77,255,0.35)",
-          }}
-        >
-          Allocate your first pod →
-        </button>
+        {needsTunnel ? (
+          <button
+            onClick={onConnect}
+            disabled={connecting}
+            className="mt-6 w-full px-4 py-3 rounded-lg text-sm font-semibold transition-colors inline-flex items-center justify-center gap-2 disabled:opacity-70"
+            style={{
+              background: "linear-gradient(135deg, #7C4DFF, #6037E0)",
+              color: "white",
+              boxShadow: "0 4px 16px rgba(124,77,255,0.35)",
+            }}
+          >
+            {connecting ? (
+              <Loader2 size={15} className="animate-spin" />
+            ) : (
+              <PlugZap size={15} />
+            )}
+            Connect Tytus
+          </button>
+        ) : gatewayConnected ? (
+          <button
+            onClick={onOpenPods}
+            className="mt-6 w-full px-4 py-3 rounded-lg text-sm font-semibold transition-colors"
+            style={{
+              background: "linear-gradient(135deg, #7C4DFF, #6037E0)",
+              color: "white",
+              boxShadow: "0 4px 16px rgba(124,77,255,0.35)",
+            }}
+          >
+            Open Pods →
+          </button>
+        ) : (
+          <button
+            onClick={onAllocate}
+            className="mt-6 w-full px-4 py-3 rounded-lg text-sm font-semibold transition-colors"
+            style={{
+              background: "linear-gradient(135deg, #7C4DFF, #6037E0)",
+              color: "white",
+              boxShadow: "0 4px 16px rgba(124,77,255,0.35)",
+            }}
+          >
+            Allocate your first pod →
+          </button>
+        )}
+
+        {connectError && (
+          <p className="mt-3 text-[11px] text-[#FF8A80]">{connectError}</p>
+        )}
 
         <button
           onClick={refresh}

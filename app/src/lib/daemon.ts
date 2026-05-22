@@ -474,6 +474,8 @@ export interface ConditionalStateResult {
 
 export interface AgentChatRequest {
   message: string;
+  /** Provider route id. Required to disambiguate duplicate pod_id values. */
+  route_id?: string;
   session_id?: string | null;
   chat_target?: "agent";
   agent_mode?: "operator" | "brain";
