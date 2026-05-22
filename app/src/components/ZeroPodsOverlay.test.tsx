@@ -24,8 +24,18 @@ import type { FC, ReactNode } from "react";
 const stateWithZeroAgents = {
   ...stateFixture,
   agents: [],
-  // included is fine to keep populated; manifest §2.4 explicitly says
-  // ignore included pods (AIL freebies don't count toward the gate).
+};
+
+const stateWithZeroAgentsNoGateway = {
+  ...stateWithZeroAgents,
+  included: [],
+  units_used: 0,
+};
+
+const stateWithZeroAgentsNeedsTunnel = {
+  ...stateWithZeroAgents,
+  connected: true,
+  tunnel_active: false,
 };
 
 interface HarnessProps {
@@ -68,7 +78,7 @@ const Harness: FC<HarnessProps> = ({
 describe("ZeroPodsOverlay", () => {
   it("renders when logged in and state.agents is empty", async () => {
     render(
-      <Harness state={stateWithZeroAgents}>
+      <Harness state={stateWithZeroAgentsNoGateway}>
         <ZeroPodsOverlay />
       </Harness>,
     );
@@ -96,7 +106,7 @@ describe("ZeroPodsOverlay", () => {
 
   it("does NOT render when not authenticated", async () => {
     render(
-      <Harness state={stateWithZeroAgents} authenticated={false}>
+      <Harness state={stateWithZeroAgentsNoGateway} authenticated={false}>
         <ZeroPodsOverlay />
       </Harness>,
     );
@@ -108,7 +118,7 @@ describe("ZeroPodsOverlay", () => {
 
   it("Allocate CTA navigates to #/settings/agents?install=auto", async () => {
     render(
-      <Harness state={stateWithZeroAgents}>
+      <Harness state={stateWithZeroAgentsNoGateway}>
         <ZeroPodsOverlay />
       </Harness>,
     );
@@ -128,7 +138,7 @@ describe("ZeroPodsOverlay", () => {
 
   it("renders tier + units pill when daemon state has plan info", async () => {
     render(
-      <Harness state={stateWithZeroAgents}>
+      <Harness state={stateWithZeroAgentsNoGateway}>
         <ZeroPodsOverlay />
       </Harness>,
     );
@@ -136,5 +146,25 @@ describe("ZeroPodsOverlay", () => {
     // stateFixture has tier='operator', units_limit=4
     expect(screen.getByText(/Operator tier/)).toBeTruthy();
     expect(screen.getByText(/4 units available/)).toBeTruthy();
+  });
+
+  it("renders connected gateway copy when only the included AIL gateway exists", async () => {
+    render(
+      <Harness state={stateWithZeroAgents}>
+        <ZeroPodsOverlay />
+      </Harness>,
+    );
+    expect(await screen.findByText(/Tytus is connected/)).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Open Pods/i })).toBeTruthy();
+  });
+
+  it("renders connect CTA when included gateway exists but tunnel is down", async () => {
+    render(
+      <Harness state={stateWithZeroAgentsNeedsTunnel}>
+        <ZeroPodsOverlay />
+      </Harness>,
+    );
+    expect(await screen.findByText(/Connect Tytus to your pod/)).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Connect Tytus/i })).toBeTruthy();
   });
 });
