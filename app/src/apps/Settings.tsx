@@ -3039,8 +3039,8 @@ const Settings: React.FC = () => {
         />
       )}
 
-      {/* Sign-out confirmation. /api/logout revokes ALL pod allocations
-          server-side; never call it without a confirmation step. */}
+      {/* Sign-out confirmation. /api/logout is local-only: it unpairs this
+          computer without revoking server-side pod allocations. */}
       {signOutConfirmOpen && (
         <SignOutConfirm
           podCount={daemon.state?.agents.length ?? 0}
@@ -4721,15 +4721,12 @@ const SignOutConfirm: React.FC<SignOutConfirmProps> = ({
             Sign out of Tytus?
           </div>
           <div className="text-[12px] text-[var(--text-secondary)] mt-1.5 leading-relaxed">
-            Signing out{" "}
-            <strong style={{ color: "var(--accent-error)" }}>
-              revokes all pod allocations
-            </strong>
+            Signing out removes this computer's Tytus login. Your cloud pods
+            stay allocated and keep running.
             {podCount > 0 ? (
               <>
-                {" "}
-                — including {podCount} pod{podCount === 1 ? "" : "s"} you have
-                running. Workspace data on those pods will be permanently lost.
+                {" "}You currently have {podCount} pod
+                {podCount === 1 ? "" : "s"} on this account.
               </>
             ) : (
               <> on this account.</>
@@ -4767,7 +4764,7 @@ const SignOutConfirm: React.FC<SignOutConfirmProps> = ({
           }}
         >
           {submitting && <Loader2 size={12} className="animate-spin" />}
-          Sign out and revoke pods
+          Sign out locally
         </button>
       </div>
     </div>

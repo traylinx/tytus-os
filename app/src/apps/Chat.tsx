@@ -66,8 +66,8 @@ import type {
 const AIL_DOCS_URL = "https://ail.traylinx.com/introduction";
 
 type Selection =
-  | { kind: "agent"; pod_id: string; route_id?: string }
-  | { kind: "included"; pod_id: string; route_id?: string }
+  | { kind: "agent"; id?: string; pod_id: string; route_id?: string }
+  | { kind: "included"; id?: string; pod_id: string; route_id?: string }
   | null;
 
 type ChannelsLoad =
@@ -90,14 +90,16 @@ const chatSessionKey = (accountKey: string, podId: string) =>
 const chatMessagesKey = (accountKey: string, podId: string) =>
   `tytus_os_agent_chat_messages:${accountKey}:${podId}`;
 
-const podIdentity = (pod: { pod_id: string; route_id?: string }) =>
-  pod.route_id || pod.pod_id;
+const podIdentity = (pod: { id?: string; pod_id: string; route_id?: string }) =>
+  pod.id || pod.route_id || pod.pod_id;
 
 const selectionMatches = (
   selection: Exclude<Selection, null>,
-  pod: { pod_id: string; route_id?: string },
+  pod: { id?: string; pod_id: string; route_id?: string },
 ) =>
-  selection.route_id
+  selection.id
+    ? selection.id === podIdentity(pod)
+    : selection.route_id
     ? selection.route_id === pod.route_id
     : selection.pod_id === pod.pod_id;
 
@@ -107,6 +109,7 @@ const newMessageId = () =>
 
 const safePodLabel = (agent: Agent, t: ReturnType<typeof useI18n>["t"]) =>
   (
+    agent.display_label?.trim() ||
     agent.display_name?.trim() ||
     t("chat.sidebar.podLabel", { podId: agent.pod_id })
   ).slice(0, 80);
@@ -159,7 +162,7 @@ const Chat: FC = () => {
       setChannels({ status: "idle" });
       return;
     }
-    const podId = selection.pod_id;
+    const podId = selection.id || selection.route_id || selection.pod_id;
     let cancelled = false;
     setChannels({ status: "loading" });
     client.getChannels(podId).then((r) => {
@@ -179,6 +182,7 @@ const Chat: FC = () => {
   const selectAgent = useCallback((agent: Agent) => {
     setSelection({
       kind: "agent",
+      id: podIdentity(agent),
       pod_id: agent.pod_id,
       route_id: agent.route_id,
     });
@@ -188,6 +192,7 @@ const Chat: FC = () => {
   const selectIncluded = useCallback((pod: IncludedPod) => {
     setSelection({
       kind: "included",
+      id: podIdentity(pod),
       pod_id: pod.pod_id,
       route_id: pod.route_id,
     });
@@ -205,9 +210,10 @@ const Chat: FC = () => {
 
   const onOpenInBrowser = useCallback(async () => {
     if (!selection || selection.kind !== "agent") return;
+    const selector = selection.id || selection.route_id || selection.pod_id;
     setOpening(true);
     setOpenError(null);
-    const r = await client.postPodOpen(selection.pod_id);
+    const r = await client.postPodOpen(selector);
     setOpening(false);
     if (!r.ok) {
       setOpenError(
@@ -349,8 +355,12 @@ const Chat: FC = () => {
           <AgentChatPanel
             agent={
               agents.find((a) => selectionMatches(selection, a)) ?? {
+                id: selection.id || selection.route_id || selection.pod_id,
                 pod_id: selection.pod_id,
                 route_id: selection.route_id,
+                display_label: t("chat.sidebar.podLabel", {
+                  podId: selection.pod_id,
+                }),
                 agent_type: "nemoclaw",
                 api_url: "",
                 public_url: "",
@@ -366,7 +376,9 @@ const Chat: FC = () => {
             error={openError}
             onOpen={onOpenInBrowser}
             onDismissError={() => setOpenError(null)}
-            onOpenChannels={() => onOpenChannels(selection.pod_id)}
+            onOpenChannels={() =>
+              onOpenChannels(selection.id || selection.route_id || selection.pod_id)
+            }
           />
         ) : (
           <IncludedLanding onOpenPodInspector={onOpenPodInspector} />
@@ -611,6 +623,7 @@ const AgentChatPanel: FC<AgentChatPanelProps> = ({
   const podLabel = safePodLabel(agent, t);
   const sourceLabel = `${display.name} · ${podLabel}`;
   const agentStorageKey = podIdentity(agent);
+  const agentSelector = agentStorageKey;
   const abortRef = useRef<AbortController | null>(null);
   const [draft, setDraft] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -704,7 +717,7 @@ const AgentChatPanel: FC<AgentChatPanelProps> = ({
 
     const fallbackToDirectAgent = async () => {
       const direct = await client.postPodAgentChat(
-        agent.pod_id,
+        agentSelector,
         {
           message: text,
           route_id: agent.route_id,
@@ -727,7 +740,7 @@ const AgentChatPanel: FC<AgentChatPanelProps> = ({
 
     try {
       const res = await client.postPodCortexChat(
-        agent.pod_id,
+        agentSelector,
         {
           message: text,
           route_id: agent.route_id,
@@ -813,6 +826,7 @@ const AgentChatPanel: FC<AgentChatPanelProps> = ({
       }
     }
   }, [
+    agentSelector,
     agent.pod_id,
     agent.route_id,
     client,

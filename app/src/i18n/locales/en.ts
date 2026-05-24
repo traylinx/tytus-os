@@ -362,7 +362,7 @@ export const en: TranslationMap = {
   "top.logOutUser": "Log Out {user}…",
   "top.confirmLogoutTitle": "Log out of Tytus?",
   "top.confirmLogoutBody":
-    "This revokes live pods and clears local credentials. Lock Screen is safer if you only want to hide the desktop.",
+    "This removes this computer's Tytus login. Your cloud pods stay allocated and keep running. Lock Screen is safer if you only want to hide the desktop.",
   "top.cancel": "Cancel",
   "top.logOut": "Log out",
   "desktop.podLabel": "Pod {podId}",
@@ -395,7 +395,7 @@ export const en: TranslationMap = {
   "status.podPlural": "{count} pods",
   "status.noPodsYet":
     "No agent pods yet — click to allocate. (AIL is always included for free.)",
-  "status.podsDetail": "{count} allocated · {jobs} active jobs · {units}",
+  "status.podsDetail": "{count} pods · {agents} agents · {included} included · {jobs} active jobs · {units}",
   "settings.languages.officialTitle": "Add from official Tytus OS GitHub",
   "settings.languages.officialHint":
     "Only packs listed in the official Tytus OS GitHub catalog can be downloaded here. Arbitrary URLs are blocked.",

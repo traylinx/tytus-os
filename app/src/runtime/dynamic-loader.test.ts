@@ -67,6 +67,23 @@ describe('resolveEntryUrl', () => {
       '/packages/app-memo/dist/index.js',
     );
   });
+
+  it('rewrites raw GitHub app entries to jsDelivr module URLs', () => {
+    expect(
+      resolveEntryUrl(
+        'https://raw.githubusercontent.com/traylinx/tytus-app-atomek/v0.4.25/dist/index.js',
+      ),
+    ).toBe(
+      'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-atomek@v0.4.25/dist/index.js',
+    );
+    expect(
+      resolveEntryUrl(
+        'https://raw.githubusercontent.com/traylinx/tytus-app-juli3ta/juli3ta-0.3.21/dist/index.js',
+      ),
+    ).toBe(
+      'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-juli3ta@juli3ta-0.3.21/dist/index.js',
+    );
+  });
 });
 
 describe('loadApp', () => {

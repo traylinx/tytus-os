@@ -92,18 +92,36 @@ type SortMode = "attention" | "pod_id";
 
 interface FleetRow {
   kind: "agent" | "included";
+  id?: string;
   pod_id: string;
   route_id?: string;
+  display_label?: string;
   agent_type: string;
   units: number;
   agent?: Agent;
   included?: IncludedPod;
 }
 
-const rowIdentity = (row: { pod_id: string; route_id?: string }) =>
-  row.route_id || row.pod_id;
+const rowIdentity = (row: { id?: string; pod_id: string; route_id?: string }) =>
+  row.id || row.route_id || row.pod_id;
 
-const agentIdentity = (agent: Agent) => agent.route_id || agent.pod_id;
+const agentIdentity = (agent: Agent) => agent.id || agent.route_id || agent.pod_id;
+
+const agentLabel = (agent: Agent) =>
+  (
+    agent.display_label?.trim() ||
+    agent.display_name?.trim() ||
+    `Pod ${agent.pod_id}`
+  ).slice(0, 80);
+
+const rowLabel = (row: FleetRow) =>
+  (
+    row.display_label?.trim() ||
+    row.agent?.display_label?.trim() ||
+    row.agent?.display_name?.trim() ||
+    row.included?.display_label?.trim() ||
+    `Pod ${row.pod_id}`
+  ).slice(0, 80);
 
 type ReadyState = {
   status: "probing" | "ready" | "not_ready" | "probe_failed" | "included";
@@ -122,6 +140,9 @@ const firstReadinessIssue = (readiness: PodReadiness) =>
 
 const readinessToReadyState = (readiness: PodReadiness): ReadyState => {
   const issue = firstReadinessIssue(readiness);
+  const apiReady = readiness.stages.some(
+    (stage) => stage.id === "agent_http" && stage.status === "ok",
+  );
   if (readiness.open_enabled) {
     return {
       status: "ready",
@@ -131,6 +152,18 @@ const readinessToReadyState = (readiness: PodReadiness): ReadyState => {
           : undefined,
       overall: readiness.overall,
       openEnabled: true,
+      stages: readiness.stages,
+    };
+  }
+  if (apiReady) {
+    return {
+      status: "ready",
+      reason:
+        issue?.detail ??
+        issue?.label ??
+        "Chat/API ready; browser UI or optional checks are still warming.",
+      overall: readiness.overall,
+      openEnabled: false,
       stages: readiness.stages,
     };
   }
@@ -236,8 +269,10 @@ const PodInspector: FC = () => {
     for (const a of daemon.state.agents) {
       out.push({
         kind: "agent",
+        id: agentIdentity(a),
         pod_id: a.pod_id,
         route_id: a.route_id,
+        display_label: agentLabel(a),
         agent_type: a.agent_type,
         units: a.units,
         agent: a,
@@ -277,7 +312,7 @@ const PodInspector: FC = () => {
       .filter((r) => r.kind === "agent")
       .map(async (r) => {
         const id = rowIdentity(r);
-        const readiness = await client.getPodReadiness(r.pod_id);
+        const readiness = await client.getPodReadiness(id);
         if (cancelled) return;
         if (readiness.ok) {
           setReadyByPod((prev) => {
@@ -290,7 +325,7 @@ const PodInspector: FC = () => {
 
         if (r.agent?.status !== undefined) return;
 
-        const probe = await client.getPodReady(r.pod_id);
+        const probe = await client.getPodReady(id);
         if (cancelled) return;
         setReadyByPod((prev) => {
           const next = new Map(prev);
@@ -396,7 +431,7 @@ const PodInspector: FC = () => {
         <div className="flex-1 flex flex-col min-h-0">
           {daemon.state?.included.map((inc) => (
             <AilGatewayCard
-              key={`ail-${inc.pod_id}`}
+              key={`ail-${inc.id || inc.route_id || inc.pod_id}`}
               included={inc}
               client={client}
               onErr={setErrToast}
@@ -450,7 +485,10 @@ const PodInspector: FC = () => {
           isPinned={pins.has(agentIdentity(activeAgent))}
           onTogglePin={() => onTogglePin(agentIdentity(activeAgent))}
           routeAction={
-            routeAction?.podId === activeAgent.pod_id ? routeAction : undefined
+            routeAction?.podId === agentIdentity(activeAgent) ||
+            routeAction?.podId === activeAgent.pod_id
+              ? routeAction
+              : undefined
           }
           routeNonce={windowArgs?.routeNonce}
         />
@@ -564,7 +602,7 @@ const TabStrip: FC<TabStripProps> = ({
                 style={{ background: visual.color }}
               />
             )}
-            Pod {podId}
+            {agent ? agentLabel(agent) : `Pod ${podId}`}
             {agent && (
               <span
                 className="text-[10px] opacity-70"
@@ -576,7 +614,7 @@ const TabStrip: FC<TabStripProps> = ({
           </button>
           <button
             onClick={() => onClose(podId)}
-            aria-label={`Close pod ${podId} tab`}
+            aria-label={`Close ${agent ? agentLabel(agent) : `pod ${podId}`} tab`}
             className="px-2 transition-colors hover:bg-[var(--bg-hover)]"
             style={{ color: "var(--text-secondary)" }}
           >
@@ -636,7 +674,7 @@ const FleetView: FC<FleetViewProps> = ({
   // and serialising keeps log output sane.
   const runRestartAll = useCallback(async () => {
     setConfirmRestartAll(false);
-    const targets = rows.filter((r) => r.kind === "agent").map((r) => r.pod_id);
+    const targets = rows.filter((r) => r.kind === "agent").map(rowIdentity);
     if (targets.length === 0) return;
     setBatchProgress({ total: targets.length, done: 0, failed: 0 });
     let failed = 0;
@@ -674,6 +712,9 @@ const FleetView: FC<FleetViewProps> = ({
     const out = q
       ? rows.filter(
           (r) =>
+            rowIdentity(r).toLowerCase().includes(q) ||
+            rowLabel(r).toLowerCase().includes(q) ||
+            (r.route_id ?? "").toLowerCase().includes(q) ||
             r.pod_id.toLowerCase().includes(q) ||
             r.agent_type.toLowerCase().includes(q) ||
             resolveAgentDisplay(r.agent_type, null, t).name
@@ -697,13 +738,13 @@ const FleetView: FC<FleetViewProps> = ({
         const sb = readyByPod.get(rowIdentity(b))?.status ?? "probing";
         const r = STATUS_RANK[sb] - STATUS_RANK[sa];
         if (r !== 0) return r;
-        return a.pod_id.localeCompare(b.pod_id);
+        return rowLabel(a).localeCompare(rowLabel(b));
       });
     } else {
       out.sort((a, b) => {
         const p = pinSort(a, b);
         if (p !== 0) return p;
-        return a.pod_id.localeCompare(b.pod_id);
+        return rowLabel(a).localeCompare(rowLabel(b));
       });
     }
 
@@ -887,8 +928,8 @@ const FleetView: FC<FleetViewProps> = ({
                           onClick={() => onTogglePin(rowId)}
                           aria-label={
                             isPinned(rowId)
-                              ? `Unpin pod ${row.pod_id}`
-                              : `Pin pod ${row.pod_id}`
+                              ? `Unpin ${rowLabel(row)}`
+                              : `Pin ${rowLabel(row)}`
                           }
                           className="p-0.5 rounded-sm transition-colors"
                           style={{
@@ -911,7 +952,7 @@ const FleetView: FC<FleetViewProps> = ({
                     </td>
                     <td className="px-3 py-2.5">
                       <div className="text-[var(--text-primary)] font-medium">
-                        Pod {row.pod_id}
+                        {rowLabel(row)}
                       </div>
                     </td>
                     <td className="px-3 py-2.5">
@@ -955,7 +996,7 @@ const FleetView: FC<FleetViewProps> = ({
                     >
                       {isAgent && (
                         <button
-                          onClick={() => onOpenAgentUi(row.pod_id)}
+                          onClick={() => onOpenAgentUi(rowId)}
                           disabled={openingPod === rowId || !canOpen}
                           title={
                             canOpen
@@ -1039,6 +1080,8 @@ const PodTab: FC<PodTabProps> = ({
 }) => {
   const { t } = useI18n();
   const daemon = useDaemonStateContext();
+  const podSelector = agentIdentity(agent);
+  const podLabel = agentLabel(agent);
   const [keyRevealed, setKeyRevealed] = useState(false);
   const [uiRevealed, setUiRevealed] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
@@ -1093,10 +1136,10 @@ const PodTab: FC<PodTabProps> = ({
 
   const onOpenAgent = useCallback(async () => {
     setSubmittingAction("open");
-    const r = await client.postPodOpen(agent.pod_id);
+    const r = await client.postPodOpen(podSelector);
     setSubmittingAction(null);
     if (!r.ok) onError(`Couldn't open pod: ${r.error.message}`);
-  }, [client, agent.pod_id, onError]);
+  }, [client, podSelector, onError]);
 
   const streamUrl = activeJob ? client.jobStreamUrl(activeJob.id) : null;
   const stream = useJobStream({ url: streamUrl });
@@ -1113,11 +1156,11 @@ const PodTab: FC<PodTabProps> = ({
   const runStreamedAction = useCallback(
     async (action: string, label: string) => {
       if (activeJob !== null && !streamDone) {
-        onError(`Pod ${agent.pod_id} already has a running action.`);
+        onError(`${podLabel} already has a running action.`);
         return;
       }
       setSubmittingAction(action);
-      const r = await client.postPodRunStreamed(agent.pod_id, action);
+      const r = await client.postPodRunStreamed(podSelector, action);
       setSubmittingAction(null);
       if (!r.ok) {
         onError(`Couldn't start ${label}: ${r.error.message}`);
@@ -1125,7 +1168,7 @@ const PodTab: FC<PodTabProps> = ({
       }
       setActiveJob({ id: r.value.job_id, action });
     },
-    [activeJob, client, agent.pod_id, onError, streamDone],
+    [activeJob, client, onError, podLabel, podSelector, streamDone],
   );
 
   const onRestart = useCallback(
@@ -1173,7 +1216,8 @@ const PodTab: FC<PodTabProps> = ({
     if (consumedRouteActionRef.current.has(key)) return;
     consumedRouteActionRef.current.add(key);
 
-    if (routeAction.podId !== agent.pod_id) return;
+    if (routeAction.podId !== podSelector && routeAction.podId !== agent.pod_id)
+      return;
     if (routeAction.action === "overview") return;
     if (routeAction.action === "uninstall") {
       setConfirmUninstall(true);
@@ -1185,7 +1229,7 @@ const PodTab: FC<PodTabProps> = ({
     }
 
     if (isJobBusy) {
-      onError(`Pod ${agent.pod_id} already has a running action.`);
+      onError(`${podLabel} already has a running action.`);
       return;
     }
     if (routeAction.action === "output") {
@@ -1203,6 +1247,8 @@ const PodTab: FC<PodTabProps> = ({
     agent.pod_id,
     isJobBusy,
     onError,
+    podLabel,
+    podSelector,
     onRestart,
     onShowLogs,
     onStopForwarder,
@@ -1216,18 +1262,18 @@ const PodTab: FC<PodTabProps> = ({
   // (run-streamed allowlist doesn't include this verb).
   const onRefreshCreds = useCallback(async () => {
     if (isJobBusy) {
-      onError(`Pod ${agent.pod_id} already has a running action.`);
+      onError(`${podLabel} already has a running action.`);
       return;
     }
     setSubmittingAction("refresh-creds");
-    const r = await client.postPodRefreshCreds(agent.pod_id);
+    const r = await client.postPodRefreshCreds(podSelector);
     setSubmittingAction(null);
     if (!r.ok) {
       onError(`Couldn't refresh creds: ${r.error.message}`);
       return;
     }
     setActiveJob({ id: r.value.job_id, action: "refresh-creds" });
-  }, [client, agent.pod_id, isJobBusy, onError]);
+  }, [client, isJobBusy, onError, podLabel, podSelector]);
 
   // Cancel — SIGTERMs the daemon child running this job. The SSE
   // stream closes naturally once the child dies; we just fire-and-
@@ -1267,7 +1313,7 @@ const PodTab: FC<PodTabProps> = ({
         appId: "pod-inspector",
         appName: "Pod Inspector",
         appIcon: "Power",
-        title: `Pod ${agent.pod_id} restarted`,
+        title: `${podLabel} restarted`,
         message: `${resolveAgentDisplay(agent.agent_type, null, t).name} container is back up.`,
         isRead: false,
       });
@@ -1276,8 +1322,8 @@ const PodTab: FC<PodTabProps> = ({
     activeJob,
     stream.status,
     addNotification,
-    agent.pod_id,
     agent.agent_type,
+    podLabel,
     t,
   ]);
 
@@ -1307,7 +1353,7 @@ const PodTab: FC<PodTabProps> = ({
                 }}
               />
             )}
-            Pod {agent.pod_id} · {resolveAgentDisplay(agent.agent_type, null, t).name}
+            {podLabel} · {resolveAgentDisplay(agent.agent_type, null, t).name}
           </div>
           <div className="text-[11px] mt-0.5">
             <span style={{ color: visual.color }}>{visual.label}</span>
@@ -1650,7 +1696,7 @@ const PodTab: FC<PodTabProps> = ({
       {envOpen && daemon.state && (
         <PodEnvPane
           client={client}
-          podId={agent.pod_id}
+          podId={podSelector}
           tier={daemon.state.tier}
           onClose={() => setEnvOpen(false)}
           onError={onError}
@@ -1675,9 +1721,9 @@ const PodTab: FC<PodTabProps> = ({
           >
             <div className="text-[var(--text-secondary)]">
               {activeJob.action === "logs"
-                ? `Logs (last 200 lines, pod ${agent.pod_id})`
+                ? `Logs (last 200 lines, ${podLabel})`
                 : activeJob.action === "doctor"
-                  ? `Doctor (pod ${agent.pod_id})`
+                  ? `Doctor (${podLabel})`
                   : activeJob.action}{" "}
               ·{" "}
               <span
@@ -1758,7 +1804,7 @@ const PodTab: FC<PodTabProps> = ({
 
       {confirmUninstall && (
         <UninstallConfirmModal
-          podId={agent.pod_id}
+          podId={podSelector}
           agentType={resolveAgentDisplay(agent.agent_type, null, t).name}
           onCancel={() => setConfirmUninstall(false)}
           onConfirm={onUninstallConfirmed}
@@ -1767,7 +1813,7 @@ const PodTab: FC<PodTabProps> = ({
 
       {confirmRevoke && (
         <RevokeConfirmModal
-          podId={agent.pod_id}
+          podId={podSelector}
           agentType={resolveAgentDisplay(agent.agent_type, null, t).name}
           units={agent.units}
           onCancel={() => setConfirmRevoke(false)}

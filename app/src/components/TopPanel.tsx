@@ -254,12 +254,10 @@ const TopPanel = memo(function TopPanel() {
       (sum, jobs) => sum + (Array.isArray(jobs) ? jobs.length : 0),
       0,
     );
-    // Real-pod count excludes AIL — AIL has its own status chip below.
-    // AIL is its own thing, not a numbered pod. The chip dot lights
-    // green only when the user has at least one allocated agent pod.
+    const total = agents + included;
     let color: 'green' | 'yellow' | 'gray' = 'gray';
-    if (agents > 0) color = activeJobs > 0 ? 'yellow' : 'green';
-    return { agents, included, activeJobs, color };
+    if (total > 0) color = activeJobs > 0 ? 'yellow' : 'green';
+    return { agents, included, total, activeJobs, color };
   }, [daemon.state]);
 
   // AIL gateway status chip — independent of agent pod state. Green
@@ -388,11 +386,17 @@ const TopPanel = memo(function TopPanel() {
         {fleet && pill.color !== 'red' && (
           <StatusIconButton
             icon={<Box size={13} />}
-            label={t(fleet.agents === 1 ? 'status.podSingular' : 'status.podPlural', { count: fleet.agents })}
+            label={t(fleet.total === 1 ? 'status.podSingular' : 'status.podPlural', { count: fleet.total })}
             title={
-              fleet.agents === 0
+              fleet.total === 0
                 ? t('status.noPodsYet')
-                : t('status.podsDetail', { count: fleet.agents, jobs: fleet.activeJobs, units: unitsText })
+                : t('status.podsDetail', {
+                    count: fleet.total,
+                    agents: fleet.agents,
+                    included: fleet.included,
+                    jobs: fleet.activeJobs,
+                    units: unitsText,
+                  })
             }
             color={PILL_TEXT[fleet.color]}
             onClick={() => executeShellAction('open-pods')}

@@ -40,7 +40,7 @@ const ALL_FEATURED_APPS: FeaturedApp[] = [
     description: 'Monaco workspace with persistent local state, intelligent AIL chat, dynamic file context, semantic retrieval, AI edit previews, embedded docs, and Tytus Resource Fabric cockpit.',
     icon: 'atomek:mark',
     category: 'Productivity',
-    manifestUrl: 'https://raw.githubusercontent.com/traylinx/tytus-app-atomek/v0.4.25/tytus-app.json',
+    manifestUrl: 'https://raw.githubusercontent.com/traylinx/tytus-app-atomek/v0.4.29/tytus-app.json',
   },
   {
     id: 'text-editor',
@@ -133,7 +133,7 @@ interface RemoteCatalogShape {
 
 function normalizeCatalogManifestUrl(url: string): string {
   // Preserve raw.githubusercontent.com URLs. They are HTTPS + CORS-safe, and
-  // jsDelivr currently mis-resolves the Atomek v0.4.25 manifest ref while the
+  // jsDelivr currently mis-resolves the Atomek v0.4.29 manifest ref while the
   // raw GitHub URL works. Entry bundles still load from CDN when manifests say so.
   return url;
 }

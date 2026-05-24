@@ -60,11 +60,15 @@ const materializeState = (raw: RawState): StateSnapshot => ({
   ...raw,
   agents: raw.agents.map((a) => ({
     ...a,
+    id: a.id || a.route_id || a.pod_id,
+    display_label: a.display_label || a.display_name || `Pod ${a.pod_id}`,
     user_key: asSecret(a.user_key),
     ui_url: asSecret(a.ui_url),
   })),
   included: raw.included.map((p) => ({
     ...p,
+    id: p.id || p.route_id || p.pod_id,
+    display_label: p.display_label || `Pod ${p.pod_id}`,
     user_key: asSecret(p.user_key),
   })),
 });

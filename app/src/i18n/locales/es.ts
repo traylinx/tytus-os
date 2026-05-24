@@ -371,7 +371,7 @@ export const es: TranslationMap = {
   "top.logOutUser": "Cerrar sesión de {user}…",
   "top.confirmLogoutTitle": "¿Cerrar sesión en Tytus?",
   "top.confirmLogoutBody":
-    "Esto revoca los pods activos y borra las credenciales locales. Bloquear pantalla es más seguro si solo quieres ocultar el escritorio.",
+    "Esto elimina el inicio de sesión de Tytus en este ordenador. Tus pods en la nube siguen asignados y en ejecución. Bloquear pantalla es más seguro si solo quieres ocultar el escritorio.",
   "top.cancel": "Cancelar",
   "top.logOut": "Cerrar sesión",
   "desktop.podLabel": "Pod {podId}",
@@ -404,7 +404,7 @@ export const es: TranslationMap = {
   "status.podPlural": "{count} pods",
   "status.noPodsYet":
     "Aún no hay pods de agente — haz clic para asignar. (AIL siempre está incluido gratis.)",
-  "status.podsDetail": "{count} asignados · {jobs} trabajos activos · {units}",
+  "status.podsDetail": "{count} pods · {agents} agentes · {included} incluido · {jobs} trabajos activos · {units}",
   "settings.languages.officialTitle": "Añadir desde GitHub oficial de Tytus OS",
   "settings.languages.officialHint":
     "Aquí solo se pueden descargar paquetes listados en el catálogo oficial de GitHub de Tytus OS. Las URL arbitrarias están bloqueadas.",

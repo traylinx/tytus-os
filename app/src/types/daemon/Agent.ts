@@ -22,10 +22,14 @@ export type AgentStatus =
 
 export interface Agent {
   agent_type: AgentType;
+  /** Stable local identity. Prefer route_id because pod_id can repeat across droplets. */
+  id?: string;
   pod_id: string;
   /** Globally unique Provider route id. pod_id can repeat across droplets. */
   route_id?: string;
-  /** Optional user-defined friendly label. Real identity remains pod_id. */
+  /** User-facing label. Prefer display_name; fall back to "Pod NN". */
+  display_label?: string;
+  /** Optional user-defined friendly label. Real identity remains id/route_id. */
   display_name?: string;
   api_url: string;
   public_url: string;

@@ -122,6 +122,13 @@ export class AppLoadError extends Error {
  * without re-touching every call site.
  */
 export function resolveEntryUrl(entryUrl: string): string {
+  const rawGithub = entryUrl.match(
+    /^https:\/\/raw\.githubusercontent\.com\/([^/]+)\/([^/]+)\/([^/]+)\/(.+)$/i,
+  );
+  if (rawGithub) {
+    const [, owner, repo, ref, path] = rawGithub;
+    return `https://cdn.jsdelivr.net/gh/${owner}/${repo}@${ref}/${path}`;
+  }
   return entryUrl;
 }
 
@@ -240,6 +247,16 @@ export async function loadApp(
   }
 
   const url = resolveEntryUrl(app.entryUrl);
+  const manifestForLoad: Manifest =
+    isRemoteEntryUrl(url) && app.manifest.entry?.url !== url
+      ? {
+          ...app.manifest,
+          entry: {
+            ...app.manifest.entry,
+            url,
+          },
+        }
+      : app.manifest;
 
   // Transport B (installed third-party app on https:// CDN): delegate
   // to the remote-loader so we get the per-URL module dedupe + typed
@@ -250,7 +267,7 @@ export async function loadApp(
   let bootApp: AppEntry;
   if (isRemoteEntryUrl(url)) {
     try {
-      bootApp = (await loadRemoteApp(app.manifest, {
+      bootApp = (await loadRemoteApp(manifestForLoad, {
         importModule,
       })) as AppEntry;
     } catch (err) {
@@ -311,7 +328,7 @@ export async function loadApp(
   return {
     appId: app.id,
     Component: returned as ComponentType,
-    manifest: app.manifest,
+    manifest: manifestForLoad,
   };
 }
 

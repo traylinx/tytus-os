@@ -78,6 +78,16 @@ const displayAgentType = (agentType: string | null | undefined): string => {
   return agentType;
 };
 
+const agentIdentity = (agent: Pick<Agent, 'id' | 'route_id' | 'pod_id'>) =>
+  agent.id || agent.route_id || agent.pod_id;
+
+const agentLabel = (agent: Agent) =>
+  (
+    agent.display_label?.trim() ||
+    agent.display_name?.trim() ||
+    `Pod ${agent.pod_id}`
+  ).slice(0, 80);
+
 const Channels: FC = () => {
   const { dispatch } = useOS();
   const client = useDaemonClient();
@@ -113,8 +123,8 @@ const Channels: FC = () => {
       }
       return;
     }
-    if (activePod && agents.some((a) => a.pod_id === activePod)) return;
-    setActivePod(agents[0].pod_id);
+    if (activePod && agents.some((a) => agentIdentity(a) === activePod)) return;
+    setActivePod(agentIdentity(agents[0]));
   }, [agents, activePod]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
@@ -127,7 +137,12 @@ const Channels: FC = () => {
     const key = `${windowArgs?.routeNonce ?? 'no-nonce'}:${channelsArgs.podId}:${channelsArgs.action ?? 'view'}:${channelsArgs.type ?? ''}`;
     if (consumedFragmentRef.current.has(key)) return;
     consumedFragmentRef.current.add(key);
-    if (agents.length > 0 && !agents.some((a) => a.pod_id === channelsArgs.podId)) {
+    const routePod = agents.find(
+      (a) =>
+        agentIdentity(a) === channelsArgs.podId ||
+        a.pod_id === channelsArgs.podId,
+    );
+    if (agents.length > 0 && !routePod) {
       addNotification({
         appId: 'channels',
         appName: 'Channels',
@@ -140,7 +155,7 @@ const Channels: FC = () => {
     }
 
     /* eslint-disable react-hooks/set-state-in-effect */
-    setActivePod(channelsArgs.podId);
+    setActivePod(routePod ? agentIdentity(routePod) : channelsArgs.podId);
     if (channelsArgs.action === 'add' && channelsArgs.type) {
       setAddType(channelsArgs.type);
       setConfirmRemove(null);
@@ -200,16 +215,17 @@ const Channels: FC = () => {
     const justAdded = addType;
     refreshChannels();
     if (activePod && justAdded) {
+      const activeAgent = agents.find((a) => agentIdentity(a) === activePod);
       addNotification({
         appId: 'channels',
         appName: 'Channels',
         appIcon: 'Send',
-        title: `${justAdded} added to pod ${activePod}`,
+        title: `${justAdded} added to ${activeAgent ? agentLabel(activeAgent) : activePod}`,
         message: `Channel binding active. The agent has redeployed with the new credential.`,
         isRead: false,
       });
     }
-  }, [refreshChannels, addType, activePod, addNotification]);
+  }, [refreshChannels, addType, activePod, addNotification, agents]);
 
   const onRemoveSubmitted = useCallback(() => {
     setConfirmRemove(null);
@@ -240,11 +256,12 @@ const Channels: FC = () => {
         </div>
         <div className="flex-1 overflow-y-auto custom-scrollbar">
           {agents.map((a) => {
-            const active = activePod === a.pod_id;
+            const id = agentIdentity(a);
+            const active = activePod === id;
             return (
               <button
-                key={a.pod_id}
-                onClick={() => setActivePod(a.pod_id)}
+                key={id}
+                onClick={() => setActivePod(id)}
                 className="w-full flex items-center gap-2.5 px-4 py-2 text-left text-sm transition-colors"
                 style={{
                   background: active ? 'var(--bg-selected)' : 'transparent',
@@ -257,7 +274,7 @@ const Channels: FC = () => {
                 }}
               >
                 <Box size={12} className="shrink-0 opacity-70" />
-                <span className="flex-1 truncate">Pod {a.pod_id}</span>
+                <span className="flex-1 truncate">{agentLabel(a)}</span>
                 <span
                   className="text-[10px] shrink-0"
                   style={{ color: 'var(--text-disabled)' }}
@@ -284,7 +301,12 @@ const Channels: FC = () => {
           <Send size={18} className="text-[var(--accent-primary)]" />
           <div className="flex-1 min-w-0">
             <div className="text-sm font-semibold text-[var(--text-primary)]">
-              {activePod ? `Channels — Pod ${activePod}` : 'Channels'}
+              {activePod
+                ? `Channels — ${agentLabel(
+                    agents.find((a) => agentIdentity(a) === activePod) ??
+                      agents[0],
+                  )}`
+                : 'Channels'}
             </div>
             <div className="text-[11px] text-[var(--text-secondary)]">
               Per-pod messenger bindings. Tokens never appear in URLs.
@@ -310,7 +332,7 @@ const Channels: FC = () => {
           {activePod && (
             <MoreChannelsFooter
               podId={activePod}
-              agent={agents.find((a) => a.pod_id === activePod) ?? null}
+              agent={agents.find((a) => agentIdentity(a) === activePod) ?? null}
             />
           )}
         </div>
