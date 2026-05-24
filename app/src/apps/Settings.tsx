@@ -3584,35 +3584,39 @@ const PodCard: React.FC<PodCardProps> = ({ agent, refreshNonce = 0 }) => {
           onClick={() => copyToClipboard("public", agent.public_url)}
         />
 
-        <span className="text-[var(--text-secondary)]">UI URL</span>
-        <code
-          className="font-mono text-[var(--text-primary)] truncate"
-          style={{
-            background: "rgba(255,255,255,0.03)",
-            padding: "2px 6px",
-            borderRadius: "var(--radius-sm)",
-          }}
-        >
-          {uiRevealed
-            ? revealTokenUrl(agent.ui_url, "user_gesture")
-            : maskTokenUrl(agent.ui_url)}
-        </code>
-        <div className="flex items-center gap-1">
-          <RevealBtn
-            revealed={uiRevealed}
-            onToggle={() => setUiRevealed((v) => !v)}
-          />
-          <CopyBtn
-            label="ui"
-            isCopied={copied === "ui"}
-            onClick={() =>
-              copyToClipboard(
-                "ui",
-                revealTokenUrl(agent.ui_url, "user_gesture"),
-              )
-            }
-          />
-        </div>
+        {agent.ui_url ? (
+          <>
+            <span className="text-[var(--text-secondary)]">UI URL</span>
+            <code
+              className="font-mono text-[var(--text-primary)] truncate"
+              style={{
+                background: "rgba(255,255,255,0.03)",
+                padding: "2px 6px",
+                borderRadius: "var(--radius-sm)",
+              }}
+            >
+              {uiRevealed
+                ? revealTokenUrl(agent.ui_url, "user_gesture")
+                : maskTokenUrl(agent.ui_url)}
+            </code>
+            <div className="flex items-center gap-1">
+              <RevealBtn
+                revealed={uiRevealed}
+                onToggle={() => setUiRevealed((v) => !v)}
+              />
+              <CopyBtn
+                label="ui"
+                isCopied={copied === "ui"}
+                onClick={() =>
+                  copyToClipboard(
+                    "ui",
+                    revealTokenUrl(agent.ui_url, "user_gesture"),
+                  )
+                }
+              />
+            </div>
+          </>
+        ) : null}
 
         <span className="text-[var(--text-secondary)]">Key</span>
         <code
