@@ -34,6 +34,18 @@ Fix for contributors: route browser-side gateway probes through the daemon or sa
 
 That is a UI bug unless the user explicitly opened a diagnostic log. Missing `Inbox` or `Downloads` should show a friendly empty state with a create/refresh action.
 
+## FS chip shown in the top bar ("FS degraded" / "FS offline")
+
+The top bar shows a yellow or red **FS** chip when the local tray daemon has not been able to serve the host filesystem API for one or more apps. Hover the chip for the last error, fallback ops count, and time since the last probe.
+
+What to do:
+
+1. Open **Settings -> Daemon** (click the chip to jump there).
+2. If the daemon process is not running, start the tray and wait for the chip to clear.
+3. If the daemon is running but the chip stays yellow/red, check `/tmp/tytus/daemon.log`, then run `tytus doctor`.
+
+The chip is hidden when host.fs is healthy. It exists so apps that write into `~/Tytus`, `~/Documents`, `~/Downloads`, `~/Music`, or `~/Pictures` no longer fail silently when the daemon goes away mid-session.
+
 ## Terminal output duplicates or breaks after resizing
 
 The terminal must notify the PTY backend of row/column changes and clear/reflow correctly. If output duplicates after resize, test with `stty size`, resize again, and inspect terminal resize events.
