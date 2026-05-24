@@ -76,4 +76,79 @@ describe('host-fs-daemon', () => {
     await expect(fs.ensureUserFolder('documents')).resolves.toBe('user:documents');
     expect(fallback?.ensureUserFolder).toHaveBeenCalledWith('documents');
   });
+
+  describe('onTransport observability', () => {
+    it('emits success on a healthy daemon read', async () => {
+      const events: Array<{ kind: string; op: string }> = [];
+      const fetchImpl = vi.fn(async () =>
+        new Response('hello', { status: 200, headers: { 'Content-Type': 'text/plain' } }),
+      );
+      const fs = createDaemonFs({
+        fetchImpl: fetchImpl as unknown as typeof fetch,
+        onTransport: (e) => events.push({ kind: e.kind, op: e.op }),
+      });
+      const id = __daemonFsInternalsForTest.nodeId('user-documents', 'Tytus/Memo/note.md');
+      await fs.read(id);
+      expect(events).toEqual([{ kind: 'success', op: 'read' }]);
+    });
+
+    it('emits error and rethrows when daemon write fails', async () => {
+      const events: Array<{ kind: string; op: string }> = [];
+      const fetchImpl = vi.fn(async () => json(500, { error: 'boom' }));
+      const fs = createDaemonFs({
+        fetchImpl: fetchImpl as unknown as typeof fetch,
+        onTransport: (e) => events.push({ kind: e.kind, op: e.op }),
+      });
+      await expect(
+        fs.createFolder('daemonfs:user-documents:', 'NewFolder'),
+      ).rejects.toThrow(/boom/);
+      expect(events).toEqual([{ kind: 'error', op: 'createFolder' }]);
+    });
+
+    it('emits fallback when a non-daemon node id is passed to read', async () => {
+      const events: Array<{ kind: string; op: string }> = [];
+      const fallback = {
+        read: vi.fn(async () => 'fallback content'),
+      } as unknown as FsApi;
+      const fs = createDaemonFs({
+        fetchImpl: vi.fn() as unknown as typeof fetch,
+        fallback,
+        onTransport: (e) => events.push({ kind: e.kind, op: e.op }),
+      });
+      const out = await fs.read('local:some/path');
+      expect(out).toBe('fallback content');
+      expect(events).toEqual([{ kind: 'fallback', op: 'read' }]);
+    });
+
+    it('emits error then fallback when daemon root probe fails', async () => {
+      const events: Array<{ kind: string; op: string }> = [];
+      const fetchImpl = vi.fn(async () => json(404, { error: 'not found' }));
+      const fallback = {
+        ensureUserFolder: vi.fn(async () => 'user:documents'),
+      } as unknown as FsApi;
+      const fs = createDaemonFs({
+        fetchImpl: fetchImpl as unknown as typeof fetch,
+        fallback,
+        onTransport: (e) => events.push({ kind: e.kind, op: e.op }),
+      });
+      await fs.ensureUserFolder('documents');
+      expect(events).toEqual([
+        { kind: 'error', op: 'ensureUserFolder' },
+        { kind: 'fallback', op: 'ensureUserFolder' },
+      ]);
+    });
+
+    it('swallows throws in onTransport without breaking the FS op', async () => {
+      const fetchImpl = vi.fn(async () => json(200, { ok: true }));
+      const fs = createDaemonFs({
+        fetchImpl: fetchImpl as unknown as typeof fetch,
+        onTransport: () => {
+          throw new Error('listener crashed');
+        },
+      });
+      await expect(
+        fs.createFolder('daemonfs:user-documents:', 'NewFolder'),
+      ).resolves.toBe('daemonfs:user-documents:NewFolder');
+    });
+  });
 });

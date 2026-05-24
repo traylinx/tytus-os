@@ -82,6 +82,7 @@ import {
 
 import type { EntryUrls } from './loader';
 import { createDaemonFs } from './host-fs-daemon';
+import { getHostFsHealth } from './host-fs-health';
 import { createLocalStorageFs } from './host-fs-localstorage';
 import { createAppDb } from './storage-impl';
 import { resolveManifestMigrations } from './app-migrations';
@@ -480,7 +481,13 @@ function makeFsApi(): FsApi {
     });
   };
   const fallback = createLocalStorageFs({ onChange: emitFsChange });
-  return createDaemonFs({ fallback, onChange: emitFsChange });
+  const health = getHostFsHealth();
+  health.startProbe();
+  return createDaemonFs({
+    fallback,
+    onChange: emitFsChange,
+    onTransport: (event) => health.record(event),
+  });
 }
 
 

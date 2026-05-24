@@ -29,6 +29,11 @@ interface DaemonFileList {
   readonly: boolean;
 }
 
+export type DaemonFsTransportEvent =
+  | { kind: 'success'; op: string }
+  | { kind: 'error'; op: string; error: unknown }
+  | { kind: 'fallback'; op: string; reason: string };
+
 export interface DaemonFsOptions {
   /** Defaults to same-origin. Tests can point at a fake origin. */
   baseUrl?: string;
@@ -38,6 +43,10 @@ export interface DaemonFsOptions {
   fallback?: FsApi;
   /** Mutation event sink; host-impl bridges this into host.events. */
   onChange?: (event: FsChangeEvent) => void;
+  /** Observability sink: emits success/error/fallback per FS op. Wired by
+   *  host-impl to the host-fs-health module so a chip can show daemon FS
+   *  state in the TopPanel. Throwing in this callback is swallowed. */
+  onTransport?: (event: DaemonFsTransportEvent) => void;
 }
 
 const USER_FOLDER_SOURCE: Record<UserFolderName, string> = {
@@ -212,6 +221,27 @@ export function createDaemonFs(opts: DaemonFsOptions = {}): FsApi {
   const fetchImpl = opts.fetchImpl ?? globalThis.fetch.bind(globalThis);
   const fallback = opts.fallback;
   const onChange = opts.onChange ?? (() => {});
+  const onTransport = opts.onTransport;
+
+  const transport = (event: DaemonFsTransportEvent): void => {
+    if (!onTransport) return;
+    try {
+      onTransport(event);
+    } catch (err) {
+      console.error('[host.fs.daemon] onTransport listener threw', err);
+    }
+  };
+
+  const trackOp = async <T>(op: string, run: () => Promise<T>): Promise<T> => {
+    try {
+      const result = await run();
+      transport({ kind: 'success', op });
+      return result;
+    } catch (err) {
+      transport({ kind: 'error', op, error: err });
+      throw err;
+    }
+  };
 
   const url = (path: string): string => `${baseUrl}${path}`;
 
@@ -277,11 +307,23 @@ export function createDaemonFs(opts: DaemonFsOptions = {}): FsApi {
   return {
     async ensureUserFolder(name) {
       const id = nodeId(USER_FOLDER_SOURCE[name], '');
-      if (!fallback) return id;
+      if (!fallback) {
+        return trackOp('ensureUserFolder', async () => {
+          await listDaemon({ source: USER_FOLDER_SOURCE[name], path: '' });
+          return id;
+        });
+      }
       try {
         await listDaemon({ source: USER_FOLDER_SOURCE[name], path: '' });
+        transport({ kind: 'success', op: 'ensureUserFolder' });
         return id;
-      } catch {
+      } catch (err) {
+        transport({ kind: 'error', op: 'ensureUserFolder', error: err });
+        transport({
+          kind: 'fallback',
+          op: 'ensureUserFolder',
+          reason: 'daemon unreachable; using localStorage',
+        });
         return fallback.ensureUserFolder(name);
       }
     },
@@ -290,23 +332,35 @@ export function createDaemonFs(opts: DaemonFsOptions = {}): FsApi {
       const parsed = parseNodeId(fileNodeId);
       if (!parsed) {
         if (!fallback) throw new Error(`host.fs.read: unknown node id ${fileNodeId}`);
+        transport({
+          kind: 'fallback',
+          op: 'read',
+          reason: 'non-daemon node id',
+        });
         return fallback.read(fileNodeId);
       }
       if (!parsed.path) throw new Error(`host.fs.read: ${fileNodeId} is a directory`);
-      const q = new URLSearchParams({ source: parsed.source, path: parsed.path });
-      const res = await fetchImpl(url(`/api/files/download?${q.toString()}`), {
-        method: 'GET',
-        credentials: 'same-origin',
+      return trackOp('read', async () => {
+        const q = new URLSearchParams({ source: parsed.source, path: parsed.path });
+        const res = await fetchImpl(url(`/api/files/download?${q.toString()}`), {
+          method: 'GET',
+          credentials: 'same-origin',
+        });
+        if (!res.ok) throw new Error(`host.fs.read: daemon download failed (${res.status})`);
+        if (isTextPath(parsed.path)) return res.text();
+        return new Uint8Array(await res.arrayBuffer());
       });
-      if (!res.ok) throw new Error(`host.fs.read: daemon download failed (${res.status})`);
-      if (isTextPath(parsed.path)) return res.text();
-      return new Uint8Array(await res.arrayBuffer());
     },
 
     async write(fileNodeId, content) {
       const parsed = parseNodeId(fileNodeId);
       if (!parsed) {
         if (!fallback) throw new Error(`host.fs.write: unknown node id ${fileNodeId}`);
+        transport({
+          kind: 'fallback',
+          op: 'write',
+          reason: 'non-daemon node id',
+        });
         return fallback.write(fileNodeId, content);
       }
       if (!parsed.path) throw new Error(`host.fs.write: ${fileNodeId} is a directory`);
@@ -314,17 +368,19 @@ export function createDaemonFs(opts: DaemonFsOptions = {}): FsApi {
       // replace the file atomically enough for app-level docs: delete old file if
       // present, then upload the new bytes. Delete failure for a missing file is
       // ignored so write can create too.
-      try {
-        await postJson('/api/files/delete', { source: parsed.source, path: parsed.path });
-      } catch {
-        // ignore not-found; upload below is source of truth
-      }
-      const bytes = content instanceof Uint8Array ? content : new TextEncoder().encode(content);
-      await postJson('/api/files/upload', {
-        source: parsed.source,
-        path: dirname(parsed.path),
-        name: basename(parsed.path),
-        content_base64: bytesToBase64(bytes),
+      await trackOp('write', async () => {
+        try {
+          await postJson('/api/files/delete', { source: parsed.source, path: parsed.path });
+        } catch {
+          // ignore not-found; upload below is source of truth
+        }
+        const bytes = content instanceof Uint8Array ? content : new TextEncoder().encode(content);
+        await postJson('/api/files/upload', {
+          source: parsed.source,
+          path: dirname(parsed.path),
+          name: basename(parsed.path),
+          content_base64: bytesToBase64(bytes),
+        });
       });
       emit({
         kind: 'modified',
@@ -340,15 +396,22 @@ export function createDaemonFs(opts: DaemonFsOptions = {}): FsApi {
       const parsed = parseNodeId(parentId);
       if (!parsed) {
         if (!fallback) throw new Error(`host.fs.createFile: unknown parent id ${parentId}`);
+        transport({
+          kind: 'fallback',
+          op: 'createFile',
+          reason: 'non-daemon parent id',
+        });
         return fallback.createFile(parentId, name, content, options);
       }
       const isBytes = content instanceof Uint8Array;
-      await postJson('/api/files/upload', {
-        source: parsed.source,
-        path: parsed.path,
-        name,
-        content_base64: isBytes ? bytesToBase64(content) : stringToBase64(content),
-      });
+      await trackOp('createFile', () =>
+        postJson('/api/files/upload', {
+          source: parsed.source,
+          path: parsed.path,
+          name,
+          content_base64: isBytes ? bytesToBase64(content) : stringToBase64(content),
+        }),
+      );
       const id = nodeId(parsed.source, joinPath(parsed.path, name));
       emit({
         kind: 'created',
@@ -365,9 +428,16 @@ export function createDaemonFs(opts: DaemonFsOptions = {}): FsApi {
       const parsed = parseNodeId(parentId);
       if (!parsed) {
         if (!fallback) throw new Error(`host.fs.createFolder: unknown parent id ${parentId}`);
+        transport({
+          kind: 'fallback',
+          op: 'createFolder',
+          reason: 'non-daemon parent id',
+        });
         return fallback.createFolder(parentId, name);
       }
-      await postJson('/api/files/mkdir', { source: parsed.source, path: parsed.path, name });
+      await trackOp('createFolder', () =>
+        postJson('/api/files/mkdir', { source: parsed.source, path: parsed.path, name }),
+      );
       const id = nodeId(parsed.source, joinPath(parsed.path, name));
       emit({
         kind: 'created',
@@ -384,14 +454,21 @@ export function createDaemonFs(opts: DaemonFsOptions = {}): FsApi {
       const parsed = parseNodeId(fileNodeId);
       if (!parsed) {
         if (!fallback) throw new Error(`host.fs.rename: unknown node id ${fileNodeId}`);
+        transport({
+          kind: 'fallback',
+          op: 'rename',
+          reason: 'non-daemon node id',
+        });
         return fallback.rename(fileNodeId, newName);
       }
       const oldName = basename(parsed.path);
-      await postJson('/api/files/rename', {
-        source: parsed.source,
-        path: parsed.path,
-        new_name: newName,
-      });
+      await trackOp('rename', () =>
+        postJson('/api/files/rename', {
+          source: parsed.source,
+          path: parsed.path,
+          new_name: newName,
+        }),
+      );
       emit({
         kind: 'renamed',
         fileNodeId: nodeId(parsed.source, joinPath(dirname(parsed.path), newName)),
@@ -407,10 +484,17 @@ export function createDaemonFs(opts: DaemonFsOptions = {}): FsApi {
       const parsed = parseNodeId(parentId);
       if (!parsed) {
         if (!fallback) throw new Error(`host.fs.list: unknown node id ${parentId}`);
+        transport({
+          kind: 'fallback',
+          op: 'list',
+          reason: 'non-daemon parent id',
+        });
         return fallback.list(parentId);
       }
-      const listing = await listDaemon(parsed);
-      return listing.entries.map((entry) => entryToNode(entry, parsed.source, parsed.path));
+      return trackOp('list', async () => {
+        const listing = await listDaemon(parsed);
+        return listing.entries.map((entry) => entryToNode(entry, parsed.source, parsed.path));
+      });
     },
 
     async findChildByName(parentId, name) {
@@ -422,9 +506,14 @@ export function createDaemonFs(opts: DaemonFsOptions = {}): FsApi {
       const parsed = parseNodeId(id);
       if (!parsed) {
         if (!fallback) return null;
+        transport({
+          kind: 'fallback',
+          op: 'getNodeById',
+          reason: 'non-daemon node id',
+        });
         return fallback.getNodeById(id);
       }
-      return getNodeDaemon(parsed);
+      return trackOp('getNodeById', () => getNodeDaemon(parsed));
     },
 
     getIconForFileName: iconForFileName,

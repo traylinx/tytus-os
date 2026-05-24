@@ -21,6 +21,7 @@ import { useOS } from '@/hooks/useOSStore';
 import { useDaemonClient } from '@/hooks/useDaemonClient';
 import { useDaemonStateContext } from '@/hooks/useDaemonStateContext';
 import { useRegisteredShellMenu } from '@/hooks/useShellMenu';
+import { HostFsStatusChip } from '@/components/HostFsStatusChip';
 import { computePill } from '@/lib/statusPill';
 import { defaultShellMenuForApp, type ShellMenuActionId, type ShellMenuGroup, type ShellMenuItem } from '@/lib/shellMenu';
 import { useI18n } from '@/i18n';
@@ -412,6 +413,8 @@ const TopPanel = memo(function TopPanel() {
             onClick={() => executeShellAction('open-pods')}
           />
         )}
+
+        <HostFsStatusChip onClick={() => executeShellAction('open-settings-daemon')} />
 
         <button
           onClick={handleClockClick}
