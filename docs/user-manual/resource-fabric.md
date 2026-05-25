@@ -15,7 +15,7 @@ Use it when work is bigger than one chat answer: repo repair, document productio
 | Hermes | Heavier reasoning pod family when allocated. Use for deeper planning, writing, and review. | Pod Inspector, Atomek Agent Team |
 | Local agents | Installed tools such as Claude Code, OpenCode, Codex, pi, Kimi, Gemini, Qwen, or Aider. | Terminal, Atomek local jobs |
 | App skills | Instructions and drivers for apps such as Atomek, JULI3TA, Blender, Remotion, and future local tools. | App manifests, Atomek Docs & Skills |
-| Channels | Telegram, Slack, Discord, LINE-style, and similar communication surfaces. | Channels app |
+| Channels | Supported messenger setup. Telegram, Discord bot, and Slack Socket Mode are current OpenClaw-backed flows; LINE and other messengers are beta, manual/custom, or planned unless the UI says otherwise. | Channels app |
 | AIL routes | Global model routes for remote and local AI. Apps discover these; they do not hardcode model ids. | Settings, Atomek settings, top bar |
 
 ## The core loop

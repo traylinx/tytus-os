@@ -1,5 +1,49 @@
 # Troubleshooting
 
+## Pods missing or count differs between Traylinx and TytusOS
+
+Do not delete pods to fix this. First confirm the account and daemon state.
+
+1. Confirm the tray is signed into the same Traylinx account shown in the web app.
+2. Click the TytusOS refresh icon or run `tytus status`.
+3. Check `/pod/status` through the daemon: it should include `has_plan`, `tier_name`, `max_units`, `units_used`, `current_pods`, and `pods[]`.
+4. If a pod appears as `No agent`, it is a reserved/free slot unless support confirms otherwise.
+5. If custom names are missing, refresh after `/pod/status` returns `display_name` for every active agent.
+6. If the tray says daemon offline while TytusOS loads, restart Tytus from the tray menu, then reconnect the tunnel.
+
+## Tytus Cortex is warming up or did not return a response
+
+A pod can be running before its chat brain is ready. Wait 30-90 seconds, then refresh pod status. If it persists:
+
+```bash
+tytus status
+tytus doctor
+tytus test
+```
+
+Use **Visit/Open** to check the direct agent UI only as a diagnostic. Do not treat a successful browser page as full Cortex readiness.
+
+## Remote app fails to load: MIME type `text/plain`
+
+The app bundle URL is being served with the wrong content type. Browser modules require JavaScript MIME.
+
+User fix: update Tytus, refresh TytusOS, reopen the app.
+
+Support fix: verify the app catalog manifest uses a pinned release/CDN URL for `dist/index.js` and not a raw GitHub module URL that returns `text/plain`.
+
+## Update Tytus
+
+When the tray shows an update-available row, treat it as the signal that a newer Tytus exists. Choose **Settings -> Check for Updates** or **Update Tytus** to start the update flow; it is not a silent auto-installer. CLI fallback:
+
+```bash
+tytus update
+tytus --version
+tytus doctor
+```
+
+If the command is unavailable in an older build, reinstall from `https://get.traylinx.com/` and then run `tytus login && tytus connect && tytus test`.
+
+
 ## TytusOS says Session expired but the tray says Connected
 
 This means the local daemon is running and pods may still be online, but the browser view has stale auth state.

@@ -35,6 +35,14 @@ Examples: games, ASCII Art, Matrix Rain, local notes/todos/calculator, API Teste
 
 Some apps publish skills that Atomek and other agent surfaces can attach dynamically. A skill may describe how to inspect a project, generate a patch preview, launch a local tool, drive a media app, or connect to an external app bridge such as Blender MCP.
 
+Tytus itself publishes documentation skills through the tray host API:
+
+- `tytus.docs.cli-reference` — current bundled CLI/tray/MCP/Cortex reference
+- `tytus.docs.os-manual` — current bundled TytusOS user manual
+- `tytus.docs.agentic-app-skills` — how agentic apps should discover and attach documentation skills
+
+Agentic apps should use `host.skills.resolve({ prompt })` before answering Tytus product questions, then load the chosen markdown with `host.skills.get(id)`. The same skills are listed in Resource Fabric as `app-skill` resources.
+
 Rules for production skills:
 
 - declare the dependency honestly
@@ -54,3 +62,17 @@ If an app appears in the production launcher/dock by default, its manual entry m
 - Where to troubleshoot it
 
 If the answer is “nothing real”, keep the app hidden behind the demo-app toggle.
+
+
+## Remote app loading failures
+
+Atomek and JULI3TA are versioned Tytus apps. If an app window says it cannot load because a module was served as `text/plain`, the browser rejected a raw GitHub module URL. This is a delivery/config issue, not a user data issue.
+
+User recovery:
+
+1. Refresh TytusOS.
+2. Use **Settings -> Check for updates** / tray **Update Tytus** when available.
+3. Reopen the app.
+4. If it still fails, send support the app name, version, and the exact console line.
+
+Support should verify the app manifest points to a JavaScript module endpoint with the right MIME type, preferably a pinned CDN/release asset such as jsDelivr or a bundled dist URL, not a raw GitHub URL served as `text/plain`. Current launch catalog baseline: Atomek `v0.4.29`, JULI3TA `juli3ta-0.3.21`.

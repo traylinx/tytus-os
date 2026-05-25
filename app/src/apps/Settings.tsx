@@ -44,6 +44,7 @@ import {
   Plus,
   Minus,
   BrainCircuit,
+  Pencil,
 } from "lucide-react";
 import LogPane from "@/components/LogPane";
 import { useOS } from "@/hooks/useOSStore";
@@ -3161,7 +3162,7 @@ const PlanPanel: React.FC<PlanPanelProps> = ({
           <div className="space-y-1">
             {state.agents.map((a) => (
               <div
-                key={a.pod_id}
+                key={a.id || a.route_id || `${a.pod_id}-${a.agent_type}`}
                 className="flex items-center justify-between py-1.5 px-3 rounded-md text-xs"
                 style={{
                   background: "var(--bg-card, rgba(255,255,255,0.03))",
@@ -3169,7 +3170,7 @@ const PlanPanel: React.FC<PlanPanelProps> = ({
                 }}
               >
                 <span className="text-[var(--text-primary)]">
-                  Pod {a.pod_id} · {resolveAgentDisplay(a.agent_type, null, t).name}
+                  {a.display_label?.trim() || `Pod ${a.pod_id}`} · {resolveAgentDisplay(a.agent_type, null, t).name}
                 </span>
                 <span className="font-mono text-[var(--text-secondary)]">
                   {a.units} unit{a.units === 1 ? "" : "s"}
@@ -3298,7 +3299,11 @@ const PodsPanel: React.FC<PodsPanelProps> = ({
           </div>
           <div className="space-y-2">
             {state.agents.map((a) => (
-              <PodCard key={a.pod_id} agent={a} refreshNonce={readyNonce} />
+              <PodCard
+                key={a.id || a.route_id || `${a.pod_id}-${a.agent_type}`}
+                agent={a}
+                refreshNonce={readyNonce}
+              />
             ))}
           </div>
         </div>
@@ -3481,6 +3486,66 @@ const PodCard: React.FC<PodCardProps> = ({ agent, refreshNonce = 0 }) => {
   const openLabel =
     agent.agent_type === "hermes" ? "Open dashboard" : "Open agent UI";
 
+  // ── Rename state ─────────────────────────────────────────────
+  const currentName =
+    agent.display_name?.trim() ||
+    (agent.display_label?.trim() !== `Pod ${agent.pod_id}`
+      ? agent.display_label?.trim()
+      : "") ||
+    "";
+  const [renaming, setRenaming] = useState(false);
+  const [nameDraft, setNameDraft] = useState(currentName);
+  const [renameSaving, setRenameSaving] = useState(false);
+  const [renameErr, setRenameErr] = useState<string | null>(null);
+  const renameInputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    if (renaming) {
+      setNameDraft(currentName);
+      setRenameErr(null);
+      // Focus + select on next tick so the input has mounted.
+      queueMicrotask(() => {
+        renameInputRef.current?.focus();
+        renameInputRef.current?.select();
+      });
+    }
+  }, [renaming, currentName]);
+
+  const submitRename = useCallback(async () => {
+    const next = nameDraft.trim();
+    // Empty -> clear (null on the wire). Validation mirrors Provider's
+    // 1..=48 chars + no control chars.
+    if (next.length > 48) {
+      setRenameErr("Name must be 48 characters or fewer.");
+      return;
+    }
+    if (/[\x00-\x1F\x7F]/.test(next)) {
+      setRenameErr("Name contains invalid control characters.");
+      return;
+    }
+    setRenameSaving(true);
+    setRenameErr(null);
+    const r = await client.postPodRename(
+      agent.pod_id,
+      agent.route_id || null,
+      next.length === 0 ? null : next,
+    );
+    setRenameSaving(false);
+    if (!r.ok) {
+      setRenameErr(r.error.message || "Rename failed.");
+      return;
+    }
+    setRenaming(false);
+    // State.json was refreshed server-side; the next /api/state poll
+    // will surface the new label. No local commit needed.
+  }, [client, agent.pod_id, nameDraft]);
+
+  const cancelRename = useCallback(() => {
+    setRenaming(false);
+    setRenameErr(null);
+    setNameDraft(currentName);
+  }, [currentName]);
+
   return (
     <div
       className="p-3 rounded-lg flex flex-col gap-2"
@@ -3507,14 +3572,85 @@ const PodCard: React.FC<PodCardProps> = ({ agent, refreshNonce = 0 }) => {
           )}
         </div>
         <div className="flex-1 min-w-0">
-          <div className="text-sm font-medium text-[var(--text-primary)] truncate">
-            Pod {agent.pod_id} · {resolveAgentDisplay(agent.agent_type, null, t).name}
-          </div>
+          {renaming ? (
+            <div className="flex items-center gap-1.5">
+              <input
+                ref={renameInputRef}
+                type="text"
+                value={nameDraft}
+                onChange={(e) => setNameDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    void submitRename();
+                  } else if (e.key === "Escape") {
+                    e.preventDefault();
+                    cancelRename();
+                  }
+                }}
+                disabled={renameSaving}
+                maxLength={48}
+                placeholder={`Pod ${agent.pod_id}`}
+                aria-label="Pod display name"
+                className="flex-1 min-w-0 text-sm font-medium px-2 py-1 rounded-md bg-[var(--bg-hover,rgba(255,255,255,0.04))] border outline-none focus:ring-2 disabled:opacity-60"
+                style={{
+                  borderColor: renameErr
+                    ? "var(--accent-warning)"
+                    : "var(--border-default)",
+                  color: "var(--text-primary)",
+                }}
+              />
+              <button
+                onClick={() => void submitRename()}
+                disabled={renameSaving}
+                title="Save"
+                className="flex-shrink-0 p-1 rounded-md transition-colors disabled:opacity-60"
+                style={{ color: "var(--accent-primary)" }}
+              >
+                {renameSaving ? (
+                  <Loader2 size={14} className="animate-spin" />
+                ) : (
+                  <Check size={14} />
+                )}
+              </button>
+              <button
+                onClick={cancelRename}
+                disabled={renameSaving}
+                title="Cancel"
+                className="flex-shrink-0 p-1 rounded-md transition-colors disabled:opacity-60"
+                style={{ color: "var(--text-secondary)" }}
+              >
+                <X size={14} />
+              </button>
+            </div>
+          ) : (
+            <div className="text-sm font-medium text-[var(--text-primary)] truncate flex items-center gap-1.5">
+              <span className="truncate">
+                {agent.display_label?.trim() || `Pod ${agent.pod_id}`} ·{" "}
+                {resolveAgentDisplay(agent.agent_type, null, t).name}
+              </span>
+              <button
+                onClick={() => setRenaming(true)}
+                title="Rename pod"
+                aria-label="Rename pod"
+                className="flex-shrink-0 p-0.5 rounded transition-colors hover:bg-[var(--bg-hover,rgba(255,255,255,0.05))]"
+                style={{ color: "var(--text-secondary)" }}
+              >
+                <Pencil size={11} />
+              </button>
+            </div>
+          )}
           <div className="text-[11px] text-[var(--text-secondary)] mt-0.5">
-            {agent.units} unit{agent.units === 1 ? "" : "s"} ·{" "}
-            <span style={{ color: ready?.color ?? "var(--text-secondary)" }}>
-              {ready?.label ?? "…"}
-            </span>
+            {renameErr ? (
+              <span style={{ color: "var(--accent-warning)" }}>{renameErr}</span>
+            ) : (
+              <>
+                {agent.units} unit{agent.units === 1 ? "" : "s"} ·{" "}
+                <span style={{ color: ready?.color ?? "var(--text-secondary)" }}>
+                  {ready?.label ?? "…"}
+                </span>
+              </>
+            )}
           </div>
         </div>
         <button

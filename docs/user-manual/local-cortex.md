@@ -1,6 +1,6 @@
 # Local Cortex
 
-By default, chat with your pod routes through Tytus's cloud Cortex on Strato. That works out of the box and requires no extra software. If you want chat **memory** to stay on your Mac — or if you want chat to keep working without internet — you can run Cortex locally instead.
+By default, chat with your pod routes through Tytus's cloud Cortex on Strato. That works out of the box and requires no extra software. If you want chat **memory** and the Cortex database/cache to stay on your Mac, you can run Cortex locally instead.
 
 Local Cortex is opt-in. Cloud stays the default for everyone.
 
@@ -40,7 +40,7 @@ In both profiles, the **agent** (OpenClaw or Hermes) runs in your pod on Strato.
 
    The CLI sends a probe message to your local Cortex and prints the round-trip latency.
 
-That's it. From now on, chat with your pod routes through your local Cortex. The assistant message in Atomek shows a **"Local Cortex"** chip beside the response.
+That's it. From now on, the Cortex memory/routing layer runs locally. The selected agent still runs in your remote pod, and model calls may still go to the configured AIL/upstream provider. The assistant message in Atomek shows a **"Local Cortex"** chip beside the response.
 
 ## Switching back to cloud
 
@@ -123,7 +123,7 @@ This appears in TytusOS apps that try to call `host.ai.cortexSearch()` while the
 - Postgres + Redis volumes are Docker-managed, owned by your user account.
 - The local Cortex API binds to `127.0.0.1` only — never reachable from other machines on the network.
 - Tray daemon's `/api/cortex/*` endpoints enforce same-origin checks; only TytusOS itself can call them.
-- Provider credentials are still required for the agent itself (the pod runs on Strato), but per-chat memory does not traverse the Provider when profile=local.
+- Provider credentials may still be used for model inference through the configured AIL/upstream route. What stays local in Local Cortex mode is the Cortex API state, memory database/cache, and Docker volumes — not necessarily every model inference request.
 
 ## Architecture
 

@@ -332,7 +332,7 @@ const Sidebar: FC<{
       const active = a.pod_id === selectedPodId && !disabled;
       return (
         <button
-          key={a.pod_id}
+          key={a.id || a.route_id || `${a.pod_id}-${a.agent_type}`}
           onClick={() => onSelect(a.pod_id)}
           disabled={disabled}
           className="flex items-center gap-2 px-4 py-2.5 text-sm transition-colors text-left"
@@ -352,7 +352,7 @@ const Sidebar: FC<{
                 : "text-[var(--text-secondary)]"
             }
           />
-          <span className="flex-1 truncate">Pod {a.pod_id}</span>
+          <span className="flex-1 truncate">{a.display_label?.trim() || `Pod ${a.pod_id}`}</span>
           <span
             className="text-[10px]"
             style={{
@@ -591,9 +591,10 @@ const FileBrowser: FC<{ agents: Agent[]; client: DaemonClient }> = ({
       });
     }
     for (const agent of agents) {
+      const podLabel = agent.display_label?.trim() || `Pod ${agent.pod_id}`;
       base.push({
-        id: `pod-${agent.pod_id}`,
-        label: `Pod ${agent.pod_id} workspace`,
+        id: `pod-${agent.id || agent.route_id || `${agent.pod_id}-${agent.agent_type}`}`,
+        label: `${podLabel} workspace`,
         detail: "/app/workspace",
         source: "pod-workspace",
         pod: agent.pod_id,
@@ -2411,7 +2412,7 @@ const BindFolderModal: FC<BindFolderModalProps> = ({
                   const checked = selectedPods.has(a.pod_id);
                   return (
                     <label
-                      key={a.pod_id}
+                      key={a.id || a.route_id || `${a.pod_id}-${a.agent_type}`}
                       className="flex items-center gap-2 text-xs cursor-pointer"
                       style={{ color: "var(--text-primary)" }}
                     >
@@ -2422,7 +2423,7 @@ const BindFolderModal: FC<BindFolderModalProps> = ({
                         disabled={inFlight}
                       />
                       <span>
-                        Pod {a.pod_id}{" "}
+                        {a.display_label?.trim() || `Pod ${a.pod_id}`}{" "}
                         <span
                           className="text-[10px]"
                           style={{ color: "var(--text-secondary)" }}

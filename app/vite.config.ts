@@ -37,8 +37,19 @@ const daemonProxyPlugin = (): Plugin => ({
       // Phase 2 §11 security floor: daemon's strict same-origin guard
       // expects Sec-Fetch-Site. Server-to-server hops drop it; forge
       // here so the dev proxy matches the production browser path.
-      const headers = { ...req.headers, 'sec-fetch-site': 'same-origin' };
-      delete (headers as Record<string, unknown>).host;
+      //
+      // Host header is forged to `localhost:4242` (the canonical Tytus
+      // OS origin) instead of being deleted. Without this, Node's http
+      // module fills in the upstream's actual host:port (e.g.
+      // `127.0.0.1:4343` when the dev tray is on the sidecar port),
+      // and the daemon's /api/whoami DNS-rebinding allowlist refuses
+      // the request as `forbidden_host`. In production the tray binds
+      // 4242 directly and this proxy isn't on the path — symmetric.
+      const headers = {
+        ...req.headers,
+        'sec-fetch-site': 'same-origin',
+        host: 'localhost:4242',
+      };
 
       const upstream = http.request(
         {
@@ -115,6 +126,14 @@ export default defineConfig({
   plugins: [react(), daemonProxyPlugin(), externalsServerPlugin()],
   server: {
     host: 'localhost',
+    // The fixed Tytus OS origin is http://localhost:4242 — that's what
+    // the tray menu's "Open TytusOS" opens, what docs reference, what
+    // traylinx.com's whoami probe hits. In dev, vite owns 4242 and the
+    // tray runs on a sidecar port (set via TYTUS_TRAY_PORT, default
+    // 4343 in scripts/dev.sh) so /api/* still resolves. The
+    // daemonProxyPlugin above reads /tmp/tytus/tray-web.port (which the
+    // tray itself writes) to discover that sidecar port at request
+    // time, so dev and prod stay symmetric from the user's perspective.
     port: 4242,
     strictPort: true,
     fs: {

@@ -174,6 +174,16 @@ Built-in guides cover:
 
 These docs are bundled as the offline fallback. When the local Tytus help bridge is reachable and live docs are enabled, Atomek and Help can ask the shared Traylinx Cortex documentation database for current TytusOS, OpenClaw, Hermes, JULI3TA, shared-folder, and install guidance without duplicating embeddings locally.
 
+The tray daemon also exposes documentation as skills so agentic apps can attach the right manual automatically:
+
+| Skill id | Use it for |
+|---|---|
+| `tytus.docs.cli-reference` | CLI, tray, MCP, gateway, Cortex, install, update, and troubleshooting questions. |
+| `tytus.docs.os-manual` | TytusOS desktop, Pod Inspector, Chat, Files, Channels, Settings, shared folders, and app workflows. |
+| `tytus.docs.agentic-app-skills` | How an app should call `host.skills.*`, resolve docs, and attach manuals to mission context. |
+
+Apps can call `host.skills.resolve({ prompt })`, fetch the selected markdown with `host.skills.get(id)`, and add that body to the local chat or mission prompt. The same summaries appear in Resource Fabric as `app-skill` resources.
+
 ## Ask pod
 
 **Ask pod** sends the selected mission task to a ready pod agent through `host.daemon.callPodEndpoint()`. Atomek first asks the pod for `/v1/models`, selects the first live model returned by the pod metadata, then sends a non-streaming `/v1/chat/completions` request through the same-origin Tytus bridge. No model id is hardcoded in Atomek.
@@ -229,6 +239,7 @@ Examples:
 | Local terminal open | Open the TytusOS terminal with context. |
 | JULI3TA create song | Hand off a music-generation task to JULI3TA where supported. |
 | Blender MCP create scene | Use a Blender MCP/socket bridge when the Blender skill and local server are installed. |
+| Tytus documentation skills | Load the bundled CLI reference, OS manual, or docs-as-skills guide into an agentic app. |
 
 Do not show fake support. If a skill or app driver is not installed, show it as unavailable with the missing dependency.
 

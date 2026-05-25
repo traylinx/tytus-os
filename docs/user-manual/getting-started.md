@@ -7,17 +7,35 @@ TytusOS is the desktop for your private AI pods. It runs in a browser tab or ins
 Fresh machine flow:
 
 1. Install `tytus` for your OS.
-2. Start the tray daemon.
+2. Start the tray daemon/Tytus app.
 3. Sign in once from the tray or TytusOS login screen.
-4. Allocate a pod or use the included All LLM Gateway.
-5. Use Files, Channels, Pod Inspector, Terminal, and apps from TytusOS.
+4. Connect the WireGuard tunnel.
+5. Allocate or reuse pods, then use the included All LLM Gateway.
+6. Use Files, Channels, Pod Inspector, Terminal, and apps from TytusOS.
 
-Typical commands during development/support:
+Install commands:
+
+```bash
+# macOS / Linux
+curl -fsSL https://get.traylinx.com/install.sh | bash
+
+# Homebrew
+brew install traylinx/tap/tytus
+```
+
+```powershell
+# Windows
+powershell -c "irm https://get.traylinx.com/install.ps1 | iex"
+```
+
+Typical commands after install:
 
 ```bash
 tytus setup
-tytus tray start
-tytus open
+tytus login
+tytus connect
+tytus test
+tytus os
 ```
 
 ## First screen
@@ -49,7 +67,7 @@ If you are new to the agent-team workflow, read these next: **Tytus Resource Fab
 | Launch local agents with active file context | Atomek -> Agent Team |
 | Coordinate OpenClaw, Hermes, local agents, shared folders, and apps | Atomek -> Start mission |
 | Learn workflows inside the product | Help -> Resource Fabric / Agents / Shared Folders / Use Cases, or Atomek -> Docs & Skills |
-| Configure Telegram/Discord/Slack/etc. | Channels |
+| Configure supported channels | Channels. Telegram, Discord bot, and Slack Socket Mode are the current OpenClaw-backed flows; other messengers may require manual/custom bridge work or future support. |
 | Fix expired login | Settings -> Daemon |
 | Check shared folders | Settings -> Sharing or Files -> Shared |
 | Run CLI commands | Terminal |
@@ -72,6 +90,19 @@ Default structure:
 ├── Shared/
 └── README.md
 ```
+
+## Stable SDK values
+
+After login/connect, the user-facing AIL gateway values should stay stable:
+
+```bash
+AIL_URL=http://10.42.42.1:18080/v1
+AIL_API_KEY=sk-tytus-user-<32hex>
+OPENAI_BASE_URL=http://10.42.42.1:18080/v1
+OPENAI_API_KEY=sk-tytus-user-<32hex>
+```
+
+Use Pod Inspector -> **Copy env block** or `tytus env --export`. Do not copy raw per-pod keys into user tools unless support asks for a debug check.
 
 ## What is real
 

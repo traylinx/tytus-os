@@ -12,6 +12,16 @@ Tytus works best when agents act as a team instead of isolated chat boxes. OpenC
 
 Use the brand names **OpenClaw** and **Hermes** in user-facing docs and UI. Old internal labels should not leak into the product.
 
+## Units and pod types
+
+| Pod/agent | Units | Notes |
+|---|---:|---|
+| Included All LLM Gateway / no-agent reserved pod | 0 | Does not count against plan units. Gives the stable OpenAI-compatible gateway. |
+| OpenClaw | 1 | Code, review, tactical tasks, channel workflows. |
+| Hermes | 2 | Deeper synthesis, memory-heavy review, scheduled/long-form work when available. |
+
+Tytus may show a **reserved/free slot** as `No agent`. That is capacity, not a broken pod. Starting an agent reuses the reserved pod when possible. Display names like `Claus` or `Hermie` come from `/pod/status.display_name` and should appear consistently in Traylinx, TytusOS, and the tray.
+
 ## Install and check agents
 
 CLI examples:
@@ -54,7 +64,7 @@ The mission folder is the shared memory for this work. Every agent should leave 
 | Atomek Agent Team | choose resources, create missions, run local jobs, ask pods, inspect transcripts |
 | Terminal | supervised shell, project commands, manual local-agent CLI runs |
 | Files | browse Tytus Home, Shared, mission folders, pod workspaces |
-| Channels | connect agents to Telegram/Slack/Discord/etc. |
+| Channels | connect OpenClaw to supported messenger flows; Telegram, Discord bot, and Slack Socket Mode are current. Other messengers may need manual/custom bridge work or future support. |
 
 Atomek should not replace Claude Code, OpenCode, Codex, or pi. It should orchestrate them with files, context, and approval gates.
 

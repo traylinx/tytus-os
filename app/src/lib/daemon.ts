@@ -701,6 +701,22 @@ export interface DaemonClient {
     signal?: AbortSignal,
     idempotencyKey?: string,
   ): Promise<DaemonResult<null>>;
+  /**
+   * Set or clear a pod's user-facing display name. Pass `null` or `""`
+   * to clear. Server validates 1–48 chars and rejects control chars
+   * with HTTP 400 `invalid_display_name`. `routeId` is REQUIRED when
+   * multiple pods share the same `podId` (e.g. OpenClaw + Hermes both
+   * allocated as pod 01) — without it Provider picks the first match
+   * and the rename lands on the wrong pod. Use `agent.route_id` for
+   * safety even when there's only one pod.
+   */
+  postPodRename(
+    podId: string,
+    routeId: string | null,
+    displayName: string | null,
+    signal?: AbortSignal,
+    idempotencyKey?: string,
+  ): Promise<DaemonResult<null>>;
   postPodRefreshCreds(
     podId: string,
     signal?: AbortSignal,
@@ -1299,6 +1315,23 @@ export const createDaemonClient = (
         deps,
         `/api/pod/restart?pod=${encodeURIComponent(podId)}`,
         { method: "POST", signal, idempotencyKey },
+        noBody,
+      ),
+
+    postPodRename: (podId, routeId, displayName, signal, idempotencyKey) =>
+      runRequest(
+        deps,
+        `/api/pod/rename`,
+        {
+          method: "POST",
+          body: {
+            pod_id: podId,
+            route_id: routeId || null,
+            display_name: displayName,
+          },
+          signal,
+          idempotencyKey,
+        },
         noBody,
       ),
 
