@@ -141,7 +141,27 @@ export const TytusAppsTab: FC<TytusAppsTabProps> = ({
       if (onInstallFromUrl) return onInstallFromUrl(manifestUrl);
       const db = getDb();
       if (!db) throw new InstallerError('fetch_failed', { reason: 'db not initialized' });
-      return installAppFromManifestUrl({ manifestUrl, db });
+      try {
+        return await installAppFromManifestUrl({ manifestUrl, db });
+      } catch (err) {
+        // "Install from URL" is the explicit user action for swapping an
+        // installed app's source — e.g. replacing the catalog build with
+        // a dev manifest served by the local vite. Treat a duplicate as a
+        // request to replace, not a hard error: uninstall the existing
+        // row, then re-run the install for a clean upsert. The catalog
+        // auto-installer never reaches this branch (it uses its own row
+        // path with version-bump semantics), so we don't risk overwriting
+        // featured apps behind the user's back.
+        if (err instanceof InstallerError && err.code === 'duplicate') {
+          const existingId =
+            (err.details as { existingId?: string } | undefined)?.existingId;
+          if (existingId) {
+            await uninstallApp({ appId: existingId, db });
+            return installAppFromManifestUrl({ manifestUrl, db });
+          }
+        }
+        throw err;
+      }
     },
     [onInstallFromUrl],
   );

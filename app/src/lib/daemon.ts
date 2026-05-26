@@ -436,6 +436,9 @@ const isGaragetytusStatus = (v: unknown): v is GaragetytusStatus =>
   typeof v.status_text === "string" &&
   (v.version === null || typeof v.version === "string") &&
   typeof v.port === "number" &&
+  (v.garage_endpoint === undefined || typeof v.garage_endpoint === "string") &&
+  (v.garage_endpoint_reachable === undefined ||
+    typeof v.garage_endpoint_reachable === "boolean") &&
   (v.binary_path === null || typeof v.binary_path === "string") &&
   (v.cache_path === null || typeof v.cache_path === "string") &&
   typeof v.cache_exists === "boolean" &&

@@ -81,12 +81,13 @@ import type {
   Agent,
   Binding,
   FileListEntry,
+  GaragetytusStatus,
   SharingDefaults,
 } from "@/types/daemon";
 import type { DaemonClient } from "@/lib/daemon";
 import { useSelection } from "@/lib/selection";
 import { registerShortcut } from "@/lib/shortcuts";
-import { serializePayload, parsePayload } from "@/lib/dnd";
+import { serializePayload } from "@/lib/dnd";
 import { refFromDaemonPath, type FileRef } from "@/lib/files/fileRef";
 
 type TabId = "browse" | "inbox" | "downloads" | "shared";
@@ -97,6 +98,12 @@ const displayAgentType = (agentType: string | null | undefined): string => {
   if (agentType === "hermes") return "Hermes";
   return agentType;
 };
+
+interface PodProvisionOption {
+  podId: string;
+  label: string;
+  details: string;
+}
 
 const FileManager: FC = () => {
   const { dispatch } = useOS();
@@ -1084,7 +1091,9 @@ const FileBrowser: FC<{ agents: Agent[]; client: DaemonClient }> = ({
                     }
                     try {
                       e.dataTransfer.effectAllowed = 'copyMove';
-                    } catch {}
+                    } catch {
+                      /* Some browser drag backends reject effectAllowed. */
+                    }
                     if (!isSelected) rowSelection.selectOne(entry);
                   }}
                   onClick={(e) => {
@@ -1620,6 +1629,9 @@ const SharedTab: FC<{ agents: Agent[]; client: DaemonClient }> = ({
   const [bindings, setBindings] = useState<Binding[] | null>(null);
   const [sharingDefaults, setSharingDefaults] =
     useState<SharingDefaults | null>(null);
+  const [garageStatus, setGarageStatus] = useState<GaragetytusStatus | null>(
+    null,
+  );
   const [listErr, setListErr] = useState<string | null>(null);
   const [listing, setListing] = useState(false);
 
@@ -1638,22 +1650,31 @@ const SharedTab: FC<{ agents: Agent[]; client: DaemonClient }> = ({
     syncStream.status === "lost";
   const syncInFlight = syncSubmitting || (syncJob !== null && !syncDone);
   const sharingPaused = sharingDefaults?.sharing_globally_enabled === false;
-  const sharingBlocked = syncInFlight || sharingPaused;
+  const garageWarning =
+    garageStatus?.garage_endpoint_reachable === false
+      ? (garageStatus.warnings[0] ??
+        `Tytus tunnel is not reaching Garage at ${garageStatus.garage_endpoint ?? "10.42.42.1:3900"}.`)
+      : null;
+  const sharingBlocked = syncInFlight || sharingPaused || garageWarning !== null;
 
   // Per-binding "open" inline error (e.g. orphaned local path).
   const [openErrByPath, setOpenErrByPath] = useState<Record<string, string>>(
     {},
   );
   const [openCacheErr, setOpenCacheErr] = useState<string | null>(null);
+  const [tunnelConnecting, setTunnelConnecting] = useState(false);
+  const [tunnelConnectErr, setTunnelConnectErr] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     setListing(true);
     setListErr(null);
-    const [r, defaults] = await Promise.all([
+    const [r, defaults, garage] = await Promise.all([
       client.getSharedFolders(),
       client.getSharingDefaults(),
+      client.getGaragetytusStatus(),
     ]);
     setListing(false);
+    if (garage.ok) setGarageStatus(garage.value);
     if (!r.ok) {
       setListErr(r.error.message);
       return;
@@ -1672,12 +1693,14 @@ const SharedTab: FC<{ agents: Agent[]; client: DaemonClient }> = ({
     const run = async () => {
       setListing(true);
       setListErr(null);
-      const [r, defaults] = await Promise.all([
+      const [r, defaults, garage] = await Promise.all([
         client.getSharedFolders(),
         client.getSharingDefaults(),
+        client.getGaragetytusStatus(),
       ]);
       if (cancelled) return;
       setListing(false);
+      if (garage.ok) setGarageStatus(garage.value);
       if (!r.ok) {
         setListErr(r.error.message);
         return;
@@ -1726,6 +1749,22 @@ const SharedTab: FC<{ agents: Agent[]; client: DaemonClient }> = ({
     }
     setSyncJob({ id: r.value.job_id });
   }, [client, sharingBlocked]);
+
+  const onConnectTunnel = useCallback(async () => {
+    if (tunnelConnecting) return;
+    setTunnelConnecting(true);
+    setTunnelConnectErr(null);
+    const r = await client.postConnect();
+    setTunnelConnecting(false);
+    if (!r.ok) {
+      setTunnelConnectErr(r.error.message);
+      return;
+    }
+    // Native connect can open Terminal/Touch ID. Poll after approval so the
+    // Shared tab warning clears without making users hunt for Refresh.
+    window.setTimeout(() => void refresh(), 1500);
+    window.setTimeout(() => void refresh(), 5000);
+  }, [client, refresh, tunnelConnecting]);
 
   const onOpenCache = useCallback(async () => {
     setOpenCacheErr(null);
@@ -1896,6 +1935,46 @@ const SharedTab: FC<{ agents: Agent[]; client: DaemonClient }> = ({
         </div>
       )}
 
+      {(garageWarning || tunnelConnectErr) && (
+        <div
+          className="mx-4 mt-4 p-3 rounded-md text-xs flex items-start justify-between gap-3"
+          style={{
+            background: "rgba(255,193,7,0.10)",
+            border: "1px solid rgba(255,193,7,0.30)",
+            color: "#FFE082",
+          }}
+        >
+          <div className="flex items-start gap-2 min-w-0">
+            <AlertTriangle size={14} className="flex-shrink-0 mt-0.5" />
+            <span>
+              {garageWarning}
+              {tunnelConnectErr ? ` ${tunnelConnectErr}` : ""}
+            </span>
+          </div>
+          {garageWarning && (
+            <button
+              type="button"
+              onClick={onConnectTunnel}
+              disabled={tunnelConnecting}
+              className="px-2 py-1 rounded text-[11px] font-medium whitespace-nowrap disabled:opacity-60 flex items-center gap-1"
+              style={{
+                background: "rgba(255,255,255,0.08)",
+                border: "1px solid rgba(255,255,255,0.18)",
+                color: "var(--text-primary)",
+              }}
+              title="Opens the native Tytus connect flow. macOS may ask for Touch ID/admin permission."
+            >
+              {tunnelConnecting ? (
+                <Loader2 size={12} className="animate-spin" />
+              ) : (
+                <LinkIcon size={12} />
+              )}
+              Connect tunnel
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Sync-now inline progress */}
       {syncErr && (
         <div
@@ -1982,6 +2061,8 @@ const SharedTab: FC<{ agents: Agent[]; client: DaemonClient }> = ({
           pauseReason={
             sharingPaused
               ? "Sharing is paused in Settings → Sharing."
+              : garageWarning
+                ? garageWarning
               : undefined
           }
         />
@@ -2166,7 +2247,39 @@ const BindFolderModal: FC<BindFolderModalProps> = ({
   const [bucket, setBucket] = useState(defaults?.default_bucket ?? "shared");
   const [bucketTouched, setBucketTouched] = useState(false);
 
-  // Selected pod ids from agents (pod_id strings, e.g. "02").
+  const podProvisionOptions = useMemo<PodProvisionOption[]>(() => {
+    const byPod = new Map<
+      string,
+      { labels: string[]; agentTypes: Set<string> }
+    >();
+    for (const agent of agents) {
+      if (!agent.pod_id) continue;
+      const agentType = displayAgentType(agent.agent_type);
+      if (agentType === "agent") continue;
+      const current = byPod.get(agent.pod_id) ?? {
+        labels: [],
+        agentTypes: new Set<string>(),
+      };
+      const label = agent.display_label?.trim() || `Pod ${agent.pod_id}`;
+      if (!current.labels.includes(label)) current.labels.push(label);
+      current.agentTypes.add(agentType);
+      byPod.set(agent.pod_id, current);
+    }
+    return Array.from(byPod.entries())
+      .sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true }))
+      .map(([podId, info]) => ({
+        podId,
+        label:
+          info.labels.length === 1
+            ? info.labels[0]
+            : `Pod ${podId} — ${info.labels.join(", ")}`,
+        details: `${Array.from(info.agentTypes).join(" + ")} · one shared runtime`,
+      }));
+  }, [agents]);
+
+  // Selected runtime ids (pod_id strings, e.g. "02"). Multiple agents can
+  // share the same pod_id/runtime, so the UI must not render one checkbox per
+  // agent — the garagetytus helper provisions the runtime container once.
   // Empty Set => all (server treats absent as all).
   const [selectedPods, setSelectedPods] = useState<Set<string>>(new Set());
   const [autoSync, setAutoSync] = useState(
@@ -2397,38 +2510,39 @@ const BindFolderModal: FC<BindFolderModalProps> = ({
               className="text-[11px] font-medium"
               style={{ color: "var(--text-secondary)" }}
             >
-              Pods to provision
+              Runtimes to provision
             </label>
             <div className="flex flex-col gap-1.5">
-              {agents.length === 0 ? (
+              {podProvisionOptions.length === 0 ? (
                 <div
                   className="text-[11px]"
                   style={{ color: "var(--text-disabled)" }}
                 >
-                  No allocated pods.
+                  No allocated agent runtimes.
                 </div>
               ) : (
-                agents.map((a) => {
-                  const checked = selectedPods.has(a.pod_id);
+                podProvisionOptions.map((option) => {
+                  const checked = selectedPods.has(option.podId);
                   return (
                     <label
-                      key={a.id || a.route_id || `${a.pod_id}-${a.agent_type}`}
-                      className="flex items-center gap-2 text-xs cursor-pointer"
+                      key={option.podId}
+                      className="flex items-start gap-2 text-xs cursor-pointer"
                       style={{ color: "var(--text-primary)" }}
                     >
                       <input
+                        className="mt-0.5"
                         type="checkbox"
                         checked={checked}
-                        onChange={() => onTogglePod(a.pod_id)}
+                        onChange={() => onTogglePod(option.podId)}
                         disabled={inFlight}
                       />
-                      <span>
-                        {a.display_label?.trim() || `Pod ${a.pod_id}`}{" "}
+                      <span className="min-w-0">
+                        <span className="block truncate">{option.label}</span>
                         <span
-                          className="text-[10px]"
+                          className="block text-[10px]"
                           style={{ color: "var(--text-secondary)" }}
                         >
-                          ({displayAgentType(a.agent_type)})
+                          {option.details}
                         </span>
                       </span>
                     </label>
@@ -2440,7 +2554,8 @@ const BindFolderModal: FC<BindFolderModalProps> = ({
               className="text-[10px]"
               style={{ color: "var(--text-disabled)" }}
             >
-              Leave all unchecked to provision every allocated pod.
+              One checkbox can cover multiple agents when they share the same
+              Tytus runtime. Leave all unchecked to provision every runtime.
             </div>
           </div>
 

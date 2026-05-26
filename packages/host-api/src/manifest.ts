@@ -273,6 +273,31 @@ export interface ManifestValidationResult {
 
 const SEMVER_LOOSE = /^\d+\.\d+\.\d+(-[A-Za-z0-9.-]+)?$/;
 
+// Dev escape hatch for the strict https:// requirement on entry urls.
+// Production deployments serve TytusOS from https:// origins; the
+// browser's own `window.location.origin` is the cheapest, framework-
+// agnostic signal that we're in a localhost dev session. In that case
+// we let http://localhost / http://127.0.0.1 / public/dev-<app>/ paths
+// through so the in-OS hot-swap loop works without a CDN round-trip.
+// Anything else (file://, data://, blob://, …) stays blocked.
+function isAcceptableEntryUrl(url: string): boolean {
+  if (url.startsWith('https://')) return true;
+  const origin =
+    typeof globalThis !== 'undefined' &&
+    typeof (globalThis as { location?: { origin?: string } }).location?.origin === 'string'
+      ? (globalThis as { location: { origin: string } }).location.origin
+      : '';
+  const isLocalDev =
+    origin.startsWith('http://localhost:') ||
+    origin.startsWith('http://127.0.0.1:');
+  if (!isLocalDev) return false;
+  return (
+    url.startsWith('http://localhost:') ||
+    url.startsWith('http://127.0.0.1:') ||
+    url.startsWith('/dev-')
+  );
+}
+
 /**
  * Validate a runtime manifest object — typically the JSON parsed from a
  * `tytus-app.json` an install pipeline just fetched. Returns ALL issues
@@ -421,7 +446,7 @@ export function validateManifest(raw: unknown): ManifestValidationResult {
           push('/entry/url', 'must be a non-empty string when present');
         } else {
           const url = ee.url as string;
-          if (!url.startsWith('https://')) {
+          if (!isAcceptableEntryUrl(url)) {
             push(
               '/entry/url',
               `must be an https:// URL (got ${JSON.stringify(url)})`,

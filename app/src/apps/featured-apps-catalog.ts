@@ -40,7 +40,7 @@ const ALL_FEATURED_APPS: FeaturedApp[] = [
     description: 'Monaco workspace with persistent local state, intelligent AIL chat, dynamic file context, semantic retrieval, AI edit previews, embedded docs, and Tytus Resource Fabric cockpit.',
     icon: 'atomek:mark',
     category: 'Productivity',
-    manifestUrl: 'https://raw.githubusercontent.com/traylinx/tytus-app-atomek/v0.4.29/tytus-app.json',
+    manifestUrl: 'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-atomek@v0.4.30/tytus-app.json',
   },
   {
     id: 'text-editor',
@@ -96,7 +96,7 @@ const ALL_FEATURED_APPS: FeaturedApp[] = [
     description: 'Full AI-native music creator for Tytus OS. Create songs, lyrics, covers, and manage your local music workbench.',
     icon: 'juli3ta:mark',
     category: 'Creative',
-    manifestUrl: 'https://raw.githubusercontent.com/traylinx/tytus-app-juli3ta/juli3ta-0.3.21/tytus-app.json',
+    manifestUrl: 'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-juli3ta@juli3ta-0.3.22/tytus-app.json',
   },
 ];
 
@@ -116,7 +116,7 @@ export const FEATURED_APPS: FeaturedApp[] = ALL_FEATURED_APPS.filter(
  *  not keep users on stale standalone app tags. Individual app manifest URLs
  *  remain pinned to immutable app tags. */
 export const FEATURED_CATALOG_URL =
-  'https://raw.githubusercontent.com/traylinx/tytus-app-catalog/d9ce67fb5a6c1e23510b0c6d3b1fb7cef768f942/featured.json';
+  'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-catalog@catalog-v59/featured.json';
 
 /**
  * Denylist of catalog ids the OS will refuse to auto-install at boot,
@@ -132,9 +132,13 @@ interface RemoteCatalogShape {
 }
 
 function normalizeCatalogManifestUrl(url: string): string {
-  // Preserve raw.githubusercontent.com URLs. They are HTTPS + CORS-safe, and
-  // jsDelivr currently mis-resolves the Atomek v0.4.29 manifest ref while the
-  // raw GitHub URL works. Entry bundles still load from CDN when manifests say so.
+  const rawGithub = url.match(
+    /^https:\/\/raw\.githubusercontent\.com\/(traylinx)\/([^/]+)\/([^/]+)\/(.+)$/i,
+  );
+  if (rawGithub) {
+    const [, owner, repo, ref, path] = rawGithub;
+    return `https://cdn.jsdelivr.net/gh/${owner}/${repo}@${ref}/${path}`;
+  }
   return url;
 }
 

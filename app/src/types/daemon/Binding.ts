@@ -41,6 +41,8 @@ export interface GaragetytusStatus {
   status_text: string;
   version: string | null;
   port: number;
+  garage_endpoint?: string;
+  garage_endpoint_reachable?: boolean;
   binary_path: string | null;
   cache_path: string | null;
   cache_exists: boolean;
