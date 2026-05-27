@@ -167,6 +167,27 @@ const tryOpenPersistent = async (sqlite3: Sqlite3Static): Promise<boolean> => {
   }
 };
 
+// End-to-end sanity probe: run the exact SELECT shape that the first
+// user code path (Juli3ta's listTracks, App Store's listInstalledApps,
+// …) issues. If the backing is silently broken in ways neither
+// getCapacity nor write+read probe caught, this catches it before we
+// hand the DB off to the main thread.
+const selfTest = (database: Database): boolean => {
+  try {
+    for (const table of REQUIRED_TABLES) {
+      database.exec({
+        sql: `SELECT 1 FROM ${table} LIMIT 1`,
+        returnValue: 'resultRows',
+        rowMode: 'array',
+      });
+    }
+    return true;
+  } catch (err) {
+    console.warn('[sqlite] post-migration self-test failed; backing is broken', err);
+    return false;
+  }
+};
+
 const openDb = async (): Promise<{ persistent: boolean; libVersion: string }> => {
   const sqlite3: Sqlite3Static = await sqlite3InitModule();
   sqlite3Singleton = sqlite3;
@@ -184,12 +205,15 @@ const openDb = async (): Promise<{ persistent: boolean; libVersion: string }> =>
 
   runMigrations(db!);
 
-  // Last-line defense: if migrations ran against a backing that didn't
-  // actually persist DDL (broken OPFS pool we failed to detect), the
-  // required tables won't exist. Switch to in-memory and re-run.
-  if (persistent && !REQUIRED_TABLES.every((t) => tableExists(db!, t))) {
+  // Belt-and-braces: schema-presence check + a real SELECT against
+  // every REQUIRED_TABLES entry. If anything doesn't queryably exist,
+  // tear down and rebuild on :memory:. We've seen the SAH pool log
+  // handle errors during init yet return a Database whose writes
+  // silently no-op, so we trust ONLY the read-after-write evidence.
+  const tablesPresent = REQUIRED_TABLES.every((t) => tableExists(db!, t));
+  if (!tablesPresent || !selfTest(db!)) {
     console.warn(
-      '[sqlite] Persistent DB missing required tables after migration; recovering with in-memory DB',
+      `[sqlite] post-init verification failed (persistent=${persistent}, tablesPresent=${tablesPresent}); recovering with in-memory DB`,
     );
     db = openInMemory(sqlite3);
     persistent = false;
