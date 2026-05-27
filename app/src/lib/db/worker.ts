@@ -48,38 +48,158 @@ let persistent = false;
 
 const reply = (msg: Reply) => self.postMessage(msg);
 
-const openDb = async (): Promise<{ persistent: boolean; libVersion: string }> => {
-  const sqlite3: Sqlite3Static = await sqlite3InitModule();
-  sqlite3Singleton = sqlite3;
+// Tables we expect every healthy boot to have. Used as a sanity check
+// after migrations — see openDb() for the rationale.
+const REQUIRED_TABLES = ['music_creator_tracks', 'installed_apps'] as const;
 
-  // SAH-Pool first — works without COOP/COEP and doesn't require
-  // SharedArrayBuffer. Falls back to a transient in-memory DB if the
-  // browser refuses (Safari < 17, private windows in some browsers).
-  try {
-    const pool = await sqlite3.installOpfsSAHPoolVfs({
-      name: 'tytus-opfs-pool',
-      initialCapacity: 4,
-      clearOnInit: false,
-    });
-    db = new pool.OpfsSAHPoolDb('/tytusos.db');
-    persistent = true;
-  } catch (err) {
-    console.warn('[sqlite] OPFS SAH pool unavailable, falling back to in-memory DB', err);
-    db = new sqlite3.oo1.DB(':memory:', 'ct');
-    persistent = false;
-  }
+const tableExists = (database: Database, name: string): boolean => {
+  const rows = database.exec({
+    sql: "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?",
+    bind: [name],
+    returnValue: 'resultRows',
+    rowMode: 'array',
+  }) as unknown as Array<unknown[]>;
+  return rows.length > 0;
+};
 
-  // PRAGMAs — match makakoo-core's defaults. journal_mode = WAL is a
-  // no-op on in-memory but harmless.
+const applyPragmas = (database: Database) => {
   for (const stmt of [
     'PRAGMA journal_mode = WAL',
     'PRAGMA synchronous = NORMAL',
     'PRAGMA busy_timeout = 5000',
     'PRAGMA foreign_keys = ON',
   ]) {
-    db.exec(stmt);
+    database.exec(stmt);
+  }
+};
+
+const openInMemory = (sqlite3: Sqlite3Static): Database => {
+  if (db) {
+    try {
+      db.close();
+    } catch {
+      /* connection already dead — ignore */
+    }
+  }
+  const memDb = new sqlite3.oo1.DB(':memory:', 'ct');
+  applyPragmas(memDb);
+  return memDb;
+};
+
+// Round-trip probe: prove the DB can actually write AND read back data.
+// installOpfsSAHPoolVfs logs handle-acquisition errors via its internal
+// storeErr path but still returns a pool object whose getCapacity() can
+// be non-zero — so writes against the resulting Database silently no-op.
+// This is the exact failure that lets migrations "succeed" on a broken
+// backing and then the first SELECT hits "no such table". The only
+// reliable detection is to write and read a sentinel value: a passing
+// CREATE+INSERT+SELECT means the pool is genuinely usable.
+const SENTINEL_TABLE = '_tytus_pool_probe';
+const probeWriteRead = (database: Database): boolean => {
+  try {
+    database.exec(
+      `CREATE TABLE IF NOT EXISTS ${SENTINEL_TABLE} (k TEXT PRIMARY KEY, v INTEGER NOT NULL)`,
+    );
+    database.exec({
+      sql: `INSERT OR REPLACE INTO ${SENTINEL_TABLE} (k, v) VALUES ('probe', ?)`,
+      bind: [Date.now()] as never,
+    });
+    const rows = database.exec({
+      sql: `SELECT v FROM ${SENTINEL_TABLE} WHERE k = 'probe'`,
+      returnValue: 'resultRows',
+      rowMode: 'array',
+    }) as unknown as Array<[number]>;
+    return rows.length > 0 && typeof rows[0]?.[0] === 'number';
+  } catch (err) {
+    console.warn('[sqlite] DB probe failed; treating backing as broken', err);
+    return false;
+  }
+};
+
+// Returns true on a confirmed-healthy OPFS pool, false on any failure
+// path (refusal to install, zero-capacity install, write/read probe
+// fails, exception). When false, the caller must open an in-memory DB
+// instead.
+const tryOpenPersistent = async (sqlite3: Sqlite3Static): Promise<boolean> => {
+  let pool: Awaited<ReturnType<typeof sqlite3.installOpfsSAHPoolVfs>> | null = null;
+  try {
+    pool = await sqlite3.installOpfsSAHPoolVfs({
+      name: 'tytus-opfs-pool',
+      initialCapacity: 4,
+      clearOnInit: false,
+    });
+    const capacity =
+      typeof pool.getCapacity === 'function' ? pool.getCapacity() : 0;
+    if (capacity === 0) {
+      console.warn(
+        '[sqlite] OPFS SAH pool installed with capacity=0 (handles held by another tab/worker); falling back to in-memory DB',
+      );
+      try {
+        await pool.removeVfs?.();
+      } catch {
+        /* the lib has likely already tried and failed — non-fatal */
+      }
+      return false;
+    }
+    const candidate = new pool.OpfsSAHPoolDb('/tytusos.db');
+    if (!probeWriteRead(candidate)) {
+      console.warn(
+        '[sqlite] OPFS SAH pool write/read probe failed (likely zombie handles from another tab/worker); falling back to in-memory DB',
+      );
+      try {
+        candidate.close();
+      } catch {
+        /* connection already dead */
+      }
+      try {
+        await pool.removeVfs?.();
+      } catch {
+        /* non-fatal */
+      }
+      return false;
+    }
+    db = candidate;
+    persistent = true;
+    return true;
+  } catch (err) {
+    console.warn('[sqlite] OPFS SAH pool unavailable, falling back to in-memory DB', err);
+    return false;
+  }
+};
+
+const openDb = async (): Promise<{ persistent: boolean; libVersion: string }> => {
+  const sqlite3: Sqlite3Static = await sqlite3InitModule();
+  sqlite3Singleton = sqlite3;
+
+  // SAH-Pool first — works without COOP/COEP and doesn't require
+  // SharedArrayBuffer. Falls back to a transient in-memory DB if the
+  // browser refuses (Safari < 17, private windows in some browsers,
+  // or a sibling tab/HMR worker still holding handles).
+  if (!(await tryOpenPersistent(sqlite3))) {
+    db = openInMemory(sqlite3);
+    persistent = false;
+  } else {
+    applyPragmas(db!);
   }
 
+  runMigrations(db!);
+
+  // Last-line defense: if migrations ran against a backing that didn't
+  // actually persist DDL (broken OPFS pool we failed to detect), the
+  // required tables won't exist. Switch to in-memory and re-run.
+  if (persistent && !REQUIRED_TABLES.every((t) => tableExists(db!, t))) {
+    console.warn(
+      '[sqlite] Persistent DB missing required tables after migration; recovering with in-memory DB',
+    );
+    db = openInMemory(sqlite3);
+    persistent = false;
+    runMigrations(db);
+  }
+
+  return { persistent, libVersion: sqlite3.version.libVersion };
+};
+
+const runMigrations = (database: Database): void => {
   // V1-V4 are idempotent (CREATE IF NOT EXISTS), so apply unconditionally.
   // V5+ uses ALTER TABLE which is NOT idempotent — gate on the actual
   // table schema (PRAGMA table_info) rather than user_version. We hit
@@ -88,15 +208,15 @@ const openDb = async (): Promise<{ persistent: boolean; libVersion: string }> =>
   // unreadable because every repo SELECT referenced specs_json. Reading
   // table_info is bulletproof: if the column is missing for any reason,
   // we add it now.
-  db.exec(SCHEMA_V1);
-  db.exec(SCHEMA_V2);
-  db.exec(SCHEMA_V3);
-  db.exec(SCHEMA_V4);
-  db.exec(SCHEMA_V9);  // CREATE TABLE IF NOT EXISTS — idempotent, safe to run alongside V1-V4.
-  db.exec(SCHEMA_V10); // Provider-backed JULI3TA Player library/playlists/favorites.
-  db.exec(SCHEMA_V11); // Sprint A Phase 4 — trash_items metadata index.
-  db.exec(SCHEMA_V12); // Apps Platform M1 — installed_apps registry table.
-  db.exec(SCHEMA_V14); // Host-owned AI/Cortex conversation substrate.
+  database.exec(SCHEMA_V1);
+  database.exec(SCHEMA_V2);
+  database.exec(SCHEMA_V3);
+  database.exec(SCHEMA_V4);
+  database.exec(SCHEMA_V9);  // CREATE TABLE IF NOT EXISTS — idempotent, safe to run alongside V1-V4.
+  database.exec(SCHEMA_V10); // Provider-backed JULI3TA Player library/playlists/favorites.
+  database.exec(SCHEMA_V11); // Sprint A Phase 4 — trash_items metadata index.
+  database.exec(SCHEMA_V12); // Apps Platform M1 — installed_apps registry table.
+  database.exec(SCHEMA_V14); // Host-owned AI/Cortex conversation substrate.
 
   // Reusable column-presence ALTER. Each ALTER is gated on the actual
   // schema rather than user_version, so a stuck migration in a previous
@@ -108,16 +228,16 @@ const openDb = async (): Promise<{ persistent: boolean; libVersion: string }> =>
     ddl: string,
     label: string,
   ) => {
-    const cols = db!.exec({
+    const cols = database.exec({
       sql: `PRAGMA table_info(${table})`,
       returnValue: 'resultRows',
       rowMode: 'object',
     }) as unknown as Array<{ name: string }>;
     if (cols.some((c) => c.name === column)) return;
     try {
-      db!.exec(ddl);
+      database.exec(ddl);
     } catch (e) {
-      const after = db!.exec({
+      const after = database.exec({
         sql: `PRAGMA table_info(${table})`,
         returnValue: 'resultRows',
         rowMode: 'object',
@@ -150,9 +270,7 @@ const openDb = async (): Promise<{ persistent: boolean; libVersion: string }> =>
   // and offer "Reinstall" without re-prompting the user for the URL.
   ensureColumnOn('installed_apps', 'manifest_url', SCHEMA_V13, 'SCHEMA_V13');
 
-  db.exec(`PRAGMA user_version = ${SCHEMA_VERSION}`);
-
-  return { persistent, libVersion: sqlite3.version.libVersion };
+  database.exec(`PRAGMA user_version = ${SCHEMA_VERSION}`);
 };
 
 const runQuery = (
