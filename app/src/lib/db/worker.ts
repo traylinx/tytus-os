@@ -127,7 +127,13 @@ const tryOpenPersistent = async (sqlite3: Sqlite3Static): Promise<boolean> => {
       name: 'tytus-opfs-pool',
       initialCapacity: 4,
       clearOnInit: false,
-    });
+      // Silence the lib's per-handle error logs when another tab/HMR
+      // worker holds the SAH handles. We catch the rejection cleanly
+      // and fall back to :memory:, so the storeErr stream is noise —
+      // it makes dev consoles look catastrophic when nothing is broken.
+      // 0 = silent (default is 2 = verbose; 1 = warn-only).
+      verbosity: 0,
+    } as Parameters<typeof sqlite3.installOpfsSAHPoolVfs>[0]);
     const capacity =
       typeof pool.getCapacity === 'function' ? pool.getCapacity() : 0;
     if (capacity === 0) {
