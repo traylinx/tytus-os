@@ -152,7 +152,7 @@ const fallbackSelect = async (
   ) {
     try {
       const rows = await db.query<Omit<DBRow, 'source' | 'audio_kind' | 'external_id' | 'external_url' | 'thumbnail_url' | 'artist' | 'album'>>(
-        `SELECT ${SELECT_BASE_NO_THEME}, theme FROM music_creator_tracks ${whereClause}`,
+        `SELECT ${SELECT_BASE_NO_THEME}, theme FROM app_music_creator_tracks ${whereClause}`,
         params,
       );
       return rows.map(withV8Defaults);
@@ -164,7 +164,7 @@ const fallbackSelect = async (
   if (isMissingColumn(e, 'theme')) {
     try {
       const rows = await db.query<Omit<DBRow, 'theme'>>(
-        `SELECT ${SELECT_BASE_NO_THEME} FROM music_creator_tracks ${whereClause}`,
+        `SELECT ${SELECT_BASE_NO_THEME} FROM app_music_creator_tracks ${whereClause}`,
         params,
       );
       return rows.map((r) => withV8Defaults({ ...r, theme: '' }));
@@ -173,14 +173,14 @@ const fallbackSelect = async (
       // Cover ALSO missing — fall further.
       try {
         const rows = await db.query<Omit<DBRow, 'cover_data_url' | 'theme'>>(
-          `SELECT ${SELECT_BASE_NO_COVER} FROM music_creator_tracks ${whereClause}`,
+          `SELECT ${SELECT_BASE_NO_COVER} FROM app_music_creator_tracks ${whereClause}`,
           params,
         );
         return rows.map((r) => withV8Defaults({ ...r, cover_data_url: '', theme: '' }));
       } catch (e3) {
         if (!isMissingColumn(e3, 'specs_json')) throw e3;
         const rows = await db.query<Omit<DBRow, 'specs_json' | 'cover_data_url' | 'theme'>>(
-          `SELECT ${SELECT_BASE_NO_SPECS} FROM music_creator_tracks ${whereClause}`,
+          `SELECT ${SELECT_BASE_NO_SPECS} FROM app_music_creator_tracks ${whereClause}`,
           params,
         );
         return rows.map((r) => withV8Defaults({ ...r, specs_json: '', cover_data_url: '', theme: '' }));
@@ -191,14 +191,14 @@ const fallbackSelect = async (
   if (isMissingColumn(e, 'cover_data_url')) {
     try {
       const rows = await db.query<Omit<DBRow, 'cover_data_url' | 'theme'>>(
-        `SELECT ${SELECT_BASE_NO_COVER} FROM music_creator_tracks ${whereClause}`,
+        `SELECT ${SELECT_BASE_NO_COVER} FROM app_music_creator_tracks ${whereClause}`,
         params,
       );
       return rows.map((r) => withV8Defaults({ ...r, cover_data_url: '', theme: '' }));
     } catch (e2) {
       if (!isMissingColumn(e2, 'specs_json')) throw e2;
       const rows = await db.query<Omit<DBRow, 'specs_json' | 'cover_data_url' | 'theme'>>(
-        `SELECT ${SELECT_BASE_NO_SPECS} FROM music_creator_tracks ${whereClause}`,
+        `SELECT ${SELECT_BASE_NO_SPECS} FROM app_music_creator_tracks ${whereClause}`,
         params,
       );
       return rows.map((r) => withV8Defaults({ ...r, specs_json: '', cover_data_url: '', theme: '' }));
@@ -207,7 +207,7 @@ const fallbackSelect = async (
   // Specs column missing → drop everything added after.
   if (isMissingColumn(e, 'specs_json')) {
     const rows = await db.query<Omit<DBRow, 'specs_json' | 'cover_data_url' | 'theme'>>(
-      `SELECT ${SELECT_BASE_NO_SPECS} FROM music_creator_tracks ${whereClause}`,
+      `SELECT ${SELECT_BASE_NO_SPECS} FROM app_music_creator_tracks ${whereClause}`,
       params,
     );
     return rows.map((r) => withV8Defaults({ ...r, specs_json: '', cover_data_url: '', theme: '' }));
@@ -224,7 +224,7 @@ export const listTracks = async (): Promise<SavedTrackRow[]> => {
   if (!db) return [];
   try {
     const rows = await db.query<DBRow>(
-      `SELECT ${SELECT_FULL} FROM music_creator_tracks ORDER BY created_at DESC`,
+      `SELECT ${SELECT_FULL} FROM app_music_creator_tracks ORDER BY created_at DESC`,
     );
     return rows.map(fromDb);
   } catch (e) {
@@ -242,7 +242,7 @@ export const getTrackById = async (id: string): Promise<SavedTrackRow | null> =>
   if (!db) return null;
   try {
     const rows = await db.query<DBRow>(
-      `SELECT ${SELECT_FULL} FROM music_creator_tracks WHERE id = ? LIMIT 1`,
+      `SELECT ${SELECT_FULL} FROM app_music_creator_tracks WHERE id = ? LIMIT 1`,
       [id],
     );
     return rows.length === 0 ? null : fromDb(rows[0]);
@@ -270,7 +270,7 @@ export const insertTrack = async (track: SavedTrackRow): Promise<void> => {
   ];
   try {
     await db.run(
-      `INSERT OR REPLACE INTO music_creator_tracks
+      `INSERT OR REPLACE INTO app_music_creator_tracks
          (id, title, style_tags, lyrics_preview, duration_ms, bitrate,
           sample_rate, size_bytes, created_at, audio_data_url, specs_json, cover_data_url, theme,
           source, audio_kind, external_id, external_url, thumbnail_url, artist, album)
@@ -304,7 +304,7 @@ export const insertTrack = async (track: SavedTrackRow): Promise<void> => {
     ) {
       try {
         await db.run(
-          `INSERT OR REPLACE INTO music_creator_tracks
+          `INSERT OR REPLACE INTO app_music_creator_tracks
              (id, title, style_tags, lyrics_preview, duration_ms, bitrate,
               sample_rate, size_bytes, created_at, audio_data_url, specs_json, cover_data_url, theme)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -319,7 +319,7 @@ export const insertTrack = async (track: SavedTrackRow): Promise<void> => {
     if (isMissingColumn(e, 'theme')) {
       try {
         await db.run(
-          `INSERT OR REPLACE INTO music_creator_tracks
+          `INSERT OR REPLACE INTO app_music_creator_tracks
              (id, title, style_tags, lyrics_preview, duration_ms, bitrate,
               sample_rate, size_bytes, created_at, audio_data_url, specs_json, cover_data_url)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -335,7 +335,7 @@ export const insertTrack = async (track: SavedTrackRow): Promise<void> => {
     if (isMissingColumn(e, 'cover_data_url')) {
       try {
         await db.run(
-          `INSERT OR REPLACE INTO music_creator_tracks
+          `INSERT OR REPLACE INTO app_music_creator_tracks
              (id, title, style_tags, lyrics_preview, duration_ms, bitrate,
               sample_rate, size_bytes, created_at, audio_data_url, specs_json)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -351,7 +351,7 @@ export const insertTrack = async (track: SavedTrackRow): Promise<void> => {
     // panel state simply won't round-trip until the next reload heals
     // the schema.
     await db.run(
-      `INSERT OR REPLACE INTO music_creator_tracks
+      `INSERT OR REPLACE INTO app_music_creator_tracks
          (id, title, style_tags, lyrics_preview, duration_ms, bitrate,
           sample_rate, size_bytes, created_at, audio_data_url)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -363,7 +363,7 @@ export const insertTrack = async (track: SavedTrackRow): Promise<void> => {
 export const deleteTrack = async (id: string): Promise<void> => {
   const db = getDb();
   if (!db) return;
-  await db.run('DELETE FROM music_creator_tracks WHERE id = ?', [id]);
+  await db.run('DELETE FROM app_music_creator_tracks WHERE id = ?', [id]);
 };
 
 // Rename a track. Trims + clamps to 200 chars to keep DB rows sane and
@@ -373,7 +373,7 @@ export const renameTrack = async (id: string, title: string): Promise<string> =>
   const db = getDb();
   if (!db) throw new Error('Database not ready');
   const next = title.trim().slice(0, 200) || 'Untitled';
-  await db.run('UPDATE music_creator_tracks SET title = ? WHERE id = ?', [next, id]);
+  await db.run('UPDATE app_music_creator_tracks SET title = ? WHERE id = ?', [next, id]);
   return next;
 };
 
@@ -385,7 +385,7 @@ export const updateTrackCover = async (id: string, coverDataUrl: string): Promis
   const db = getDb();
   if (!db) throw new Error('Database not ready');
   try {
-    await db.run('UPDATE music_creator_tracks SET cover_data_url = ? WHERE id = ?', [coverDataUrl, id]);
+    await db.run('UPDATE app_music_creator_tracks SET cover_data_url = ? WHERE id = ?', [coverDataUrl, id]);
   } catch (e) {
     if (!new RegExp('no such column:\\s*cover_data_url', 'i').test(String(e))) throw e;
     // Pre-V6 schema — V6 ALTER hasn't run yet. Skip silently; the next
@@ -400,14 +400,14 @@ export const updateTrackCover = async (id: string, coverDataUrl: string): Promis
 export const updateTrackStyle = async (id: string, styleTags: string): Promise<void> => {
   const db = getDb();
   if (!db) throw new Error('Database not ready');
-  await db.run('UPDATE music_creator_tracks SET style_tags = ? WHERE id = ?', [styleTags, id]);
+  await db.run('UPDATE app_music_creator_tracks SET style_tags = ? WHERE id = ?', [styleTags, id]);
 };
 
 // Update lyrics_preview for a saved track. Same pattern as above.
 export const updateTrackLyrics = async (id: string, lyricsPreview: string): Promise<void> => {
   const db = getDb();
   if (!db) throw new Error('Database not ready');
-  await db.run('UPDATE music_creator_tracks SET lyrics_preview = ? WHERE id = ?', [lyricsPreview, id]);
+  await db.run('UPDATE app_music_creator_tracks SET lyrics_preview = ? WHERE id = ?', [lyricsPreview, id]);
 };
 
 // Update specs_json for a saved track. Empty string clears it.
@@ -417,7 +417,7 @@ export const updateTrackSpecs = async (id: string, specsJson: string): Promise<v
   const db = getDb();
   if (!db) throw new Error('Database not ready');
   try {
-    await db.run('UPDATE music_creator_tracks SET specs_json = ? WHERE id = ?', [specsJson, id]);
+    await db.run('UPDATE app_music_creator_tracks SET specs_json = ? WHERE id = ?', [specsJson, id]);
   } catch (e) {
     if (!new RegExp('no such column:\\s*specs_json', 'i').test(String(e))) throw e;
     console.warn('[musicCreator] updateTrackSpecs skipped — pre-V5 schema');
@@ -432,7 +432,7 @@ export const updateTrackTheme = async (id: string, theme: string): Promise<void>
   const db = getDb();
   if (!db) throw new Error('Database not ready');
   try {
-    await db.run('UPDATE music_creator_tracks SET theme = ? WHERE id = ?', [theme, id]);
+    await db.run('UPDATE app_music_creator_tracks SET theme = ? WHERE id = ?', [theme, id]);
   } catch (e) {
     if (!new RegExp('no such column:\\s*theme', 'i').test(String(e))) throw e;
     console.warn('[musicCreator] updateTrackTheme skipped — pre-V7 schema');
