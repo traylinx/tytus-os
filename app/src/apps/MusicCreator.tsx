@@ -1575,6 +1575,27 @@ const callMusic = async (
     );
   }
   return tryWithModelFallback(modelIds, async (modelId) => {
+    // First attempt: streaming for plain music (lower TTFB), JSON for cover
+    // (preprocess step + richer validation errors). If streaming returns the
+    // specific "empty stream from upstream" signal — MiniMax accepted the
+    // job but produced zero audio frames before closing the SSE channel,
+    // which is a known transient on the streaming endpoint — fall back to
+    // the JSON path once. The JSON adapter waits for the full file before
+    // responding and is reliable when streaming flaps. Cover stays on JSON
+    // throughout.
+    const preferStreamingAudio = !isCover;
+    try {
+      return await attemptOnce(modelId, preferStreamingAudio);
+    } catch (e) {
+      if (preferStreamingAudio && isEmptyStreamError(e)) {
+        console.warn('[Juli3ta] Music streaming returned empty audio — falling back to JSON path once.');
+        return await attemptOnce(modelId, false);
+      }
+      throw e;
+    }
+  }, isCover ? 'music-cover' : 'music', MUSIC_RETRYABLE_GATEWAY_STATUSES);
+
+  async function attemptOnce(modelId: string, streaming: boolean): Promise<MusicResponse> {
     const body: Record<string, unknown> = {
       model: modelId,
     };
@@ -1585,15 +1606,7 @@ const callMusic = async (
     if (!isCover || cleanedLyrics) body.lyrics = cleanedLyrics;
     if (args.prompt) body.prompt = args.prompt;
     if (args.instrumental) body.instrumental = true;
-    // MiniMax's sync JSON music endpoint can accept the job and then close the
-    // long-running response with a transport-level `unexpected EOF`, which
-    // switchAILocal correctly surfaces as HTTP 500. For normal song generation
-    // prefer the gateway's streaming path: same single upstream request, earlier
-    // first byte, no giant hex JSON response to keep open. Restyle/cover stays
-    // on JSON because the cover adapter may run a preprocess step and returns
-    // richer validation errors for bad references.
-    const preferStreamingAudio = !isCover;
-    if (preferStreamingAudio) body.stream = true;
+    if (streaming) body.stream = true;
     if (isCover) {
       const cleanRef = normaliseAudioBase64(args.refAudioBase64 ?? '');
       body.audio_base64 = cleanRef;
@@ -1643,7 +1656,7 @@ const callMusic = async (
       throw new GatewayError(r.status, errBody, `Music HTTP ${r.status}: ${errBody.slice(0, 300)}`);
     }
     const contentType = r.headers.get('content-type')?.toLowerCase() ?? '';
-    if (preferStreamingAudio && (contentType.includes('audio/') || contentType.includes('application/octet-stream'))) {
+    if (streaming && (contentType.includes('audio/') || contentType.includes('application/octet-stream'))) {
       const audioBytes = await r.arrayBuffer();
       if (audioBytes.byteLength < 100) {
         throw new GatewayError(502, '', 'Music stream returned no audio data — gateway accepted the call but upstream returned nothing.');
@@ -1670,7 +1683,20 @@ const callMusic = async (
       throw new GatewayError(502, '', 'Music gen returned no audio data — gateway accepted the call but upstream returned nothing.');
     }
     return json;
-  }, isCover ? 'music-cover' : 'music', MUSIC_RETRYABLE_GATEWAY_STATUSES);
+  }
+};
+
+// Detect MiniMax's "produced 0 audio bytes, closed SSE cleanly" condition
+// surfaced by switchAILocal as a 502 with this exact message. The streaming
+// adapter's watchdog terminates without an error frame in this case, so we
+// can't distinguish via status alone — match the marker string from
+// sdk/api/handlers/openai/openai_handlers.go:1238 (kept narrow so genuine
+// upstream errors with a 502 still surface to the user).
+const isEmptyStreamError = (e: unknown): boolean => {
+  if (!(e instanceof GatewayError) || e.status !== 502) return false;
+  const haystack = `${e.message} ${e.body}`.toLowerCase();
+  return haystack.includes('empty stream from upstream')
+    || haystack.includes('stream returned no audio');
 };
 
 // ──────────────────────────────────────────────────────────
