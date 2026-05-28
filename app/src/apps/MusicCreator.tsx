@@ -1031,8 +1031,9 @@ const pickModels = (ids: readonly string[]): DiscoveredModels => {
   // errors (quota, upstream 502). Excludes anything music/audio/embed
   // shaped — we want a generalist text model. Prefer the well-known
   // ail-* aliases, then anything that looks chat-shaped.
-  const isMusicy = (id: string) =>
-    /music|cover|tts|stt|transcribe|whisper|embed|image/i.test(id);
+  const isNonChatModel = (id: string) =>
+    /music|cover|tts|speech|audio|stt|transcribe|whisper|embed|image|vision|diffusion|dall-?e|flux|sdxl|rerank/i.test(id);
+  const isMusicy = isNonChatModel;
   const chatPool = ids.filter((id) => !isMusicy(id));
   const lyricsBackup = findIn(chatPool, [
     /(^|[/:])ail-compound$/,
@@ -1424,14 +1425,14 @@ const callLyrics = async (
 
   // ── Backup: chat-completions with JSON-output prompt ───
   // Build a chat-model pool: lyricsBackup first, then any other
-  // chat-shaped id from /v1/models. Excludes audio/embed/image/rerank
+  // chat-shaped id from /v1/models. Excludes audio/speech/embed/image/rerank
   // ids so the loop doesn't waste calls on non-text models.
   const isChatty = (id: string) =>
-    !/music|cover|tts|stt|transcribe|whisper|embed|image|diffusion|dall-?e|flux|sdxl|rerank/i.test(id);
+    !/music|cover|tts|speech|audio|stt|transcribe|whisper|embed|image|vision|diffusion|dall-?e|flux|sdxl|rerank/i.test(id);
   const chatSeen = new Set<string>();
   const chatPool: string[] = [];
   const pushChat = (id: string | null | undefined) => {
-    if (id && !chatSeen.has(id)) { chatSeen.add(id); chatPool.push(id); }
+    if (id && isChatty(id) && !chatSeen.has(id)) { chatSeen.add(id); chatPool.push(id); }
   };
   pushChat(endpoint.models.lyricsBackup);
   endpoint.models.allIds.filter(isChatty).forEach(pushChat);
@@ -8821,13 +8822,13 @@ export default function MusicCreator() {
 
     // Build the chat-model pool the same way the lyrics fallback does
     // (lyricsBackup first, then anything chat-shaped). Excludes
-    // music/cover/tts/stt/embed/image/diffusion/rerank.
+    // music/cover/tts/speech/audio/stt/embed/image/diffusion/rerank.
     const isChatty = (id: string) =>
-      !/music|cover|tts|stt|transcribe|whisper|embed|image|diffusion|dall-?e|flux|sdxl|rerank/i.test(id);
+      !/music|cover|tts|speech|audio|stt|transcribe|whisper|embed|image|vision|diffusion|dall-?e|flux|sdxl|rerank/i.test(id);
     const seen = new Set<string>();
     const tryOrder: string[] = [];
     const pushUniq = (id: string | null | undefined) => {
-      if (id && !seen.has(id)) { seen.add(id); tryOrder.push(id); }
+      if (id && isChatty(id) && !seen.has(id)) { seen.add(id); tryOrder.push(id); }
     };
     pushUniq(endpoint.models.lyricsBackup);
     endpoint.models.allIds.filter(isChatty).forEach(pushUniq);
