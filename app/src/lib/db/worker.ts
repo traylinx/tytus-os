@@ -173,6 +173,40 @@ const tryOpenPersistent = async (sqlite3: Sqlite3Static): Promise<boolean> => {
   }
 };
 
+// Wrap sqlite3.config.error to drop a single known-benign noise pattern:
+// when installOpfsSAHPoolVfs fails (multi-tab handle contention, HMR
+// zombie worker, …) the lib's internal cleanup calls removeVfs() which
+// itself fails because the same other-tab is still holding the
+// FileSystemDirectoryHandle. The lib reports that via sqlite3.config.error
+// (a separate channel from the per-pool `verbosity` we already silenced),
+// surfacing the user-visible warning:
+//   "tytus-opfs-pool removeVfs() failed with no recovery strategy: …"
+// We catch the install rejection ourselves and fall back to in-memory
+// cleanly, so this log adds noise without adding signal. Filter it out
+// while preserving every other sqlite3 error.
+//
+// Idempotent: only wraps the function once per worker.
+const SILENCED_ERROR_MARKER = '__tytus_silenced_config_error__';
+const silenceBenignOpfsErrors = (sqlite3: Sqlite3Static): void => {
+  const config = (sqlite3 as unknown as { config?: { error?: (...args: unknown[]) => void } }).config;
+  if (!config || typeof config.error !== 'function') return;
+  const original = config.error as ((...args: unknown[]) => void) & { [SILENCED_ERROR_MARKER]?: true };
+  if (original[SILENCED_ERROR_MARKER]) return;
+  const filtered: ((...args: unknown[]) => void) & { [SILENCED_ERROR_MARKER]?: true } = (...args: unknown[]) => {
+    if (
+      typeof args[0] === 'string'
+      && args[0] === 'tytus-opfs-pool'
+      && typeof args[1] === 'string'
+      && args[1].includes('removeVfs() failed with no recovery strategy')
+    ) {
+      return;
+    }
+    original(...args);
+  };
+  filtered[SILENCED_ERROR_MARKER] = true;
+  config.error = filtered;
+};
+
 // End-to-end sanity probe: run the exact SELECT shape that the first
 // user code path (Juli3ta's listTracks, App Store's listInstalledApps,
 // …) issues. If the backing is silently broken in ways neither
@@ -197,6 +231,7 @@ const selfTest = (database: Database): boolean => {
 const openDb = async (): Promise<{ persistent: boolean; libVersion: string }> => {
   const sqlite3: Sqlite3Static = await sqlite3InitModule();
   sqlite3Singleton = sqlite3;
+  silenceBenignOpfsErrors(sqlite3);
 
   // SAH-Pool first — works without COOP/COEP and doesn't require
   // SharedArrayBuffer. Falls back to a transient in-memory DB if the
