@@ -4,34 +4,63 @@ import path from 'node:path';
 import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 
-// tytus-cli writes its current HTTP port to `/tmp/tytus/tray-web.port`
-// every time the daemon starts. The port can change on every restart
-// (it's an OS-assigned ephemeral). Vite's built-in proxy reads its
-// target ONCE at startup, so a daemon restart strands the dev proxy
-// on a dead port until vite is bounced. The plugin below re-reads the
-// file on every /api/* request so vite tracks daemon restarts live.
-const TRAY_PORT_FILE = '/tmp/tytus/tray-web.port';
+// tytus-cli writes its current tray-web HTTP port to
+// `/tmp/tytus/tray-web.port` every time the tray starts. In dev mode, Vite
+// owns the canonical Tytus OS origin (:4242) and proxies /api/* to the tray
+// sidecar (:4343 by default).
+//
+// Important: `/tmp/tytus/control.json` is the daemon *control* socket. It also
+// exposes an HTTP server, but it is not the tray web API and returns 401 for
+// browser /api/state. A stale or manually clobbered tray-web.port must never be
+// accepted if it points at the daemon control port; that exact mixed state makes
+// the desktop look logged out while the menu bar still shows connected.
+export const TRAY_PORT_FILE = '/tmp/tytus/tray-web.port';
+export const CONTROL_JSON_FILE = '/tmp/tytus/control.json';
 
-const discoverDaemonPort = (): number | null => {
+export const parsePort = (raw: string | undefined | null): number | null => {
+  if (!raw) return null;
+  const port = Number.parseInt(raw.trim(), 10);
+  return Number.isFinite(port) && port > 0 && port < 65_536 ? port : null;
+};
+
+const readPortFile = (filePath: string): number | null => {
   try {
-    const raw = readFileSync(TRAY_PORT_FILE, 'utf8').trim();
-    const port = Number.parseInt(raw, 10);
-    if (Number.isFinite(port) && port > 0 && port < 65_536) return port;
+    return parsePort(readFileSync(filePath, 'utf8'));
   } catch {
-    // file missing or unreadable; daemon offline.
+    return null;
   }
-  return null;
+};
+
+const readControlPort = (): number | null => {
+  try {
+    const parsed = JSON.parse(readFileSync(CONTROL_JSON_FILE, 'utf8')) as { port?: unknown };
+    return typeof parsed.port === 'number' ? parsePort(String(parsed.port)) : null;
+  } catch {
+    return null;
+  }
+};
+
+export const discoverTrayPort = (): number | null => {
+  const trayPort = readPortFile(TRAY_PORT_FILE);
+  if (trayPort === null) return null;
+
+  const controlPort = readControlPort();
+  if (controlPort !== null && trayPort === controlPort) {
+    return null;
+  }
+
+  return trayPort;
 };
 
 const daemonProxyPlugin = (): Plugin => ({
   name: 'tytus-daemon-proxy',
   configureServer(server) {
     server.middlewares.use('/api', (req, res) => {
-      const port = discoverDaemonPort();
+      const port = discoverTrayPort();
       if (port === null) {
         res.statusCode = 502;
         res.setHeader('Content-Type', 'application/json');
-        res.end(JSON.stringify({ error: 'daemon_offline', detail: 'tray-web.port missing' }));
+        res.end(JSON.stringify({ error: 'tray_api_unavailable', detail: 'tray-web.port missing or points at daemon control port' }));
         return;
       }
       // Phase 2 §11 security floor: daemon's strict same-origin guard

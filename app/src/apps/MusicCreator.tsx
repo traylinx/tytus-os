@@ -1081,8 +1081,11 @@ const pickModels = (ids: readonly string[]): DiscoveredModels => {
 // and the response body IS the discovery payload — one round-trip
 // instead of two.
 //
-// We accept any non-5xx response as "the gateway is up". 401 still
-// surfaces the endpoint so the user can fix their key in Settings.
+// We accept non-5xx responses as "the gateway is up", except auth failures.
+// 401/403 means the browser cannot use this endpoint. Do not surface it as a
+// selectable candidate: JULI3TA's built-in local fallback uses a dev-only key,
+// and exposing that broken endpoint makes the UI fire hard 400/401 requests
+// instead of falling through to the account AIL proxy.
 //
 // Session cache for URLs that throw a TypeError on fetch — almost
 // always a CORS preflight failure (no `Access-Control-Allow-Origin`).
@@ -1132,6 +1135,7 @@ const probeAndDiscover = async (
       headers: { Accept: 'application/json' },
     });
     if (r.status >= 500) return { ok: false, models: NO_MODELS };
+    if (r.status === 401 || r.status === 403) return { ok: false, models: NO_MODELS };
     if (!r.ok) return { ok: true, models: NO_MODELS };
     const data = (await r.json()) as { data?: Array<{ id?: string }> };
     const ids = (data.data ?? [])
