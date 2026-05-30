@@ -214,6 +214,35 @@ const withJuli3taGatewayFix = (row: InstalledAppRow): InstalledAppRow => {
   };
 };
 
+// ── Local-dev override (build-flag gated; default OFF) ────────────────
+// Only active when the OS is built with `VITE_LOCAL_ATOMEK=1` — a local
+// verification build. CI / real releases never set this var, so
+// `LOCAL_ATOMEK_OVERRIDE` is `false`, `withLocalDevOverride` is a no-op
+// pass-through, and the production CDN/catalog reconciliation path is
+// byte-for-byte unchanged.
+//
+// When on, it rewrites the (CDN-reconciled) Atomek row to load the
+// tray-served local bundle at `/dev-atomek/dist/index.js`, so in-tree
+// `tytus-app-atomek/src/workbench/*` changes are visible in the packaged
+// tray before publishing to the CDN catalog. Same shape as the
+// `withJuli3taGatewayFix` row-rewrite above. (2026-05-29)
+const LOCAL_ATOMEK_OVERRIDE =
+  (import.meta.env as Record<string, string | undefined>).VITE_LOCAL_ATOMEK ===
+  '1';
+const LOCAL_ATOMEK_ENTRY_URL = '/dev-atomek/dist/index.js';
+const LOCAL_ATOMEK_MANIFEST_URL = '/dev-atomek/tytus-app.json';
+
+const withLocalDevOverride = (row: InstalledAppRow): InstalledAppRow => {
+  if (!LOCAL_ATOMEK_OVERRIDE || row.id !== 'atomek') return row;
+  return {
+    ...row,
+    entryUrl: LOCAL_ATOMEK_ENTRY_URL,
+    assetsUrl: null,
+    manifestUrl: LOCAL_ATOMEK_MANIFEST_URL,
+    manifest: { ...row.manifest, entry: { url: LOCAL_ATOMEK_ENTRY_URL } },
+  };
+};
+
 export interface LoadAppOptions {
   /** Injected for testability. Production code uses native dynamic
    *  import. The function returns the imported module — the loader
@@ -360,7 +389,9 @@ export async function loadAppById(
   // otherwise import an old immutable CDN bundle for the whole session.
   // Coerce at load time as a second line of defense; boot migrations
   // still repair the row permanently once they reach the DB.
-  const row = coerceWorkspaceRebrandRow(withJuli3taGatewayFix(storedRow));
+  const row = withLocalDevOverride(
+    coerceWorkspaceRebrandRow(withJuli3taGatewayFix(storedRow)),
+  );
   const makeEnv =
     opts.makeEnv ??
     ((id: string, manifest: Manifest) =>

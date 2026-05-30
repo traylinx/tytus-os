@@ -1,8 +1,9 @@
 import { type FC, useEffect, useState, useMemo } from 'react';
-import { Store, Search, CheckCircle2, Download, ExternalLink, Package, Loader2, AlertCircle } from 'lucide-react';
+import { Store, Search, CheckCircle2, Download, Package, Loader2, AlertCircle, AppWindow, BookOpen } from 'lucide-react';
 import { useDaemonClient } from '@/hooks/useDaemonClient';
 import { useWindows } from '@/hooks/useOSStore';
 import type { StoreApp } from '@/types/daemon';
+import { BRAND_LOGOS } from './brandLogos';
 import { TytusAppsTab } from './TytusAppsTab';
 
 const CATEGORIES = ['All', 'Developer Tools', 'AI & ML', 'Communication'] as const;
@@ -91,6 +92,30 @@ const DesktopAppsTab: FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState<string>('All');
+  const [openingAll, setOpeningAll] = useState(false);
+  const [openAllMsg, setOpenAllMsg] = useState<string | null>(null);
+
+  const installedCount = useMemo(
+    () => Object.values(checkResults).filter(Boolean).length,
+    [checkResults],
+  );
+
+  const handleOpenAll = async () => {
+    setOpeningAll(true);
+    setOpenAllMsg(null);
+    const r = await client.postAppsOpenAll();
+    setOpeningAll(false);
+    if (r.ok) {
+      const n = r.value.opened.length;
+      setOpenAllMsg(
+        n === 0
+          ? 'No installed apps were opened.'
+          : `Opened ${n} app${n === 1 ? '' : 's'}: ${r.value.opened.join(', ')}`,
+      );
+    } else {
+      setOpenAllMsg(`Failed to open apps: ${r.error.message}`);
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -165,22 +190,48 @@ const DesktopAppsTab: FC = () => {
     <div className="h-full flex flex-col">
       {/* Search + Categories */}
       <div className="px-4 pt-3 pb-2 shrink-0" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-        <div className="flex items-center gap-2 mb-3 rounded-input" style={{ background: 'var(--bg-input)', padding: '6px 10px', border: '1px solid var(--border-default)' }}>
-          <Search size={14} style={{ color: 'var(--text-disabled)' }} />
-          <input
-            type="text"
-            placeholder="Search apps…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="bg-transparent outline-none flex-1 rounded-input"
-            style={{ fontSize: 13, color: 'var(--text-primary)' }}
-          />
-          {checking && (
-            <span className="flex items-center gap-1" style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
-              <Loader2 size={12} className="animate-spin" /> Checking…
-            </span>
-          )}
+        <div className="flex items-center gap-2 mb-3">
+          <div className="flex items-center gap-2 flex-1 rounded-input" style={{ background: 'var(--bg-input)', padding: '6px 10px', border: '1px solid var(--border-default)' }}>
+            <Search size={14} style={{ color: 'var(--text-disabled)' }} />
+            <input
+              type="text"
+              placeholder="Search apps…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="bg-transparent outline-none flex-1 rounded-input"
+              style={{ fontSize: 13, color: 'var(--text-primary)' }}
+            />
+            {checking && (
+              <span className="flex items-center gap-1" style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
+                <Loader2 size={12} className="animate-spin" /> Checking…
+              </span>
+            )}
+          </div>
+          <button
+            data-testid="appstore-open-all"
+            onClick={handleOpenAll}
+            disabled={openingAll || checking || installedCount === 0}
+            title={installedCount === 0 ? 'No installed apps to open' : `Open all ${installedCount} installed apps`}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md transition-opacity hover:opacity-90 shrink-0"
+            style={{
+              fontSize: 12,
+              fontWeight: 600,
+              background: 'var(--accent-primary)',
+              color: 'var(--text-on-accent)',
+              border: 'none',
+              cursor: openingAll || checking || installedCount === 0 ? 'not-allowed' : 'pointer',
+              opacity: openingAll || checking || installedCount === 0 ? 0.5 : 1,
+            }}
+          >
+            {openingAll ? <Loader2 size={13} className="animate-spin" /> : <AppWindow size={13} />}
+            Open all installed
+          </button>
         </div>
+        {openAllMsg && (
+          <div className="mb-2" style={{ fontSize: 11, color: 'var(--text-secondary)' }} data-testid="appstore-open-all-msg">
+            {openAllMsg}
+          </div>
+        )}
         <div className="flex gap-1 flex-wrap">
           {CATEGORIES.map((cat) => (
             <button
@@ -221,8 +272,42 @@ const DesktopAppsTab: FC = () => {
 };
 
 const AppCard: FC<{ app: StoreApp; installed: boolean }> = ({ app, installed }) => {
+  const client = useDaemonClient();
   const platform = navigator.platform.toLowerCase().includes('mac') ? 'macos' : 'linux';
   const installCmd = app.install[platform] ?? Object.values(app.install)[0] ?? '';
+  const docsUrl = app.docs ?? app.url;
+  const [busy, setBusy] = useState<null | 'open' | 'install'>(null);
+  const [feedback, setFeedback] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
+
+  const handleOpen = async () => {
+    setBusy('open');
+    setFeedback(null);
+    const r = await client.postAppOpen(app.id);
+    setBusy(null);
+    setFeedback(
+      r.ok
+        ? { kind: 'ok', text: `Opening ${app.name}…` }
+        : { kind: 'err', text: r.error.message },
+    );
+  };
+
+  const handleInstall = async () => {
+    setBusy('install');
+    setFeedback(null);
+    const r = await client.postAppInstall(app.id);
+    setBusy(null);
+    if (r.ok) {
+      setFeedback({
+        kind: 'ok',
+        text:
+          r.value.action === 'opened_url'
+            ? `Opened ${app.name} website for install instructions`
+            : 'Running install in Terminal — follow the prompts there',
+      });
+    } else {
+      setFeedback({ kind: 'err', text: r.error.message });
+    }
+  };
 
   return (
     <div
@@ -233,12 +318,28 @@ const AppCard: FC<{ app: StoreApp; installed: boolean }> = ({ app, installed }) 
       }}
     >
       <div className="flex items-start gap-3">
-        <div
-          className="flex items-center justify-center rounded-lg shrink-0"
-          style={{ width: 40, height: 40, background: 'var(--accent-primary)', color: 'var(--text-on-accent)' }}
-        >
-          <Package size={20} />
-        </div>
+        {(() => {
+          const logo = BRAND_LOGOS[app.id];
+          return logo ? (
+            <div
+              className="flex items-center justify-center rounded-lg shrink-0"
+              style={{ width: 40, height: 40, background: logo.hex }}
+              data-testid={`appcard-logo-${app.id}`}
+            >
+              <svg width={22} height={22} viewBox="0 0 24 24" fill="#fff" aria-hidden="true">
+                <path d={logo.path} />
+              </svg>
+            </div>
+          ) : (
+            <div
+              className="flex items-center justify-center rounded-lg shrink-0"
+              style={{ width: 40, height: 40, background: 'var(--accent-primary)', color: 'var(--text-on-accent)' }}
+              data-testid={`appcard-icon-${app.id}`}
+            >
+              <Package size={20} />
+            </div>
+          );
+        })()}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
             <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>{app.name}</span>
@@ -275,26 +376,55 @@ const AppCard: FC<{ app: StoreApp; installed: boolean }> = ({ app, installed }) 
         </div>
       )}
 
-      <div className="flex gap-2 mt-auto">
+      <div className="flex gap-2 mt-auto items-center flex-wrap">
         {installed ? (
-          <span
-            className="flex items-center gap-1 px-3 py-1.5 rounded-md"
-            style={{ fontSize: 12, fontWeight: 500, background: 'rgba(76,175,80,0.15)', color: 'var(--accent-success)', border: '1px solid rgba(76,175,80,0.3)' }}
-          >
-            <CheckCircle2 size={13} /> Installed on your machine
-          </span>
-        ) : (
-          <a
-            href={app.url}
-            target="_blank"
-            rel="noopener noreferrer"
+          <button
+            data-testid={`appcard-open-${app.id}`}
+            onClick={handleOpen}
+            disabled={busy !== null}
             className="flex items-center gap-1 px-3 py-1.5 rounded-md transition-opacity hover:opacity-90"
-            style={{ fontSize: 12, fontWeight: 600, background: 'var(--accent-primary)', color: 'var(--text-on-accent)', textDecoration: 'none' }}
+            style={{ fontSize: 12, fontWeight: 600, background: 'var(--accent-primary)', color: 'var(--text-on-accent)', border: 'none', cursor: busy ? 'not-allowed' : 'pointer', opacity: busy === 'open' ? 0.6 : 1 }}
           >
-            <ExternalLink size={13} /> Get {app.name}
-          </a>
+            {busy === 'open' ? <Loader2 size={13} className="animate-spin" /> : <AppWindow size={13} />} Open
+          </button>
+        ) : (
+          <button
+            data-testid={`appcard-install-${app.id}`}
+            onClick={handleInstall}
+            disabled={busy !== null}
+            className="flex items-center gap-1 px-3 py-1.5 rounded-md transition-opacity hover:opacity-90"
+            style={{ fontSize: 12, fontWeight: 600, background: 'var(--accent-primary)', color: 'var(--text-on-accent)', border: 'none', cursor: busy ? 'not-allowed' : 'pointer', opacity: busy === 'install' ? 0.6 : 1 }}
+          >
+            {busy === 'install' ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />} Install
+          </button>
+        )}
+        <a
+          data-testid={`appcard-docs-${app.id}`}
+          href={docsUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-1 px-3 py-1.5 rounded-md transition-colors"
+          style={{ fontSize: 12, fontWeight: 500, background: 'var(--bg-chrome)', color: 'var(--text-secondary)', border: '1px solid var(--border-subtle)', textDecoration: 'none' }}
+        >
+          <BookOpen size={13} /> Docs
+        </a>
+        {installed && (
+          <span
+            className="flex items-center gap-1 px-2 py-1 rounded-md"
+            style={{ fontSize: 11, fontWeight: 500, background: 'rgba(76,175,80,0.12)', color: 'var(--accent-success)' }}
+          >
+            <CheckCircle2 size={12} /> Installed
+          </span>
         )}
       </div>
+      {feedback && (
+        <span
+          data-testid={`appcard-feedback-${app.id}`}
+          style={{ fontSize: 11, color: feedback.kind === 'ok' ? 'var(--accent-success)' : 'var(--accent-error)' }}
+        >
+          {feedback.text}
+        </span>
+      )}
     </div>
   );
 };

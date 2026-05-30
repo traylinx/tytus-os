@@ -42,8 +42,12 @@ export type {
 } from "./Cortex";
 export type {
   StoreApp,
+  StoreAppLaunchSpec,
   StoreAppCheckResult,
   StoreAppCheckResponse,
+  StoreAppOpenResult,
+  StoreAppOpenAllResult,
+  StoreAppInstallResult,
 } from "./StoreApp";
 export type { DaemonResult, DaemonError, DaemonErrorCode } from "./Result";
 export { ok, err } from "./Result";

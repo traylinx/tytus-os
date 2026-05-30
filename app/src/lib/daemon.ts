@@ -36,6 +36,9 @@ import type {
   StateSnapshot,
   StoreApp,
   StoreAppCheckResponse,
+  StoreAppOpenResult,
+  StoreAppOpenAllResult,
+  StoreAppInstallResult,
   UpdateInstallResult,
   UpdateStatus,
 } from "@/types/daemon";
@@ -319,6 +322,18 @@ const isStoreAppCheckResponse = (v: unknown): v is StoreAppCheckResponse =>
       typeof r.installed === "boolean",
   );
 
+const isStoreAppOpenResult = (v: unknown): v is StoreAppOpenResult =>
+  isObject(v) && typeof v.ok === "boolean";
+
+const isStoreAppInstallResult = (v: unknown): v is StoreAppInstallResult =>
+  isObject(v) && typeof v.ok === "boolean";
+
+const isStoreAppOpenAllResult = (v: unknown): v is StoreAppOpenAllResult =>
+  isObject(v) &&
+  typeof v.ok === "boolean" &&
+  Array.isArray(v.opened) &&
+  Array.isArray(v.skipped);
+
 const isChannels = (v: unknown): v is ChannelsResponse =>
   isObject(v) &&
   typeof v.pod_id === "string" &&
@@ -553,6 +568,20 @@ export interface DaemonClient {
     appIds: string[],
     signal?: AbortSignal,
   ): Promise<DaemonResult<StoreAppCheckResponse>>;
+  /** Launch a single installed desktop app by catalog id. */
+  postAppOpen(
+    appId: string,
+    signal?: AbortSignal,
+  ): Promise<DaemonResult<StoreAppOpenResult>>;
+  /** Launch every installed desktop app; returns opened + skipped lists. */
+  postAppsOpenAll(
+    signal?: AbortSignal,
+  ): Promise<DaemonResult<StoreAppOpenAllResult>>;
+  /** Run a desktop app's install command in a Terminal (or open its site). */
+  postAppInstall(
+    appId: string,
+    signal?: AbortSignal,
+  ): Promise<DaemonResult<StoreAppInstallResult>>;
   getChannels(
     podId: string,
     signal?: AbortSignal,
@@ -1051,6 +1080,44 @@ export const createDaemonClient = (
         },
         (b) =>
           expectShape(b, isStoreAppCheckResponse, "malformed /api/apps/check"),
+      ),
+
+    postAppOpen: (appId, signal) =>
+      runRequest(
+        deps,
+        "/api/apps/open",
+        {
+          method: "POST",
+          body: { app_id: appId },
+          signal,
+        },
+        (b) => expectShape(b, isStoreAppOpenResult, "malformed /api/apps/open"),
+      ),
+
+    postAppsOpenAll: (signal) =>
+      runRequest(
+        deps,
+        "/api/apps/open",
+        {
+          method: "POST",
+          body: { all: true },
+          signal,
+        },
+        (b) =>
+          expectShape(b, isStoreAppOpenAllResult, "malformed /api/apps/open (all)"),
+      ),
+
+    postAppInstall: (appId, signal) =>
+      runRequest(
+        deps,
+        "/api/apps/install",
+        {
+          method: "POST",
+          body: { app_id: appId },
+          signal,
+        },
+        (b) =>
+          expectShape(b, isStoreAppInstallResult, "malformed /api/apps/install"),
       ),
 
     getChannels: (podId, signal) =>

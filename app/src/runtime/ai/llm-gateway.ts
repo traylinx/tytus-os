@@ -41,8 +41,37 @@ const withTimeout = (signal: AbortSignal | undefined, ms: number): AbortSignal =
 
 const retryable = (status: number): boolean => status === 408 || status === 429 || status >= 500;
 
+// The AIL gateway has no "auto" model — sending it (or an empty string) makes
+// the gateway 400/404 (it tries a failover chain that lands on a non-chat
+// model). `ail-compound` is the canonical chat model shipped on every droplet,
+// so it is the safe default when the caller doesn't pin a model. This is also
+// what `tytus chat` defaults to, which is why the CLI works and Atomek didn't.
+const DEFAULT_CHAT_MODEL = 'ail-compound';
+
+// Gateway models that are NOT chat-completion models — never auto-pick one of
+// these as a chat fallback, even if it sorts first in /v1/models.
+const NON_CHAT_MODEL_RX = /(?:embed|image|vision|music|cover|speech|transcribe|audio|tts|stt|whisper|rerank|moderation)/i;
+
+// Preference order when auto-selecting a chat model from a live /v1/models list.
+const PREFERRED_CHAT_MODELS = ['ail-compound', 'ail-fast'];
+
+// Pick a chat-capable model id from a /v1/models list: prefer the canonical
+// chat models, otherwise the first id that isn't an embedding/media model.
+export const pickChatModel = (ids: readonly string[]): string | null => {
+  for (const preferred of PREFERRED_CHAT_MODELS) {
+    if (ids.includes(preferred)) return preferred;
+  }
+  return ids.find((id) => !NON_CHAT_MODEL_RX.test(id)) ?? null;
+};
+
+// A 400/404/422 whose body mentions "model" means the gateway rejected the
+// model id itself — recoverable by discovering a real chat model and retrying.
+const looksLikeModelError = (status: number, body: string): boolean =>
+  (status === 400 || status === 404 || status === 422) && /model/i.test(body);
+
 export class LlmGateway {
   private lastGoodId: string | null = null;
+  private discoveredChatModel: string | null = null;
   private readonly daemon: DaemonApi;
 
   constructor(daemon: DaemonApi) {
@@ -121,31 +150,40 @@ export class LlmGateway {
         ? 'No remote Tytus AIL gateway available. Choose Auto or Local AIL in Atomek Settings, or connect a Tytus AIL pod.'
         : 'No local AIL gateway available. Choose Auto or Remote Tytus AIL in Atomek Settings, or start switchAILocal.');
     }
+    // Respect an explicit, real model choice. Treat empty / "auto" as
+    // "pick a model for me" — the gateway has no "auto" model and 400s on it.
+    const requested = input.model?.trim();
+    const explicit = requested && requested.toLowerCase() !== 'auto' ? requested : null;
+
     let lastError: unknown = null;
     for (const candidate of candidates) {
       try {
-        const res = await this.fetchCandidate(candidate, '/chat/completions', {
-          method: 'POST',
-          headers: {
-            Accept: 'text/event-stream, application/json',
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            model: input.model ?? 'auto',
-            stream: true,
-            messages: input.messages,
-          }),
-          signal: input.signal,
-        });
+        let model = explicit ?? this.discoveredChatModel ?? DEFAULT_CHAT_MODEL;
+        let res = await this.postChat(candidate, model, input);
+
         if (!res.ok) {
-          const text = await res.text().catch(() => '');
-          const err = new Error(`AIL ${candidate.label} failed HTTP ${res.status}: ${text.slice(0, 400)}`);
-          if (retryable(res.status)) {
-            lastError = err;
-            continue;
+          let errText = await res.text().catch(() => '');
+          // We picked the model (caller passed auto/empty) and the gateway
+          // rejected it — discover a real chat model from /v1/models and
+          // retry this candidate once.
+          if (!explicit && looksLikeModelError(res.status, errText)) {
+            const discovered = await this.discoverChatModel(candidate, input.signal);
+            if (discovered && discovered !== model) {
+              model = discovered;
+              res = await this.postChat(candidate, model, input);
+              if (!res.ok) errText = await res.text().catch(() => '');
+            }
           }
-          throw err;
+          if (!res.ok) {
+            const err = new Error(`AIL ${candidate.label} failed HTTP ${res.status}: ${errText.slice(0, 400)}`);
+            if (retryable(res.status)) {
+              lastError = err;
+              continue;
+            }
+            throw err;
+          }
         }
+
         this.lastGoodId = candidate.id;
         const contentType = res.headers.get('content-type') ?? '';
         if (res.body && contentType.includes('text/event-stream')) {
@@ -163,6 +201,42 @@ export class LlmGateway {
       }
     }
     throw lastError instanceof Error ? lastError : new Error(String(lastError ?? 'No AIL gateway reachable'));
+  }
+
+  private postChat(candidate: GatewayCandidate, model: string, input: ChatCompleteInput): Promise<Response> {
+    return this.fetchCandidate(candidate, '/chat/completions', {
+      method: 'POST',
+      headers: {
+        Accept: 'text/event-stream, application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model,
+        stream: true,
+        messages: input.messages,
+      }),
+      signal: input.signal,
+    });
+  }
+
+  // Lazily discover (and cache) a real chat model from the candidate's
+  // /v1/models list. Used only as a fallback when the default model is
+  // rejected, so the happy path never pays an extra round-trip.
+  private async discoverChatModel(candidate: GatewayCandidate, signal?: AbortSignal): Promise<string | null> {
+    if (this.discoveredChatModel) return this.discoveredChatModel;
+    try {
+      const res = await this.fetchCandidate(candidate, '/models', {
+        method: 'GET',
+        headers: { Accept: 'application/json' },
+        signal: withTimeout(signal, 3000),
+      });
+      if (!res.ok) return null;
+      const picked = pickChatModel(extractModelIds(await res.json()));
+      if (picked) this.discoveredChatModel = picked;
+      return picked;
+    } catch {
+      return null;
+    }
   }
 
   private chatCandidates(preference: AiGatewayPreference): GatewayCandidate[] {

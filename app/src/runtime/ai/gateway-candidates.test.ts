@@ -1,7 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { DaemonApi } from '@tytus/host-api';
 import { buildGatewayCandidates } from './gateway-candidates';
-import { LlmGateway } from './llm-gateway';
+import { LlmGateway, pickChatModel } from './llm-gateway';
+
+const jsonResponse = (body: unknown, status = 200): Response =>
+  new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 
 const daemon = (included: DaemonApi['state']['included']): DaemonApi => ({
   state: { agents: [], included },
@@ -264,5 +267,102 @@ describe('LlmGateway', () => {
     expect(body).toEqual({ model: 'auto', input: 'no hardcoded model ids' });
     expect(String(body.model)).not.toMatch(/text-embedding|ada|bge|gte|e5/i);
     vi.unstubAllGlobals();
+  });
+});
+
+describe('LlmGateway chat model resolution', () => {
+  it('never sends the literal "auto" for chat — defaults to ail-compound', async () => {
+    const fetchSpy = vi.fn<typeof fetch>(async () =>
+      jsonResponse({ choices: [{ message: { content: 'hi' } }] }));
+    vi.stubGlobal('fetch', fetchSpy);
+
+    for await (const _chunk of new LlmGateway(daemon([])).chat({
+      messages: [{ role: 'user', content: 'hi' }],
+    })) {
+      // drain
+    }
+
+    const body = JSON.parse(String(fetchSpy.mock.calls[0][1]?.body));
+    expect(body.model).toBe('ail-compound');
+    expect(body.model).not.toBe('auto');
+    vi.unstubAllGlobals();
+  });
+
+  it('treats explicit "auto" as auto-select and sends a real model', async () => {
+    const fetchSpy = vi.fn<typeof fetch>(async () =>
+      jsonResponse({ choices: [{ message: { content: 'hi' } }] }));
+    vi.stubGlobal('fetch', fetchSpy);
+
+    for await (const _chunk of new LlmGateway(daemon([])).chat({
+      messages: [{ role: 'user', content: 'hi' }],
+      model: 'auto',
+    })) {
+      // drain
+    }
+
+    expect(JSON.parse(String(fetchSpy.mock.calls[0][1]?.body)).model).toBe('ail-compound');
+    vi.unstubAllGlobals();
+  });
+
+  it('respects an explicit model and does not probe /v1/models', async () => {
+    const fetchSpy = vi.fn<typeof fetch>(async () =>
+      jsonResponse({ choices: [{ message: { content: 'hi' } }] }));
+    vi.stubGlobal('fetch', fetchSpy);
+
+    for await (const _chunk of new LlmGateway(daemon([])).chat({
+      messages: [{ role: 'user', content: 'hi' }],
+      model: 'ail-fast',
+    })) {
+      // drain
+    }
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(String(fetchSpy.mock.calls[0][0])).toContain('/chat/completions');
+    expect(JSON.parse(String(fetchSpy.mock.calls[0][1]?.body)).model).toBe('ail-fast');
+    vi.unstubAllGlobals();
+  });
+
+  it('discovers a real chat model from /v1/models and retries when the default is rejected', async () => {
+    const fetchSpy = vi.fn<typeof fetch>(async (url, init) => {
+      if (String(url).endsWith('/models')) {
+        return jsonResponse({ data: [{ id: 'ail-embed' }, { id: 'house-chat' }] });
+      }
+      const sent = JSON.parse(String(init?.body)).model;
+      if (sent === 'house-chat') {
+        return jsonResponse({ choices: [{ message: { content: 'recovered' } }] });
+      }
+      return jsonResponse({ error: { message: `model_not_found: ${sent}` } }, 400);
+    });
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const chunks: string[] = [];
+    for await (const chunk of new LlmGateway(daemon([])).chat({
+      messages: [{ role: 'user', content: 'hi' }],
+    })) {
+      chunks.push(chunk.token);
+    }
+
+    const chatModels = fetchSpy.mock.calls
+      .filter(([u]) => String(u).endsWith('/chat/completions'))
+      .map(([, init]) => JSON.parse(String(init?.body)).model);
+    expect(chatModels).toEqual(['ail-compound', 'house-chat']);
+    expect(fetchSpy.mock.calls.some(([u]) => String(u).endsWith('/models'))).toBe(true);
+    expect(chunks.join('')).toBe('recovered');
+    vi.unstubAllGlobals();
+  });
+});
+
+describe('pickChatModel', () => {
+  it('prefers ail-compound, then ail-fast', () => {
+    expect(pickChatModel(['ail-fast', 'ail-compound'])).toBe('ail-compound');
+    expect(pickChatModel(['ail-embed', 'ail-fast'])).toBe('ail-fast');
+  });
+
+  it('skips embedding/media models when no preferred model exists', () => {
+    expect(pickChatModel(['ail-embed', 'ail-image', 'house-chat'])).toBe('house-chat');
+  });
+
+  it('returns null when only non-chat models exist', () => {
+    expect(pickChatModel(['ail-embed', 'ail-vision', 'ail-speech'])).toBeNull();
   });
 });
