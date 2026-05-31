@@ -1,8 +1,10 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render as rtlRender, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { TytusAppsTab } from './TytusAppsTab';
 import type { InstalledAppRow } from '@/runtime/installed-apps-repo';
 import type { Manifest } from '@tytus/host-api';
+import { I18nProvider } from '@/i18n';
+import type { ReactElement } from 'react';
 
 // Stub global fetch so the production loadFeaturedApps() default
 // doesn't fire a real network request during tests (which dangles past
@@ -19,6 +21,10 @@ beforeEach(() => {
 afterEach(() => {
   vi.unstubAllGlobals();
 });
+
+function render(ui: ReactElement) {
+  return rtlRender(<I18nProvider>{ui}</I18nProvider>);
+}
 
 function row(
   id: string,

@@ -75,4 +75,4 @@ User recovery:
 3. Reopen the app.
 4. If it still fails, send support the app name, version, and the exact console line.
 
-Support should verify the app manifest points to a JavaScript module endpoint with the right MIME type, preferably a pinned CDN/release asset such as jsDelivr or a bundled dist URL, not a raw GitHub URL served as `text/plain`. Current launch catalog baseline: Atomek `v0.4.30`, JULI3TA `juli3ta-0.3.22`.
+Support should verify the app manifest points to a JavaScript module endpoint with the right MIME type, preferably a pinned CDN/release asset such as jsDelivr or a bundled dist URL, not a raw GitHub URL served as `text/plain`. Current launch catalog baseline: Atomek `v0.4.32`, JULI3TA `juli3ta-0.3.24`.

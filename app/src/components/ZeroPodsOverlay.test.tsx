@@ -14,6 +14,8 @@ import { createDaemonClient } from "@/lib/daemon";
 import { makeFakeFetch } from "@/test/fakeFetch";
 import { stateFixture } from "@/test/fixtures";
 import type { FC, ReactNode } from "react";
+import { useEffect } from "react";
+import { I18nProvider } from "@/i18n";
 
 // Manifest §2.4 — the desktop overlay is the entry point for users
 // who land in Tytus OS without any allocated pods. Gating logic is
@@ -49,9 +51,11 @@ const Authenticate: FC<{ authenticated: boolean; children: ReactNode }> = ({
   children,
 }) => {
   const { state, dispatch } = useOS();
-  if (authenticated && !state.auth.isAuthenticated) {
-    dispatch({ type: "LOGIN", isGuest: false });
-  }
+  useEffect(() => {
+    if (authenticated && !state.auth.isAuthenticated) {
+      dispatch({ type: "LOGIN", isGuest: false });
+    }
+  }, [authenticated, state.auth.isAuthenticated, dispatch]);
   return <>{children}</>;
 };
 
@@ -65,13 +69,15 @@ const Harness: FC<HarnessProps> = ({
   ]);
   const client = createDaemonClient({ fetch });
   return (
-    <DaemonClientProvider client={client}>
-      <DaemonStateProvider intervalMs={60_000}>
-        <OSProvider>
-          <Authenticate authenticated={authenticated}>{children}</Authenticate>
-        </OSProvider>
-      </DaemonStateProvider>
-    </DaemonClientProvider>
+    <I18nProvider>
+      <DaemonClientProvider client={client}>
+        <DaemonStateProvider intervalMs={60_000}>
+          <OSProvider>
+            <Authenticate authenticated={authenticated}>{children}</Authenticate>
+          </OSProvider>
+        </DaemonStateProvider>
+      </DaemonClientProvider>
+    </I18nProvider>
   );
 };
 

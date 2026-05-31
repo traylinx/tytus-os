@@ -2,9 +2,9 @@
 // AppLauncher — Full-screen overlay with search + app grid
 // ============================================================
 
-import { useState, useCallback, useRef, useEffect, memo } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo, memo } from 'react';
 import { useOS } from '@/hooks/useOSStore';
-import { getAppById } from '@/apps/registry';
+import { getAppById, getLaunchableApps } from '@/apps/registry';
 import {
   resolveCanonicalAppId,
   unifyAppDefinition,
@@ -20,6 +20,7 @@ import { useI18n } from '@/i18n';
 import { localizedAppName } from '@/i18n/app-name';
 import { BrandIcon, isBrandIconName } from './BrandIcon';
 import { isHiddenLegacyApp } from '@/apps/product-replacements';
+import { subscribeInstalledAppsChanged } from '@/runtime/installed-apps-events';
 
 const DynamicIcon = ({ name, ...props }: { name: string } & LucideProps) => {
   if (isBrandIconName(name)) {
@@ -34,7 +35,7 @@ const CATEGORIES = ['Favorites', 'All', 'System', 'Internet', 'Productivity', 'M
 const AppLauncher = memo(function AppLauncher() {
   const { state, dispatch } = useOS();
   const { t } = useI18n();
-  const { appLauncherOpen, apps, dockItems } = state;
+  const { appLauncherOpen, dockItems } = state;
   // Tier-aware default for demo apps: paid tiers (creator/operator)
   // start with demos OFF; Explorer / unknown / pre-state-load default
   // to ON. Once the user toggles in Settings, the stored choice wins.
@@ -47,6 +48,17 @@ const AppLauncher = memo(function AppLauncher() {
   const [canScrollUp, setCanScrollUp] = useState(false);
   const [canScrollDown, setCanScrollDown] = useState(false);
   const [scoredFrequent, setScoredFrequent] = useState<AppDefinition[]>([]);
+  const [installedAppsRevision, setInstalledAppsRevision] = useState(0);
+  const launcherApps = useMemo(
+    () => getLaunchableApps(),
+    [installedAppsRevision],
+  );
+
+  useEffect(() => {
+    return subscribeInstalledAppsChanged(() => {
+      setInstalledAppsRevision((n) => n + 1);
+    });
+  }, []);
 
   // Watch the grid's scroll position so we can show / hide arrow buttons
   useEffect(() => {
@@ -130,7 +142,7 @@ const AppLauncher = memo(function AppLauncher() {
   const unifiedApps = (() => {
     const seen = new Set<string>();
     const out: AppDefinition[] = [];
-    for (const app of apps) {
+    for (const app of launcherApps) {
       const u = unifyAppDefinition(app);
       if (seen.has(u.id) || isHiddenLegacyApp(u.id)) continue;
       seen.add(u.id);

@@ -231,6 +231,7 @@ const STATUS_VISUAL: Record<
 // ============================================================
 
 const PodInspector: FC = () => {
+  const { t } = useI18n();
   const { dispatch } = useOS();
   const client = useDaemonClient();
   const daemon = useDaemonStateContext();
@@ -1406,7 +1407,7 @@ const PodTab: FC<PodTabProps> = ({
         >
           <div className="flex items-center justify-between gap-3 mb-2">
             <div className="text-xs text-[var(--text-secondary)] uppercase tracking-wider">
-              Readiness
+              {t('podInspector.readiness')}
             </div>
             <span
               className="text-[10px] uppercase tracking-wide"

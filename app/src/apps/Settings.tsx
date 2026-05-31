@@ -1034,7 +1034,7 @@ const Settings: React.FC = () => {
               )}
               <div className="text-[11px] text-[var(--text-secondary)]">
                 If your session expires, use Daemon →{" "}
-                <strong>Sign in again</strong> or the Tytus tray Sign In menu.
+                <strong>{t('settings.daemon.signInAgain')}</strong> or the Tytus tray Sign In menu.
                 Tytus OS will pick up the refreshed session automatically.
               </div>
             </div>
@@ -1109,7 +1109,7 @@ const Settings: React.FC = () => {
                     }}
                   >
                     <div className="text-sm font-semibold text-[var(--text-primary)]">
-                      Re-authentication required
+                      {t('settings.daemon.reauthRequired')}
                     </div>
                     <div className="text-xs text-[var(--text-secondary)] mt-1 leading-relaxed">
                       Your browser will open a one-time Tytus sign-in page.
@@ -1131,7 +1131,7 @@ const Settings: React.FC = () => {
                         ) : (
                           <LogIn size={12} />
                         )}
-                        {reauthStarting ? "Opening sign in…" : "Sign in again"}
+                        {reauthStarting ? t('settings.daemon.openingSignIn') : t('settings.daemon.signInAgain')}
                       </button>
                       <button
                         onClick={() => daemon.refresh()}
@@ -1143,7 +1143,7 @@ const Settings: React.FC = () => {
                         }}
                       >
                         <RefreshCw size={12} />
-                        Check session
+                        {t('settings.daemon.checkSession')}
                       </button>
                     </div>
                     {reauthUrl && (
@@ -1167,7 +1167,7 @@ const Settings: React.FC = () => {
                           className="underline"
                           style={{ color: "var(--accent-primary)" }}
                         >
-                          open again
+                          {t('settings.daemon.openAgain')}
                         </a>
                       </div>
                     )}
@@ -1229,7 +1229,7 @@ const Settings: React.FC = () => {
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <div className="text-sm font-medium text-[var(--text-primary)]">
-                      WireGuard tunnel
+                      {t('settings.daemon.wireGuardTunnel')}
                     </div>
                     <div className="text-xs text-[var(--text-secondary)] mt-1">
                       {daemon.state?.tunnel_active
@@ -2719,11 +2719,11 @@ const Settings: React.FC = () => {
                     >
                       {installingUpdate ? (
                         <span className="inline-flex items-center gap-1">
-                          <Loader2 size={12} className="animate-spin" /> Starting…
+                          <Loader2 size={12} className="animate-spin" /> {t('settings.update.starting')}
                         </span>
                       ) : (
                         <span className="inline-flex items-center gap-1">
-                          <HardDriveDownload size={12} /> Update now
+                          <HardDriveDownload size={12} /> {t('settings.update.now')}
                         </span>
                       )}
                     </button>
@@ -3591,7 +3591,7 @@ const PodCard: React.FC<PodCardProps> = ({ agent, refreshNonce = 0 }) => {
                 disabled={renameSaving}
                 maxLength={48}
                 placeholder={`Pod ${agent.pod_id}`}
-                aria-label="Pod display name"
+                aria-label={t('settings.pods.displayName')}
                 className="flex-1 min-w-0 text-sm font-medium px-2 py-1 rounded-md bg-[var(--bg-hover,rgba(255,255,255,0.04))] border outline-none focus:ring-2 disabled:opacity-60"
                 style={{
                   borderColor: renameErr
@@ -3603,7 +3603,7 @@ const PodCard: React.FC<PodCardProps> = ({ agent, refreshNonce = 0 }) => {
               <button
                 onClick={() => void submitRename()}
                 disabled={renameSaving}
-                title="Save"
+                title={t('common.save')}
                 className="flex-shrink-0 p-1 rounded-md transition-colors disabled:opacity-60"
                 style={{ color: "var(--accent-primary)" }}
               >
@@ -3616,7 +3616,7 @@ const PodCard: React.FC<PodCardProps> = ({ agent, refreshNonce = 0 }) => {
               <button
                 onClick={cancelRename}
                 disabled={renameSaving}
-                title="Cancel"
+                title={t('common.cancel')}
                 className="flex-shrink-0 p-1 rounded-md transition-colors disabled:opacity-60"
                 style={{ color: "var(--text-secondary)" }}
               >
@@ -3631,8 +3631,8 @@ const PodCard: React.FC<PodCardProps> = ({ agent, refreshNonce = 0 }) => {
               </span>
               <button
                 onClick={() => setRenaming(true)}
-                title="Rename pod"
-                aria-label="Rename pod"
+                title={t('settings.pods.rename')}
+                aria-label={t('settings.pods.rename')}
                 className="flex-shrink-0 p-0.5 rounded transition-colors hover:bg-[var(--bg-hover,rgba(255,255,255,0.05))]"
                 style={{ color: "var(--text-secondary)" }}
               >
@@ -4329,6 +4329,7 @@ const InstallWizard: React.FC<InstallWizardProps> = ({
   onConnectMessenger,
   onClose,
 }) => {
+  const { t } = useI18n();
   const client = useDaemonClient();
   const stream = useJobStream({ url: jobStreamUrl });
   const isStreaming = jobId !== null;
@@ -4572,7 +4573,7 @@ const InstallWizard: React.FC<InstallWizardProps> = ({
                   )}
                   {!readiness && !readinessErr && (
                     <div className="text-[11px] text-[var(--text-secondary)]">
-                      Waiting for daemon readiness details…
+                      {t('settings.pods.waitingReadiness')}
                     </div>
                   )}
                   {readiness && (
@@ -4623,7 +4624,7 @@ const InstallWizard: React.FC<InstallWizardProps> = ({
                 status={stream.status}
                 exitCode={stream.exitCode}
                 failMessage={stream.failMessage}
-                title="Install log"
+                title={t('settings.pods.installLog')}
                 emptyText="Connecting to install stream…"
                 maxLines={200}
                 minHeight={200}
@@ -5312,7 +5313,7 @@ const AISettingsPanel: React.FC = () => {
                   color: "var(--text-primary)",
                 }}
               >
-                tytus cortex up
+                {t('settings.ai.install.command')}
               </pre>
             </div>
           )}
@@ -5336,6 +5337,7 @@ const AISettingsPanel: React.FC = () => {
 };
 
 const SharingSettingsPanel: React.FC = () => {
+  const { t } = useI18n();
   const client = useDaemonClient();
   const daemon = useDaemonStateContext();
   const { addNotification } = useNotifications();
@@ -5570,7 +5572,7 @@ const SharingSettingsPanel: React.FC = () => {
     <div className="space-y-6">
       <div>
         <h2 className="text-2xl font-semibold text-[var(--text-primary)]">
-          Sharing
+          {t('settings.sharing.title')}
         </h2>
         <p className="text-sm text-[var(--text-secondary)] mt-1 max-w-2xl">
           Shared folders, pod credential refresh, and garagetytus diagnostics.
@@ -5622,7 +5624,7 @@ const SharingSettingsPanel: React.FC = () => {
         >
           <AlertTriangle size={14} className="mt-0.5 shrink-0" />
           <div>
-            <div className="font-semibold">Sharing needs attention</div>
+            <div className="font-semibold">{t('settings.sharing.needsAttention')}</div>
             <div className="mt-1 text-[var(--text-secondary)]">
               {statusWarnings.slice(0, 3).join(" · ")}
               {statusWarnings.length > 3 ? " · …" : ""}
@@ -5657,7 +5659,7 @@ const SharingSettingsPanel: React.FC = () => {
           style={{ borderColor: "var(--border-subtle)" }}
         >
           <div className="text-sm font-semibold text-[var(--text-primary)]">
-            Defaults & safety
+            {t('settings.sharing.defaultsSafety')}
           </div>
           <div className="text-xs text-[var(--text-secondary)] mt-0.5">
             Stored in Tytus config. Existing bindings stay visible if sharing is
@@ -5674,7 +5676,7 @@ const SharingSettingsPanel: React.FC = () => {
             }}
           >
             <div>
-              <div className="text-sm font-semibold">Sharing enabled</div>
+              <div className="text-sm font-semibold">{t('settings.sharing.enabled')}</div>
               <div className="text-xs text-[var(--text-secondary)] mt-0.5">
                 Global kill switch for bind, sync, and credential refresh.
               </div>
@@ -5699,7 +5701,7 @@ const SharingSettingsPanel: React.FC = () => {
             }}
           >
             <div>
-              <div className="text-sm font-semibold">Auto-sync by default</div>
+              <div className="text-sm font-semibold">{t('settings.sharing.autoSyncDefault')}</div>
               <div className="text-xs text-[var(--text-secondary)] mt-0.5">
                 Applies to newly bound folders only.
               </div>
@@ -5717,7 +5719,7 @@ const SharingSettingsPanel: React.FC = () => {
           </label>
           <div>
             <label className="text-[11px] font-medium text-[var(--text-secondary)]">
-              Default bucket
+              {t('settings.sharing.defaultBucket')}
             </label>
             <input
               className="mt-1 w-full px-3 py-2 rounded-md text-xs font-mono outline-none"
@@ -5740,7 +5742,7 @@ const SharingSettingsPanel: React.FC = () => {
           </div>
           <div>
             <label className="text-[11px] font-medium text-[var(--text-secondary)]">
-              Default local root
+              {t('settings.sharing.defaultLocalRoot')}
             </label>
             <input
               className="mt-1 w-full px-3 py-2 rounded-md text-xs font-mono outline-none"
@@ -5797,7 +5799,7 @@ const SharingSettingsPanel: React.FC = () => {
         >
           <div>
             <div className="text-sm font-semibold text-[var(--text-primary)]">
-              Active bindings
+              {t('settings.sharing.activeBindings')}
             </div>
             <div className="text-xs text-[var(--text-secondary)] mt-0.5">
               Read-only overview. Bind and browse folders from the Files app.
@@ -5818,7 +5820,7 @@ const SharingSettingsPanel: React.FC = () => {
             ) : (
               <RefreshCw size={12} />
             )}
-            Refresh
+            {t('common.refresh')}
           </button>
         </div>
         <div
@@ -5827,7 +5829,7 @@ const SharingSettingsPanel: React.FC = () => {
         >
           {bindings === null ? (
             <div className="px-4 py-8 text-sm text-[var(--text-secondary)] flex items-center gap-2">
-              <Loader2 size={14} className="animate-spin" /> Loading bindings…
+              <Loader2 size={14} className="animate-spin" /> {t('settings.sharing.loadingBindings')}
             </div>
           ) : bindings.length === 0 ? (
             <div className="px-4 py-8 text-sm text-[var(--text-secondary)]">
@@ -5880,7 +5882,7 @@ const SharingSettingsPanel: React.FC = () => {
                                   border: "1px solid var(--border-default)",
                                   color: "var(--text-secondary)",
                                 }}
-                                title="Refresh this pod's shared-folder credentials"
+                                title={t('settings.sharing.refreshCredentials')}
                               >
                                 {refreshingPod === pod ? (
                                   <Loader2 size={10} className="animate-spin" />
@@ -5913,7 +5915,7 @@ const SharingSettingsPanel: React.FC = () => {
                                   border: "1px solid rgba(124, 77, 255, 0.34)",
                                   color: "var(--accent-primary)",
                                 }}
-                                title="Install this shared folder into the pod workspace"
+                                title={t('settings.sharing.installIntoPod')}
                               >
                                 {provisioningPodKey === key ? (
                                   <Loader2 size={10} className="animate-spin" />
@@ -5938,7 +5940,7 @@ const SharingSettingsPanel: React.FC = () => {
                         color: "var(--text-secondary)",
                       }}
                     >
-                      <ExternalLink size={11} /> Open
+                      <ExternalLink size={11} /> {t('common.open')}
                     </button>
                   </div>
                 </div>
@@ -5960,7 +5962,7 @@ const SharingSettingsPanel: React.FC = () => {
           style={{ borderColor: "var(--border-subtle)" }}
         >
           <div className="text-sm font-semibold text-[var(--text-primary)]">
-            Diagnostics
+            {t('settings.sharing.diagnostics')}
           </div>
           <div className="text-xs text-[var(--text-secondary)] mt-0.5">
             Runs the same garagetytus actions Tower exposed: status, conflicts,
@@ -6025,7 +6027,7 @@ const SharingSettingsPanel: React.FC = () => {
             color: "var(--text-primary)",
           }}
         >
-          <HardDriveDownload size={12} /> Open sharing cache
+          <HardDriveDownload size={12} /> {t('settings.sharing.openCache')}
         </button>
       </div>
     </div>

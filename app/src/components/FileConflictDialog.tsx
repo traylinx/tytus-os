@@ -12,6 +12,7 @@
 import { memo, useState, useEffect } from "react";
 import { CONFLICT_RESOLUTIONS, type ConflictResolution } from "@/lib/files/conflict";
 import { registerShortcut } from "@/lib/shortcuts";
+import { useI18n } from "@/i18n";
 
 export interface FileConflict {
   /** Display name (the file/folder being dragged in). */
@@ -36,6 +37,7 @@ const FileConflictDialog = memo(function FileConflictDialog({
   onResolve,
   onCancel,
 }: FileConflictDialogProps) {
+  const { t } = useI18n();
   const [applyAll, setApplyAll] = useState(true);
   const [pickedAll, setPickedAll] = useState<ConflictResolution>("keep-both");
   const [perItem, setPerItem] = useState<ConflictResolution[]>([]);
@@ -88,7 +90,7 @@ const FileConflictDialog = memo(function FileConflictDialog({
       >
         <div>
           <h2 className="text-lg font-semibold">
-            Items already exist
+            {t('files.conflict.title')}
           </h2>
           <p className="text-sm text-[var(--text-secondary)] mt-1">
             {conflicts.length === 1
@@ -158,7 +160,7 @@ const FileConflictDialog = memo(function FileConflictDialog({
               color: "var(--text-primary)",
             }}
           >
-            Cancel all
+            {t('files.conflict.cancelAll')}
           </button>
           <button
             type="button"
@@ -169,7 +171,7 @@ const FileConflictDialog = memo(function FileConflictDialog({
               color: "var(--text-on-accent)",
             }}
           >
-            Continue
+            {t('common.continue')}
           </button>
         </div>
       </div>

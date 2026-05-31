@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.0.1",
   "type": "module",
-  "description": "Tytus OS \u2014 desktop shell for your private AI pod.",
+  "description": "Tytus OS — desktop shell for your private AI pod.",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
@@ -20,7 +20,9 @@
     "audit:bundle-strict": "node scripts/check-bundle-budget.mjs --strict",
     "audit:radius": "node scripts/audit-radius.mjs",
     "i18n:check": "node scripts/i18n-check.mjs",
-    "i18n:update-allowlist": "node scripts/i18n-check.mjs --write-allowlist"
+    "i18n:update-allowlist": "node scripts/i18n-check.mjs --write-allowlist",
+    "i18n:check:json": "node scripts/i18n-check.mjs --json",
+    "i18n:sync-es-pack": "node scripts/sync-spanish-pack.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

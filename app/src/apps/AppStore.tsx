@@ -5,6 +5,7 @@ import { useWindows } from '@/hooks/useOSStore';
 import type { StoreApp } from '@/types/daemon';
 import { BRAND_LOGOS } from './brandLogos';
 import { TytusAppsTab } from './TytusAppsTab';
+import { useI18n } from '@/i18n';
 
 const CATEGORIES = ['All', 'Developer Tools', 'AI & ML', 'Communication'] as const;
 
@@ -13,6 +14,7 @@ type ActiveTab = 'tytus' | 'desktop';
 const AppStore: FC = () => {
   const [activeTab, setActiveTab] = useState<ActiveTab>('tytus');
   const { openWindow } = useWindows();
+  const { t } = useI18n();
 
   return (
     <div className="h-full flex flex-col" style={{ background: 'var(--bg-window)' }}>
@@ -22,7 +24,7 @@ const AppStore: FC = () => {
         style={{ height: 48, background: 'var(--bg-titlebar)', borderBottom: '1px solid var(--border-subtle)', color: 'var(--text-primary)' }}
       >
         <Store size={18} style={{ color: 'var(--accent-primary)' }} />
-        <span style={{ fontSize: 14, fontWeight: 600 }}>App Store</span>
+        <span style={{ fontSize: 14, fontWeight: 600 }}>{t('appStore.title')}</span>
       </div>
 
       {/* Top-level tabs (per D28) */}
@@ -31,13 +33,13 @@ const AppStore: FC = () => {
         style={{ borderBottom: '1px solid var(--border-subtle)' }}
       >
         <TabButton
-          label="Tytus Apps"
+          label={t('appStore.tabs.tytus')}
           active={activeTab === 'tytus'}
           onClick={() => setActiveTab('tytus')}
           testId="appstore-tab-tytus"
         />
         <TabButton
-          label="Desktop"
+          label={t('appStore.tabs.desktop')}
           active={activeTab === 'desktop'}
           onClick={() => setActiveTab('desktop')}
           testId="appstore-tab-desktop"
@@ -85,6 +87,7 @@ const TabButton: FC<{
  *  surface unchanged so existing users see no functional regression. */
 const DesktopAppsTab: FC = () => {
   const client = useDaemonClient();
+  const { t } = useI18n();
   const [apps, setApps] = useState<StoreApp[]>([]);
   const [checkResults, setCheckResults] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(true);
@@ -109,11 +112,14 @@ const DesktopAppsTab: FC = () => {
       const n = r.value.opened.length;
       setOpenAllMsg(
         n === 0
-          ? 'No installed apps were opened.'
-          : `Opened ${n} app${n === 1 ? '' : 's'}: ${r.value.opened.join(', ')}`,
+          ? t('appStore.desktop.openAll.none')
+          : t('appStore.desktop.openAll.opened', {
+              count: n,
+              apps: r.value.opened.join(', '),
+            }),
       );
     } else {
-      setOpenAllMsg(`Failed to open apps: ${r.error.message}`);
+      setOpenAllMsg(t('appStore.desktop.openAll.failed', { error: r.error.message }));
     }
   };
 
@@ -169,7 +175,7 @@ const DesktopAppsTab: FC = () => {
       <div className="h-full flex items-center justify-center" data-testid="appstore-desktop-loading">
         <div className="flex flex-col items-center gap-3">
           <Loader2 size={28} className="animate-spin" style={{ color: 'var(--accent-primary)' }} />
-          <span style={{ color: 'var(--text-secondary)', fontSize: 13 }}>Loading app catalog…</span>
+          <span style={{ color: 'var(--text-secondary)', fontSize: 13 }}>{t('appStore.desktop.loading')}</span>
         </div>
       </div>
     );
@@ -180,7 +186,7 @@ const DesktopAppsTab: FC = () => {
       <div className="h-full flex items-center justify-center">
         <div className="flex flex-col items-center gap-3">
           <AlertCircle size={28} style={{ color: 'var(--accent-error)' }} />
-          <span style={{ color: 'var(--text-secondary)', fontSize: 13 }}>Failed to load catalog: {error}</span>
+          <span style={{ color: 'var(--text-secondary)', fontSize: 13 }}>{t('appStore.desktop.loadFailed', { error })}</span>
         </div>
       </div>
     );
@@ -195,7 +201,7 @@ const DesktopAppsTab: FC = () => {
             <Search size={14} style={{ color: 'var(--text-disabled)' }} />
             <input
               type="text"
-              placeholder="Search apps…"
+              placeholder={t('appStore.desktop.searchPlaceholder')}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="bg-transparent outline-none flex-1 rounded-input"
@@ -203,7 +209,7 @@ const DesktopAppsTab: FC = () => {
             />
             {checking && (
               <span className="flex items-center gap-1" style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
-                <Loader2 size={12} className="animate-spin" /> Checking…
+                <Loader2 size={12} className="animate-spin" /> {t('appStore.desktop.checking')}
               </span>
             )}
           </div>
@@ -211,7 +217,9 @@ const DesktopAppsTab: FC = () => {
             data-testid="appstore-open-all"
             onClick={handleOpenAll}
             disabled={openingAll || checking || installedCount === 0}
-            title={installedCount === 0 ? 'No installed apps to open' : `Open all ${installedCount} installed apps`}
+            title={installedCount === 0
+              ? t('appStore.desktop.openAll.noInstalledTitle')
+              : t('appStore.desktop.openAll.title', { count: installedCount })}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-md transition-opacity hover:opacity-90 shrink-0"
             style={{
               fontSize: 12,
@@ -224,7 +232,7 @@ const DesktopAppsTab: FC = () => {
             }}
           >
             {openingAll ? <Loader2 size={13} className="animate-spin" /> : <AppWindow size={13} />}
-            Open all installed
+            {t('appStore.desktop.openAll.button')}
           </button>
         </div>
         {openAllMsg && (
@@ -257,7 +265,7 @@ const DesktopAppsTab: FC = () => {
         {filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full gap-2">
             <Package size={32} style={{ color: 'var(--text-disabled)' }} />
-            <span style={{ color: 'var(--text-secondary)', fontSize: 13 }}>No apps found</span>
+            <span style={{ color: 'var(--text-secondary)', fontSize: 13 }}>{t('appStore.desktop.noAppsFound')}</span>
           </div>
         ) : (
           <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}>
@@ -273,6 +281,7 @@ const DesktopAppsTab: FC = () => {
 
 const AppCard: FC<{ app: StoreApp; installed: boolean }> = ({ app, installed }) => {
   const client = useDaemonClient();
+  const { t } = useI18n();
   const platform = navigator.platform.toLowerCase().includes('mac') ? 'macos' : 'linux';
   const installCmd = app.install[platform] ?? Object.values(app.install)[0] ?? '';
   const docsUrl = app.docs ?? app.url;
@@ -302,7 +311,7 @@ const AppCard: FC<{ app: StoreApp; installed: boolean }> = ({ app, installed }) 
         text:
           r.value.action === 'opened_url'
             ? `Opened ${app.name} website for install instructions`
-            : 'Running install in Terminal — follow the prompts there',
+            : t('appStore.card.install.runningTerminal'),
       });
     } else {
       setFeedback({ kind: 'err', text: r.error.message });
@@ -348,14 +357,14 @@ const AppCard: FC<{ app: StoreApp; installed: boolean }> = ({ app, installed }) 
                 className="flex items-center gap-1 px-1.5 py-0.5 rounded-full"
                 style={{ fontSize: 10, fontWeight: 600, background: 'rgba(76,175,80,0.15)', color: 'var(--accent-success)' }}
               >
-                <CheckCircle2 size={10} /> Installed
+                <CheckCircle2 size={10} /> {t('appStore.card.installed')}
               </span>
             ) : (
               <span
                 className="flex items-center gap-1 px-1.5 py-0.5 rounded-full"
                 style={{ fontSize: 10, fontWeight: 600, background: 'rgba(124,77,255,0.10)', color: 'var(--accent-primary)' }}
               >
-                <Download size={10} /> Available
+                <Download size={10} /> {t('appStore.card.available')}
               </span>
             )}
           </div>
@@ -385,7 +394,7 @@ const AppCard: FC<{ app: StoreApp; installed: boolean }> = ({ app, installed }) 
             className="flex items-center gap-1 px-3 py-1.5 rounded-md transition-opacity hover:opacity-90"
             style={{ fontSize: 12, fontWeight: 600, background: 'var(--accent-primary)', color: 'var(--text-on-accent)', border: 'none', cursor: busy ? 'not-allowed' : 'pointer', opacity: busy === 'open' ? 0.6 : 1 }}
           >
-            {busy === 'open' ? <Loader2 size={13} className="animate-spin" /> : <AppWindow size={13} />} Open
+            {busy === 'open' ? <Loader2 size={13} className="animate-spin" /> : <AppWindow size={13} />} {t('common.open')}
           </button>
         ) : (
           <button
@@ -395,7 +404,7 @@ const AppCard: FC<{ app: StoreApp; installed: boolean }> = ({ app, installed }) 
             className="flex items-center gap-1 px-3 py-1.5 rounded-md transition-opacity hover:opacity-90"
             style={{ fontSize: 12, fontWeight: 600, background: 'var(--accent-primary)', color: 'var(--text-on-accent)', border: 'none', cursor: busy ? 'not-allowed' : 'pointer', opacity: busy === 'install' ? 0.6 : 1 }}
           >
-            {busy === 'install' ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />} Install
+            {busy === 'install' ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />} {t('common.install')}
           </button>
         )}
         <a
@@ -406,14 +415,14 @@ const AppCard: FC<{ app: StoreApp; installed: boolean }> = ({ app, installed }) 
           className="flex items-center gap-1 px-3 py-1.5 rounded-md transition-colors"
           style={{ fontSize: 12, fontWeight: 500, background: 'var(--bg-chrome)', color: 'var(--text-secondary)', border: '1px solid var(--border-subtle)', textDecoration: 'none' }}
         >
-          <BookOpen size={13} /> Docs
+          <BookOpen size={13} /> {t('common.docs')}
         </a>
         {installed && (
           <span
             className="flex items-center gap-1 px-2 py-1 rounded-md"
             style={{ fontSize: 11, fontWeight: 500, background: 'rgba(76,175,80,0.12)', color: 'var(--accent-success)' }}
           >
-            <CheckCircle2 size={12} /> Installed
+            <CheckCircle2 size={12} /> {t('appStore.card.installed')}
           </span>
         )}
       </div>

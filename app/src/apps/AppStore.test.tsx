@@ -13,6 +13,7 @@ import AppStore from './AppStore';
 import { DaemonClientProvider } from '@/hooks/useDaemonClient';
 import { OSProvider } from '@/hooks/useOSStore';
 import { createDaemonClient } from '@/lib/daemon';
+import { I18nProvider } from '@/i18n';
 import { makeFakeFetch, type RouteSpec, type FakeFetchHandle } from '@/test/fakeFetch';
 import type { StoreApp } from '@/types/daemon';
 
@@ -60,11 +61,13 @@ function renderStore(routes: RouteSpec[] = defaultRoutes): FakeFetchHandle {
   const handle = makeFakeFetch(routes);
   const client = createDaemonClient({ fetch: handle.fetch });
   render(
-    <DaemonClientProvider client={client}>
-      <OSProvider>
-        <AppStore />
-      </OSProvider>
-    </DaemonClientProvider>,
+    <I18nProvider>
+      <DaemonClientProvider client={client}>
+        <OSProvider>
+          <AppStore />
+        </OSProvider>
+      </DaemonClientProvider>
+    </I18nProvider>,
   );
   return handle;
 }

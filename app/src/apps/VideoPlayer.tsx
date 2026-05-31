@@ -11,6 +11,7 @@ import {
   Play, Pause, SkipBack, SkipForward, Volume2, VolumeX,
   Maximize, Minimize, Settings, Film, Upload, Trash2,
 } from 'lucide-react';
+import { useI18n } from '@/i18n';
 
 // ---- Types ----
 interface VideoEntry {
@@ -40,6 +41,7 @@ const formatBytes = (b: number): string => {
 
 // ---- Main Video Player ----
 export default function VideoPlayer() {
+  const { t } = useI18n();
   const videoContainerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -259,7 +261,7 @@ export default function VideoPlayer() {
           }}
         >
           <div style={{ fontSize: 14, color: 'white', fontWeight: 600 }}>
-            Drop video files to add
+            {t('videoPlayer.dropToAdd')}
           </div>
         </div>
       )}
@@ -281,7 +283,7 @@ export default function VideoPlayer() {
             </div>
             <div>
               <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>
-                No video loaded
+                {t('videoPlayer.empty.title')}
               </div>
               <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4, maxWidth: 320 }}>
                 Pick a video file from your computer or drag one into this window. Supports mp4, webm, mov, mkv.
@@ -298,7 +300,7 @@ export default function VideoPlayer() {
               }}
             >
               <Upload size={14} />
-              Open video file
+              {t('videoPlayer.openFile')}
             </button>
           </div>
         ) : (
@@ -361,10 +363,10 @@ export default function VideoPlayer() {
                         ? <Pause size={20} style={{ color: 'white' }} />
                         : <Play size={20} style={{ color: 'white' }} className="ml-0.5" />}
                     </button>
-                    <button onClick={() => skip(-10)} className="flex items-center justify-center rounded-full hover:bg-[rgba(255,255,255,0.1)]" style={{ width: 28, height: 28 }} title="Back 10s">
+                    <button onClick={() => skip(-10)} className="flex items-center justify-center rounded-full hover:bg-[rgba(255,255,255,0.1)]" style={{ width: 28, height: 28 }} title={t('videoPlayer.back10')}>
                       <SkipBack size={16} style={{ color: 'white' }} />
                     </button>
-                    <button onClick={() => skip(10)} className="flex items-center justify-center rounded-full hover:bg-[rgba(255,255,255,0.1)]" style={{ width: 28, height: 28 }} title="Forward 10s">
+                    <button onClick={() => skip(10)} className="flex items-center justify-center rounded-full hover:bg-[rgba(255,255,255,0.1)]" style={{ width: 28, height: 28 }} title={t('videoPlayer.forward10')}>
                       <SkipForward size={16} style={{ color: 'white' }} />
                     </button>
                     <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.85)', marginLeft: 8, fontVariantNumeric: 'tabular-nums' }}>
@@ -414,10 +416,10 @@ export default function VideoPlayer() {
                         </div>
                       )}
                     </div>
-                    <button onClick={handlePickFiles} className="flex items-center justify-center rounded-full hover:bg-[rgba(255,255,255,0.1)]" style={{ width: 28, height: 28 }} title="Add files">
+                    <button onClick={handlePickFiles} className="flex items-center justify-center rounded-full hover:bg-[rgba(255,255,255,0.1)]" style={{ width: 28, height: 28 }} title={t('videoPlayer.addFiles')}>
                       <Upload size={16} style={{ color: 'white' }} />
                     </button>
-                    <button onClick={toggleFullscreen} className="flex items-center justify-center rounded-full hover:bg-[rgba(255,255,255,0.1)]" style={{ width: 28, height: 28 }} title="Fullscreen (F)">
+                    <button onClick={toggleFullscreen} className="flex items-center justify-center rounded-full hover:bg-[rgba(255,255,255,0.1)]" style={{ width: 28, height: 28 }} title={t('videoPlayer.fullscreen')}>
                       {isFullscreen ? <Minimize size={16} style={{ color: 'white' }} /> : <Maximize size={16} style={{ color: 'white' }} />}
                     </button>
                   </div>
@@ -458,7 +460,7 @@ export default function VideoPlayer() {
                   onClick={(e) => { e.stopPropagation(); handleRemove(i); }}
                   className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded-md hover:bg-[var(--bg-hover)]"
                   style={{ color: 'var(--text-secondary)' }}
-                  title="Remove"
+                  title={t('common.remove')}
                 >
                   <Trash2 size={12} />
                 </button>
@@ -474,7 +476,7 @@ export default function VideoPlayer() {
               }}
             >
               <Upload size={14} />
-              Add
+              {t('common.add')}
             </button>
           </div>
         </div>

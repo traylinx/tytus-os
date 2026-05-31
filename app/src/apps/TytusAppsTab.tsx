@@ -40,6 +40,7 @@ import {
 import { useOptionalNotifications } from '@/hooks/useOSStore';
 import { FEATURED_APPS, type FeaturedApp, loadFeaturedApps } from './featured-apps-catalog';
 import { isHiddenLegacyApp } from './product-replacements';
+import { useI18n } from '@/i18n';
 
 /** Map an InstallerError code to a user-facing toast message. */
 function installerErrorToast(action: 'install' | 'uninstall' | 'reinstall', err: unknown): {
@@ -101,6 +102,7 @@ export const TytusAppsTab: FC<TytusAppsTabProps> = ({
   onReinstall,
   loadFeatured,
 }) => {
+  const { t } = useI18n();
   const [rows, setRows] = useState<InstalledAppRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -293,7 +295,7 @@ export const TytusAppsTab: FC<TytusAppsTabProps> = ({
         data-testid="tytus-apps-loading"
       >
         <span style={{ color: 'var(--text-secondary)', fontSize: 13 }}>
-          Loading installed apps…
+          {t('tytusApps.loading')}
         </span>
       </div>
     );
@@ -304,7 +306,7 @@ export const TytusAppsTab: FC<TytusAppsTabProps> = ({
       {/* Install from URL button — top of tab */}
       <div className="flex items-center justify-between" style={{ marginBottom: 16 }}>
         <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-          Install third-party apps via a tytus-app.json URL.
+          {t('tytusApps.installFromUrl.description')}
         </span>
         <button
           data-testid="tytus-apps-install-from-url"
@@ -319,14 +321,14 @@ export const TytusAppsTab: FC<TytusAppsTabProps> = ({
             cursor: 'pointer',
           }}
         >
-          <Download size={13} /> Install from URL
+          <Download size={13} /> {t('tytusApps.installFromUrl.button')}
         </button>
       </div>
 
       {/* System apps */}
       <SectionHeader
-        title="System apps"
-        subtitle="Built-in. Auto-updated with Tytus OS."
+        title={t('tytusApps.sections.system.title')}
+        subtitle={t('tytusApps.sections.system.subtitle')}
         count={systemApps.length}
       />
       {systemApps.length === 0 ? (
@@ -350,8 +352,8 @@ export const TytusAppsTab: FC<TytusAppsTabProps> = ({
       {availableFeatured.length > 0 && (
         <div style={{ marginTop: 24 }} data-testid="tytus-apps-featured">
           <SectionHeader
-            title="Featured apps"
-            subtitle="One-click install from the official tytus-app catalog."
+            title={t('tytusApps.sections.featured.title')}
+            subtitle={t('tytusApps.sections.featured.subtitle')}
             count={availableFeatured.length}
           />
           <div
@@ -374,8 +376,8 @@ export const TytusAppsTab: FC<TytusAppsTabProps> = ({
       {userBundledApps.length > 0 && (
         <div style={{ marginTop: 24 }}>
           <SectionHeader
-            title="Bundled user apps"
-            subtitle="Workspace skeletons; will install standalone after Phase 5."
+            title={t('tytusApps.sections.bundled.title')}
+            subtitle={t('tytusApps.sections.bundled.subtitle')}
             count={userBundledApps.length}
           />
           <div
@@ -396,12 +398,12 @@ export const TytusAppsTab: FC<TytusAppsTabProps> = ({
       {/* Installed apps (third-party via Install from URL) */}
       <div style={{ marginTop: 24 }}>
         <SectionHeader
-          title="Installed apps"
-          subtitle="Third-party apps you install via Install from URL."
+          title={t('tytusApps.sections.installed.title')}
+          subtitle={t('tytusApps.sections.installed.subtitle')}
           count={installedApps.length}
         />
         {installedApps.length === 0 ? (
-          <EmptyHint message="No third-party apps installed. Use Install from URL above." />
+          <EmptyHint message={t('tytusApps.sections.installed.empty')} />
         ) : (
           <div
             className="grid gap-3"
@@ -475,21 +477,24 @@ const SectionHeader: FC<{
   title: string;
   subtitle: string;
   count: number;
-}> = ({ title, subtitle, count }) => (
+}> = ({ title, subtitle, count }) => {
+  const { t } = useI18n();
+  return (
   <div style={{ marginBottom: 12 }}>
     <div className="flex items-baseline gap-2">
       <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>
         {title}
       </span>
       <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-        {count} {count === 1 ? 'app' : 'apps'}
+        {count} {count === 1 ? t('tytusApps.count.app') : t('tytusApps.count.apps')}
       </span>
     </div>
     <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>
       {subtitle}
     </div>
   </div>
-);
+  );
+};
 
 const EmptyHint: FC<{ message: string }> = ({ message }) => (
   <div
@@ -510,6 +515,7 @@ const SystemAppCard: FC<{
   row: InstalledAppRow;
   onOpen: () => void;
 }> = ({ row, onOpen }) => {
+  const { t } = useI18n();
   const isProtected = row.builtinProtected;
   return (
     <div
@@ -552,7 +558,7 @@ const SystemAppCard: FC<{
                 color: 'var(--accent-primary)',
               }}
             >
-              Built-in
+              {t('tytusApps.badge.builtIn')}
             </span>
           )}
         </div>
@@ -583,7 +589,7 @@ const SystemAppCard: FC<{
               cursor: 'pointer',
             }}
           >
-            Open
+            {t('common.open')}
           </button>
           {isProtected ? (
             <button
@@ -600,7 +606,7 @@ const SystemAppCard: FC<{
                 opacity: 0.5,
               }}
             >
-              Uninstall
+              {t('common.uninstall')}
             </button>
           ) : (
             <button
@@ -617,7 +623,7 @@ const SystemAppCard: FC<{
                 opacity: 0.5,
               }}
             >
-              Uninstall
+              {t('common.uninstall')}
             </button>
           )}
         </div>
@@ -633,6 +639,7 @@ const InstalledAppCard: FC<{
   onUninstall: () => void;
   onReinstall?: () => void;
 }> = ({ row, busy, onOpen, onUninstall, onReinstall }) => {
+  const { t } = useI18n();
   const [confirming, setConfirming] = useState(false);
 
   return (
@@ -693,7 +700,7 @@ const InstalledAppCard: FC<{
               cursor: 'pointer',
             }}
           >
-            Open
+            {t('common.open')}
           </button>
           {confirming ? (
             <>
@@ -713,7 +720,7 @@ const InstalledAppCard: FC<{
                   cursor: busy ? 'wait' : 'pointer',
                 }}
               >
-                {busy ? <Loader2 size={12} className="animate-spin" /> : 'Confirm uninstall'}
+                {busy ? <Loader2 size={12} className="animate-spin" /> : t('tytusApps.confirmUninstall')}
               </button>
               <button
                 onClick={() => setConfirming(false)}
@@ -726,7 +733,7 @@ const InstalledAppCard: FC<{
                   cursor: 'pointer',
                 }}
               >
-                Cancel
+                {t('common.cancel')}
               </button>
             </>
           ) : (
@@ -743,7 +750,7 @@ const InstalledAppCard: FC<{
                 cursor: busy ? 'wait' : 'pointer',
               }}
             >
-              Uninstall
+              {t('common.uninstall')}
             </button>
           )}
           {onReinstall && (
@@ -765,7 +772,7 @@ const InstalledAppCard: FC<{
                 cursor: busy ? 'wait' : 'pointer',
               }}
             >
-              {busy ? <Loader2 size={12} className="animate-spin" /> : 'Reinstall'}
+              {busy ? <Loader2 size={12} className="animate-spin" /> : t('common.reinstall')}
             </button>
           )}
         </div>
@@ -779,6 +786,7 @@ const InstallFromUrlModal: FC<{
   onSuccess: () => void;
   doInstall: (manifestUrl: string) => Promise<InstalledAppRow>;
 }> = ({ onClose, onSuccess, doInstall }) => {
+  const { t } = useI18n();
   const [url, setUrl] = useState('');
   const [busy, setBusy] = useState(false);
   const [errMsg, setErrMsg] = useState<string | null>(null);
@@ -819,12 +827,12 @@ const InstallFromUrlModal: FC<{
       >
         <div className="flex items-center justify-between" style={{ marginBottom: 12 }}>
           <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>
-            Install app from URL
+            {t('tytusApps.installModal.title')}
           </span>
           <button
             type="button"
             onClick={onClose}
-            aria-label="Close"
+            aria-label={t('common.close')}
             data-testid="tytus-apps-install-modal-close"
             className="rounded-md p-1"
             style={{
@@ -838,8 +846,7 @@ const InstallFromUrlModal: FC<{
           </button>
         </div>
         <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 8 }}>
-          Paste the URL of a tytus-app.json manifest. The app will be fetched
-          and validated before installation.
+          {t('tytusApps.installModal.description')}
         </p>
         <input
           type="url"
@@ -889,7 +896,7 @@ const InstallFromUrlModal: FC<{
               cursor: busy ? 'wait' : 'pointer',
             }}
           >
-            Cancel
+            {t('common.cancel')}
           </button>
           <button
             type="submit"
@@ -908,10 +915,10 @@ const InstallFromUrlModal: FC<{
           >
             {busy ? (
               <>
-                <Loader2 size={12} className="animate-spin" /> Installing…
+                <Loader2 size={12} className="animate-spin" /> {t('tytusApps.installing')}
               </>
             ) : (
-              'Install'
+              t('common.install')
             )}
           </button>
         </div>
@@ -997,7 +1004,9 @@ const FeaturedAppCard: FC<{
   featured: FeaturedApp;
   busy: boolean;
   onInstall: () => void;
-}> = ({ featured, busy, onInstall }) => (
+}> = ({ featured, busy, onInstall }) => {
+  const { t } = useI18n();
+  return (
   <div
     data-testid={`tytus-featured-card-${featured.id}`}
     className="flex items-start gap-3 rounded-lg p-3"
@@ -1061,10 +1070,11 @@ const FeaturedAppCard: FC<{
         }}
       >
         {busy ? <Loader2 size={11} className="animate-spin" /> : <Download size={11} />}
-        {busy ? 'Installing…' : 'Install'}
+        {busy ? t('tytusApps.installing') : t('common.install')}
       </button>
     </div>
   </div>
-);
+  );
+};
 
 export default TytusAppsTab;
