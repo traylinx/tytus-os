@@ -15,6 +15,7 @@ import {
   type PerItemResult,
 } from "@/lib/files/fileOps";
 import type { FileRef } from "@/lib/files/fileRef";
+import { useI18n } from "@/i18n";
 
 interface FileResultsToastProps {
   results: readonly PerItemResult[];
@@ -31,6 +32,7 @@ const FileResultsToast = memo(function FileResultsToast({
   onDismiss,
   autoDismissMs = 4000,
 }: FileResultsToastProps) {
+  const { t } = useI18n();
   const { ok, failed } = partitionResults(results);
   const [expanded, setExpanded] = useState(failed.length > 0);
 
@@ -70,7 +72,7 @@ const FileResultsToast = memo(function FileResultsToast({
         </div>
         <button
           onClick={onDismiss}
-          aria-label="Dismiss"
+          aria-label={t('common.dismiss')}
           className="text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
         >
           <X size={14} />
@@ -107,7 +109,7 @@ const FileResultsToast = memo(function FileResultsToast({
                   onClick={() => onRetry(f.ref)}
                   className="shrink-0 flex items-center gap-1 text-[var(--accent-primary)]"
                 >
-                  <RefreshCw size={11} /> Retry
+                  <RefreshCw size={11} /> {t('common.retry')}
                 </button>
               )}
             </li>

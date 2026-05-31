@@ -81,6 +81,7 @@ import {
   getCortexDocsSources,
   type CortexDocCitation,
 } from '@/lib/docs/cortexClient';
+import { useI18n } from '@/i18n';
 
 type DiagnosticTabId = 'doctor' | 'test' | 'logs' | 'about' | 'channels-catalog';
 type TabId = DiagnosticTabId | 'live-docs' | `docs:${string}`;
@@ -125,6 +126,7 @@ const slugFromTab = (id: TabId): string | null =>
 const DEFAULT_TAB: TabId = DOCS.length > 0 ? `docs:${DOCS[0].slug}` : 'doctor';
 
 const Help: FC = () => {
+  const { t } = useI18n();
   const [active, setActive] = useState<TabId>(DEFAULT_TAB);
   const [search, setSearch] = useState('');
   const args = useCurrentWindowArgs();
@@ -171,7 +173,7 @@ const Help: FC = () => {
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search the manual…"
+              placeholder={t('help.searchPlaceholder')}
               className="rounded-input bg-transparent text-xs flex-1 outline-none text-[var(--text-primary)] placeholder:text-[var(--text-secondary)]"
             />
           </div>
@@ -297,6 +299,7 @@ const SidebarButton: FC<{
 // ============================================================
 
 const DocPanel: FC<{ slug: string }> = ({ slug }) => {
+  const { t } = useI18n();
   const doc = findDoc(slug);
   const html = useMemo(() => (doc ? markdownToHtml(doc.body) : ''), [doc]);
 
@@ -304,7 +307,7 @@ const DocPanel: FC<{ slug: string }> = ({ slug }) => {
     return (
       <div className="flex-1 flex items-center justify-center text-[var(--text-secondary)] p-6 text-center">
         <div>
-          <div className="text-sm">Document not found</div>
+          <div className="text-sm">{t('help.doc.notFound')}</div>
           <div className="text-[11px] mt-1">
             <code className="font-mono">{slug}</code> is not a known doc slug.
           </div>
@@ -344,6 +347,7 @@ const DocPanel: FC<{ slug: string }> = ({ slug }) => {
 // ============================================================
 
 const LiveDocsPanel: FC<{ onOpenDoc: (slug: string) => void }> = ({ onOpenDoc }) => {
+  const { t } = useI18n();
   const client = useDaemonClient();
   const [query, setQuery] = useState('How do I install and use TytusOS?');
   const [answer, setAnswer] = useState('');
@@ -401,10 +405,10 @@ const LiveDocsPanel: FC<{ onOpenDoc: (slug: string) => void }> = ({ onOpenDoc })
         <div>
           <div className="flex items-center gap-2 text-[10px] uppercase tracking-wider text-[var(--text-secondary)]">
             <MessageCircle size={13} />
-            Shared Cortex documentation
+            {t('help.liveDocs.eyebrow')}
           </div>
           <h1 className="text-2xl font-semibold mt-2 text-[var(--text-primary)]">
-            Ask Tytus Docs
+            {t('help.liveDocs.title')}
           </h1>
           <p className="text-sm mt-1 text-[var(--text-secondary)]">
             Live answers use the same Traylinx Cortex documentation database as the web chatbot.
@@ -436,7 +440,7 @@ const LiveDocsPanel: FC<{ onOpenDoc: (slug: string) => void }> = ({ onOpenDoc })
             onChange={(e) => setQuery(e.target.value)}
             rows={3}
             className="w-full resize-none bg-transparent outline-none text-sm text-[var(--text-primary)] placeholder:text-[var(--text-secondary)]"
-            placeholder="Ask about installs, private pods, shared folders, OpenClaw, Hermes, JULI3TA…"
+            placeholder={t('help.liveDocs.placeholder')}
           />
           <div className="flex justify-between items-center pt-3">
             <span className="text-[11px] text-[var(--text-secondary)]">
@@ -484,7 +488,7 @@ const LiveDocsPanel: FC<{ onOpenDoc: (slug: string) => void }> = ({ onOpenDoc })
         {citations.length > 0 && (
           <div className="space-y-2">
             <div className="text-[10px] uppercase tracking-wider text-[var(--text-secondary)]">
-              Citations
+              {t('help.liveDocs.citations')}
             </div>
             {citations.map((c, idx) => {
               const resolved = resolveCitation(c.doc_id, c.anchor, corpusHash);
@@ -516,7 +520,7 @@ const LiveDocsPanel: FC<{ onOpenDoc: (slug: string) => void }> = ({ onOpenDoc })
                         }}
                         onClick={() => onOpenDoc(resolved.doc.slug)}
                       >
-                        Open bundled
+                        {t('help.liveDocs.openBundled')}
                       </button>
                     ) : c.url ? (
                       <a
@@ -529,7 +533,7 @@ const LiveDocsPanel: FC<{ onOpenDoc: (slug: string) => void }> = ({ onOpenDoc })
                         target="_blank"
                         rel="noreferrer"
                       >
-                        Open source
+                        {t('help.liveDocs.openSource')}
                       </a>
                     ) : null}
                   </div>

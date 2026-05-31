@@ -40,7 +40,7 @@ const ALL_FEATURED_APPS: FeaturedApp[] = [
     description: 'Monaco workspace with persistent local state, intelligent AIL chat, dynamic file context, semantic retrieval, AI edit previews, embedded docs, and Tytus Resource Fabric cockpit.',
     icon: 'atomek:mark',
     category: 'Productivity',
-    manifestUrl: 'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-atomek@v0.4.30/tytus-app.json',
+    manifestUrl: 'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-atomek@v0.4.32/tytus-app.json',
   },
   {
     id: 'text-editor',
@@ -88,7 +88,7 @@ const ALL_FEATURED_APPS: FeaturedApp[] = [
     description: 'Visual agent house for Tytus pods and third-party AI agents — rooms, bodies, moods, probes, and safe status diagnostics.',
     icon: 'Building2',
     category: 'Productivity',
-    manifestUrl: 'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-openhouse@e0835ba8c5d5c4a8aad4033b1e0aa7b603c59e38/tytus-app.json',
+    manifestUrl: 'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-openhouse@v1.1.5/tytus-app.json',
   },
   {
     id: 'juli3ta',
@@ -96,7 +96,7 @@ const ALL_FEATURED_APPS: FeaturedApp[] = [
     description: 'Full AI-native music creator for Tytus OS. Create songs, lyrics, covers, and manage your local music workbench.',
     icon: 'juli3ta:mark',
     category: 'Creative',
-    manifestUrl: 'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-juli3ta@juli3ta-0.3.23/tytus-app.json',
+    manifestUrl: 'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-juli3ta@juli3ta-0.3.24/tytus-app.json',
   },
 ];
 

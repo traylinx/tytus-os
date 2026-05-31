@@ -18,8 +18,10 @@ import { useOS } from "@/hooks/useOSStore";
 import { useDaemonStateContext } from "@/hooks/useDaemonStateContext";
 import { useDaemonClient } from "@/hooks/useDaemonClient";
 import { navigate } from "@/lib/router";
+import { useI18n } from "@/i18n";
 
 const ZeroPodsOverlay = memo(function ZeroPodsOverlay() {
+  const { t } = useI18n();
   const { state: osState, dispatch } = useOS();
   const { state, refresh } = useDaemonStateContext();
   const client = useDaemonClient();
@@ -178,7 +180,7 @@ const ZeroPodsOverlay = memo(function ZeroPodsOverlay() {
               boxShadow: "0 4px 16px rgba(124,77,255,0.35)",
             }}
           >
-            Open Pods →
+            {t('zeroPods.openPods')}
           </button>
         ) : (
           <button

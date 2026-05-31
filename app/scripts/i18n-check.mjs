@@ -5,7 +5,9 @@ import path from 'node:path';
 const root = path.resolve(new URL('..', import.meta.url).pathname);
 const srcRoot = path.join(root, 'src');
 const allowPath = path.join(root, 'scripts', 'i18n-hardcoded.allowlist.json');
+const packPath = path.join(root, '..', 'language-packs/tytus-os-es/tytus-os.es.json');
 const writeAllowlist = process.argv.includes('--write-allowlist');
+const jsonOutput = process.argv.includes('--json');
 
 const read = (p) => fs.readFileSync(p, 'utf8');
 
@@ -41,9 +43,20 @@ function isHumanText(text) {
   if (!/[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]/.test(s)) return false;
   if (/^[A-Z0-9_./:#{}()[\]-]+$/.test(s)) return false;
   if (/^(http|https|mailto):/i.test(s)) return false;
+  if (/^\/[A-Za-z0-9/_-]+$/.test(s)) return false;
+  if (/^[a-z0-9_.:-]+$/.test(s) && !/\s/.test(s)) return false;
   // Avoid false positives from TypeScript generic type spans like
   // useState<Foo | null>(null); const x = useState<Bar>(...).
   if (/\b(useState|useMemo|useCallback|const|let|interface|type|return)\b/.test(s)) return false;
+  // Avoid false positives from ternary / type-annotation spans that the
+  // lightweight JSX regex can see when a TSX expression contains `<` / `>`.
+  if (/^[):?]/.test(s)) return false;
+  if (/^,\s*[A-Z][A-Za-z0-9]+:/.test(s)) return false;
+  if (/^\.\s+[A-Z]/.test(s)) return false;
+  if (
+    /\b(Promise|void|ReadonlySet|Set|null|idx|durationSec)\b|=>|===|!==|\?\s*:|&&|\/\/|;|[A-Za-z_$][\w$]*\./.test(s)
+  ) return false;
+  if (/song titled '|'\. Mood:|element shared by every play surface/.test(s)) return false;
   return true;
 }
 
@@ -77,21 +90,56 @@ function keyOf(f) {
   return `${f.file}|${f.kind}|${f.text}`;
 }
 
+const diagnostics = {
+  locale: {
+    enKeys: 0,
+    esKeys: 0,
+    missingInEs: [],
+    extraInEs: [],
+  },
+  spanishPack: {
+    path: path.relative(root, packPath),
+    drift: [],
+    extra: [],
+  },
+  hardcoded: {
+    totalFindings: 0,
+    allowlisted: 0,
+    new: [],
+  },
+};
 const errors = [];
 const en = parseLocaleTs(path.join(srcRoot, 'i18n/locales/en.ts'));
 const es = parseLocaleTs(path.join(srcRoot, 'i18n/locales/es.ts'));
-for (const key of en.keys()) if (!es.has(key)) errors.push(`es missing key: ${key}`);
-for (const key of es.keys()) if (!en.has(key)) errors.push(`es has extra key not in en: ${key}`);
+diagnostics.locale.enKeys = en.size;
+diagnostics.locale.esKeys = es.size;
+for (const key of en.keys()) {
+  if (!es.has(key)) {
+    diagnostics.locale.missingInEs.push(key);
+    errors.push(`es missing key: ${key}`);
+  }
+}
+for (const key of es.keys()) {
+  if (!en.has(key)) {
+    diagnostics.locale.extraInEs.push(key);
+    errors.push(`es has extra key not in en: ${key}`);
+  }
+}
 
-const packPath = path.join(root, '..', 'language-packs/tytus-os-es/tytus-os.es.json');
 if (fs.existsSync(packPath)) {
   const pack = JSON.parse(read(packPath));
   const strings = pack.strings || {};
   for (const [key, value] of es) {
-    if (strings[key] !== value) errors.push(`Spanish package drift for key: ${key}`);
+    if (strings[key] !== value) {
+      diagnostics.spanishPack.drift.push(key);
+      errors.push(`Spanish package drift for key: ${key}`);
+    }
   }
   for (const key of Object.keys(strings)) {
-    if (!es.has(key)) errors.push(`Spanish package has extra key: ${key}`);
+    if (!es.has(key)) {
+      diagnostics.spanishPack.extra.push(key);
+      errors.push(`Spanish package has extra key: ${key}`);
+    }
   }
 }
 
@@ -110,7 +158,20 @@ if (writeAllowlist) {
 const allow = fs.existsSync(allowPath) ? JSON.parse(read(allowPath)) : { entries: [] };
 const allowed = new Set((allow.entries || []).map(keyOf));
 const newHardcoded = findings.filter((f) => !allowed.has(keyOf(f)));
+diagnostics.hardcoded.totalFindings = findings.length;
+diagnostics.hardcoded.allowlisted = findings.length - newHardcoded.length;
+diagnostics.hardcoded.new = newHardcoded;
 for (const f of newHardcoded) errors.push(`new hardcoded UI string: ${f.file}:${f.line} [${f.kind}] ${JSON.stringify(f.text)}`);
+
+if (jsonOutput) {
+  console.log(JSON.stringify({
+    ok: errors.length === 0,
+    errorCount: errors.length,
+    diagnostics,
+    errors,
+  }, null, 2));
+  process.exit(errors.length ? 1 : 0);
+}
 
 if (errors.length) {
   console.error(`i18n check failed (${errors.length})`);

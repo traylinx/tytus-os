@@ -138,11 +138,11 @@ function isRemoteEntryUrl(entryUrl: string): boolean {
   return /^https?:\/\//i.test(entryUrl);
 }
 
-const JULI3TA_GATEWAY_FIX_VERSION = '0.3.23';
+const JULI3TA_GATEWAY_FIX_VERSION = '0.3.24';
 const JULI3TA_GATEWAY_FIX_MANIFEST_URL =
-  'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-juli3ta@juli3ta-0.3.23/tytus-app.json';
+  'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-juli3ta@juli3ta-0.3.24/tytus-app.json';
 const JULI3TA_GATEWAY_FIX_ENTRY_URL =
-  'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-juli3ta@juli3ta-0.3.23/dist/index.js';
+  'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-juli3ta@juli3ta-0.3.24/dist/index.js';
 
 const JULI3TA_GATEWAY_FIX_MANIFEST: Manifest = {
   $schema: 'https://tytus.traylinx.com/schema/app/v1.json',
@@ -217,29 +217,57 @@ const withJuli3taGatewayFix = (row: InstalledAppRow): InstalledAppRow => {
 // ── Local-dev override (build-flag gated; default OFF) ────────────────
 // Only active when the OS is built with `VITE_LOCAL_ATOMEK=1` — a local
 // verification build. CI / real releases never set this var, so
-// `LOCAL_ATOMEK_OVERRIDE` is `false`, `withLocalDevOverride` is a no-op
+// `LOCAL_*_OVERRIDE` is `false`, `withLocalDevOverride` is a no-op
 // pass-through, and the production CDN/catalog reconciliation path is
 // byte-for-byte unchanged.
 //
-// When on, it rewrites the (CDN-reconciled) Atomek row to load the
-// tray-served local bundle at `/dev-atomek/dist/index.js`, so in-tree
-// `tytus-app-atomek/src/workbench/*` changes are visible in the packaged
-// tray before publishing to the CDN catalog. Same shape as the
-// `withJuli3taGatewayFix` row-rewrite above. (2026-05-29)
+// When on, it rewrites a CDN-reconciled installed-app row to load the
+// tray/vite-served local bundle at `/dev-<app>/dist/index.js`, so local
+// standalone-app changes are visible in the shell before publishing to
+// the CDN catalog. Same shape as the `withJuli3taGatewayFix` row-rewrite
+// above. (Atomek 2026-05-29, OpenHouse 2026-05-31)
 const LOCAL_ATOMEK_OVERRIDE =
   (import.meta.env as Record<string, string | undefined>).VITE_LOCAL_ATOMEK ===
   '1';
-const LOCAL_ATOMEK_ENTRY_URL = '/dev-atomek/dist/index.js';
-const LOCAL_ATOMEK_MANIFEST_URL = '/dev-atomek/tytus-app.json';
+const LOCAL_OPENHOUSE_OVERRIDE =
+  (import.meta.env as Record<string, string | undefined>).VITE_LOCAL_OPENHOUSE ===
+  '1';
+const LOCAL_DEV_APP_URLS: Record<string, { entryPath: string; manifestPath: string; enabled: boolean }> = {
+  atomek: {
+    enabled: LOCAL_ATOMEK_OVERRIDE,
+    entryPath: '/dev-atomek/dist/index.js',
+    manifestPath: '/dev-atomek/tytus-app.json',
+  },
+  openhouse: {
+    enabled: LOCAL_OPENHOUSE_OVERRIDE,
+    entryPath: '/dev-openhouse/dist/index.js',
+    manifestPath: '/dev-openhouse/tytus-app.json',
+  },
+};
+
+const LOCAL_DEV_CACHE_BUST = '20260531-atomek-i18n';
+
+const localDevUrl = (path: string): string => {
+  const origin =
+    typeof window !== 'undefined' && window.location?.origin
+      ? window.location.origin
+      : 'http://localhost:4242';
+  const url = new URL(path, origin);
+  url.searchParams.set('v', LOCAL_DEV_CACHE_BUST);
+  return url.toString();
+};
 
 const withLocalDevOverride = (row: InstalledAppRow): InstalledAppRow => {
-  if (!LOCAL_ATOMEK_OVERRIDE || row.id !== 'atomek') return row;
+  const local = LOCAL_DEV_APP_URLS[row.id];
+  if (!local?.enabled) return row;
+  const entryUrl = localDevUrl(local.entryPath);
+  const manifestUrl = localDevUrl(local.manifestPath);
   return {
     ...row,
-    entryUrl: LOCAL_ATOMEK_ENTRY_URL,
+    entryUrl,
     assetsUrl: null,
-    manifestUrl: LOCAL_ATOMEK_MANIFEST_URL,
-    manifest: { ...row.manifest, entry: { url: LOCAL_ATOMEK_ENTRY_URL } },
+    manifestUrl,
+    manifest: { ...row.manifest, entry: { url: entryUrl } },
   };
 };
 

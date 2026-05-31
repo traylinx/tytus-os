@@ -2509,6 +2509,7 @@ function TrackAvatar({
 }
 
 function MiniPlayer({ player, allTracks }: { player: PlayerControls; allTracks: SavedTrack[] }) {
+  const { t } = useI18n();
   const { state, toggle, next, prev, seek, setVolume, setPlaybackRate, setSleepTimer, queue } = player;
   // Try the queue first (typically === visibleGallery so prev/next
   // line up with what the user sees), then fall back to the full
@@ -2577,7 +2578,7 @@ function MiniPlayer({ player, allTracks }: { player: PlayerControls; allTracks: 
           onClick={prev}
           className="flex items-center justify-center rounded-md transition-all hover:bg-[var(--bg-hover)]"
           style={{ width: 28, height: 28, color: 'var(--text-secondary)' }}
-          title="Previous"
+          title={t('musiccreator.audit.previous_50f942')}
         >
           <Play size={12} style={{ transform: 'rotate(180deg)' }} />
         </button>
@@ -2600,7 +2601,7 @@ function MiniPlayer({ player, allTracks }: { player: PlayerControls; allTracks: 
           onClick={next}
           className="flex items-center justify-center rounded-md transition-all hover:bg-[var(--bg-hover)]"
           style={{ width: 28, height: 28, color: 'var(--text-secondary)' }}
-          title="Next"
+          title={t('musiccreator.audit.next_bc9819')}
         >
           <Play size={12} />
         </button>
@@ -2884,6 +2885,7 @@ function KeyboardShortcutsModal({
   open: boolean;
   onClose: () => void;
 }) {
+  const { t } = useI18n();
   if (!open) return null;
   const groups: Array<{ label: string; rows: typeof KEYBOARD_SHORTCUTS }> = [
     { label: 'Global', rows: KEYBOARD_SHORTCUTS.filter((r) => r.scope === 'global') },
@@ -2923,14 +2925,14 @@ function KeyboardShortcutsModal({
           <div className="flex items-center gap-2">
             <BrandIcon name="juli3ta:mark" size={18} />
             <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>
-              Keyboard shortcuts
+              {t('musiccreator.audit.keyboard_shortcuts_266695')}
             </span>
           </div>
           <button
             onClick={onClose}
             className="flex items-center justify-center rounded-md transition-all hover:bg-[var(--bg-hover)]"
             style={{ width: 28, height: 28, color: 'var(--text-secondary)' }}
-            title="Close (Esc)"
+            title={t('musiccreator.audit.close_esc_6ae84e')}
           >
             <X size={14} />
           </button>
@@ -2996,7 +2998,7 @@ function KeyboardShortcutsModal({
           }}
         >
           <span>Bindings skip when typing in inputs.</span>
-          <span>Press <kbd style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', color: 'var(--text-secondary)' }}>?</kbd> again to close.</span>
+          <span>{t('musiccreator.audit.press_ea683a')} <kbd style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', color: 'var(--text-secondary)' }}>?</kbd> again to close.</span>
         </div>
       </div>
     </div>,
@@ -3042,7 +3044,7 @@ function EmptyState({ retrying, onRetry }: EmptyStateProps) {
           backgroundClip: 'text',
         }}
       >
-        JULI3TA needs a stage
+        {t('musiccreator.audit.juli3ta_needs_a_stage_d628f1')}
       </div>
       <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 12, maxWidth: 380, lineHeight: 1.5 }}>
         {t('musiccreator.empty.body')}
@@ -3077,7 +3079,7 @@ function EmptyState({ retrying, onRetry }: EmptyStateProps) {
             border: '1px solid var(--border-subtle)',
           }}
         >
-          Get Tytus →
+          {t('musiccreator.audit.get_tytus_287ab3')}
         </a>
       </div>
 
@@ -3092,11 +3094,11 @@ function EmptyState({ retrying, onRetry }: EmptyStateProps) {
         }}
       >
         <div style={{ fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 4 }}>
-          JULI3TA tries, in order:
+          {t('musiccreator.audit.juli3ta_tries_in_order_954368')}
         </div>
-        <div>1. Your remote Tytus pod (best — runs in the cloud)</div>
-        <div>2. Local <code>switchAILocal</code> on this machine</div>
-        <div>3. This screen — when neither is reachable</div>
+        <div>{t('musiccreator.audit.1_your_remote_tytus_pod_best_runs_in_the_cloud_003829')}</div>
+        <div>{t('musiccreator.audit.2_local_95561b')} <code>{t('musiccreator.audit.switchailocal_4d2f41')}</code> {t('musiccreator.audit.on_this_machine_b44be5')}</div>
+        <div>{t('musiccreator.audit.3_this_screen_when_neither_is_reachable_f8aa37')}</div>
       </div>
     </div>
   );
@@ -3172,6 +3174,7 @@ interface GenrePaletteCardProps {
   disabled?: boolean;
 }
 function GenrePaletteCard({ onPick, disabled }: GenrePaletteCardProps) {
+  const { t } = useI18n();
   const [expandAll, setExpandAll] = useState(false);
   const [activeGroup, setActiveGroup] = useState(STYLE_GROUPS[0].label);
   const [query, setQuery] = useState('');
@@ -3211,7 +3214,7 @@ function GenrePaletteCard({ onPick, disabled }: GenrePaletteCardProps) {
               textTransform: 'uppercase', letterSpacing: 0.5,
             }}
           >
-            Genre palette
+            {t('musiccreator.audit.genre_palette_c83e3e')}
           </label>
           <span style={{ fontSize: 10, color: 'var(--text-disabled)' }}>
             {searching
@@ -3233,7 +3236,7 @@ function GenrePaletteCard({ onPick, disabled }: GenrePaletteCardProps) {
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search genres…"
+              placeholder={t('musiccreator.audit.search_genres_c6cb92')}
               className="rounded-input bg-transparent outline-none"
               style={{ fontSize: 11, color: 'var(--text-primary)', width: 140 }}
             />
@@ -3241,7 +3244,7 @@ function GenrePaletteCard({ onPick, disabled }: GenrePaletteCardProps) {
               <button
                 onClick={() => setQuery('')}
                 className="opacity-60 hover:opacity-100"
-                title="Clear search"
+                title={t('musiccreator.audit.clear_search_67300d')}
               >
                 <X size={11} />
               </button>
@@ -3401,6 +3404,7 @@ interface TrackSpecsCardProps {
 }
 
 function TrackSpecsCard({ specs, onChange, disabled, onOptimize, optimizing }: TrackSpecsCardProps) {
+  const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const compiled = useMemo(() => compileSpecsToText(specs), [specs]);
   const hasAny = compiled.length > 0;
@@ -3444,7 +3448,7 @@ function TrackSpecsCard({ specs, onChange, disabled, onOptimize, optimizing }: T
               letterSpacing: 0.5,
             }}
           >
-            Track Specs
+            {t('musiccreator.audit.track_specs_2ccad4')}
           </span>
           <span style={{ fontSize: 10, color: 'var(--text-disabled)' }}>
             {hasAny ? 'compiled into Style on generate' : 'optional structured controls'}
@@ -3467,7 +3471,7 @@ function TrackSpecsCard({ specs, onChange, disabled, onOptimize, optimizing }: T
                 background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))',
                 border: '1px solid transparent',
               }}
-              title="Use AI to fill optimal specs from your theme + style + lyrics"
+              title={t('musiccreator.audit.use_ai_to_fill_optimal_specs_from_your_theme_style_66265f')}
             >
               {optimizing
                 ? <Loader2 size={11} className="animate-spin" />
@@ -3524,7 +3528,7 @@ function TrackSpecsCard({ specs, onChange, disabled, onOptimize, optimizing }: T
                 lineHeight: 1.5,
               }}
             >
-              <span style={{ color: 'var(--text-disabled)', fontWeight: 600 }}>preview · </span>
+              <span style={{ color: 'var(--text-disabled)', fontWeight: 600 }}>{t('musiccreator.audit.preview_fc55e4')} </span>
               {compiled}
             </div>
           )}
@@ -3707,7 +3711,7 @@ function TrackSpecsCard({ specs, onChange, disabled, onOptimize, optimizing }: T
                   <TextInput
                     value={specs.instrumentation?.language_iso639_1 ?? ''}
                     onChange={(v) => patch('instrumentation', { ...specs.instrumentation, language_iso639_1: v.trim() || undefined })}
-                    placeholder="en, es, ja…"
+                    placeholder={t('musiccreator.audit.en_es_ja_087a93')}
                     maxLength={5}
                     disabled={disabled}
                   />
@@ -3759,7 +3763,7 @@ function TrackSpecsCard({ specs, onChange, disabled, onOptimize, optimizing }: T
               className="px-2 py-1 rounded-md transition-all hover:bg-[var(--bg-hover)] disabled:opacity-30"
               style={{ fontSize: 10, color: 'var(--text-disabled)', background: 'transparent', border: 'none' }}
             >
-              Clear all specs
+              {t('musiccreator.audit.clear_all_specs_2cf4c7')}
             </button>
           </div>
         </div>
@@ -4243,9 +4247,9 @@ function TrackTable({ tracks, player, onLoad, onOpenLyrics, onDelete, onRename }
         }}
       >
         <span></span>
-        <span>Title</span>
-        <span style={{ textAlign: 'right' }}>Time</span>
-        <span style={{ textAlign: 'right' }}>Added</span>
+        <span>{t('musiccreator.audit.title_768e0c')}</span>
+        <span style={{ textAlign: 'right' }}>{t('musiccreator.audit.time_6c82e6')}</span>
+        <span style={{ textAlign: 'right' }}>{t('musiccreator.audit.added_b68734')}</span>
         <span></span>
       </div>
       {tracks.map((track) => (
@@ -4382,7 +4386,7 @@ function TrackTableRow({
                 e.stopPropagation();
                 setEditing(track.title);
               }}
-              title="Double-click to rename"
+              title={translate('musiccreator.audit.double_click_to_rename_d1bef7')}
             >
               {track.title || translate('musiccreator.track.untitled')}
             </div>
@@ -4415,7 +4419,7 @@ function TrackTableRow({
         }}
         className="flex items-center justify-center rounded-md transition-colors hover:bg-[var(--bg-selected)]"
         style={{ width: 18, height: 18, color: 'var(--text-disabled)' }}
-        title="Click: load into form · Shift-click: open lyrics · Alt-click: delete"
+        title={translate('musiccreator.audit.click_load_into_form_shift_click_open_lyrics_alt_c_877716')}
       >
         <MoreVertical size={11} />
       </button>
@@ -4604,7 +4608,7 @@ function TrackCard({
                 e.stopPropagation();
                 setEditing(track.title);
               }}
-              title="Double-click to rename"
+              title={t('musiccreator.audit.double_click_to_rename_d1bef7')}
             >
               {track.title || t('musiccreator.track.untitled')}
             </div>
@@ -4628,8 +4632,8 @@ function TrackCard({
             width: 24, height: 24,
             color: hover || menu ? 'var(--text-primary)' : 'var(--text-disabled)',
           }}
-          aria-label="Track actions"
-          title="Track actions"
+          aria-label={t('musiccreator.audit.track_actions_84a2cd')}
+          title={t('musiccreator.audit.track_actions_84a2cd')}
         >
           <MoreVertical size={14} />
         </button>
@@ -4724,6 +4728,7 @@ function RecentlyPlayedRow({
   player: PlayerControls;
   onSelect: (track: SavedTrack) => void;
 }) {
+  const { t } = useI18n();
   const tracks = trackIds
     .map((id) => allTracks.find((t) => t.id === id))
     .filter((t): t is SavedTrack => !!t)
@@ -4740,7 +4745,7 @@ function RecentlyPlayedRow({
           padding: '2px 4px 6px',
         }}
       >
-        Recent
+        {t('musiccreator.audit.recent_76eec7')}
       </div>
       <div className="flex gap-1.5 overflow-x-auto invisible-scrollbar pb-1">
         {tracks.map((t) => {
@@ -4804,6 +4809,7 @@ function LibrarySidebarRow({
   onOpenInPlayer, onRemix, onToggleFavorite, onRemove,
   selectMode = false, checked = false, onToggleCheck,
 }: LibrarySidebarRowProps) {
+  const { t } = useI18n();
   const kebabRef = useRef<HTMLButtonElement | null>(null);
   const [hover, setHover] = useState(false);
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
@@ -4952,8 +4958,8 @@ function LibrarySidebarRow({
               width: 24, height: 24,
               color: hover || menu ? 'var(--text-primary)' : 'var(--text-disabled)',
             }}
-            aria-label="Track actions"
-            title="Track actions"
+            aria-label={t('musiccreator.audit.track_actions_84a2cd')}
+            title={t('musiccreator.audit.track_actions_84a2cd')}
           >
             <MoreVertical size={14} />
           </button>
@@ -5049,6 +5055,7 @@ function CoverArtModal({
   onSave: (id: string, coverDataUrl: string) => void;
   onClose: () => void;
 }) {
+  const { t } = useI18n();
   const [draftCover, setDraftCover] = useState(track.coverDataUrl);
   const [prompt, setPrompt] = useState('');
   const [busy, setBusy] = useState(false);
@@ -5153,7 +5160,7 @@ function CoverArtModal({
             onClick={onClose}
             className="ml-auto rounded-md hover:bg-[var(--bg-hover)] flex items-center justify-center"
             style={{ width: 24, height: 24, color: 'var(--text-secondary)' }}
-            title="Close"
+            title={t('musiccreator.audit.close_bbfa77')}
           >
             <X size={14} />
           </button>
@@ -5211,7 +5218,7 @@ function CoverArtModal({
                 }}
               >
                 <Upload size={12} />
-                Upload
+                {t('musiccreator.audit.upload_8bdf05')}
               </button>
               {draftCover && (
                 <button
@@ -5226,14 +5233,14 @@ function CoverArtModal({
                   }}
                 >
                   <X size={12} />
-                  Clear
+                  {t('chat.agent.clear')}
                 </button>
               )}
             </div>
           </div>
           <div>
             <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-disabled)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>
-              Prompt
+              {t('musiccreator.audit.prompt_a817d7')}
             </div>
             <textarea
               value={prompt}
@@ -5280,7 +5287,7 @@ function CoverArtModal({
               border: '1px solid var(--border-subtle)',
             }}
           >
-            Cancel
+            {t('top.cancel')}
           </button>
           <button
             onClick={() => { onSave(track.id, draftCover); onClose(); }}
@@ -5294,7 +5301,7 @@ function CoverArtModal({
               border: '1px solid transparent',
             }}
           >
-            Save
+            {t('common.save')}
           </button>
         </div>
         <input
@@ -5372,6 +5379,7 @@ function SongCardModal({
   endpoint, busy,
   onRegenerate, onUpload, onClear, onClose,
 }: SongCardModalProps) {
+  const { t } = useI18n();
   const fileRef = useRef<HTMLInputElement | null>(null);
   const specsSummary = useMemo(() => compileSpecsToText(specs), [specs]);
   const setCount = useMemo(() => countSetSpecs(specs), [specs]);
@@ -5412,7 +5420,7 @@ function SongCardModal({
         >
           <Disc3 size={14} style={{ color: 'var(--accent-primary)' }} />
           <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>
-            Song Card
+            {t('musiccreator.audit.song_card_4d20ee')}
           </span>
           <span
             className="px-2 py-0.5 rounded-full"
@@ -5429,7 +5437,7 @@ function SongCardModal({
             onClick={onClose}
             className="ml-auto rounded-md hover:bg-[var(--bg-hover)] flex items-center justify-center"
             style={{ width: 24, height: 24, color: 'var(--text-secondary)' }}
-            title="Close (Esc)"
+            title={t('musiccreator.audit.close_esc_6ae84e')}
           >
             <X size={14} />
           </button>
@@ -5508,7 +5516,7 @@ function SongCardModal({
                 }}
               >
                 <Upload size={11} />
-                Upload
+                {t('musiccreator.audit.upload_8bdf05')}
               </button>
               {coverDataUrl && (
                 <button
@@ -5523,7 +5531,7 @@ function SongCardModal({
                   }}
                 >
                   <X size={11} />
-                  Clear
+                  {t('chat.agent.clear')}
                 </button>
               )}
             </div>
@@ -5744,7 +5752,7 @@ function ReferenceAudioControl({
   base64,
   src,
   onPlay,
-  title = 'Preview reference audio',
+  title,
   height = 30,
   style,
 }: {
@@ -5755,6 +5763,7 @@ function ReferenceAudioControl({
   height?: number;
   style?: React.CSSProperties;
 }) {
+  const { t } = useI18n();
   const payload = useMemo(() => base64 || extractBase64Payload(src), [base64, src]);
   const fallbackDurationMs = useMemo(
     () => (payload ? wavDurationMsFromBase64(payload) : null),
@@ -5788,7 +5797,8 @@ function ReferenceAudioControl({
   };
 
   const durationMs = nativeDurationMs ?? fallbackDurationMs;
-  const finalSrc = objectUrl || src || '';
+  const finalTitle = title ?? t('musiccreator.reference.previewAudio');
+  const finalSrc = objectUrl || src || undefined;
 
   return (
     <div style={style}>
@@ -5800,7 +5810,7 @@ function ReferenceAudioControl({
         onDurationChange={(e) => readNativeDuration(e.currentTarget)}
         onPlay={onPlay}
         style={{ width: '100%', height }}
-        title={title}
+        title={finalTitle}
       />
       {durationMs && durationMs > 0 && (
         <div style={{ fontSize: 10, color: 'var(--text-disabled)', marginTop: 4 }}>
@@ -5827,6 +5837,7 @@ function ReferenceAudioCard({
   sourceLabel: string;
   onUserPlay: () => void;
 }) {
+  const { t } = useI18n();
   return (
     <div
       className="rounded-xl px-5 py-5"
@@ -5844,7 +5855,7 @@ function ReferenceAudioCard({
           marginBottom: 6,
         }}
       >
-        Reference audio
+        {t('musiccreator.audit.reference_audio_767c31')}
       </div>
       <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 12 }}>
         Compare your restyle with the original you fed in.
@@ -5863,7 +5874,7 @@ function ReferenceAudioCard({
       <ReferenceAudioControl
         src={audioSrc}
         onPlay={onUserPlay}
-        title="Preview the exact reference audio sent to MiniMax cover mode"
+        title={t('musiccreator.audit.preview_the_exact_reference_audio_sent_to_minimax__d9eafa')}
         height={32}
       />
     </div>
@@ -6051,7 +6062,7 @@ function PlayerView({ track, player, restyleOriginal, onEditInCreator, onSwitchT
             }}
           >
             <Search size={13} />
-            Search free music
+            {t('musiccreator.audit.search_free_music_da45e7')}
           </button>
         )}
       </div>
@@ -6235,7 +6246,7 @@ function PlayerView({ track, player, restyleOriginal, onEditInCreator, onSwitchT
                   title={isViewingActive && playerPlaying ? 'Pause' : 'Play'}
                 >
                   {playerLoading
-                    ? <><Loader2 size={16} className="animate-spin" /> Loading…</>
+                    ? <><Loader2 size={16} className="animate-spin" /> {t('musiccreator.audit.loading_33ce41')}</>
                     : isViewingActive && playerPlaying
                     ? <><Pause size={16} /> {t('musiccreator.player.pause')}</>
                     : <><Play size={16} style={{ marginLeft: 2 }} /> {t('musiccreator.player.play')}</>}
@@ -6283,10 +6294,10 @@ function PlayerView({ track, player, restyleOriginal, onEditInCreator, onSwitchT
                     backdropFilter: 'blur(8px)',
                     border: '1px solid rgba(255,255,255,0.18)',
                   }}
-                  title="Download MP3 to your computer"
+                  title={t('musiccreator.audit.download_mp3_to_your_computer_bbf077')}
                 >
                   <Download size={13} />
-                  Download
+                  {t('common.download')}
                 </button>
               )}
             </div>
@@ -6336,21 +6347,21 @@ function PlayerView({ track, player, restyleOriginal, onEditInCreator, onSwitchT
                     <Radio size={18} />
                   </div>
                   <div>
-                    <div style={{ fontSize: 15, fontWeight: 900, color: 'var(--text-primary)' }}>Streamed track</div>
+                    <div style={{ fontSize: 15, fontWeight: 900, color: 'var(--text-primary)' }}>{t('musiccreator.audit.streamed_track_4191ff')}</div>
                     <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>No lyrics stored. This area is now a live track dashboard instead of an empty lyrics box.</div>
                   </div>
                 </div>
                 <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))' }}>
                   <div className="rounded-xl p-3" style={{ background: 'var(--bg-window)', border: '1px solid var(--border-subtle)' }}>
-                    <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.8, color: 'var(--text-disabled)', fontWeight: 800 }}>Artist</div>
+                    <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.8, color: 'var(--text-disabled)', fontWeight: 800 }}>{t('musiccreator.audit.artist_6c3f3d')}</div>
                     <div className="truncate" style={{ fontSize: 14, fontWeight: 900, color: 'var(--text-primary)', marginTop: 6 }}>{track.artist || 'Unknown artist'}</div>
                   </div>
                   <div className="rounded-xl p-3" style={{ background: 'var(--bg-window)', border: '1px solid var(--border-subtle)' }}>
-                    <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.8, color: 'var(--text-disabled)', fontWeight: 800 }}>Channel / Album</div>
+                    <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.8, color: 'var(--text-disabled)', fontWeight: 800 }}>{t('musiccreator.audit.channel_album_b3589e')}</div>
                     <div className="truncate" style={{ fontSize: 14, fontWeight: 900, color: 'var(--text-primary)', marginTop: 6 }}>{track.album || track.artist || 'Unknown'}</div>
                   </div>
                   <div className="rounded-xl p-3" style={{ background: 'var(--bg-window)', border: '1px solid var(--border-subtle)' }}>
-                    <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.8, color: 'var(--text-disabled)', fontWeight: 800 }}>Duration</div>
+                    <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.8, color: 'var(--text-disabled)', fontWeight: 800 }}>{t('musiccreator.audit.duration_137000')}</div>
                     <div style={{ fontSize: 14, fontWeight: 900, color: 'var(--text-primary)', marginTop: 6 }}>{track.durationMs ? formatTime(track.durationMs) : 'Unknown'}</div>
                   </div>
                 </div>
@@ -6362,7 +6373,7 @@ function PlayerView({ track, player, restyleOriginal, onEditInCreator, onSwitchT
                     className="mt-4 inline-flex items-center gap-1.5 rounded-lg px-3"
                     style={{ height: 32, fontSize: 12, fontWeight: 800, color: 'white', background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))' }}
                   >
-                    <ExternalLink size={13} /> Open source
+                    <ExternalLink size={13} /> {t('help.liveDocs.openSource')}
                   </a>
                 )}
               </div>
@@ -6614,6 +6625,7 @@ function MusicSearchPane({
   onDisconnectConnector,
   onClose,
 }: MusicSearchPaneProps) {
+  const { t } = useI18n();
   const [connectorSetup, setConnectorSetup] = useState<{
     id: string;
     name: string;
@@ -6699,7 +6711,7 @@ function MusicSearchPane({
           onClick={() => onRemoveLibraryTrack(track)}
           className="flex items-center justify-center rounded-lg transition-all hover:bg-[var(--bg-hover)]"
           style={{ width: 32, height: 32, color: 'var(--text-disabled)', background: 'var(--bg-window)', border: '1px solid var(--border-subtle)' }}
-          title="Remove from music library"
+          title={t('musiccreator.audit.remove_from_music_library_f7bcda')}
         >
           <Trash2 size={13} />
         </button>
@@ -6803,7 +6815,7 @@ function MusicSearchPane({
         <div className="flex items-center justify-between gap-4 mb-4">
           <div>
             <div style={{ fontSize: 24, fontWeight: 900, color: 'var(--text-primary)', letterSpacing: '-0.03em' }}>
-              Music
+              {t('musiccreator.audit.music_131260')}
             </div>
             <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>
               Discover new music, browse by artist or album, manage playlists and sources.
@@ -6830,7 +6842,7 @@ function MusicSearchPane({
               onClick={onClose}
               className="flex items-center justify-center rounded-lg transition-all hover:bg-[var(--bg-hover)]"
               style={{ width: 32, height: 32, color: 'var(--text-secondary)', background: 'var(--bg-titlebar)', border: '1px solid var(--border-subtle)' }}
-              title="Close music search"
+              title={t('musiccreator.audit.close_music_search_c164a0')}
             >
               <X size={14} />
             </button>
@@ -6862,7 +6874,7 @@ function MusicSearchPane({
             <input
               value={query}
               onChange={(e) => onQueryChange(e.target.value)}
-              placeholder="Search music, artists, albums…"
+              placeholder={t('musiccreator.audit.search_music_artists_albums_b3a8be')}
               className="flex-1 bg-transparent outline-none"
               style={{ color: 'var(--text-primary)', fontSize: 14, fontWeight: 600 }}
               autoFocus
@@ -6903,7 +6915,7 @@ function MusicSearchPane({
         {tab === 'search' && query.trim().length < 2 && searchHistory.length > 0 && (
           <div className="mt-3 flex items-center gap-2 flex-wrap">
             <span style={{ fontSize: 10, color: 'var(--text-disabled)', textTransform: 'uppercase', letterSpacing: 0.7, fontWeight: 800 }}>
-              Recent
+              {t('musiccreator.audit.recent_76eec7')}
             </span>
             {searchHistory.map((q) => (
               <button
@@ -6934,7 +6946,7 @@ function MusicSearchPane({
                 background: 'var(--bg-titlebar)',
                 border: '1px solid var(--border-subtle)',
               }}
-              title="Clear recent searches"
+              title={t('musiccreator.audit.clear_recent_searches_692409')}
             >
               <X size={11} />
             </button>
@@ -7052,9 +7064,9 @@ function MusicSearchPane({
                           background: 'var(--bg-titlebar)',
                           border: '1px solid var(--border-subtle)',
                         }}
-                        title="Back to all artists"
+                        title={t('musiccreator.audit.back_to_all_artists_cd4619')}
                       >
-                        <ChevronLeft size={13} /> Artists
+                        <ChevronLeft size={13} /> {t('musiccreator.audit.artists_1528d8')}
                       </button>
                       <div className="min-w-0 flex-1">
                         <div className="truncate" style={{ fontSize: 22, fontWeight: 900, color: 'var(--text-primary)', letterSpacing: '-0.02em' }}>
@@ -7074,7 +7086,7 @@ function MusicSearchPane({
                             background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))',
                           }}
                         >
-                          <Play size={12} /> Play first
+                          <Play size={12} /> {t('musiccreator.audit.play_first_0ed616')}
                         </button>
                       )}
                     </div>
@@ -7125,9 +7137,9 @@ function MusicSearchPane({
                           background: 'var(--bg-titlebar)',
                           border: '1px solid var(--border-subtle)',
                         }}
-                        title="Back to all albums"
+                        title={t('musiccreator.audit.back_to_all_albums_f37413')}
                       >
-                        <ChevronLeft size={13} /> Albums
+                        <ChevronLeft size={13} /> {t('musiccreator.audit.albums_4c45e7')}
                       </button>
                       {firstAlbumTrack && <TrackAvatar track={firstAlbumTrack} size={64} iconSize={24} radius={14} />}
                       <div className="min-w-0 flex-1">
@@ -7148,7 +7160,7 @@ function MusicSearchPane({
                             background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))',
                           }}
                         >
-                          <Play size={12} /> Play first
+                          <Play size={12} /> {t('musiccreator.audit.play_first_0ed616')}
                         </button>
                       )}
                     </div>
@@ -7198,7 +7210,7 @@ function MusicSearchPane({
                   <ListMusic size={22} />
                 </div>
                 <div className="min-w-0 flex-1" style={{ minWidth: 220 }}>
-                  <div style={{ fontSize: 16, fontWeight: 900, color: 'var(--text-primary)' }}>Playlists</div>
+                  <div style={{ fontSize: 16, fontWeight: 900, color: 'var(--text-primary)' }}>{t('musiccreator.audit.playlists_77b69f')}</div>
                   <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>
                     Real SQLite-backed playlists, separate from My Work.
                   </div>
@@ -7207,7 +7219,7 @@ function MusicSearchPane({
                   value={playlistNameDraft}
                   onChange={(e) => onPlaylistNameDraftChange(e.target.value)}
                   onKeyDown={(e) => { if (e.key === 'Enter') onCreatePlaylist(); }}
-                  placeholder="New playlist name…"
+                  placeholder={t('musiccreator.audit.new_playlist_name_e191f9')}
                   className="rounded-lg bg-transparent outline-none px-3"
                   style={{ height: 34, minWidth: 180, color: 'var(--text-primary)', border: '1px solid var(--border-subtle)', background: 'var(--bg-window)', fontSize: 12, fontWeight: 700 }}
                 />
@@ -7242,14 +7254,14 @@ function MusicSearchPane({
                       className="flex items-center gap-1.5 rounded-lg px-3 disabled:opacity-40"
                       style={{ height: 30, fontSize: 11, fontWeight: 900, color: 'white', background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))' }}
                     >
-                      <Play size={12} /> Play
+                      <Play size={12} /> {t('musiccreator.player.play')}
                     </button>
                     <button
                       type="button"
                       onClick={() => onDeletePlaylist(playlist.id)}
                       className="flex items-center justify-center rounded-lg"
                       style={{ width: 30, height: 30, color: 'var(--text-disabled)', background: 'var(--bg-window)', border: '1px solid var(--border-subtle)' }}
-                      title="Delete playlist"
+                      title={t('musiccreator.audit.delete_playlist_b55b18')}
                     >
                       <Trash2 size={13} />
                     </button>
@@ -7270,7 +7282,7 @@ function MusicSearchPane({
                         onClick={() => onRemoveTrackFromPlaylist(playlist.id, track.id)}
                         className="flex items-center justify-center rounded-md"
                         style={{ width: 28, height: 28, color: 'var(--text-disabled)' }}
-                        title="Remove from playlist"
+                        title={t('musiccreator.audit.remove_from_playlist_ad3e5d')}
                       >
                         <X size={13} />
                       </button>
@@ -7420,7 +7432,7 @@ function MusicSearchPane({
                           className="rounded-lg px-3 disabled:opacity-50"
                           style={{ height: 32, fontSize: 11, fontWeight: 800, color: 'var(--text-secondary)', background: 'var(--bg-window)', border: '1px solid var(--border-subtle)' }}
                         >
-                          Disconnect
+                          {t('musiccreator.audit.disconnect_ed28e0')}
                         </button>
                       )}
                     </div>
@@ -9127,6 +9139,59 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
     }
   }, [beginAiTask, finishAiTask, callAIAssist, theme, style]);
 
+  const writeLyricsDraft = useCallback(async () => {
+    if (!endpoint) return;
+    if (instrumental) return;
+    const intent = (specs.intent ?? '').trim();
+    if (!theme.trim() && !intent) {
+      setError(t('musiccreator.error.noInput'));
+      return;
+    }
+    const controller = beginAiTask('lyrics');
+    if (!controller) return;
+    setError(null);
+    try {
+      const overrides = creatorSettings.overridesByEndpoint[endpoint.url] ?? {};
+      const effectiveEndpoint: PodEndpoint = {
+        ...endpoint,
+        models: {
+          music: overrides.music || endpoint.models.music,
+          cover: overrides.cover || endpoint.models.cover,
+          lyrics: overrides.lyrics || endpoint.models.lyrics,
+          lyricsBackup: overrides.lyricsBackup || endpoint.models.lyricsBackup,
+          image: overrides.image || endpoint.models.image,
+          allIds: endpoint.models.allIds,
+        },
+      };
+      const specsText = compileSpecsToText(specs);
+      const promptParts: string[] = [];
+      if (theme.trim()) promptParts.push(theme.trim());
+      if (intent) promptParts.push(`User intent (must respect): ${intent}`);
+      if (specsText) promptParts.push(`Musical context: ${specsText}`);
+      if (activeTemplate) promptParts.push(`Structure: ${activeTemplate.prompt}`);
+      const generated = await callLyrics(effectiveEndpoint, promptParts.join('\n\n'), controller.signal);
+      if (controller.signal.aborted) return;
+      if (generated.lyrics.length > MAX_LYRICS) {
+        setError(t('musiccreator.error.lyricsTooLong', { count: generated.lyrics.length, max: MAX_LYRICS }));
+        return;
+      }
+      setLyrics(generated.lyrics);
+      const generatedTitle = generated.song_title === 'Untitled' ? '' : generated.song_title;
+      if (generatedTitle && !songName.trim()) setSongName(generatedTitle);
+      if (generated.style_tags && !style.trim()) setStyle(generated.style_tags);
+      if (generated.usedFallback) {
+        setGalleryError(
+          `Primary lyrics model errored — used backup chat model "${effectiveEndpoint.models.lyricsBackup ?? 'unknown'}" instead.`,
+        );
+      }
+    } catch (e) {
+      if (isAbortError(e)) return;
+      setError((e as Error).message || 'Lyrics generation failed.');
+    } finally {
+      finishAiTask('lyrics', controller);
+    }
+  }, [endpoint, instrumental, specs, theme, activeTemplate, creatorSettings, beginAiTask, finishAiTask, t, songName, style]);
+
   const polishLyrics = useCallback(async () => {
     if (!lyrics.trim()) {
       setError('Nothing to polish — write some lyrics first.');
@@ -10393,7 +10458,7 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
                       background: galleryView === 'cards' ? 'var(--bg-hover)' : 'transparent',
                       color: galleryView === 'cards' ? 'var(--text-primary)' : 'var(--text-disabled)',
                     }}
-                    title="Cards"
+                    title={t('musiccreator.audit.cards_0f830b')}
                   >
                     <Layers size={11} />
                   </button>
@@ -10405,7 +10470,7 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
                       background: galleryView === 'list' ? 'var(--bg-hover)' : 'transparent',
                       color: galleryView === 'list' ? 'var(--text-primary)' : 'var(--text-disabled)',
                     }}
-                    title="List"
+                    title={t('musiccreator.audit.list_a1fffa')}
                   >
                     <FileMusic size={11} />
                   </button>
@@ -10426,7 +10491,7 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
                   background: 'var(--bg-window)',
                   color: 'var(--text-secondary)',
                 }}
-                title="Search streamed music"
+                title={t('musiccreator.audit.search_streamed_music_02a746')}
               >
                 <Search size={11} />
               </button>
@@ -10509,7 +10574,7 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
             <button
               onClick={() => setGallerySearch('')}
               className="opacity-60 hover:opacity-100 px-1"
-              title="Clear search"
+              title={t('musiccreator.audit.clear_search_67300d')}
             >
               <X size={11} />
             </button>
@@ -10568,7 +10633,7 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
                     border: '1px solid var(--border-subtle)',
                   }}
                 >
-                  Select all
+                  {t('musiccreator.audit.select_all_913aff')}
                 </button>
                 <button
                   onClick={exitLibrarySelectMode}
@@ -10581,9 +10646,9 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
                     background: 'var(--bg-window)',
                     border: '1px solid var(--border-subtle)',
                   }}
-                  title="Exit select mode (ESC)"
+                  title={t('musiccreator.audit.exit_select_mode_esc_047a6c')}
                 >
-                  Done
+                  {t('musiccreator.audit.done_e9b450')}
                 </button>
               </>
             )
@@ -10623,9 +10688,9 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
                       background: 'var(--bg-window)',
                       border: '1px solid var(--border-subtle)',
                     }}
-                    title="Multi-select for batch actions"
+                    title={t('musiccreator.audit.multi_select_for_batch_actions_967a7b')}
                   >
-                    <CheckSquare size={11} /> Select
+                    <CheckSquare size={11} /> {t('musiccreator.audit.select_859822')}
                   </button>
                 )}
               </>
@@ -10662,7 +10727,7 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
                   background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))',
                 }}
               >
-                <Sparkles size={11} /> Start a song
+                <Sparkles size={11} /> {t('musiccreator.audit.start_a_song_17e84a')}
               </button>
               <div className="flex items-center gap-1 mt-3" style={{ fontSize: 9, color: 'var(--text-disabled)' }}>
                 <Mic size={10} />
@@ -10736,7 +10801,7 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
                 <Heart size={18} style={{ color: 'var(--text-disabled)' }} />
               </div>
               <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
-                Your saved music lives here
+                {t('musiccreator.audit.your_saved_music_lives_here_f253be')}
               </div>
               <div style={{ fontSize: 10, color: 'var(--text-disabled)', marginTop: 4, maxWidth: 220, lineHeight: 1.4 }}>
                 Click the magnifier above to search, then add tracks you want to keep.
@@ -10755,7 +10820,7 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
                   background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))',
                 }}
               >
-                <Search size={11} /> Search music
+                <Search size={11} /> {t('musiccreator.audit.search_music_f9854f')}
               </button>
             </div>
           ) : visibleLibrary.length === 0 ? (
@@ -10821,7 +10886,7 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
               }}
               title={`Toggle favorite on ${librarySelectedIds.size} track(s)`}
             >
-              <Heart size={11} /> Toggle favorite
+              <Heart size={11} /> {t('musiccreator.audit.toggle_favorite_48e986')}
             </button>
             <button
               onClick={() => {
@@ -10840,7 +10905,7 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
               }}
               title={`Remove ${librarySelectedIds.size} track(s) from Library`}
             >
-              <Trash2 size={11} /> Remove
+              <Trash2 size={11} /> {t('settings.background.custom.remove')}
             </button>
           </div>
         )}
@@ -10946,10 +11011,10 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
                     : 'var(--bg-window)',
                   border: '1px solid var(--border-subtle)',
                 }}
-                title="Search free music"
+                title={t('musiccreator.audit.search_free_music_da45e7')}
               >
                 <Search size={12} />
-                Search music
+                {t('musiccreator.audit.search_music_f9854f')}
               </button>
             )}
             <ConnectionBadge endpoint={endpoint} endpoints={endpoints} onSwitch={switchEndpoint} />
@@ -10980,7 +11045,7 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
                 background: 'var(--bg-window)',
                 border: '1px solid var(--border-subtle)',
               }}
-              title="JULI3TA Settings"
+              title={t('musiccreator.audit.juli3ta_settings_1bff68')}
             >
               <Settings2 size={14} />
             </button>
@@ -11329,7 +11394,7 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
                     onClick={() => setGalleryError(null)}
                     className="rounded-md transition-all hover:bg-[var(--bg-hover)] flex-shrink-0 flex items-center justify-center"
                     style={{ width: 18, height: 18, color: 'var(--text-secondary)' }}
-                    title="Dismiss"
+                    title={t('musiccreator.audit.dismiss_70afe9')}
                   >
                     <X size={11} />
                   </button>
@@ -11370,7 +11435,7 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
             }}
           >
             <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.5 }}>
-              Reference audio
+              {t('musiccreator.audit.reference_audio_767c31')}
             </label>
             {refAudioName ? (
               <div
@@ -11392,7 +11457,7 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
                     disabled={busy || extracting}
                     className="p-1 rounded-md transition-all hover:bg-[var(--bg-hover)] disabled:opacity-40"
                     style={{ color: 'var(--text-secondary)' }}
-                    title="Remove reference"
+                    title={t('musiccreator.audit.remove_reference_629558')}
                   >
                     <Trash2 size={14} />
                   </button>
@@ -11418,7 +11483,7 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
                   <ReferenceAudioControl
                     base64={refAudioBase64}
                     onPlay={() => { if (player.state.playing) player.pause(); }}
-                    title="Preview the exact reference audio sent to MiniMax cover mode"
+                    title={t('musiccreator.audit.preview_the_exact_reference_audio_sent_to_minimax__d9eafa')}
                     height={30}
                     style={{ marginTop: 8 }}
                   />
@@ -11436,11 +11501,11 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
                     background: 'var(--bg-titlebar)',
                     border: '1px dashed var(--accent-primary)',
                   }}
-                  title="Record new audio (mic or tab)"
+                  title={t('musiccreator.audit.record_new_audio_mic_or_tab_f31a00')}
                 >
                   <Mic size={16} style={{ color: 'var(--accent-primary)' }} />
-                  <span style={{ fontSize: 11, fontWeight: 600 }}>Record now</span>
-                  <span style={{ fontSize: 9, color: 'var(--text-disabled)' }}>mic or tab audio</span>
+                  <span style={{ fontSize: 11, fontWeight: 600 }}>{t('musiccreator.audit.record_now_2a1806')}</span>
+                  <span style={{ fontSize: 9, color: 'var(--text-disabled)' }}>{t('musiccreator.audit.mic_or_tab_audio_d4729d')}</span>
                 </button>
                 <button
                   onClick={handleRefAudioPick}
@@ -11454,8 +11519,8 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
                   }}
                 >
                   <FileMusic size={16} />
-                  <span style={{ fontSize: 11, fontWeight: 600 }}>Pick file</span>
-                  <span style={{ fontSize: 9, color: 'var(--text-disabled)' }}>mp3 · wav · flac</span>
+                  <span style={{ fontSize: 11, fontWeight: 600 }}>{t('musiccreator.audit.pick_file_1af751')}</span>
+                  <span style={{ fontSize: 9, color: 'var(--text-disabled)' }}>{t('musiccreator.audit.mp3_wav_flac_71f7c5')}</span>
                 </button>
                 <button
                   onClick={openSongsPicker}
@@ -11467,7 +11532,7 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
                     background: 'var(--bg-titlebar)',
                     border: '1px dashed var(--accent-primary)',
                   }}
-                  title="Use a song from your JULI3TA library as the reference"
+                  title={t('musiccreator.audit.use_a_song_from_your_juli3ta_library_as_the_refere_8e9d41')}
                 >
                   <Disc3 size={16} style={{ color: 'var(--accent-primary)' }} />
                   <span style={{ fontSize: 11, fontWeight: 600 }}>{t('musiccreator.restyle.button.mySongs')}</span>
@@ -11485,7 +11550,7 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
                     background: 'var(--bg-titlebar)',
                     border: '1px dashed var(--border-subtle)',
                   }}
-                  title="Pick a Voice Recorder clip"
+                  title={t('musiccreator.audit.pick_a_voice_recorder_clip_17e68c')}
                 >
                   <Mic size={16} />
                   <span style={{ fontSize: 11, fontWeight: 600 }}>{t('musiccreator.restyle.button.voiceClips')}</span>
@@ -11502,7 +11567,7 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
             {!refAudioName && (
               <div className="mt-3">
                 <div style={{ fontSize: 10, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 600, marginBottom: 4 }}>
-                  Sample strategy
+                  {t('musiccreator.audit.sample_strategy_e0c135')}
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   <button
@@ -11516,8 +11581,8 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
                   >
                     <Sparkles size={13} style={{ color: sampleStrategy === 'best' ? 'var(--accent-primary)' : 'var(--text-secondary)' }} />
                     <div className="text-left flex-1">
-                      <div style={{ fontSize: 11, fontWeight: 600 }}>Best compact</div>
-                      <div style={{ fontSize: 9, color: 'var(--text-disabled)' }}>cover-ready song window</div>
+                      <div style={{ fontSize: 11, fontWeight: 600 }}>{t('musiccreator.audit.best_compact_7581db')}</div>
+                      <div style={{ fontSize: 9, color: 'var(--text-disabled)' }}>{t('musiccreator.audit.cover_ready_song_window_6e94b7')}</div>
                     </div>
                   </button>
                   <button
@@ -11531,8 +11596,8 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
                   >
                     <Layers size={13} style={{ color: sampleStrategy === 'mix' ? 'var(--accent-primary)' : 'var(--text-secondary)' }} />
                     <div className="text-left flex-1">
-                      <div style={{ fontSize: 11, fontWeight: 600 }}>Iconic mix</div>
-                      <div style={{ fontSize: 9, color: 'var(--text-disabled)' }}>3 cover-ready parts crossfaded</div>
+                      <div style={{ fontSize: 11, fontWeight: 600 }}>{t('musiccreator.audit.iconic_mix_9ff220')}</div>
+                      <div style={{ fontSize: 9, color: 'var(--text-disabled)' }}>{t('musiccreator.audit.3_cover_ready_parts_crossfaded_91490d')}</div>
                     </div>
                   </button>
                 </div>
@@ -11558,7 +11623,7 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
                 >
                   <div className="px-5 py-4" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
                     <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>
-                      Record audio for cover
+                      {t('musiccreator.audit.record_audio_for_cover_f81236')}
                     </div>
                     <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 4, lineHeight: 1.4 }}>
                       Capture 1–3 minutes of music for best results. JULI3TA extracts a cover-ready reference for MiniMax cover mode.
@@ -11580,8 +11645,8 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
                       >
                         <Mic size={14} />
                         <div className="text-left flex-1">
-                          <div style={{ fontSize: 11, fontWeight: 600 }}>Microphone</div>
-                          <div style={{ fontSize: 9, color: 'var(--text-disabled)' }}>laptop or USB mic</div>
+                          <div style={{ fontSize: 11, fontWeight: 600 }}>{t('musiccreator.audit.microphone_242805')}</div>
+                          <div style={{ fontSize: 9, color: 'var(--text-disabled)' }}>{t('musiccreator.audit.laptop_or_usb_mic_48d67c')}</div>
                         </div>
                       </button>
                       <button
@@ -11596,14 +11661,14 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
                       >
                         <MonitorSpeaker size={14} />
                         <div className="text-left flex-1">
-                          <div style={{ fontSize: 11, fontWeight: 600 }}>Tab audio</div>
-                          <div style={{ fontSize: 9, color: 'var(--text-disabled)' }}>YouTube, Spotify Web…</div>
+                          <div style={{ fontSize: 11, fontWeight: 600 }}>{t('musiccreator.audit.tab_audio_e5209a')}</div>
+                          <div style={{ fontSize: 9, color: 'var(--text-disabled)' }}>{t('musiccreator.audit.youtube_spotify_web_21da37')}</div>
                         </div>
                       </button>
                     </div>
                     {recSource === 'tab' && (
                       <div style={{ fontSize: 10, color: 'var(--text-disabled)', marginTop: 6, lineHeight: 1.4 }}>
-                        💡 In the share dialog, pick a tab playing music and tick <strong>"Share tab audio"</strong>.
+                        {t('musiccreator.audit.in_the_share_dialog_pick_a_tab_playing_music_and_t_dea957')} <strong>{t('musiccreator.audit.share_tab_audio_1e5e98')}</strong>.
                       </div>
                     )}
                   </div>
@@ -11630,7 +11695,7 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
                           background: '#ef4444', color: 'white',
                           boxShadow: '0 0 24px rgba(239,68,68,0.4)',
                         }}
-                        title="Start recording"
+                        title={t('musiccreator.audit.start_recording_e92d02')}
                       >
                         {recSource === 'tab' ? <MonitorSpeaker size={28} /> : <Mic size={28} />}
                       </button>
@@ -11643,7 +11708,7 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
                           background: '#ef4444', color: 'white',
                           animation: 'pulse 1s infinite',
                         }}
-                        title="Stop & analyze"
+                        title={t('musiccreator.audit.stop_analyze_f944e9')}
                       >
                         <Square size={26} />
                       </button>
@@ -11677,7 +11742,7 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
                       className="px-3 py-1 rounded-md transition-all hover:bg-[var(--bg-hover)] disabled:opacity-40"
                       style={{ fontSize: 11, color: 'var(--text-secondary)' }}
                     >
-                      Close
+                      {t('common.close')}
                     </button>
                   </div>
                 </div>
@@ -11691,7 +11756,7 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
               style={{ display: 'none' }}
             />
             <div style={{ fontSize: 10, color: 'var(--text-disabled)', marginTop: 6, lineHeight: 1.4 }}>
-              💡 JULI3TA will <strong>auto-pick a compact gateway-safe sample</strong> of the clip
+              {t('musiccreator.audit.juli3ta_will_d138af')} <strong>{t('musiccreator.audit.auto_pick_a_compact_gateway_safe_sample_e7227f')}</strong> of the clip
               by analyzing energy + steadiness. Long recordings get trimmed and
               downsampled before Restyle so the request stays small.
             </div>
@@ -11721,7 +11786,7 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
                     <div className="flex items-center gap-2">
                       <Mic size={14} style={{ color: 'var(--accent-primary)' }} />
                       <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>
-                        Pick a recording
+                        {t('musiccreator.audit.pick_a_recording_0efa01')}
                       </span>
                     </div>
                     <button
@@ -11738,10 +11803,10 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
                       <div className="flex flex-col items-center justify-center py-10 px-6 text-center gap-2">
                         <Mic size={28} style={{ color: 'var(--text-disabled)' }} />
                         <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-                          No recordings yet
+                          {t('musiccreator.audit.no_recordings_yet_a0b831')}
                         </div>
                         <div style={{ fontSize: 11, color: 'var(--text-disabled)', maxWidth: 280 }}>
-                          Open <strong>Voice Recorder</strong>, capture some
+                          {t('context.open')} <strong>{t('musiccreator.audit.voice_recorder_67c7d1')}</strong>, capture some
                           audio (a melody, a hum, music playing in the room),
                           then come back here.
                         </div>
@@ -11792,7 +11857,7 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
                       background: 'var(--bg-titlebar)',
                     }}
                   >
-                    Tip: open Voice Recorder to capture more
+                    {t('musiccreator.audit.tip_open_voice_recorder_to_capture_more_7bcde9')}
                   </a>
                 </div>
               </div>
@@ -11833,7 +11898,7 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
                       onClick={() => setShowSongsPicker(false)}
                       className="p-1 rounded-md hover:bg-[var(--bg-hover)]"
                       style={{ color: 'var(--text-secondary)' }}
-                      title="Close"
+                      title={t('musiccreator.audit.close_bbfa77')}
                     >
                       <X size={14} />
                     </button>
@@ -12007,7 +12072,7 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
           className="mb-5"
           headerExtra={
             <label className="flex items-center gap-2 cursor-pointer select-none" style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
-              Auto-generate
+              {t('musiccreator.audit.auto_generate_a970fb')}
               <TytusToggle
                 checked={coverAuto}
                 onChange={setCoverAuto}
@@ -12034,7 +12099,7 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
                 border: '1px solid var(--border-subtle)',
                 cursor: busy ? 'not-allowed' : 'pointer',
               }}
-              title="Open song card — big cover preview + metadata"
+              title={t('musiccreator.audit.open_song_card_big_cover_preview_metadata_f61092')}
             >
               {!coverDataUrl && (
                 <div className="absolute inset-0 flex items-center justify-center">
@@ -12085,10 +12150,10 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
                     background: 'var(--bg-titlebar)',
                     border: '1px solid var(--border-subtle)',
                   }}
-                  title="Upload your own image (PNG/JPG/WebP, max 4 MB)"
+                  title={t('musiccreator.audit.upload_your_own_image_png_jpg_webp_max_4_mb_f62b90')}
                 >
                   <Upload size={11} />
-                  Upload
+                  {t('musiccreator.audit.upload_8bdf05')}
                 </button>
                 {coverDataUrl && (
                   <button
@@ -12110,10 +12175,10 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
                       background: 'var(--bg-titlebar)',
                       border: '1px solid var(--border-subtle)',
                     }}
-                    title="Remove the cover and fall back to the gradient placeholder"
+                    title={t('musiccreator.audit.remove_the_cover_and_fall_back_to_the_gradient_pla_1aff63')}
                   >
                     <X size={11} />
-                    Clear
+                    {t('chat.agent.clear')}
                   </button>
                 )}
                 <button
@@ -12126,7 +12191,7 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
                     background: 'transparent',
                     border: '1px solid transparent',
                   }}
-                  title="Edit the cover-art prompt"
+                  title={t('musiccreator.audit.edit_the_cover_art_prompt_821d63')}
                 >
                   {coverPromptOpen ? <ChevronUp size={11} /> : <Pencil size={11} />}
                   {coverPromptOpen ? 'Hide prompt' : 'Edit prompt'}
@@ -12181,15 +12246,24 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
             because cover-of-existing-track flow doesn't write lyrics. */}
         {mode !== 'restyle' && !instrumental && (
           <FieldCard
-            label="Lyrics Direction"
-            hint="Free-form direction for the lyrics — perspective, language, taboo lines, references. Sent to the AI alongside Theme and the song form below."
+            label={t('musiccreator.lyricsDirection.label')}
+            hint={t('musiccreator.lyricsDirection.hint')}
             className="mb-5"
             counter={(specs.intent ?? '').length > 0 ? `${(specs.intent ?? '').length} chars` : undefined}
+            headerExtra={
+              <AIAssistButton
+                label={t('musiccreator.lyricsDirection.generate')}
+                tooltip={t('musiccreator.lyricsDirection.generateTooltip')}
+                onClick={writeLyricsDraft}
+                busy={aiBusy.lyrics}
+                disabled={busy || aiBusy.lyrics || (!theme.trim() && !(specs.intent ?? '').trim())}
+              />
+            }
           >
             <textarea
               value={specs.intent ?? ''}
               onChange={(e) => setSpecs((s) => ({ ...s, intent: e.target.value }))}
-              placeholder='e.g. "first-person, mostly Spanish with one English chorus, mention rain, no clichés"'
+              placeholder={t('musiccreator.lyricsDirection.placeholder')}
               disabled={busy}
               rows={2}
               className="w-full px-3 py-2 rounded-lg resize-none focus:outline-none disabled:opacity-50"
@@ -12262,7 +12336,7 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
                 marginRight: 4,
               }}
             >
-              Song form
+              {t('musiccreator.audit.song_form_899cf0')}
             </span>
             {LYRIC_TEMPLATES.map((tpl) => {
               const active = activeTemplate?.id === tpl.id;
@@ -12299,7 +12373,7 @@ Return ONLY the JSON. No markdown, no explanation, no code fences.`;
             })}
             {activeTemplate && (
               <span style={{ fontSize: 9, color: 'var(--accent-primary)', marginLeft: 4 }}>
-                AI will use this structure
+                {t('musiccreator.audit.ai_will_use_this_structure_876e8e')}
               </span>
             )}
           </div>
@@ -12411,6 +12485,7 @@ interface SettingsDialogProps {
 }
 
 function SettingsDialog({ settings, endpoints, onChange, onClose }: SettingsDialogProps) {
+  const { t } = useI18n();
   const setOverride = (epUrl: string, slot: keyof ModelOverrides, value: string) => {
     const trimmed = value.trim();
     const prev = settings.overridesByEndpoint[epUrl] ?? {};
@@ -12456,7 +12531,7 @@ function SettingsDialog({ settings, endpoints, onChange, onClose }: SettingsDial
         >
           <Settings2 size={14} style={{ color: 'var(--accent-primary)' }} />
           <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>
-            JULI3TA Settings
+            {t('musiccreator.audit.juli3ta_settings_1bff68')}
           </div>
           <span
             className="tabular-nums"
@@ -12478,7 +12553,7 @@ function SettingsDialog({ settings, endpoints, onChange, onClose }: SettingsDial
             onClick={onClose}
             className="ml-auto flex items-center justify-center rounded-md transition-all hover:bg-[var(--bg-hover)]"
             style={{ width: 24, height: 24, color: 'var(--text-secondary)' }}
-            title="Close"
+            title={t('musiccreator.audit.close_bbfa77')}
           >
             <X size={14} />
           </button>
@@ -12489,7 +12564,7 @@ function SettingsDialog({ settings, endpoints, onChange, onClose }: SettingsDial
           <div className="px-5 py-4">
             <div className="mb-4">
               <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 4 }}>
-                Model mapping
+                {t('musiccreator.audit.model_mapping_7496b3')}
               </div>
               <div style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
                 Pick a model id per endpoint. Each dropdown lists every id
@@ -12507,18 +12582,15 @@ function SettingsDialog({ settings, endpoints, onChange, onClose }: SettingsDial
                 }}
               >
                 <li>
-                  <strong style={{ color: 'var(--text-secondary)' }}>Music / Cover</strong> — sent in the
+                  <strong style={{ color: 'var(--text-secondary)' }}>{t('musiccreator.audit.music_cover_03fa53')}</strong> {t('musiccreator.audit.sent_in_the_95af0e')}
                   <code style={{ margin: '0 4px' }}>/music/generations</code> body.
                 </li>
                 <li>
-                  <strong style={{ color: 'var(--text-secondary)' }}>Lyrics</strong> — usually leave on Auto.
-                  The <code style={{ margin: '0 4px' }}>/music/lyrics</code> endpoint runs minimax's
-                  internal lyrics generator server-side (no enumerable id). Only
-                  override if your gateway exposes a separate <code>lyrics_generation</code> alias.
+                  <strong style={{ color: 'var(--text-secondary)' }}>{t('musiccreator.audit.lyrics_8670cb')}</strong> — usually leave on Auto.
+                  <code style={{ margin: '0 4px' }}>/music/lyrics</code> {t('musiccreator.audit.endpoint_runs_minimax_s_internal_lyrics_generator__79dbec')} <code>lyrics_generation</code> alias.
                 </li>
                 <li>
-                  <strong style={{ color: 'var(--text-secondary)' }}>Lyrics fallback</strong> — chat model used
-                  when <code style={{ margin: '0 4px' }}>/music/lyrics</code> errors (quota, upstream 502).
+                  <strong style={{ color: 'var(--text-secondary)' }}>{t('musiccreator.audit.lyrics_fallback_4e54dc')}</strong> {t('musiccreator.audit.chat_model_used_when_f2297a')} <code style={{ margin: '0 4px' }}>/music/lyrics</code> {t('musiccreator.audit.errors_quota_upstream_502_f05aa0')}
                 </li>
               </ul>
             </div>
@@ -12674,7 +12746,7 @@ function SettingsDialog({ settings, endpoints, onChange, onClose }: SettingsDial
               border: '1px solid var(--border-subtle)',
             }}
           >
-            Done
+            {t('musiccreator.audit.done_e9b450')}
           </button>
         </div>
       </div>

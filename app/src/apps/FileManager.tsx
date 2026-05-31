@@ -89,6 +89,7 @@ import { useSelection } from "@/lib/selection";
 import { registerShortcut } from "@/lib/shortcuts";
 import { serializePayload } from "@/lib/dnd";
 import { refFromDaemonPath, type FileRef } from "@/lib/files/fileRef";
+import { useI18n } from "@/i18n";
 
 type TabId = "browse" | "inbox" | "downloads" | "shared";
 
@@ -106,6 +107,7 @@ interface PodProvisionOption {
 }
 
 const FileManager: FC = () => {
+  const { t } = useI18n();
   const { dispatch } = useOS();
   const client = useDaemonClient();
   const daemon = useDaemonStateContext();
@@ -502,6 +504,7 @@ const FileBrowser: FC<{ agents: Agent[]; client: DaemonClient }> = ({
   agents,
   client,
 }) => {
+  const { t } = useI18n();
   const [bindings, setBindings] = useState<Binding[]>([]);
   const [sourceId, setSourceId] = useState("tytus-home");
   const [path, setPath] = useState("");
@@ -812,7 +815,7 @@ const FileBrowser: FC<{ agents: Agent[]; client: DaemonClient }> = ({
         }}
       >
         <div className="px-4 py-3 text-[10px] uppercase tracking-wider text-[var(--text-secondary)]">
-          Sources
+          {t('files.sources')}
         </div>
         {sources.map((source) => {
           const active = source.id === sourceId;
@@ -859,7 +862,7 @@ const FileBrowser: FC<{ agents: Agent[]; client: DaemonClient }> = ({
               background: "var(--bg-hover, rgba(255,255,255,0.04))",
               color: "var(--text-primary)",
             }}
-            title="Up"
+            title={t('files.up')}
           >
             <ArrowUp size={14} />
           </button>
@@ -871,7 +874,7 @@ const FileBrowser: FC<{ agents: Agent[]; client: DaemonClient }> = ({
               background: "var(--bg-hover, rgba(255,255,255,0.04))",
               color: "var(--text-primary)",
             }}
-            title="Refresh"
+            title={t('common.refresh')}
           >
             <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
           </button>
@@ -951,7 +954,7 @@ const FileBrowser: FC<{ agents: Agent[]; client: DaemonClient }> = ({
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search…"
+              placeholder={t('files.searchPlaceholder')}
               className="w-full bg-transparent outline-none text-xs text-[var(--text-primary)] placeholder:text-[var(--text-secondary)]"
             />
           </div>
@@ -1005,15 +1008,15 @@ const FileBrowser: FC<{ agents: Agent[]; client: DaemonClient }> = ({
               }}
             >
               <Upload size={26} className="mb-2 text-[var(--accent-primary)]" />
-              <div className="text-sm font-semibold">Drop files to upload</div>
+              <div className="text-sm font-semibold">{t('files.dropToUpload')}</div>
               <div className="text-[11px] text-[var(--text-secondary)] mt-1">
-                100 MiB max per file · current folder
+                {t('files.uploadLimitHint')}
               </div>
             </div>
           )}
           {loading ? (
             <div className="h-full flex items-center justify-center text-sm text-[var(--text-secondary)] gap-2">
-              <Loader2 size={16} className="animate-spin" /> Loading folder…
+              <Loader2 size={16} className="animate-spin" /> {t('files.loadingFolder')}
             </div>
           ) : filtered.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-center text-[var(--text-secondary)]">
@@ -1021,7 +1024,7 @@ const FileBrowser: FC<{ agents: Agent[]; client: DaemonClient }> = ({
                 size={28}
                 className="mb-2 text-[var(--accent-primary)]"
               />
-              <div className="text-sm">Folder is empty.</div>
+              <div className="text-sm">{t('files.emptyFolder')}</div>
               <div className="text-[11px] mt-1 max-w-[360px]">
                 {activeSource?.readonly
                   ? "This pod workspace is read-only from Files for now. Use Terminal for writes."
@@ -1034,10 +1037,10 @@ const FileBrowser: FC<{ agents: Agent[]; client: DaemonClient }> = ({
                 className="grid grid-cols-[1fr_96px_130px_188px] gap-3 px-3 py-2 text-[11px] uppercase tracking-wider text-[var(--text-secondary)]"
                 style={{ background: "rgba(255,255,255,0.03)" }}
               >
-                <span>Name</span>
-                <span>Size</span>
-                <span>Modified</span>
-                <span>Actions</span>
+                <span>{t('files.table.name')}</span>
+                <span>{t('files.table.size')}</span>
+                <span>{t('files.table.modified')}</span>
+                <span>{t('files.table.actions')}</span>
               </div>
               {filtered.map((entry) => {
                 const isSelected = rowSelection.isSelected(entry);
@@ -1149,7 +1152,7 @@ const FileBrowser: FC<{ agents: Agent[]; client: DaemonClient }> = ({
                           onClick={() => downloadEntry(entry)}
                           disabled={mutationBusy || uploading || entry.kind !== "file"}
                           className="p-1 rounded-md text-[var(--text-secondary)] hover:text-[var(--text-primary)] disabled:opacity-40 disabled:hover:text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]"
-                          title="Download"
+                          title={t('common.download')}
                         >
                           <Download size={12} />
                         </button>
@@ -1157,7 +1160,7 @@ const FileBrowser: FC<{ agents: Agent[]; client: DaemonClient }> = ({
                           onClick={() => void copyOrMoveEntry(entry, "copy")}
                           disabled={mutationBusy || uploading || entry.kind !== "file"}
                           className="p-1 rounded-md text-[var(--text-secondary)] hover:text-[var(--text-primary)] disabled:opacity-40 disabled:hover:text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]"
-                          title="Copy"
+                          title={t('common.copy')}
                         >
                           <CopyIcon size={12} />
                         </button>
@@ -1165,7 +1168,7 @@ const FileBrowser: FC<{ agents: Agent[]; client: DaemonClient }> = ({
                           onClick={() => void copyOrMoveEntry(entry, "move")}
                           disabled={mutationBusy || uploading || entry.kind !== "file"}
                           className="p-1 rounded-md text-[var(--text-secondary)] hover:text-[var(--text-primary)] disabled:opacity-40 disabled:hover:text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]"
-                          title="Move"
+                          title={t('common.move')}
                         >
                           <MoveRight size={12} />
                         </button>
@@ -1173,7 +1176,7 @@ const FileBrowser: FC<{ agents: Agent[]; client: DaemonClient }> = ({
                           onClick={() => void renameEntry(entry)}
                           disabled={mutationBusy || uploading}
                           className="p-1 rounded-md text-[var(--text-secondary)] hover:text-[var(--text-primary)] disabled:opacity-40 disabled:hover:text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]"
-                          title="Rename"
+                          title={t('common.rename')}
                         >
                           <Pencil size={12} />
                         </button>
@@ -1181,7 +1184,7 @@ const FileBrowser: FC<{ agents: Agent[]; client: DaemonClient }> = ({
                           onClick={() => void deleteEntry(entry)}
                           disabled={mutationBusy || uploading}
                           className="p-1 rounded-md text-[var(--text-secondary)] hover:text-[var(--text-primary)] disabled:opacity-40 disabled:hover:text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]"
-                          title="Delete"
+                          title={t('common.delete')}
                         >
                           <Trash2 size={12} />
                         </button>
@@ -2238,6 +2241,7 @@ const BindFolderModal: FC<BindFolderModalProps> = ({
   syncBlocked,
   pauseReason,
 }) => {
+  const { t } = useI18n();
   const [localPath, setLocalPath] = useState<string | null>(
     defaults?.default_local_root ?? null,
   );
@@ -2510,7 +2514,7 @@ const BindFolderModal: FC<BindFolderModalProps> = ({
               className="text-[11px] font-medium"
               style={{ color: "var(--text-secondary)" }}
             >
-              Runtimes to provision
+              {t('files.shared.runtimesToProvision')}
             </label>
             <div className="flex flex-col gap-1.5">
               {podProvisionOptions.length === 0 ? (

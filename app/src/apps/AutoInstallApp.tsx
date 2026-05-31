@@ -35,6 +35,7 @@ import {
   installAppFromManifestUrl,
   InstallerError,
 } from '@/runtime/installer';
+import { useI18n } from '@/i18n';
 import type { FeaturedApp } from './featured-apps-catalog';
 
 interface AutoInstallAppProps {
@@ -45,6 +46,7 @@ interface AutoInstallAppProps {
 type Status = 'idle' | 'installing' | 'error';
 
 const AutoInstallApp: FC<AutoInstallAppProps> = ({ appId, catalogEntry }) => {
+  const { t } = useI18n();
   const [status, setStatus] = useState<Status>('idle');
   const [errorMessage, setErrorMessage] = useState<string>('');
   const installedRef = useRef(false);
@@ -111,7 +113,7 @@ const AutoInstallApp: FC<AutoInstallAppProps> = ({ appId, catalogEntry }) => {
             color: 'var(--text-primary)',
           }}
         >
-          Try again
+          {t('common.tryAgain')}
         </button>
       </div>
     );

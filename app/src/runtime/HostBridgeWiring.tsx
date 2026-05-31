@@ -40,6 +40,9 @@ export function HostBridgeWiring() {
   const stateRef = useRef<DaemonState>({ agents: [], included: [] });
   const includedRef = useRef(ds.state?.included ?? []);
   const listenersRef = useRef<Set<DaemonStateListener>>(new Set());
+  const i18nRef = useRef(i18n);
+  const previousLanguageRef = useRef(i18n.language);
+  const localeListenersRef = useRef<Set<(locale: string) => void>>(new Set());
 
   const projected: DaemonState = useMemo(() => {
     const includedRaw = ds.state?.included ?? [];
@@ -96,6 +99,7 @@ export function HostBridgeWiring() {
   }, [projected, ds.state?.included]);
 
   useEffect(() => {
+    const listeners = listenersRef.current;
     setDaemonStateProvider({
       getState: () => stateRef.current,
       getPod: (podId) => {
@@ -113,25 +117,38 @@ export function HostBridgeWiring() {
         return descriptor;
       },
       subscribe: (fn) => {
-        listenersRef.current.add(fn);
+        listeners.add(fn);
         return () => {
-          listenersRef.current.delete(fn);
+          listeners.delete(fn);
         };
       },
     });
     return () => {
       setDaemonStateProvider(null);
-      listenersRef.current.clear();
+      listeners.clear();
     };
   }, []);
 
   useEffect(() => {
-    const localeListeners = new Set<(locale: string) => void>();
+    i18nRef.current = i18n;
+    if (previousLanguageRef.current === i18n.language) return;
+    previousLanguageRef.current = i18n.language;
+    for (const fn of [...localeListenersRef.current]) {
+      try {
+        fn(i18n.language);
+      } catch {
+        // listener faults must not break the bridge
+      }
+    }
+  }, [i18n]);
+
+  useEffect(() => {
+    const localeListeners = localeListenersRef.current;
     setI18nOverride({
       get locale() {
-        return i18n.language;
+        return i18nRef.current.language;
       },
-      t: (key, vars) => i18n.t(key, vars),
+      t: (key, vars) => i18nRef.current.t(key, vars),
       onLocaleChange: (fn) => {
         localeListeners.add(fn);
         return () => {
@@ -143,7 +160,7 @@ export function HostBridgeWiring() {
       setI18nOverride(null);
       localeListeners.clear();
     };
-  }, [i18n]);
+  }, []);
 
   useEffect(() => {
     setWindowsActions({

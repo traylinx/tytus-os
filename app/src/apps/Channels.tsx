@@ -64,6 +64,7 @@ import { useCurrentWindowArgs } from '@/hooks/useCurrentWindow';
 import { navigate } from '@/lib/router';
 import type { Agent, ChannelOption, ChannelsResponse } from '@/types/daemon';
 import { revealTokenUrl } from '@/lib/secrets';
+import { useI18n } from '@/i18n';
 
 type LoadState =
   | { status: 'idle' }
@@ -89,6 +90,7 @@ const agentLabel = (agent: Agent) =>
   ).slice(0, 80);
 
 const Channels: FC = () => {
+  const { t } = useI18n();
   const { dispatch } = useOS();
   const client = useDaemonClient();
   const daemon = useDaemonStateContext();
@@ -1721,6 +1723,7 @@ const MoreChannelsFooter: FC<MoreChannelsFooterProps> = ({
   podId,
   agent,
 }) => {
+  const { t } = useI18n();
   const { dispatch } = useOS();
   const [copied, setCopied] = useState(false);
 
@@ -1834,10 +1837,10 @@ const MoreChannelsFooter: FC<MoreChannelsFooterProps> = ({
               />
               <div className="flex-1">
                 <div className="text-[12.5px] font-semibold text-[var(--text-primary)]">
-                  Easiest way: just ask your agent
+                  {t('channels.agentChat.title')}
                 </div>
                 <div className="text-[11.5px] mt-0.5 leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
-                  Open the agent's chat and say what you want to connect — it'll walk you through the rest, no commands required.
+                  {t('channels.agentChat.body')}
                 </div>
               </div>
             </div>
@@ -1866,7 +1869,7 @@ const MoreChannelsFooter: FC<MoreChannelsFooterProps> = ({
                 style={{ background: 'var(--accent-success)' }}
               >
                 <MessageCircle size={12} />
-                Chat with your agent
+                {t('channels.agentChat.cta')}
               </button>
             </div>
           </div>
@@ -1879,7 +1882,7 @@ const MoreChannelsFooter: FC<MoreChannelsFooterProps> = ({
             className="text-[10px] uppercase tracking-wider font-semibold pl-1"
             style={{ color: 'var(--text-disabled)' }}
           >
-            Or — the technical route
+            {t('channels.technicalRoute')}
           </div>
         )}
 

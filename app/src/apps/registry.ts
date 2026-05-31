@@ -1,6 +1,9 @@
 import type { AliasRewriteDescriptor, AppCategory as ManifestAppCategory } from '@tytus/host-api';
 import type { AppDefinition, AppKind, AppCategory } from '@/types';
-import { getInstalledAppRow } from '@/runtime/installed-apps-cache';
+import {
+  getInstalledAppRow,
+  listCachedInstalledApps,
+} from '@/runtime/installed-apps-cache';
 import type { InstalledAppRow } from '@/runtime/installed-apps-repo';
 
 // 50 apps total in v1.
@@ -300,6 +303,28 @@ export const getAppById = (id: string): AppDefinition | undefined => {
 
   return undefined;
 };
+
+/** Enumerate every app the launcher can show. `APP_REGISTRY` is still the
+ *  static shell source, but runtime-installed apps live in the synchronous
+ *  installed-apps cache. Keep this helper pure/sync so AppLauncher never
+ *  queries SQLite while rendering. */
+export function getLaunchableApps(): AppDefinition[] {
+  const seen = new Set<string>();
+  const out: AppDefinition[] = [];
+  const add = (app: AppDefinition | undefined) => {
+    if (!app || app.hidden || seen.has(app.id)) return;
+    seen.add(app.id);
+    out.push(app);
+  };
+
+  for (const app of APP_REGISTRY) add(app);
+  for (const row of listCachedInstalledApps()) {
+    if (!row.enabled) continue;
+    add(appDefinitionFromInstalledRow(row));
+  }
+
+  return out;
+}
 
 /** Map an `installed_apps` row's manifest into the static `AppDefinition`
  *  shape `useOSStore.createWindow` expects. The manifest's `window`
