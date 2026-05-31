@@ -245,7 +245,7 @@ const LOCAL_DEV_APP_URLS: Record<string, { entryPath: string; manifestPath: stri
   },
 };
 
-const LOCAL_DEV_CACHE_BUST = '20260531-atomek-i18n';
+const LOCAL_DEV_CACHE_BUST = '20260531-atomek-honesty';
 
 const localDevUrl = (path: string): string => {
   const origin =
