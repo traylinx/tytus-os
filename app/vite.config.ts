@@ -16,6 +16,7 @@ import react from '@vitejs/plugin-react';
 // the desktop look logged out while the menu bar still shows connected.
 export const TRAY_PORT_FILE = '/tmp/tytus/tray-web.port';
 export const CONTROL_JSON_FILE = '/tmp/tytus/control.json';
+export const DEFAULT_DEV_TRAY_PORT = 4343;
 
 export const parsePort = (raw: string | undefined | null): number | null => {
   if (!raw) return null;
@@ -40,16 +41,38 @@ const readControlPort = (): number | null => {
   }
 };
 
-export const discoverTrayPort = (): number | null => {
-  const trayPort = readPortFile(TRAY_PORT_FILE);
-  if (trayPort === null) return null;
-
-  const controlPort = readControlPort();
-  if (controlPort !== null && trayPort === controlPort) {
-    return null;
+export const pickTrayPort = (
+  candidates: Array<number | null>,
+  controlPort: number | null,
+): number | null => {
+  const seen = new Set<number>();
+  for (const candidate of candidates) {
+    if (candidate === null) continue;
+    if (seen.has(candidate)) continue;
+    seen.add(candidate);
+    if (controlPort !== null && candidate === controlPort) continue;
+    return candidate;
   }
+  return null;
+};
 
-  return trayPort;
+const readEnvTrayPort = (): number | null =>
+  parsePort(process.env.TYTUS_TRAY_PORT);
+
+export const discoverTrayPort = (): number | null => {
+  const controlPort = readControlPort();
+  // The port file is the primary source. In real dogfood sessions it can be
+  // missing after a dev-mode parent shell dies while the tray sidecar keeps
+  // running on 4343. Falling back keeps localhost:4242 usable instead of
+  // showing a false "Daemon offline" banner while the tray menu is connected.
+  return pickTrayPort(
+    [
+      readPortFile(TRAY_PORT_FILE),
+      readEnvTrayPort(),
+      DEFAULT_DEV_TRAY_PORT,
+    ],
+    controlPort,
+  );
 };
 
 const daemonProxyPlugin = (): Plugin => ({
@@ -60,7 +83,7 @@ const daemonProxyPlugin = (): Plugin => ({
       if (port === null) {
         res.statusCode = 502;
         res.setHeader('Content-Type', 'application/json');
-        res.end(JSON.stringify({ error: 'tray_api_unavailable', detail: 'tray-web.port missing or points at daemon control port' }));
+        res.end(JSON.stringify({ error: 'tray_api_unavailable', detail: 'no usable tray API port found' }));
         return;
       }
       // Phase 2 §11 security floor: daemon's strict same-origin guard

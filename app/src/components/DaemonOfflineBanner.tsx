@@ -50,8 +50,12 @@ const DaemonOfflineBanner = memo(function DaemonOfflineBanner({
 
   if (!visible) return null;
 
+  const trayApiUnavailable = error?.message === "tray_api_unavailable";
+  const title = trayApiUnavailable ? "Local control unavailable." : "Daemon offline.";
   const detail =
-    error?.code === "daemon_offline"
+    trayApiUnavailable
+      ? "TytusOS cannot reach the tray bridge. The daemon may still be running."
+      : error?.code === "daemon_offline"
       ? "Tytus daemon is not running on this machine."
       : error?.code === "network_timeout"
         ? "Daemon is not responding."
@@ -72,7 +76,7 @@ const DaemonOfflineBanner = memo(function DaemonOfflineBanner({
     >
       <AlertTriangle size={16} className="flex-shrink-0" />
       <span className="flex-1">
-        <strong>Daemon offline.</strong>{" "}
+        <strong>{title}</strong>{" "}
         <span className="opacity-90">{detail}</span>
         {startError && (
           <span className="ml-2 opacity-90">— {startError}</span>
