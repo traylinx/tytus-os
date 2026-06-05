@@ -79,12 +79,14 @@ import {
 } from "@/apps/fileManagerOpenWith";
 import type {
   Agent,
+  IncludedPod,
   Binding,
   FileListEntry,
   GaragetytusStatus,
   SharingDefaults,
 } from "@/types/daemon";
 import type { DaemonClient } from "@/lib/daemon";
+import { buildSharedPodOptions } from "@/apps/fileManagerSharing";
 import { useSelection } from "@/lib/selection";
 import { registerShortcut } from "@/lib/shortcuts";
 import { serializePayload } from "@/lib/dnd";
@@ -100,12 +102,6 @@ const displayAgentType = (agentType: string | null | undefined): string => {
   return agentType;
 };
 
-interface PodProvisionOption {
-  podId: string;
-  label: string;
-  details: string;
-}
-
 const FileManager: FC = () => {
   const { t } = useI18n();
   const { dispatch } = useOS();
@@ -116,6 +112,7 @@ const FileManager: FC = () => {
   const { addNotification } = useNotifications();
 
   const agents = useMemo(() => daemon.state?.agents ?? [], [daemon.state]);
+  const included = useMemo(() => daemon.state?.included ?? [], [daemon.state]);
 
   // Selected pod — defaults to first allocated agent. Cleared if
   // the agent disappears (e.g. revoked from another surface).
@@ -249,7 +246,7 @@ const FileManager: FC = () => {
             {activeTab === "browse" ? (
               <FileBrowser agents={agents} client={client} />
             ) : activeTab === "shared" ? (
-              <SharedTab agents={agents} client={client} />
+              <SharedTab agents={agents} included={included} client={client} />
             ) : !selectedAgent ? (
               <div className="flex-1 flex items-center justify-center text-sm text-[var(--text-secondary)]">
                 Select a pod from the left.
@@ -1625,8 +1622,13 @@ const validateBucket = (s: string): string | null => {
   return null;
 };
 
-const SharedTab: FC<{ agents: Agent[]; client: DaemonClient }> = ({
+const SharedTab: FC<{
+  agents: Agent[];
+  included: IncludedPod[];
+  client: DaemonClient;
+}> = ({
   agents,
+  included,
   client,
 }) => {
   const [bindings, setBindings] = useState<Binding[] | null>(null);
@@ -2056,6 +2058,7 @@ const SharedTab: FC<{ agents: Agent[]; client: DaemonClient }> = ({
       {bindModalOpen && (
         <BindFolderModal
           agents={agents}
+          included={included}
           client={client}
           onCancel={() => setBindModalOpen(false)}
           onSuccess={onBindSuccess}
@@ -2224,6 +2227,7 @@ const BindingCard: FC<{
 
 interface BindFolderModalProps {
   agents: Agent[];
+  included: IncludedPod[];
   client: DaemonClient;
   onCancel: () => void;
   onSuccess: () => void;
@@ -2234,6 +2238,7 @@ interface BindFolderModalProps {
 
 const BindFolderModal: FC<BindFolderModalProps> = ({
   agents,
+  included,
   client,
   onCancel,
   onSuccess,
@@ -2251,35 +2256,10 @@ const BindFolderModal: FC<BindFolderModalProps> = ({
   const [bucket, setBucket] = useState(defaults?.default_bucket ?? "shared");
   const [bucketTouched, setBucketTouched] = useState(false);
 
-  const podProvisionOptions = useMemo<PodProvisionOption[]>(() => {
-    const byPod = new Map<
-      string,
-      { labels: string[]; agentTypes: Set<string> }
-    >();
-    for (const agent of agents) {
-      if (!agent.pod_id) continue;
-      const agentType = displayAgentType(agent.agent_type);
-      if (agentType === "agent") continue;
-      const current = byPod.get(agent.pod_id) ?? {
-        labels: [],
-        agentTypes: new Set<string>(),
-      };
-      const label = agent.display_label?.trim() || `Pod ${agent.pod_id}`;
-      if (!current.labels.includes(label)) current.labels.push(label);
-      current.agentTypes.add(agentType);
-      byPod.set(agent.pod_id, current);
-    }
-    return Array.from(byPod.entries())
-      .sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true }))
-      .map(([podId, info]) => ({
-        podId,
-        label:
-          info.labels.length === 1
-            ? info.labels[0]
-            : `Pod ${podId} — ${info.labels.join(", ")}`,
-        details: `${Array.from(info.agentTypes).join(" + ")} · one shared runtime`,
-      }));
-  }, [agents]);
+  const podProvisionOptions = useMemo(
+    () => buildSharedPodOptions(agents, included),
+    [agents, included],
+  );
 
   // Selected runtime ids (pod_id strings, e.g. "02"). Multiple agents can
   // share the same pod_id/runtime, so the UI must not render one checkbox per

@@ -72,6 +72,10 @@ import {
   revealTokenUrl,
 } from "@/lib/secrets";
 import { resolveAgentDisplay } from "@/lib/agentCatalog";
+import {
+  buildSharedPodOptions,
+  unprovisionedSharedPodOptions,
+} from "@/apps/fileManagerSharing";
 import type {
   Catalog,
   CatalogAgent,
@@ -5075,9 +5079,6 @@ const SHARING_DIAGNOSTICS = [
 
 type SharingAction = (typeof SHARING_DIAGNOSTICS)[number]["action"];
 
-const normalizeSharingPodId = (pod: string): string =>
-  pod.trim().replace(/^(wannolot|tytus)-/, "");
-
 // ============================================================
 // AI / Local Cortex (sprint: 2026-05-21-chat-with-pods-local-cortex-parity)
 //
@@ -5548,7 +5549,14 @@ const SharingSettingsPanel: React.FC = () => {
     }
     return Array.from(pods).sort();
   }, [bindings]);
-  const allocatedPods = daemon.state?.agents ?? [];
+  const allocatedPods = useMemo(
+    () =>
+      buildSharedPodOptions(
+        daemon.state?.agents ?? [],
+        daemon.state?.included ?? [],
+      ),
+    [daemon.state?.agents, daemon.state?.included],
+  );
   const helperCount = garageStatus
     ? `${garageStatus.helpers.filter((h) => h.found).length}/${garageStatus.helpers.length}`
     : "—";
@@ -5838,12 +5846,11 @@ const SharingSettingsPanel: React.FC = () => {
             </div>
           ) : (
             bindings.map((binding) => {
-              const provisionedIds = new Set(
-                binding.pods_provisioned.map(normalizeSharingPodId),
-              );
-              const unprovisionedAllocatedPods = allocatedPods.filter(
-                (pod) => !provisionedIds.has(normalizeSharingPodId(pod.pod_id)),
-              );
+              const unprovisionedAllocatedPods =
+                unprovisionedSharedPodOptions(
+                  binding.pods_provisioned,
+                  allocatedPods,
+                );
               return (
                 <div
                   key={`${binding.local_path}:${binding.bucket}`}
@@ -5894,7 +5901,7 @@ const SharingSettingsPanel: React.FC = () => {
                             );
                           })}
                           {unprovisionedAllocatedPods.map((pod) => {
-                            const podId = pod.pod_id;
+                            const podId = pod.podId;
                             const key = `${podId}:${binding.bucket}`;
                             const busy =
                               provisioningPodKey === key ||
@@ -5922,7 +5929,7 @@ const SharingSettingsPanel: React.FC = () => {
                                 ) : (
                                   <FolderSync size={10} />
                                 )}
-                                Provision {podId}
+                                Provision {pod.label}
                               </button>
                             );
                           })}
