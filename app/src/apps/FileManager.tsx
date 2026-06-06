@@ -2180,7 +2180,9 @@ const BindingCard: FC<{
   onSettings: () => void;
   openErr: string | null;
   targetsLabel: string;
-}> = ({ binding, onOpen, onSettings, openErr, targetsLabel }) => (
+}> = ({ binding, onOpen, onSettings, openErr, targetsLabel }) => {
+  const { t } = useI18n();
+  return (
   <div
     className="rounded-lg p-4 flex flex-col gap-2"
     style={{
@@ -2221,7 +2223,7 @@ const BindingCard: FC<{
           }}
         >
           <Pencil size={11} />
-          Settings
+          {t('files.shared.settings')}
         </button>
         <button
           onClick={onOpen}
@@ -2233,7 +2235,7 @@ const BindingCard: FC<{
           }}
         >
           <FolderOpen size={11} />
-          Open
+          {t('common.open')}
         </button>
       </div>
     </div>
@@ -2264,7 +2266,8 @@ const BindingCard: FC<{
       </div>
     )}
   </div>
-);
+  );
+};
 
 // ============================================================
 // SharedFolderSettingsModal — add pods/agents to an existing binding
@@ -2308,6 +2311,7 @@ const SharedFolderSettingsModal: FC<{
   syncBlocked,
   pauseReason,
 }) => {
+  const { t } = useI18n();
   const shareTargets = useMemo(
     () => buildShareTargets(agents, included),
     [agents, included],
@@ -2354,7 +2358,11 @@ const SharedFolderSettingsModal: FC<{
       setActivePod(pod);
       const r = await client.postSharedFoldersProvisionPod({
         pod,
-        buckets: [binding.bucket],
+        // Provisioning rewrites the pod credentials.json. Sending only the
+        // current binding would silently remove grants for other shared
+        // folders on the same runtime. Empty bucket list means "all known
+        // shared buckets" on the daemon.
+        buckets: [],
         no_restart: true,
       });
       setSubmitting(false);
@@ -2366,7 +2374,7 @@ const SharedFolderSettingsModal: FC<{
       }
       setJob({ id: r.value.job_id });
     },
-    [binding.bucket, client],
+    [client],
   );
 
   const startNext = useCallback(
@@ -2430,18 +2438,26 @@ const SharedFolderSettingsModal: FC<{
       setSubmitErr(updateResult.error.message);
       return;
     }
-    if (selectedPods.length === 0) {
+    // Agent selection is policy, while the mounted filesystem is per runtime
+    // pod. If this pod already has the shared-folder mount, changing Claus /
+    // Hermie / Lisa checkboxes must not rotate Garage keys or re-run
+    // provisioning. Only newly selected runtime pods need provisioning.
+    const podsNeedingProvision = selectedPods.filter(
+      (pod) => !provisionedPods.has(normalizeProvisionPodId(pod)),
+    );
+    if (podsNeedingProvision.length === 0) {
       onSuccess();
       return;
     }
     lastHandledRef.current = null;
-    startNext(selectedPods);
+    startNext(podsNeedingProvision);
   }, [
     inFlight,
     binding.bucket,
     binding.local_path,
     client,
     onSuccess,
+    provisionedPods,
     selectedTargets,
     shareTargets,
     startNext,
@@ -2467,7 +2483,7 @@ const SharedFolderSettingsModal: FC<{
         >
           <div className="min-w-0">
             <div className="text-sm font-semibold text-[var(--text-primary)]">
-              Shared folder settings
+              {t('files.shared.settingsTitle')}
             </div>
             <div
               className="text-[11px] font-mono truncate"
@@ -2494,7 +2510,7 @@ const SharedFolderSettingsModal: FC<{
               className="text-[11px] font-medium"
               style={{ color: "var(--text-secondary)" }}
             >
-              Share with pods and agents
+              {t('files.shared.shareWithPodsAgents')}
             </label>
             <div className="flex flex-col gap-1.5">
               {shareTargets.length === 0 ? (
