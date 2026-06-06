@@ -116,7 +116,7 @@ export const FEATURED_APPS: FeaturedApp[] = ALL_FEATURED_APPS.filter(
  *  not keep users on stale standalone app tags. Individual app manifest URLs
  *  remain pinned to immutable app tags. */
 export const FEATURED_CATALOG_URL =
-  'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-catalog@catalog-v59/featured.json';
+  'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-catalog@catalog-v61/featured.json';
 
 /**
  * Denylist of catalog ids the OS will refuse to auto-install at boot,
