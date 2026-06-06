@@ -629,6 +629,7 @@
     "common.dismiss": "Descartar",
     "podInspector.readiness": "Preparación",
     "zeroPods.openPods": "Abrir pods →",
+    "common.save": "Guardar",
     "files.conflict.title": "Ya existen elementos",
     "files.conflict.cancelAll": "Cancelar todo",
     "channels.agentChat.title": "La forma más fácil: pídeselo a tu agente",
@@ -667,6 +668,9 @@
     "files.table.modified": "Modificado",
     "files.table.actions": "Acciones",
     "files.shared.runtimesToProvision": "Runtimes a provisionar",
+    "files.shared.bindConflictBucket": "El bucket '{{bucket}}' ya está vinculado a {{path}}. Usa otro nombre de bucket o edita esa carpeta compartida.",
+    "files.shared.bindConflictPath": "Esta carpeta ya está vinculada como bucket '{{bucket}}'. Edita esa carpeta compartida en lugar de crear un duplicado.",
+    "files.shared.bindConflictNested": "Esta carpeta se solapa con el bucket existente '{{bucket}}' en {{path}}. Las carpetas compartidas no pueden estar anidadas.",
     "files.shared.settings": "Ajustes",
     "files.shared.settingsTitle": "Ajustes de carpeta compartida",
     "files.shared.shareWithPodsAgents": "Compartir con pods y agentes",
@@ -826,6 +830,16 @@
     "musiccreator.lyricsDirection.hint": "Describe qué letra quieres. Generar rellena solo el campo Letra; Crear canción sigue renderizando el audio.",
     "musiccreator.lyricsDirection.placeholder": "p. ej. \"primera persona, casi todo en español con un estribillo en inglés, mencionar lluvia, sin clichés\"",
     "musiccreator.lyricsDirection.generate": "Generar letra",
-    "musiccreator.lyricsDirection.generateTooltip": "Generar letra desde Tema, Dirección de letra y la forma de canción seleccionada"
+    "musiccreator.lyricsDirection.generateTooltip": "Generar letra desde Tema, Dirección de letra y la forma de canción seleccionada",
+    "appStore.card.llm.button": "Usar Tytus AIL",
+    "appStore.card.llm.configuring": "Configurando…",
+    "appStore.card.llm.ready": "Tytus AIL listo",
+    "appStore.card.llm.title": "Usar la pasarela Tytus AIL incluida como proveedor LLM por defecto de esta app",
+    "appStore.card.llm.unsupportedTitle": "Esta app aún no tiene un adaptador seguro de proveedor con un clic",
+    "appStore.card.llm.success": "Tytus AIL configurado. Reinicia la app si ya está abierta.",
+    "appStore.card.llm.failed": "No se pudo configurar Tytus AIL: {error}",
+    "appStore.card.llm.status.ready": "Tytus AIL está configurado como predeterminado.",
+    "appStore.card.llm.status.available": "Configuración de Tytus AIL con un clic disponible.",
+    "appStore.card.llm.status.unsupported": "La configuración de Tytus AIL con un clic no está disponible para esta app."
   }
 }

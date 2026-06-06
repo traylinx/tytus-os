@@ -2098,6 +2098,7 @@ const SharedTab: FC<{
         <BindFolderModal
           agents={agents}
           included={included}
+          bindings={bindings ?? []}
           client={client}
           onCancel={() => setBindModalOpen(false)}
           onSuccess={onBindSuccess}
@@ -2313,6 +2314,41 @@ const matchesSharedBinding = (
 ): boolean =>
   binding.bucket === bucket &&
   normalizeBindingPath(binding.local_path) === normalizeBindingPath(localPath);
+
+type BindFolderConflict =
+  | { type: "bucket"; binding: Binding }
+  | { type: "path"; binding: Binding }
+  | { type: "nested"; binding: Binding };
+
+const sharedBindingPathRelation = (
+  candidatePath: string,
+  existingPath: string,
+): "same" | "nested" | null => {
+  const candidate = normalizeBindingPath(candidatePath);
+  const existing = normalizeBindingPath(existingPath);
+  if (!candidate || !existing) return null;
+  if (candidate === existing) return "same";
+  if (`${candidate}/`.startsWith(`${existing}/`)) return "nested";
+  if (`${existing}/`.startsWith(`${candidate}/`)) return "nested";
+  return null;
+};
+
+const findBindFolderConflict = (
+  bindings: readonly Binding[],
+  localPath: string | null,
+  bucket: string,
+): BindFolderConflict | null => {
+  const trimmedBucket = bucket.trim();
+  const duplicateBucket = bindings.find((binding) => binding.bucket === trimmedBucket);
+  if (duplicateBucket) return { type: "bucket", binding: duplicateBucket };
+  if (!localPath) return null;
+  for (const binding of bindings) {
+    const relation = sharedBindingPathRelation(localPath, binding.local_path);
+    if (relation === "same") return { type: "path", binding };
+    if (relation === "nested") return { type: "nested", binding };
+  }
+  return null;
+};
 
 const selectedShareTargetUpdates = (
   selectedTargets: ReadonlySet<string>,
@@ -2757,6 +2793,7 @@ const SharedFolderSettingsModal: FC<{
 interface BindFolderModalProps {
   agents: Agent[];
   included: IncludedPod[];
+  bindings: Binding[];
   client: DaemonClient;
   onCancel: () => void;
   onSuccess: () => void;
@@ -2768,6 +2805,7 @@ interface BindFolderModalProps {
 const BindFolderModal: FC<BindFolderModalProps> = ({
   agents,
   included,
+  bindings,
   client,
   onCancel,
   onSuccess,
@@ -2823,6 +2861,28 @@ const BindFolderModal: FC<BindFolderModalProps> = ({
   }, [shareTargets]);
 
   const bucketErr = bucketTouched ? validateBucket(bucket) : null;
+  const bindConflict = useMemo(
+    () => findBindFolderConflict(bindings, localPath, bucket),
+    [bindings, bucket, localPath],
+  );
+  const bindConflictMessage = useMemo(() => {
+    if (!bindConflict) return null;
+    if (bindConflict.type === "bucket") {
+      return t("files.shared.bindConflictBucket", {
+        bucket: bindConflict.binding.bucket,
+        path: bindConflict.binding.local_path,
+      });
+    }
+    if (bindConflict.type === "path") {
+      return t("files.shared.bindConflictPath", {
+        bucket: bindConflict.binding.bucket,
+      });
+    }
+    return t("files.shared.bindConflictNested", {
+      bucket: bindConflict.binding.bucket,
+      path: bindConflict.binding.local_path,
+    });
+  }, [bindConflict, t]);
   const selectedPods = selectedTargetPodIds(selectedTargets, shareTargets);
   const selectedTargetUpdates = useMemo(
     () => selectedShareTargetUpdates(selectedTargets, shareTargets),
@@ -2935,6 +2995,7 @@ const BindFolderModal: FC<BindFolderModalProps> = ({
     localPath !== null &&
     bucket.length > 0 &&
     validateBucket(bucket) === null &&
+    bindConflict === null &&
     selectedPods.length > 0 &&
     !inFlight &&
     !syncBlocked;
@@ -2968,7 +3029,7 @@ const BindFolderModal: FC<BindFolderModalProps> = ({
   const onSubmit = useCallback(async () => {
     if (!localPath) return;
     setBucketTouched(true);
-    if (validateBucket(bucket) !== null) return;
+    if (validateBucket(bucket) !== null || bindConflict !== null) return;
     setSubmitting(true);
     setSubmitErr(null);
     setRecovering(false);
@@ -2992,7 +3053,7 @@ const BindFolderModal: FC<BindFolderModalProps> = ({
       return;
     }
     setJob({ id: r.value.job_id });
-  }, [client, localPath, bucket, selectedPods, autoSync]);
+  }, [client, localPath, bucket, bindConflict, selectedPods, autoSync]);
 
   return (
     <div
@@ -3112,6 +3173,15 @@ const BindFolderModal: FC<BindFolderModalProps> = ({
                 3–63 chars, lowercase letters, digits, dot, hyphen.
               </div>
             )}
+            {bindConflictMessage ? (
+              <div
+                className="flex items-start gap-1.5 text-[11px]"
+                style={{ color: "#FFC107" }}
+              >
+                <AlertTriangle size={12} className="flex-shrink-0 mt-0.5" />
+                <span>{bindConflictMessage}</span>
+              </div>
+            ) : null}
           </div>
 
           {/* Pods */}
