@@ -827,6 +827,7 @@ export const es: TranslationMap = {
   "files.shared.boundNotificationMessage": "La vinculación de carpeta se guardó.",
   "files.shared.settingsSavedNotificationTitle": "Ajustes de carpeta compartida guardados",
   "files.shared.settingsSavedNotificationMessage": "El acceso de agentes se actualizó.",
+  "files.shared.settingsSavedInline": "Guardado. Este diálogo permanece abierto para que puedas seguir editando.",
   "settings.daemon.signInAgain": "Iniciar sesión de nuevo",
   "settings.daemon.reauthRequired": "Reautenticación requerida",
   "settings.daemon.openingSignIn": "Abriendo inicio de sesión…",

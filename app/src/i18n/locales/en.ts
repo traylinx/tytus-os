@@ -815,6 +815,7 @@ export const en: TranslationMap = {
   "files.shared.boundNotificationMessage": "Folder binding was saved.",
   "files.shared.settingsSavedNotificationTitle": "Shared folder settings saved",
   "files.shared.settingsSavedNotificationMessage": "Agent access was updated.",
+  "files.shared.settingsSavedInline": "Saved. This dialog stays open so you can continue editing.",
   "settings.daemon.signInAgain": "Sign in again",
   "settings.daemon.reauthRequired": "Re-authentication required",
   "settings.daemon.openingSignIn": "Opening sign in…",

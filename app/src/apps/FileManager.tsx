@@ -1685,7 +1685,7 @@ const SharedTab: FC<{
   const [tunnelConnecting, setTunnelConnecting] = useState(false);
   const [tunnelConnectErr, setTunnelConnectErr] = useState<string | null>(null);
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (): Promise<Binding[] | null> => {
     setListing(true);
     setListErr(null);
     const [r, defaults, garage] = await Promise.all([
@@ -1697,7 +1697,7 @@ const SharedTab: FC<{
     if (garage.ok) setGarageStatus(garage.value);
     if (!r.ok) {
       setListErr(r.error.message);
-      return;
+      return null;
     }
     setBindings(r.value.bindings);
     if (defaults.ok) {
@@ -1705,6 +1705,7 @@ const SharedTab: FC<{
     } else {
       setListErr(defaults.error.message);
     }
+    return r.value.bindings;
   }, [client]);
 
   // Auto-fire on tab mount.
@@ -1827,8 +1828,16 @@ const SharedTab: FC<{
   }, [addNotification, refresh, t]);
 
   const onSettingsSuccess = useCallback(async () => {
-    setSettingsBinding(null);
-    await refresh();
+    const nextBindings = await refresh();
+    const current = settingsBinding;
+    if (current && nextBindings) {
+      const updated = nextBindings.find(
+        (binding) =>
+          binding.bucket === current.bucket &&
+          binding.local_path === current.local_path,
+      );
+      if (updated) setSettingsBinding(updated);
+    }
     addNotification({
       appId: "filemanager",
       appName: "Files",
@@ -1837,7 +1846,7 @@ const SharedTab: FC<{
       message: t("files.shared.settingsSavedNotificationMessage"),
       isRead: false,
     });
-  }, [addNotification, refresh, t]);
+  }, [addNotification, refresh, settingsBinding, t]);
 
   const empty = bindings !== null && bindings.length === 0;
 
@@ -2356,10 +2365,17 @@ const SharedFolderSettingsModal: FC<{
   const [job, setJob] = useState<{ id: string } | null>(null);
   const [activePod, setActivePod] = useState<string | null>(null);
   const [pendingPods, setPendingPods] = useState<string[]>([]);
+  const [savedAt, setSavedAt] = useState<number | null>(null);
 
   useEffect(() => {
     setSelectedTargets(new Set(provisionedTargetIds));
   }, [provisionedTargetIds]);
+
+  useEffect(() => {
+    if (savedAt === null) return;
+    const timer = window.setTimeout(() => setSavedAt(null), 3500);
+    return () => window.clearTimeout(timer);
+  }, [savedAt]);
 
   const streamUrl = job ? client.jobStreamUrl(job.id) : null;
   const stream = useJobStream({ url: streamUrl });
@@ -2430,6 +2446,7 @@ const SharedFolderSettingsModal: FC<{
 
   const onToggleTarget = useCallback((target: ShareTargetOption) => {
     if (!target.shareCapable) return;
+    setSavedAt(null);
       setSelectedTargets((prev) => {
         const next = new Set(prev);
         if (next.has(target.targetId)) next.delete(target.targetId);
@@ -2456,6 +2473,7 @@ const SharedFolderSettingsModal: FC<{
       setSubmitErr(updateResult.error.message);
       return;
     }
+    setSavedAt(Date.now());
     // Agent selection is policy, while the mounted filesystem is per runtime
     // pod. If this pod already has the shared-folder mount, changing Claus /
     // Hermie / Lisa checkboxes must not rotate Garage keys or re-run
@@ -2613,6 +2631,20 @@ const SharedFolderSettingsModal: FC<{
             >
               <AlertTriangle size={12} className="flex-shrink-0 mt-0.5" />
               <span>{submitErr}</span>
+            </div>
+          )}
+
+          {savedAt !== null && !submitErr && !job && (
+            <div
+              className="px-3 py-2 rounded-md text-[11px] flex items-start gap-2"
+              style={{
+                background: "rgba(76,175,80,0.10)",
+                border: "1px solid rgba(76,175,80,0.30)",
+                color: "#C8E6C9",
+              }}
+            >
+              <Check size={12} className="flex-shrink-0 mt-0.5" />
+              <span>{t("files.shared.settingsSavedInline")}</span>
             </div>
           )}
 
