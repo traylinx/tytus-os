@@ -45,11 +45,14 @@ export type {
 export type {
   StoreApp,
   StoreAppLaunchSpec,
+  StoreAppLlmSetup,
   StoreAppCheckResult,
   StoreAppCheckResponse,
   StoreAppOpenResult,
   StoreAppOpenAllResult,
   StoreAppInstallResult,
+  StoreAppLlmStatus,
+  StoreAppConfigureLlmResult,
 } from "./StoreApp";
 export type { DaemonResult, DaemonError, DaemonErrorCode } from "./Result";
 export { ok, err } from "./Result";

@@ -1,8 +1,8 @@
 import { type FC, useEffect, useState, useMemo } from 'react';
-import { Store, Search, CheckCircle2, Download, Package, Loader2, AlertCircle, AppWindow, BookOpen } from 'lucide-react';
+import { Store, Search, CheckCircle2, Download, Package, Loader2, AlertCircle, AppWindow, BookOpen, Sparkles } from 'lucide-react';
 import { useDaemonClient } from '@/hooks/useDaemonClient';
 import { useWindows } from '@/hooks/useOSStore';
-import type { StoreApp } from '@/types/daemon';
+import type { StoreApp, StoreAppLlmStatus } from '@/types/daemon';
 import { BRAND_LOGOS } from './brandLogos';
 import { TytusAppsTab } from './TytusAppsTab';
 import { useI18n } from '@/i18n';
@@ -285,8 +285,39 @@ const AppCard: FC<{ app: StoreApp; installed: boolean }> = ({ app, installed }) 
   const platform = navigator.platform.toLowerCase().includes('mac') ? 'macos' : 'linux';
   const installCmd = app.install[platform] ?? Object.values(app.install)[0] ?? '';
   const docsUrl = app.docs ?? app.url;
-  const [busy, setBusy] = useState<null | 'open' | 'install'>(null);
+  const [busy, setBusy] = useState<null | 'open' | 'install' | 'configureLlm'>(null);
   const [feedback, setFeedback] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
+  const [llmStatus, setLlmStatus] = useState<StoreAppLlmStatus | null>(null);
+  const [llmStatusLoaded, setLlmStatusLoaded] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      setLlmStatus(null);
+      setLlmStatusLoaded(false);
+      if (!installed || !app.llm_setup) return;
+      const r = await client.getAppLlmStatus(app.id);
+      if (cancelled) return;
+      setLlmStatusLoaded(true);
+      if (r.ok) {
+        setLlmStatus(r.value);
+      } else {
+        setLlmStatus({
+          app_id: app.id,
+          supported: false,
+          configured: false,
+          provider: app.llm_setup.provider,
+          model: app.llm_setup.default_model,
+          base_url: null,
+          key_hint: null,
+          restart_required: true,
+          message: r.error.message,
+        });
+      }
+    };
+    load();
+    return () => { cancelled = true; };
+  }, [app.id, app.llm_setup, client, installed]);
 
   const handleOpen = async () => {
     setBusy('open');
@@ -317,6 +348,25 @@ const AppCard: FC<{ app: StoreApp; installed: boolean }> = ({ app, installed }) 
       setFeedback({ kind: 'err', text: r.error.message });
     }
   };
+
+  const handleConfigureLlm = async () => {
+    setBusy('configureLlm');
+    setFeedback(null);
+    const r = await client.postAppConfigureLlm(app.id);
+    setBusy(null);
+    if (r.ok) {
+      setFeedback({ kind: 'ok', text: t('appStore.card.llm.success') });
+      const status = await client.getAppLlmStatus(app.id);
+      if (status.ok) setLlmStatus(status.value);
+    } else {
+      setFeedback({ kind: 'err', text: t('appStore.card.llm.failed', { error: r.error.message }) });
+    }
+  };
+
+  const showLlmSetup = installed && Boolean(app.llm_setup);
+  const llmStatusLoading = showLlmSetup && !llmStatusLoaded;
+  const llmConfigured = llmStatus?.configured === true;
+  const llmSupported = llmStatus?.supported !== false;
 
   return (
     <div
@@ -425,7 +475,55 @@ const AppCard: FC<{ app: StoreApp; installed: boolean }> = ({ app, installed }) 
             <CheckCircle2 size={12} /> {t('appStore.card.installed')}
           </span>
         )}
+        {showLlmSetup && (
+          <button
+            data-testid={`appcard-llm-${app.id}`}
+            onClick={handleConfigureLlm}
+            disabled={busy !== null || llmStatusLoading || !llmSupported}
+            className="flex items-center gap-1 px-3 py-1.5 rounded-md transition-opacity hover:opacity-90"
+            title={
+              llmSupported
+                ? t('appStore.card.llm.title')
+                : t('appStore.card.llm.unsupportedTitle')
+            }
+            style={{
+              fontSize: 12,
+              fontWeight: 600,
+              background: llmConfigured ? 'rgba(76,175,80,0.14)' : 'var(--accent-primary)',
+              color: llmConfigured ? 'var(--accent-success)' : 'var(--text-on-accent)',
+              border: llmConfigured ? '1px solid rgba(76,175,80,0.35)' : 'none',
+              cursor: busy || llmStatusLoading || !llmSupported ? 'not-allowed' : 'pointer',
+              opacity: busy === 'configureLlm' || llmStatusLoading || !llmSupported ? 0.6 : 1,
+            }}
+          >
+            {busy === 'configureLlm' ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
+            {busy === 'configureLlm'
+              ? t('appStore.card.llm.configuring')
+              : llmConfigured
+                ? t('appStore.card.llm.ready')
+                : t('appStore.card.llm.button')}
+          </button>
+        )}
       </div>
+      {showLlmSetup && (llmStatusLoaded || llmStatus) && (
+        <span
+          data-testid={`appcard-llm-status-${app.id}`}
+          style={{
+            fontSize: 11,
+            color: llmStatus?.configured
+              ? 'var(--accent-success)'
+              : llmStatus?.supported === false
+                ? 'var(--accent-warning)'
+                : 'var(--text-secondary)',
+          }}
+        >
+          {llmStatus?.configured
+            ? t('appStore.card.llm.status.ready')
+            : llmStatus?.supported === false
+              ? t('appStore.card.llm.status.unsupported')
+              : t('appStore.card.llm.status.available')}
+        </span>
+      )}
       {feedback && (
         <span
           data-testid={`appcard-feedback-${app.id}`}

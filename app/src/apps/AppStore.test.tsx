@@ -45,6 +45,26 @@ const ghostty: StoreApp = {
   launch: { macos: { kind: 'app', target: 'Ghostty' }, linux: { kind: 'app', target: 'ghostty' } },
 };
 
+const opencode: StoreApp = {
+  id: 'opencode',
+  name: 'OpenCode',
+  description: 'AI-powered code editor and terminal assistant.',
+  category: 'Developer Tools',
+  icon: 'Terminal',
+  url: 'https://opencode.ai/',
+  docs: 'https://opencode.ai/docs/',
+  platforms: ['macos', 'linux'],
+  detect: { macos: ['opencode'], linux: ['opencode'] },
+  install: { macos: 'brew install opencode-ai/tap/opencode', linux: 'curl -fsSL https://opencode.ai/install.sh | sh' },
+  launch: { macos: { kind: 'terminal', target: 'opencode' }, linux: { kind: 'terminal', target: 'opencode' } },
+  llm_setup: {
+    adapter: 'opencode',
+    provider: 'tytus-ail',
+    default_model: 'ail-compound',
+    supports_default: true,
+  },
+};
+
 const defaultRoutes: RouteSpec[] = [
   { method: 'GET', path: '/api/apps', body: [discord, ghostty] },
   {
@@ -137,5 +157,71 @@ describe('AppStore — Desktop tab actions', () => {
 
     expect(await screen.findByTestId('appstore-open-all-msg')).toBeTruthy();
     expect(screen.getByTestId('appstore-open-all-msg').textContent).toContain('discord');
+  });
+
+  it('shows one-click Tytus AIL setup for installed LLM-capable apps and configures them', async () => {
+    const routes: RouteSpec[] = [
+      { method: 'GET', path: '/api/apps', body: [opencode, discord, ghostty] },
+      {
+        method: 'POST',
+        path: '/api/apps/check',
+        body: {
+          results: [
+            { id: 'opencode', installed: true },
+            { id: 'discord', installed: true },
+            { id: 'ghostty', installed: true },
+          ],
+        },
+      },
+      {
+        method: 'GET',
+        path: '/api/apps/llm-status?app_id=opencode',
+        body: {
+          app_id: 'opencode',
+          supported: true,
+          configured: false,
+          provider: 'tytus-ail',
+          model: 'ail-compound',
+          base_url: 'http://10.42.42.1:18080/v1',
+          key_hint: null,
+          restart_required: true,
+          message: 'OpenCode can be configured with Tytus AIL.',
+        },
+      },
+      {
+        method: 'POST',
+        path: '/api/apps/configure-llm',
+        body: {
+          ok: true,
+          app_id: 'opencode',
+          configured: true,
+          provider: 'tytus-ail',
+          model: 'ail-compound',
+          backup_path: null,
+          restart_required: true,
+          message: 'Tytus AIL is now the default provider for OpenCode.',
+        },
+      },
+      { method: 'POST', path: '/api/apps/open', body: { ok: true, opened: ['opencode'], skipped: [] } },
+    ];
+    const handle = renderStore(routes);
+    await gotoDesktopTab();
+
+    const llmButton = await screen.findByTestId('appcard-llm-opencode');
+    await waitFor(() => expect((llmButton as HTMLButtonElement).disabled).toBe(false));
+    expect(screen.getByTestId('appcard-llm-status-opencode').textContent).toContain('available');
+    expect(screen.queryByTestId('appcard-llm-discord')).toBeNull();
+    expect(screen.queryByTestId('appcard-llm-ghostty')).toBeNull();
+
+    fireEvent.click(llmButton);
+
+    await waitFor(() => {
+      const call = handle.calls.find(
+        (c) => c.url.endsWith('/api/apps/configure-llm') && (c.init?.method ?? 'GET') === 'POST',
+      );
+      expect(call).toBeTruthy();
+      expect(JSON.parse(call!.init!.body as string)).toEqual({ app_id: 'opencode', provider: 'tytus-ail' });
+    });
+    expect(await screen.findByTestId('appcard-feedback-opencode')).toBeTruthy();
   });
 });

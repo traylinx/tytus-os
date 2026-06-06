@@ -36,7 +36,9 @@ import type {
   SharedFoldersList,
   StateSnapshot,
   StoreApp,
+  StoreAppConfigureLlmResult,
   StoreAppCheckResponse,
+  StoreAppLlmStatus,
   StoreAppOpenResult,
   StoreAppOpenAllResult,
   StoreAppInstallResult,
@@ -335,6 +337,28 @@ const isStoreAppOpenAllResult = (v: unknown): v is StoreAppOpenAllResult =>
   Array.isArray(v.opened) &&
   Array.isArray(v.skipped);
 
+const isStoreAppLlmStatus = (v: unknown): v is StoreAppLlmStatus =>
+  isObject(v) &&
+  typeof v.app_id === "string" &&
+  typeof v.supported === "boolean" &&
+  typeof v.configured === "boolean" &&
+  typeof v.provider === "string" &&
+  typeof v.model === "string" &&
+  typeof v.restart_required === "boolean" &&
+  typeof v.message === "string";
+
+const isStoreAppConfigureLlmResult = (
+  v: unknown,
+): v is StoreAppConfigureLlmResult =>
+  isObject(v) &&
+  typeof v.ok === "boolean" &&
+  typeof v.app_id === "string" &&
+  typeof v.configured === "boolean" &&
+  typeof v.provider === "string" &&
+  typeof v.model === "string" &&
+  typeof v.restart_required === "boolean" &&
+  typeof v.message === "string";
+
 const isChannels = (v: unknown): v is ChannelsResponse =>
   isObject(v) &&
   typeof v.pod_id === "string" &&
@@ -583,6 +607,16 @@ export interface DaemonClient {
     appId: string,
     signal?: AbortSignal,
   ): Promise<DaemonResult<StoreAppInstallResult>>;
+  /** Read one-click Tytus AIL provider setup state for an installed desktop app. */
+  getAppLlmStatus(
+    appId: string,
+    signal?: AbortSignal,
+  ): Promise<DaemonResult<StoreAppLlmStatus>>;
+  /** Configure a desktop AI app to use the included Tytus AIL gateway. */
+  postAppConfigureLlm(
+    appId: string,
+    signal?: AbortSignal,
+  ): Promise<DaemonResult<StoreAppConfigureLlmResult>>;
   getChannels(
     podId: string,
     signal?: AbortSignal,
@@ -1124,6 +1158,32 @@ export const createDaemonClient = (
         },
         (b) =>
           expectShape(b, isStoreAppInstallResult, "malformed /api/apps/install"),
+      ),
+
+    getAppLlmStatus: (appId, signal) =>
+      runRequest(
+        deps,
+        `/api/apps/llm-status?app_id=${encodeURIComponent(appId)}`,
+        { signal },
+        (b) =>
+          expectShape(b, isStoreAppLlmStatus, "malformed /api/apps/llm-status"),
+      ),
+
+    postAppConfigureLlm: (appId, signal) =>
+      runRequest(
+        deps,
+        "/api/apps/configure-llm",
+        {
+          method: "POST",
+          body: { app_id: appId, provider: "tytus-ail" },
+          signal,
+        },
+        (b) =>
+          expectShape(
+            b,
+            isStoreAppConfigureLlmResult,
+            "malformed /api/apps/configure-llm",
+          ),
       ),
 
     getChannels: (podId, signal) =>

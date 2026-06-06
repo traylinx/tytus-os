@@ -6,6 +6,14 @@ export interface StoreAppLaunchSpec {
   target: string;
 }
 
+/** Optional one-click LLM provider setup metadata for desktop AI apps. */
+export interface StoreAppLlmSetup {
+  adapter: string;
+  provider: string;
+  default_model: string;
+  supports_default?: boolean;
+}
+
 /** Single entry in the static App Store catalog (served by GET /api/apps). */
 export interface StoreApp {
   id: string;
@@ -21,6 +29,8 @@ export interface StoreApp {
   install: Record<string, string>;
   /** Per-platform launch spec, keyed by "macos" | "linux". Optional. */
   launch?: Record<string, StoreAppLaunchSpec>;
+  /** Optional provider setup capability for OpenAI-compatible desktop apps. */
+  llm_setup?: StoreAppLlmSetup;
 }
 
 /** Response from POST /api/apps/open for a single app. */
@@ -58,4 +68,27 @@ export interface StoreAppCheckResult {
 /** Full response from POST /api/apps/check. */
 export interface StoreAppCheckResponse {
   results: StoreAppCheckResult[];
+}
+
+export interface StoreAppLlmStatus {
+  app_id: string;
+  supported: boolean;
+  configured: boolean;
+  provider: string;
+  model: string;
+  base_url?: string | null;
+  key_hint?: string | null;
+  restart_required: boolean;
+  message: string;
+}
+
+export interface StoreAppConfigureLlmResult {
+  ok: boolean;
+  app_id: string;
+  configured: boolean;
+  provider: string;
+  model: string;
+  backup_path?: string | null;
+  restart_required: boolean;
+  message: string;
 }
