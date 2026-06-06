@@ -1639,6 +1639,8 @@ const SharedTab: FC<{
   included,
   client,
 }) => {
+  const { t } = useI18n();
+  const { addNotification } = useNotifications();
   const [bindings, setBindings] = useState<Binding[] | null>(null);
   const [sharingDefaults, setSharingDefaults] =
     useState<SharingDefaults | null>(null);
@@ -1814,12 +1816,28 @@ const SharedTab: FC<{
   const onBindSuccess = useCallback(async () => {
     setBindModalOpen(false);
     await refresh();
-  }, [refresh]);
+    addNotification({
+      appId: "filemanager",
+      appName: "Files",
+      appIcon: "FolderSync",
+      title: t("files.shared.boundNotificationTitle"),
+      message: t("files.shared.boundNotificationMessage"),
+      isRead: false,
+    });
+  }, [addNotification, refresh, t]);
 
   const onSettingsSuccess = useCallback(async () => {
     setSettingsBinding(null);
     await refresh();
-  }, [refresh]);
+    addNotification({
+      appId: "filemanager",
+      appName: "Files",
+      appIcon: "FolderSync",
+      title: t("files.shared.settingsSavedNotificationTitle"),
+      message: t("files.shared.settingsSavedNotificationMessage"),
+      isRead: false,
+    });
+  }, [addNotification, refresh, t]);
 
   const empty = bindings !== null && bindings.length === 0;
 
