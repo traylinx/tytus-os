@@ -30,6 +30,8 @@ export type {
   SharedFoldersList,
   SharingDefaults,
   SharedFolderProvisionPodRequest,
+  SharedFolderTargetUpdate,
+  SharedFolderUpdateTargetsRequest,
   GaragetytusHelperStatus,
   GaragetytusStatus,
 } from "./Binding";

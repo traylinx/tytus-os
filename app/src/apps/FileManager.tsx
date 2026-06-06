@@ -84,9 +84,16 @@ import type {
   FileListEntry,
   GaragetytusStatus,
   SharingDefaults,
+  SharedFolderTargetUpdate,
 } from "@/types/daemon";
 import type { DaemonClient } from "@/lib/daemon";
-import { buildSharedPodOptions } from "@/apps/fileManagerSharing";
+import {
+  buildShareTargets,
+  formatShareTargetsForPods,
+  provisionedShareTargetIds,
+  selectedTargetPodIds,
+} from "@/apps/fileManagerSharing";
+import type { ShareTargetOption } from "@/apps/fileManagerSharing";
 import { useSelection } from "@/lib/selection";
 import { registerShortcut } from "@/lib/shortcuts";
 import { serializePayload } from "@/lib/dnd";
@@ -219,8 +226,8 @@ const FileManager: FC = () => {
     );
   }
 
-  // Sidebar greys out (still visible) when Shared is active —
-  // the user understands shared folders are global, not pod-scoped.
+  // Sidebar greys out (still visible) when Shared is active. Folder-level
+  // sharing targets are configured from each binding's settings.
   const sidebarDisabled = activeTab === "shared" || activeTab === "browse";
 
   return (
@@ -298,7 +305,7 @@ const Header: FC<{
           {isBrowse
             ? "Browse Tytus Home, shared folders, and pod workspaces"
             : isShared
-              ? "Bindings are account-scoped, synced across all your pods"
+              ? "Use each folder's settings to choose pods and agents"
               : podId
                 ? `Inbox + Downloads · ${displayAgentType(agentType)}`
                 : "Per-pod inbox and local Downloads folder"}
@@ -376,7 +383,8 @@ const Sidebar: FC<{
         className="px-4 py-3 text-[10px] leading-relaxed"
         style={{ color: "var(--text-secondary)" }}
       >
-        Shared folders are account-scoped — pod selection doesn't apply here.
+        Shared folders are account-scoped. Use each folder's settings to choose
+        pods and agents.
       </div>
     )}
   </div>
@@ -1641,6 +1649,11 @@ const SharedTab: FC<{
   const [listing, setListing] = useState(false);
 
   const [bindModalOpen, setBindModalOpen] = useState(false);
+  const [settingsBinding, setSettingsBinding] = useState<Binding | null>(null);
+  const shareTargets = useMemo(
+    () => buildShareTargets(agents, included),
+    [agents, included],
+  );
 
   // Sync-now job (single-flight with bind-stream — only one
   // shared-folders job at a time per the task spec).
@@ -1803,16 +1816,10 @@ const SharedTab: FC<{
     await refresh();
   }, [refresh]);
 
-  // Format pod display: prefer wannolot-NN → "NN", else show as-is.
-  const formatPods = (pods: string[]): string => {
-    if (pods.length === 0) return "(none)";
-    return pods
-      .map((p) => {
-        const m = /^wannolot-(\d+)$/.exec(p);
-        return m ? m[1] : p;
-      })
-      .join(", ");
-  };
+  const onSettingsSuccess = useCallback(async () => {
+    setSettingsBinding(null);
+    await refresh();
+  }, [refresh]);
 
   const empty = bindings !== null && bindings.length === 0;
 
@@ -2047,8 +2054,13 @@ const SharedTab: FC<{
                 key={`${b.bucket}-${b.local_path}`}
                 binding={b}
                 onOpen={() => onOpenBinding(b)}
+                onSettings={() => setSettingsBinding(b)}
                 openErr={openErrByPath[b.local_path] ?? null}
-                podsLabel={formatPods(b.pods_provisioned)}
+                targetsLabel={formatShareTargetsForPods(
+                  b.pods_provisioned,
+                  shareTargets,
+                  b.targets ?? [],
+                )}
               />
             ))}
           </div>
@@ -2070,6 +2082,24 @@ const SharedTab: FC<{
               : garageWarning
                 ? garageWarning
               : undefined
+          }
+        />
+      )}
+      {settingsBinding && (
+        <SharedFolderSettingsModal
+          binding={settingsBinding}
+          agents={agents}
+          included={included}
+          client={client}
+          onCancel={() => setSettingsBinding(null)}
+          onSuccess={onSettingsSuccess}
+          syncBlocked={sharingBlocked}
+          pauseReason={
+            sharingPaused
+              ? "Sharing is paused in Settings → Sharing."
+              : garageWarning
+                ? garageWarning
+                : undefined
           }
         />
       )}
@@ -2147,9 +2177,10 @@ const SyncStreamPane: FC<{
 const BindingCard: FC<{
   binding: Binding;
   onOpen: () => void;
+  onSettings: () => void;
   openErr: string | null;
-  podsLabel: string;
-}> = ({ binding, onOpen, openErr, podsLabel }) => (
+  targetsLabel: string;
+}> = ({ binding, onOpen, onSettings, openErr, targetsLabel }) => (
   <div
     className="rounded-lg p-4 flex flex-col gap-2"
     style={{
@@ -2179,18 +2210,32 @@ const BindingCard: FC<{
           {binding.local_path}
         </div>
       </div>
-      <button
-        onClick={onOpen}
-        className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[11px] font-medium transition-colors"
-        style={{
-          background: "var(--bg-hover, rgba(255,255,255,0.04))",
-          border: "1px solid var(--border-default)",
-          color: "var(--text-primary)",
-        }}
-      >
-        <FolderOpen size={11} />
-        Open
-      </button>
+      <div className="flex items-center gap-2">
+        <button
+          onClick={onSettings}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[11px] font-medium transition-colors"
+          style={{
+            background: "var(--bg-hover, rgba(255,255,255,0.04))",
+            border: "1px solid var(--border-default)",
+            color: "var(--text-primary)",
+          }}
+        >
+          <Pencil size={11} />
+          Settings
+        </button>
+        <button
+          onClick={onOpen}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[11px] font-medium transition-colors"
+          style={{
+            background: "var(--bg-hover, rgba(255,255,255,0.04))",
+            border: "1px solid var(--border-default)",
+            color: "var(--text-primary)",
+          }}
+        >
+          <FolderOpen size={11} />
+          Open
+        </button>
+      </div>
     </div>
     <div
       className="flex items-center gap-3 text-[11px] flex-wrap"
@@ -2203,7 +2248,7 @@ const BindingCard: FC<{
           : "manual sync"}
       </span>
       <span>·</span>
-      <span>Synced to pods: {podsLabel}</span>
+      <span>Shared with: {targetsLabel}</span>
     </div>
     {openErr && (
       <div
@@ -2220,6 +2265,413 @@ const BindingCard: FC<{
     )}
   </div>
 );
+
+// ============================================================
+// SharedFolderSettingsModal — add pods/agents to an existing binding
+// ============================================================
+
+const normalizeProvisionPodId = (pod: string): string =>
+  pod.trim().replace(/^(wannolot|tytus)-/, "");
+
+const selectedShareTargetUpdates = (
+  selectedTargets: ReadonlySet<string>,
+  shareTargets: readonly ShareTargetOption[],
+): SharedFolderTargetUpdate[] =>
+  shareTargets
+    .filter(
+      (target) => target.shareCapable && selectedTargets.has(target.targetId),
+    )
+    .map((target) => ({
+      target_id: target.targetId,
+      pod_id: normalizeProvisionPodId(target.podId),
+      label: target.label,
+      kind: target.kind,
+      enabled: true,
+    }));
+
+const SharedFolderSettingsModal: FC<{
+  binding: Binding;
+  agents: Agent[];
+  included: IncludedPod[];
+  client: DaemonClient;
+  onCancel: () => void;
+  onSuccess: () => void;
+  syncBlocked: boolean;
+  pauseReason?: string;
+}> = ({
+  binding,
+  agents,
+  included,
+  client,
+  onCancel,
+  onSuccess,
+  syncBlocked,
+  pauseReason,
+}) => {
+  const shareTargets = useMemo(
+    () => buildShareTargets(agents, included),
+    [agents, included],
+  );
+  const provisionedTargetIds = useMemo(
+    () =>
+      provisionedShareTargetIds(
+        binding.pods_provisioned,
+        shareTargets,
+        binding.targets ?? [],
+      ),
+    [binding.pods_provisioned, binding.targets, shareTargets],
+  );
+  const provisionedPods = useMemo(
+    () =>
+      new Set(binding.pods_provisioned.map((pod) => normalizeProvisionPodId(pod))),
+    [binding.pods_provisioned],
+  );
+  const [selectedTargets, setSelectedTargets] = useState<Set<string>>(
+    () => new Set(provisionedTargetIds),
+  );
+  const [submitting, setSubmitting] = useState(false);
+  const [submitErr, setSubmitErr] = useState<string | null>(null);
+  const [job, setJob] = useState<{ id: string } | null>(null);
+  const [activePod, setActivePod] = useState<string | null>(null);
+  const [pendingPods, setPendingPods] = useState<string[]>([]);
+
+  useEffect(() => {
+    setSelectedTargets(new Set(provisionedTargetIds));
+  }, [provisionedTargetIds]);
+
+  const streamUrl = job ? client.jobStreamUrl(job.id) : null;
+  const stream = useJobStream({ url: streamUrl });
+  const done =
+    stream.status === "success" ||
+    stream.status === "failed" ||
+    stream.status === "lost";
+  const inFlight = submitting || (job !== null && !done);
+
+  const startProvision = useCallback(
+    async (pod: string) => {
+      setSubmitting(true);
+      setSubmitErr(null);
+      setActivePod(pod);
+      const r = await client.postSharedFoldersProvisionPod({
+        pod,
+        buckets: [binding.bucket],
+        no_restart: true,
+      });
+      setSubmitting(false);
+      if (!r.ok) {
+        setJob(null);
+        setActivePod(null);
+        setSubmitErr(r.error.message);
+        return;
+      }
+      setJob({ id: r.value.job_id });
+    },
+    [binding.bucket, client],
+  );
+
+  const startNext = useCallback(
+    (queue: string[]) => {
+      const [next, ...rest] = queue;
+      if (!next) {
+        onSuccess();
+        return;
+      }
+      setPendingPods(rest);
+      void startProvision(next);
+    },
+    [onSuccess, startProvision],
+  );
+
+  const lastHandledRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!job || !done) return;
+    const key = `${job.id}:${stream.status}`;
+    if (lastHandledRef.current === key) return;
+    lastHandledRef.current = key;
+    if (stream.status === "success") {
+      setJob(null);
+      setActivePod(null);
+      startNext(pendingPods);
+      return;
+    }
+    setSubmitErr(
+      stream.status === "failed"
+        ? `Provision job failed${stream.exitCode !== null ? ` (exit ${stream.exitCode})` : ""}.`
+        : "Lost connection to provision job.",
+    );
+    setActivePod(null);
+  }, [done, job, pendingPods, startNext, stream.exitCode, stream.status]);
+
+  const onToggleTarget = useCallback((target: ShareTargetOption) => {
+    if (!target.shareCapable) return;
+      setSelectedTargets((prev) => {
+        const next = new Set(prev);
+        if (next.has(target.targetId)) next.delete(target.targetId);
+        else next.add(target.targetId);
+        return next;
+      });
+    },
+    [],
+  );
+
+  const onSave = useCallback(async () => {
+    if (syncBlocked || inFlight) return;
+    const selectedPods = selectedTargetPodIds(selectedTargets, shareTargets);
+    setSubmitting(true);
+    setSubmitErr(null);
+    const updateResult = await client.postSharedFoldersUpdateTargets({
+      bucket: binding.bucket,
+      local_path: binding.local_path,
+      pods: selectedPods,
+      targets: selectedShareTargetUpdates(selectedTargets, shareTargets),
+    });
+    setSubmitting(false);
+    if (!updateResult.ok) {
+      setSubmitErr(updateResult.error.message);
+      return;
+    }
+    if (selectedPods.length === 0) {
+      onSuccess();
+      return;
+    }
+    lastHandledRef.current = null;
+    startNext(selectedPods);
+  }, [
+    inFlight,
+    binding.bucket,
+    binding.local_path,
+    client,
+    onSuccess,
+    selectedTargets,
+    shareTargets,
+    startNext,
+    syncBlocked,
+  ]);
+
+  return (
+    <div
+      className="fixed inset-0 z-[6000] flex items-center justify-center"
+      style={{ background: "rgba(0,0,0,0.55)", backdropFilter: "blur(6px)" }}
+    >
+      <div
+        className="w-[520px] max-h-[90vh] rounded-xl flex flex-col overflow-hidden"
+        style={{
+          background: "var(--bg-window, #1E1E1E)",
+          border: "1px solid var(--border-subtle)",
+          boxShadow: "0 24px 64px rgba(0,0,0,0.55)",
+        }}
+      >
+        <div
+          className="px-5 py-3 flex items-center justify-between flex-shrink-0"
+          style={{ borderBottom: "1px solid var(--border-subtle)" }}
+        >
+          <div className="min-w-0">
+            <div className="text-sm font-semibold text-[var(--text-primary)]">
+              Shared folder settings
+            </div>
+            <div
+              className="text-[11px] font-mono truncate"
+              style={{ color: "var(--text-secondary)" }}
+              title={binding.local_path}
+            >
+              {binding.bucket} · {binding.local_path}
+            </div>
+          </div>
+          <button
+            onClick={onCancel}
+            disabled={inFlight}
+            aria-label="Close"
+            className="p-1 rounded-sm transition-colors disabled:opacity-60"
+            style={{ color: "var(--text-secondary)" }}
+          >
+            <X size={14} />
+          </button>
+        </div>
+
+        <div className="px-5 py-4 flex flex-col gap-4 overflow-y-auto custom-scrollbar">
+          <div className="flex flex-col gap-1.5">
+            <label
+              className="text-[11px] font-medium"
+              style={{ color: "var(--text-secondary)" }}
+            >
+              Share with pods and agents
+            </label>
+            <div className="flex flex-col gap-1.5">
+              {shareTargets.length === 0 ? (
+                <div
+                  className="text-[11px]"
+                  style={{ color: "var(--text-disabled)" }}
+                >
+                  No allocated pods or agents.
+                </div>
+              ) : (
+                shareTargets.map((target) => {
+                  const checked = selectedTargets.has(target.targetId);
+                  const provisioned = provisionedTargetIds.has(target.targetId);
+                  const disabled = inFlight || !target.shareCapable;
+	                  return (
+	                    <label
+	                      key={target.targetId}
+	                      className="flex items-start gap-2 text-xs cursor-pointer"
+	                      style={{
+	                        color: target.shareCapable
+	                          ? "var(--text-primary)"
+	                          : "var(--text-disabled)",
+	                      }}
+	                    >
+                      <input
+                        className="mt-0.5"
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => onToggleTarget(target)}
+	                        disabled={disabled}
+	                      />
+                      <span className="min-w-0">
+                        <span className="block truncate">{target.label}</span>
+                        <span
+                          className="block text-[10px]"
+                          style={{ color: "var(--text-secondary)" }}
+                        >
+                          {target.disabledReason ?? target.details}
+                          {provisioned ? " · active" : ""}
+                        </span>
+                      </span>
+                    </label>
+                  );
+                })
+              )}
+            </div>
+            <div
+              className="text-[10px]"
+              style={{ color: "var(--text-disabled)" }}
+            >
+              Pick the agents that may use this shared folder. Agents on the
+              same physical runtime share one mounted filesystem, but this
+              policy is saved per agent.
+            </div>
+          </div>
+
+          {syncBlocked && !job && (
+            <div
+              className="px-3 py-2 rounded-md text-[11px] flex items-start gap-2"
+              style={{
+                background: "rgba(255,193,7,0.10)",
+                border: "1px solid rgba(255,193,7,0.30)",
+                color: "#FFE082",
+              }}
+            >
+              <AlertTriangle size={12} className="flex-shrink-0 mt-0.5" />
+              <span>
+                {pauseReason ??
+                  "Another shared-folders job is in flight. Wait for it to finish."}
+              </span>
+            </div>
+          )}
+
+          {submitErr && (
+            <div
+              className="px-3 py-2 rounded-md text-[11px] flex items-start gap-2"
+              style={{
+                background: "rgba(244,67,54,0.10)",
+                border: "1px solid rgba(244,67,54,0.30)",
+                color: "#FFCDD2",
+              }}
+            >
+              <AlertTriangle size={12} className="flex-shrink-0 mt-0.5" />
+              <span>{submitErr}</span>
+            </div>
+          )}
+
+          {job && (
+            <div
+              className="rounded-md overflow-hidden"
+              style={{
+                background: "#0A0A0A",
+                border: "1px solid var(--border-subtle)",
+              }}
+            >
+              <div
+                className="px-3 py-2 flex items-center gap-2 text-[11px]"
+                style={{
+                  background: "rgba(255,255,255,0.02)",
+                  borderBottom: "1px solid var(--border-subtle)",
+                }}
+              >
+                {!done ? (
+                  <Loader2
+                    size={11}
+                    className="animate-spin text-[var(--accent-primary)]"
+                  />
+                ) : stream.status === "success" ? (
+                  <Check size={11} style={{ color: "#A5D6A7" }} />
+                ) : (
+                  <AlertTriangle size={11} style={{ color: "#FF8A80" }} />
+                )}
+                <span className="text-[var(--text-secondary)]">
+                  provision {activePod ?? ""} ·{" "}
+                  <span
+                    style={{
+                      color:
+                        stream.status === "success"
+                          ? "#A5D6A7"
+                          : stream.status === "failed"
+                            ? "#FF8A80"
+                            : stream.status === "lost"
+                              ? "#FFB74D"
+                              : "#9E9E9E",
+                    }}
+                  >
+                    {stream.status}
+                    {stream.exitCode !== null && ` (exit ${stream.exitCode})`}
+                  </span>
+                </span>
+              </div>
+              <ul
+                className="font-mono text-[11px] leading-relaxed p-3 m-0 max-h-[180px] overflow-y-auto"
+                style={{ color: "#E0E0E0", listStyle: "none" }}
+              >
+                {stream.lines
+                  .filter((line) => line.length > 0)
+                  .map((line, i) => (
+                    <li key={`${i}-${line}`} className="truncate">
+                      {line}
+                    </li>
+                  ))}
+              </ul>
+            </div>
+          )}
+        </div>
+
+        <div
+          className="px-5 py-3 flex items-center justify-end gap-2 flex-shrink-0"
+          style={{ borderTop: "1px solid var(--border-subtle)" }}
+        >
+          <button
+            onClick={onCancel}
+            disabled={inFlight}
+            className="px-3 py-1.5 rounded-md text-xs font-medium transition-colors disabled:opacity-60"
+            style={{
+              background: "transparent",
+              color: "var(--text-primary)",
+              border: "1px solid var(--border-default)",
+            }}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onSave}
+            disabled={inFlight || syncBlocked}
+            className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-md text-xs font-semibold text-white transition-colors disabled:opacity-60"
+            style={{ background: "var(--accent-primary)" }}
+          >
+            {inFlight && <Loader2 size={12} className="animate-spin" />}
+            Save settings
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 // ============================================================
 // BindFolderModal — pick path + bucket + pods + auto-sync
@@ -2256,16 +2708,17 @@ const BindFolderModal: FC<BindFolderModalProps> = ({
   const [bucket, setBucket] = useState(defaults?.default_bucket ?? "shared");
   const [bucketTouched, setBucketTouched] = useState(false);
 
-  const podProvisionOptions = useMemo(
-    () => buildSharedPodOptions(agents, included),
+  const shareTargets = useMemo(
+    () => buildShareTargets(agents, included),
     [agents, included],
   );
 
-  // Selected runtime ids (pod_id strings, e.g. "02"). Multiple agents can
-  // share the same pod_id/runtime, so the UI must not render one checkbox per
-  // agent — the garagetytus helper provisions the runtime container once.
-  // Empty Set => all (server treats absent as all).
-  const [selectedPods, setSelectedPods] = useState<Set<string>>(new Set());
+  // Selected UI target ids. Payloads still dedupe to physical pod ids because
+  // garagetytus provisions a runtime container, not individual agent routes.
+  const [selectedTargets, setSelectedTargets] = useState<Set<string>>(
+    new Set(),
+  );
+  const targetDefaultsSetRef = useRef(false);
   const [autoSync, setAutoSync] = useState(
     defaults?.default_auto_sync ?? true,
   );
@@ -2282,6 +2735,37 @@ const BindFolderModal: FC<BindFolderModalProps> = ({
     stream.status === "lost";
   const inFlight = submitting || (job !== null && !done);
 
+  useEffect(() => {
+    if (targetDefaultsSetRef.current || shareTargets.length === 0) return;
+    targetDefaultsSetRef.current = true;
+    const defaultTargets = shareTargets
+      .filter((target) => target.kind === "agent" && target.shareCapable)
+      .map((target) => target.targetId);
+    setSelectedTargets(new Set(defaultTargets));
+  }, [shareTargets]);
+
+  const bucketErr = bucketTouched ? validateBucket(bucket) : null;
+  const selectedPods = selectedTargetPodIds(selectedTargets, shareTargets);
+  const selectedTargetUpdates = useMemo(
+    () => selectedShareTargetUpdates(selectedTargets, shareTargets),
+    [selectedTargets, shareTargets],
+  );
+
+  const persistTargetSelection = useCallback(async (): Promise<boolean> => {
+    if (!localPath) return false;
+    const r = await client.postSharedFoldersUpdateTargets({
+      bucket,
+      local_path: localPath,
+      pods: selectedPods,
+      targets: selectedTargetUpdates,
+    });
+    if (!r.ok) {
+      setSubmitErr(r.error.message);
+      return false;
+    }
+    return true;
+  }, [bucket, client, localPath, selectedPods, selectedTargetUpdates]);
+
   // Close modal on stream success.
   const lastHandledRef = useRef<string | null>(null);
   useEffect(() => {
@@ -2290,7 +2774,12 @@ const BindFolderModal: FC<BindFolderModalProps> = ({
     if (done) {
       lastHandledRef.current = stream.status;
       if (stream.status === "success") {
-        onSuccess();
+        /* eslint-disable-next-line react-hooks/set-state-in-effect */
+        setSubmitting(true);
+        void persistTargetSelection().then((ok) => {
+          setSubmitting(false);
+          if (ok) onSuccess();
+        });
       } else {
         // Failure / lost → keep modal open with explanation but
         // also surface a friendlier message.
@@ -2303,13 +2792,13 @@ const BindFolderModal: FC<BindFolderModalProps> = ({
         );
       }
     }
-  }, [job, stream.status, stream.exitCode, done, onSuccess]);
+  }, [done, job, onSuccess, persistTargetSelection, stream.exitCode, stream.status]);
 
-  const bucketErr = bucketTouched ? validateBucket(bucket) : null;
   const canSubmit =
     localPath !== null &&
     bucket.length > 0 &&
     validateBucket(bucket) === null &&
+    selectedPods.length > 0 &&
     !inFlight &&
     !syncBlocked;
 
@@ -2329,11 +2818,12 @@ const BindFolderModal: FC<BindFolderModalProps> = ({
     setLocalPath(r.value.path);
   }, [client]);
 
-  const onTogglePod = useCallback((podId: string) => {
-    setSelectedPods((prev) => {
+  const onToggleTarget = useCallback((target: ShareTargetOption) => {
+    if (!target.shareCapable) return;
+    setSelectedTargets((prev) => {
       const next = new Set(prev);
-      if (next.has(podId)) next.delete(podId);
-      else next.add(podId);
+      if (next.has(target.targetId)) next.delete(target.targetId);
+      else next.add(target.targetId);
       return next;
     });
   }, []);
@@ -2356,9 +2846,7 @@ const BindFolderModal: FC<BindFolderModalProps> = ({
       bucket,
       auto_sync: autoSync,
     };
-    if (selectedPods.size > 0) {
-      payload.pods = Array.from(selectedPods);
-    }
+    payload.pods = selectedPods;
     const r = await client.postSharedFoldersBind(payload);
     setSubmitting(false);
     if (!r.ok) {
@@ -2497,36 +2985,41 @@ const BindFolderModal: FC<BindFolderModalProps> = ({
               {t('files.shared.runtimesToProvision')}
             </label>
             <div className="flex flex-col gap-1.5">
-              {podProvisionOptions.length === 0 ? (
+              {shareTargets.length === 0 ? (
                 <div
                   className="text-[11px]"
                   style={{ color: "var(--text-disabled)" }}
                 >
-                  No allocated agent runtimes.
+                  No allocated pods or agents.
                 </div>
               ) : (
-                podProvisionOptions.map((option) => {
-                  const checked = selectedPods.has(option.podId);
-                  return (
-                    <label
-                      key={option.podId}
-                      className="flex items-start gap-2 text-xs cursor-pointer"
-                      style={{ color: "var(--text-primary)" }}
-                    >
+	                shareTargets.map((option) => {
+	                  const checked = selectedTargets.has(option.targetId);
+	                  const disabled = inFlight || !option.shareCapable;
+	                  return (
+	                    <label
+	                      key={option.targetId}
+	                      className="flex items-start gap-2 text-xs cursor-pointer"
+	                      style={{
+	                        color: option.shareCapable
+	                          ? "var(--text-primary)"
+	                          : "var(--text-disabled)",
+	                      }}
+	                    >
                       <input
                         className="mt-0.5"
                         type="checkbox"
                         checked={checked}
-                        onChange={() => onTogglePod(option.podId)}
-                        disabled={inFlight}
-                      />
+                        onChange={() => onToggleTarget(option)}
+	                        disabled={disabled}
+	                      />
                       <span className="min-w-0">
                         <span className="block truncate">{option.label}</span>
                         <span
                           className="block text-[10px]"
                           style={{ color: "var(--text-secondary)" }}
                         >
-                          {option.details}
+	                          {option.disabledReason ?? option.details}
                         </span>
                       </span>
                     </label>
@@ -2538,8 +3031,8 @@ const BindFolderModal: FC<BindFolderModalProps> = ({
               className="text-[10px]"
               style={{ color: "var(--text-disabled)" }}
             >
-              One checkbox can cover multiple agents when they share the same
-              Tytus runtime. Leave all unchecked to provision every runtime.
+              Pick the agents that may use this shared folder. At least one
+              share-capable agent is required.
             </div>
           </div>
 

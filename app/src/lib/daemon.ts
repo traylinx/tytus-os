@@ -32,6 +32,7 @@ import type {
   PodReadinessStage,
   SharingDefaults,
   SharedFolderProvisionPodRequest,
+  SharedFolderUpdateTargetsRequest,
   SharedFoldersList,
   StateSnapshot,
   StoreApp,
@@ -851,6 +852,11 @@ export interface DaemonClient {
     signal?: AbortSignal,
     idempotencyKey?: string,
   ): Promise<DaemonResult<JobResponse>>;
+  postSharedFoldersUpdateTargets(
+    payload: SharedFolderUpdateTargetsRequest,
+    signal?: AbortSignal,
+    idempotencyKey?: string,
+  ): Promise<DaemonResult<null>>;
   postSharingDefaults(
     payload: Partial<
       Pick<
@@ -1603,6 +1609,14 @@ export const createDaemonClient = (
             isJobResponse,
             "malformed /api/shared-folders/provision-pod",
           ),
+      ),
+
+    postSharedFoldersUpdateTargets: (payload, signal, idempotencyKey) =>
+      runRequest(
+        deps,
+        "/api/shared-folders/update-targets",
+        { method: "POST", body: payload, signal, idempotencyKey },
+        noBody,
       ),
 
     postSharingDefaults: (payload, signal, idempotencyKey) =>

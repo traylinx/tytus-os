@@ -2,11 +2,32 @@ export interface Binding {
   auto_sync: boolean;
   bound_at: string;
   bucket: string;
+  folder_id?: string;
   interval_sec: number;
   local_path: string;
   plist_label: string;
   pods_provisioned: string[];
+  runtime_status?: Record<
+    string,
+    {
+      state?: string;
+      workspace_path?: string;
+      object_count?: number;
+      helper_mode?: string;
+      last_materialized_at?: string;
+      last_error?: string | null;
+    }
+  >;
   schema_version: number;
+  slug?: string;
+  sync_layout?: string;
+  targets?: Array<{
+    runtime_id: string;
+    kind?: string;
+    labels?: string[];
+    target_id?: string;
+    enabled?: boolean;
+  }>;
   workdir: string;
 }
 
@@ -26,6 +47,21 @@ export interface SharedFolderProvisionPodRequest {
   pod: string;
   buckets?: string[];
   no_restart?: boolean;
+}
+
+export interface SharedFolderTargetUpdate {
+  target_id: string;
+  pod_id: string;
+  label: string;
+  kind: "agent" | "included";
+  enabled: boolean;
+}
+
+export interface SharedFolderUpdateTargetsRequest {
+  bucket: string;
+  local_path: string;
+  pods: string[];
+  targets: SharedFolderTargetUpdate[];
 }
 
 export interface GaragetytusHelperStatus {
