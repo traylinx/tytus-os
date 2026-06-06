@@ -1630,6 +1630,29 @@ const validateBucket = (s: string): string | null => {
   return null;
 };
 
+const bucketNameFromLocalPath = (path: string): string => {
+  const leaf =
+    path
+      .trim()
+      .replace(/\\/g, "/")
+      .replace(/\/+$/, "")
+      .split("/")
+      .filter(Boolean)
+      .pop() ?? "shared";
+  const slug = leaf
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9.-]+/g, "-")
+    .replace(/[.-]{2,}/g, "-")
+    .replace(/^[^a-z0-9]+|[^a-z0-9]+$/g, "")
+    .slice(0, 63);
+
+  if (slug.length >= 3) return slug;
+  if (slug.length > 0) return `${slug}-folder`.slice(0, 63);
+  return "shared";
+};
+
 const SharedTab: FC<{
   agents: Agent[];
   included: IncludedPod[];
@@ -3014,6 +3037,8 @@ const BindFolderModal: FC<BindFolderModalProps> = ({
       return;
     }
     setLocalPath(r.value.path);
+    setBucket(bucketNameFromLocalPath(r.value.path));
+    setBucketTouched(false);
   }, [client]);
 
   const onToggleTarget = useCallback((target: ShareTargetOption) => {
