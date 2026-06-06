@@ -2303,6 +2303,17 @@ const BindingCard: FC<{
 const normalizeProvisionPodId = (pod: string): string =>
   pod.trim().replace(/^(wannolot|tytus)-/, "");
 
+const normalizeBindingPath = (path: string): string =>
+  path.trim().replace(/\/+$/, "");
+
+const matchesSharedBinding = (
+  binding: Binding,
+  bucket: string,
+  localPath: string,
+): boolean =>
+  binding.bucket === bucket &&
+  normalizeBindingPath(binding.local_path) === normalizeBindingPath(localPath);
+
 const selectedShareTargetUpdates = (
   selectedTargets: ReadonlySet<string>,
   shareTargets: readonly ShareTargetOption[],
@@ -2791,6 +2802,7 @@ const BindFolderModal: FC<BindFolderModalProps> = ({
 
   const [submitting, setSubmitting] = useState(false);
   const [submitErr, setSubmitErr] = useState<string | null>(null);
+  const [recovering, setRecovering] = useState(false);
   const [job, setJob] = useState<{ id: string } | null>(null);
 
   const streamUrl = job ? client.jobStreamUrl(job.id) : null;
@@ -2799,7 +2811,7 @@ const BindFolderModal: FC<BindFolderModalProps> = ({
     stream.status === "success" ||
     stream.status === "failed" ||
     stream.status === "lost";
-  const inFlight = submitting || (job !== null && !done);
+  const inFlight = submitting || recovering || (job !== null && !done);
 
   useEffect(() => {
     if (targetDefaultsSetRef.current || shareTargets.length === 0) return;
@@ -2832,7 +2844,55 @@ const BindFolderModal: FC<BindFolderModalProps> = ({
     return true;
   }, [bucket, client, localPath, selectedPods, selectedTargetUpdates]);
 
-  // Close modal on stream success.
+  const findRecoveredBinding = useCallback(async (): Promise<Binding | null> => {
+    if (!localPath) return null;
+    // EventSource can report `lost` while the daemon-side helper is still
+    // finishing sidecar writes. Poll briefly before deciding the bind really
+    // failed; this prevents the "save settings a second time" workaround.
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const r = await client.getSharedFolders();
+      if (r.ok) {
+        const binding = r.value.bindings.find((candidate) =>
+          matchesSharedBinding(candidate, bucket, localPath),
+        );
+        if (binding) return binding;
+      }
+      if (attempt < 4) {
+        await new Promise((resolve) => window.setTimeout(resolve, 700));
+      }
+    }
+    return null;
+  }, [bucket, client, localPath]);
+
+  const recoverCompletedBind = useCallback(async (): Promise<
+    "recovered" | "not_found" | "error"
+  > => {
+    setRecovering(true);
+    const binding = await findRecoveredBinding();
+    if (!binding) {
+      setRecovering(false);
+      return "not_found";
+    }
+    const provisionedPods = new Set(
+      binding.pods_provisioned.map((pod) => normalizeProvisionPodId(pod)),
+    );
+    const allSelectedPodsProvisioned = selectedPods.every((pod) =>
+      provisionedPods.has(normalizeProvisionPodId(pod)),
+    );
+    if (!allSelectedPodsProvisioned) {
+      setRecovering(false);
+      return "not_found";
+    }
+    const ok = await persistTargetSelection();
+    setRecovering(false);
+    if (ok) onSuccess();
+    return ok ? "recovered" : "error";
+  }, [findRecoveredBinding, onSuccess, persistTargetSelection, selectedPods]);
+
+  // Close modal on stream success. If the stream reports failed/lost after the
+  // helper already wrote the binding sidecar, recover by persisting the
+  // per-agent target policy instead of forcing the user to reopen Settings and
+  // save a second time.
   const lastHandledRef = useRef<string | null>(null);
   useEffect(() => {
     if (!job) return;
@@ -2847,18 +2907,29 @@ const BindFolderModal: FC<BindFolderModalProps> = ({
           if (ok) onSuccess();
         });
       } else {
-        // Failure / lost → keep modal open with explanation but
-        // also surface a friendlier message.
+        // Failure / lost → first check whether the bind actually completed and
+        // only the stream fell over. If not recoverable, keep the modal open
+        // with a clear error.
         const code = stream.exitCode;
-        /* eslint-disable-next-line react-hooks/set-state-in-effect */
-        setSubmitErr(
-          stream.status === "failed"
-            ? `Bind job failed${code !== null ? ` (exit ${code})` : ""}.`
-            : "Lost connection to bind job.",
-        );
+        void recoverCompletedBind().then((result) => {
+          if (result === "recovered" || result === "error") return;
+          setSubmitErr(
+            stream.status === "failed"
+              ? `Bind job failed${code !== null ? ` (exit ${code})` : ""}.`
+              : "Lost connection to bind job.",
+          );
+        });
       }
     }
-  }, [done, job, onSuccess, persistTargetSelection, stream.exitCode, stream.status]);
+  }, [
+    done,
+    job,
+    onSuccess,
+    persistTargetSelection,
+    recoverCompletedBind,
+    stream.exitCode,
+    stream.status,
+  ]);
 
   const canSubmit =
     localPath !== null &&
@@ -2900,6 +2971,7 @@ const BindFolderModal: FC<BindFolderModalProps> = ({
     if (validateBucket(bucket) !== null) return;
     setSubmitting(true);
     setSubmitErr(null);
+    setRecovering(false);
     setJob(null);
     lastHandledRef.current = null;
     const payload: {
@@ -3152,6 +3224,20 @@ const BindFolderModal: FC<BindFolderModalProps> = ({
             >
               <AlertTriangle size={12} className="flex-shrink-0 mt-0.5" />
               <span>{submitErr}</span>
+            </div>
+          )}
+
+          {recovering && !submitErr && (
+            <div
+              className="px-3 py-2 rounded-md text-[11px] flex items-start gap-2"
+              style={{
+                background: "rgba(76,175,80,0.10)",
+                border: "1px solid rgba(76,175,80,0.30)",
+                color: "#C8E6C9",
+              }}
+            >
+              <Loader2 size={12} className="flex-shrink-0 mt-0.5 animate-spin" />
+              <span>{t("files.shared.bindRecoveringInline")}</span>
             </div>
           )}
 

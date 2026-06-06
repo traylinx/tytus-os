@@ -825,6 +825,7 @@ export const es: TranslationMap = {
   "files.shared.shareWithPodsAgents": "Compartir con pods y agentes",
   "files.shared.boundNotificationTitle": "Carpeta compartida vinculada",
   "files.shared.boundNotificationMessage": "La vinculación de carpeta se guardó.",
+  "files.shared.bindRecoveringInline": "La vinculación se completó; guardando acceso de agentes…",
   "files.shared.settingsSavedNotificationTitle": "Ajustes de carpeta compartida guardados",
   "files.shared.settingsSavedNotificationMessage": "El acceso de agentes se actualizó.",
   "files.shared.settingsSavedInline": "Guardado. Este diálogo permanece abierto para que puedas seguir editando.",

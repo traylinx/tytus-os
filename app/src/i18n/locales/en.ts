@@ -813,6 +813,7 @@ export const en: TranslationMap = {
   "files.shared.shareWithPodsAgents": "Share with pods and agents",
   "files.shared.boundNotificationTitle": "Shared folder bound",
   "files.shared.boundNotificationMessage": "Folder binding was saved.",
+  "files.shared.bindRecoveringInline": "Binding completed; saving agent access…",
   "files.shared.settingsSavedNotificationTitle": "Shared folder settings saved",
   "files.shared.settingsSavedNotificationMessage": "Agent access was updated.",
   "files.shared.settingsSavedInline": "Saved. This dialog stays open so you can continue editing.",
