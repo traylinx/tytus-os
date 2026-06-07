@@ -65,6 +65,43 @@ const opencode: StoreApp = {
   },
 };
 
+const openwork: StoreApp = {
+  id: 'openwork',
+  name: 'OpenWork',
+  description: 'Open-source desktop workspace for agentic AI.',
+  category: 'AI & ML',
+  icon: 'Bot',
+  url: 'https://openworklabs.com/download',
+  docs: 'https://github.com/different-ai/openwork',
+  platforms: ['macos', 'linux', 'windows'],
+  detect: { macos: ['OpenWork'], linux: ['openwork'], windows: ['OpenWork'] },
+  install: {
+    macos: 'Visit https://openworklabs.com/download and choose the correct Mac build',
+    linux: 'Visit https://openworklabs.com/download for the desktop app',
+    windows: 'Visit https://openworklabs.com/download for the Windows installer',
+  },
+  launch: {
+    macos: { kind: 'app', target: 'OpenWork' },
+    linux: { kind: 'app', target: 'openwork' },
+    windows: { kind: 'app', target: 'OpenWork' },
+  },
+  installers: [
+    {
+      os: 'macos',
+      arch: 'x64',
+      kind: 'url',
+      label: 'Install for Intel Mac',
+      url: 'https://openworklabs.com/download',
+    },
+  ],
+  llm_setup: {
+    adapter: 'opencode',
+    provider: 'tytus-ail',
+    default_model: 'ail-compound',
+    supports_default: true,
+  },
+};
+
 const defaultRoutes: RouteSpec[] = [
   { method: 'GET', path: '/api/apps', body: [discord, ghostty] },
   {
@@ -84,7 +121,7 @@ function renderStore(routes: RouteSpec[] = defaultRoutes): FakeFetchHandle {
     <I18nProvider>
       <DaemonClientProvider client={client}>
         <OSProvider>
-          <AppStore />
+          <AppStore loadInstalledApps={async () => []} loadFeatured={async () => []} />
         </OSProvider>
       </DaemonClientProvider>
     </I18nProvider>,
@@ -93,7 +130,7 @@ function renderStore(routes: RouteSpec[] = defaultRoutes): FakeFetchHandle {
 }
 
 async function gotoDesktopTab() {
-  fireEvent.click(await screen.findByTestId('appstore-tab-desktop'));
+  await screen.findByTestId('appstore-unified-grid');
 }
 
 afterEach(() => cleanup());
@@ -223,5 +260,37 @@ describe('AppStore — Desktop tab actions', () => {
       expect(JSON.parse(call!.init!.body as string)).toEqual({ app_id: 'opencode', provider: 'tytus-ail' });
     });
     expect(await screen.findByTestId('appcard-feedback-opencode')).toBeTruthy();
+  });
+
+  it('shows repair instead of Open/AIL for installed-but-broken apps', async () => {
+    const routes: RouteSpec[] = [
+      { method: 'GET', path: '/api/apps', body: [openwork] },
+      {
+        method: 'POST',
+        path: '/api/apps/check',
+        body: {
+          results: [
+            {
+              id: 'openwork',
+              installed: true,
+              status: 'installed_broken',
+              health: 'broken',
+              problems: ['native package does not match this device'],
+              install_label: 'Install for Intel Mac',
+              install_url: 'https://openworklabs.com/download',
+              install_kind: 'url',
+              target_label: 'Intel Mac',
+            },
+          ],
+        },
+      },
+    ];
+    renderStore(routes);
+    await gotoDesktopTab();
+
+    expect(await screen.findByTestId('appcard-install-openwork')).toBeTruthy();
+    expect(screen.queryByTestId('appcard-open-openwork')).toBeNull();
+    expect(screen.queryByTestId('appcard-llm-openwork')).toBeNull();
+    expect(screen.getByTestId('appcard-health-openwork').textContent).toContain('native package');
   });
 });

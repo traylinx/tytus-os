@@ -14,6 +14,18 @@ export interface StoreAppLlmSetup {
   supports_default?: boolean;
 }
 
+/** Architecture-aware installer option for desktop apps. New catalog entries
+ *  should prefer this over the legacy install[platform] string. */
+export interface StoreAppInstaller {
+  os: string;
+  arch?: string;
+  package_manager?: string;
+  kind: string;
+  label?: string;
+  command?: string;
+  url?: string;
+}
+
 /** Single entry in the static App Store catalog (served by GET /api/apps). */
 export interface StoreApp {
   id: string;
@@ -27,6 +39,7 @@ export interface StoreApp {
   platforms: string[];
   detect: Record<string, string[]>;
   install: Record<string, string>;
+  installers?: StoreAppInstaller[];
   /** Per-platform launch spec, keyed by "macos" | "linux". Optional. */
   launch?: Record<string, StoreAppLaunchSpec>;
   /** Optional provider setup capability for OpenAI-compatible desktop apps. */
@@ -62,6 +75,14 @@ export interface StoreAppInstallResult {
 export interface StoreAppCheckResult {
   id: string;
   installed: boolean;
+  status?: "not_installed" | "installed_ok" | "installed_broken" | "unsupported" | "unknown";
+  health?: "ok" | "broken" | "unsupported" | "unknown";
+  problems?: string[];
+  install_label?: string | null;
+  install_command?: string | null;
+  install_url?: string | null;
+  install_kind?: string | null;
+  target_label?: string | null;
   error?: string;
 }
 

@@ -41,6 +41,23 @@ describe("WindowFrame drag", () => {
     localStorage.clear();
   });
 
+
+
+  it("keeps window content selectable while chrome stays non-selectable", async () => {
+    const { container, findByText } = render(
+      <OSProvider>
+        <TestWindow onState={() => undefined} />
+      </OSProvider>,
+    );
+
+    await findByText("Window body");
+    const frame = container.querySelector("[data-window-id]") as HTMLElement;
+    const titlebar = frame.firstElementChild as HTMLElement;
+
+    expect(frame.className).not.toContain("select-none");
+    expect(titlebar.style.userSelect).toBe("none");
+  });
+
   it("moves immediately through the React state drag path", async () => {
     let snapshot: ReturnType<typeof useOS>["state"] | null = null;
     const { container, findByText } = render(

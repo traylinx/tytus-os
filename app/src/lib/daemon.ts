@@ -322,7 +322,25 @@ const isStoreAppCheckResponse = (v: unknown): v is StoreAppCheckResponse =>
     (r: unknown) =>
       isObject(r) &&
       typeof r.id === "string" &&
-      typeof r.installed === "boolean",
+      typeof r.installed === "boolean" &&
+      (r.status === undefined || typeof r.status === "string") &&
+      (r.health === undefined || typeof r.health === "string") &&
+      (r.problems === undefined || Array.isArray(r.problems)) &&
+      (r.install_label === undefined ||
+        r.install_label === null ||
+        typeof r.install_label === "string") &&
+      (r.install_command === undefined ||
+        r.install_command === null ||
+        typeof r.install_command === "string") &&
+      (r.install_url === undefined ||
+        r.install_url === null ||
+        typeof r.install_url === "string") &&
+      (r.install_kind === undefined ||
+        r.install_kind === null ||
+        typeof r.install_kind === "string") &&
+      (r.target_label === undefined ||
+        r.target_label === null ||
+        typeof r.target_label === "string"),
   );
 
 const isStoreAppOpenResult = (v: unknown): v is StoreAppOpenResult =>

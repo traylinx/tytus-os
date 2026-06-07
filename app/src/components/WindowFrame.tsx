@@ -255,7 +255,7 @@ const WindowFrame = memo(function WindowFrame({ window: win, children }: WindowF
   return (
     <div
       ref={frameRef}
-      className="absolute flex flex-col select-none"
+      className="absolute flex flex-col"
       data-window-id={win.id}
       data-app-id={win.appId}
       data-window-title={win.title}
