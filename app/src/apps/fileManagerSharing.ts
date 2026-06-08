@@ -8,7 +8,12 @@ export interface PodProvisionOption {
 
 export interface ShareTargetOption {
   targetId: string;
+  /** DAM-local runtime id, e.g. "01". Not globally unique. */
   podId: string;
+  /** Opaque route id. Unique selector for modern multi-route fleets. */
+  routeId?: string;
+  /** Selector to send to tray/provision helpers. Prefer routeId over podId. */
+  provisionSelector: string;
   label: string;
   details: string;
   kind: "agent" | "included";
@@ -19,6 +24,8 @@ export interface ShareTargetOption {
 
 export interface SharedFolderTargetRecord {
   runtime_id: string;
+  route_id?: string;
+  provision_selector?: string;
   kind?: string;
   labels?: string[];
   target_id?: string;
@@ -72,11 +79,19 @@ export const buildShareTargets = (
     const route =
       (agent as { route_id?: string | null }).route_id?.trim() ||
       safeTargetSlug(label);
+    const provisionSelector = route || agent.pod_id;
+    const shortRoute = route && route !== agent.pod_id ? ` · route ${route}` : "";
     targets.push({
       targetId: `agent:${agent.pod_id}:${route}:${safeTargetSlug(label)}`,
       podId: agent.pod_id,
+      routeId: route,
+      provisionSelector,
       label,
-      details: `${agentType} · runtime pod ${agent.pod_id}`,
+      // Do not expose the DAM-local runtime id in the user-facing target row.
+      // Multiple real agents can all report pod_id=01; showing that here makes
+      // Lisa/Claus/Hermie look broken even though route_id is the unique
+      // selector used by provisioning.
+      details: `${agentType}${shortRoute}`,
       kind: "agent",
       shareCapable: true,
       agentLabels: [label],
@@ -89,6 +104,8 @@ export const buildShareTargets = (
       targets.push({
         targetId: `included:${pod.pod_id}:ail`,
         podId: pod.pod_id,
+        routeId: pod.route_id?.trim() || undefined,
+        provisionSelector: pod.route_id?.trim() || pod.pod_id,
         label: pod.display_label?.trim() || `Pod ${pod.pod_id}`,
         details: `AIL gateway · pod ${pod.pod_id} · not share-capable`,
         kind: "included",
@@ -102,8 +119,10 @@ export const buildShareTargets = (
     targets.push({
       targetId: `included:${pod.pod_id}:${safeTargetSlug(label)}`,
       podId: pod.pod_id,
+      routeId: pod.route_id?.trim() || undefined,
+      provisionSelector: pod.route_id?.trim() || pod.pod_id,
       label,
-      details: `runtime pod ${pod.pod_id}`,
+      details: pod.route_id ? `route ${pod.route_id}` : "share-capable runtime",
       kind: "included",
       shareCapable: true,
       agentLabels: [label],
@@ -120,7 +139,7 @@ export const selectedTargetPodIds = (
   const podIds = new Set<string>();
   for (const target of targets) {
     if (target.shareCapable && selectedTargetIds.has(target.targetId)) {
-      podIds.add(normalizeSharingPodId(target.podId));
+      podIds.add(normalizeSharingPodId(target.provisionSelector));
     }
   }
   return Array.from(podIds).sort((a, b) =>
@@ -155,6 +174,14 @@ export const provisionedShareTargetIds = (
           selected.add(target.targetId);
           continue;
         }
+        if (record.route_id && target.routeId === record.route_id) {
+          selected.add(target.targetId);
+          continue;
+        }
+        if (record.provision_selector && target.provisionSelector === record.provision_selector) {
+          selected.add(target.targetId);
+          continue;
+        }
         if (labelSet.has(target.label)) selected.add(target.targetId);
       }
     }
@@ -162,7 +189,10 @@ export const provisionedShareTargetIds = (
   }
 
   for (const target of targets) {
-    if (provisionedIds.has(normalizeSharingPodId(target.podId))) {
+    if (
+      provisionedIds.has(normalizeSharingPodId(target.provisionSelector)) ||
+      provisionedIds.has(normalizeSharingPodId(target.podId))
+    ) {
       selected.add(target.targetId);
     }
   }

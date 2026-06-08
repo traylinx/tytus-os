@@ -75,7 +75,12 @@ export interface StoreAppInstallResult {
 export interface StoreAppCheckResult {
   id: string;
   installed: boolean;
-  status?: "not_installed" | "installed_ok" | "installed_broken" | "unsupported" | "unknown";
+  status?:
+    | "not_installed"
+    | "installed_ok"
+    | "installed_broken"
+    | "unsupported"
+    | "unknown";
   health?: "ok" | "broken" | "unsupported" | "unknown";
   problems?: string[];
   install_label?: string | null;
@@ -89,6 +94,26 @@ export interface StoreAppCheckResult {
 /** Full response from POST /api/apps/check. */
 export interface StoreAppCheckResponse {
   results: StoreAppCheckResult[];
+}
+
+/** One result from POST /api/apps/runtime. */
+export interface StoreAppRuntimeResult {
+  id: string;
+  running: boolean;
+  status?:
+    | "running"
+    | "not_running"
+    | "not_installed"
+    | "installed_broken"
+    | "unsupported"
+    | "unknown"
+    | "error";
+  detail?: string | null;
+}
+
+/** Full response from POST /api/apps/runtime. */
+export interface StoreAppRuntimeResponse {
+  results: StoreAppRuntimeResult[];
 }
 
 export interface StoreAppLlmStatus {

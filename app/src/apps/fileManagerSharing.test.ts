@@ -91,11 +91,18 @@ describe("buildShareTargets", () => {
       "01",
       "02",
     ]);
+    expect(targets.map((target) => target.provisionSelector)).toEqual([
+      "claus",
+      "hermie",
+      "lisa",
+      "ail-02",
+    ]);
+    expect(targets[0]?.details).toBe("OpenClaw · route claus");
     expect(targets[0]?.shareCapable).toBe(true);
     expect(targets[3]?.shareCapable).toBe(false);
   });
 
-  it("serializes selected agent targets to deduped physical pod ids for daemon calls", () => {
+  it("serializes selected agent targets to route-aware provision selectors", () => {
     const targets = buildShareTargets([
       agent({ pod_id: "01", route_id: "lisa", display_label: "Lisa" }),
       agent({ pod_id: "01", route_id: "claus", display_label: "Claus" }),
@@ -104,7 +111,7 @@ describe("buildShareTargets", () => {
 
     expect(
       selectedTargetPodIds(new Set([targets[0]!.targetId, targets[1]!.targetId]), targets),
-    ).toEqual(["01"]);
+    ).toEqual(["claus", "lisa"]);
   });
 
   it("maps legacy sidecar provisioned pod ids back to all agent labels", () => {

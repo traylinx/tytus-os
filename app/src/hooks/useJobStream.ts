@@ -46,6 +46,11 @@ export interface UseJobStreamOptions {
    *  race where the SSE handler 404s because the registry hasn't
    *  committed the job yet. Default 500ms. Set to 0 to disable. */
   reconnectDelayMs?: number;
+  /** Native EventSource fires `error` both for real disconnects and for
+   *  transient reconnect cycles. After logs have already arrived, give the
+   *  browser a short grace window to reconnect and receive the terminal
+   *  `exit`/`done`/`fail` event before surfacing "lost" to the UI. */
+  streamDropGraceMs?: number;
 }
 
 export const useJobStream = (
@@ -55,6 +60,7 @@ export const useJobStream = (
     url,
     lateSubscribeDeadlineMs = 8000,
     reconnectDelayMs = 500,
+    streamDropGraceMs = 5000,
   } = options;
   const [status, setStatus] = useState<JobStatus>("subscribing");
   const [lines, setLines] = useState<string[]>([]);
@@ -96,9 +102,18 @@ export const useJobStream = (
     let attempt = 0;
     let lateTimer: ReturnType<typeof setTimeout> | null = null;
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+    let streamDropTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const clearStreamDropTimer = () => {
+      if (streamDropTimer) {
+        clearTimeout(streamDropTimer);
+        streamDropTimer = null;
+      }
+    };
 
     const onLog = (e: MessageEvent | { data: string }) => {
       receivedAny = true;
+      clearStreamDropTimer();
       setStatus("streaming");
       const data = (e as { data: string }).data ?? "";
       setLines((prev) => [...prev, data]);
@@ -107,6 +122,7 @@ export const useJobStream = (
     const onExit = (e: MessageEvent | { data: string }) => {
       receivedAny = true;
       terminal = true;
+      clearStreamDropTimer();
       const raw = (e as { data: string }).data ?? "";
       let code: number | null = null;
       try {
@@ -123,6 +139,7 @@ export const useJobStream = (
     const onDone = (e: MessageEvent | { data: string }) => {
       receivedAny = true;
       terminal = true;
+      clearStreamDropTimer();
       const data = (e as { data: string }).data ?? "";
       let payload: unknown = data;
       try {
@@ -140,6 +157,7 @@ export const useJobStream = (
     const onFail = (e: MessageEvent | { data: string }) => {
       receivedAny = true;
       terminal = true;
+      clearStreamDropTimer();
       const data = (e as { data: string }).data ?? "";
       setFailMessage(data);
       setExitCode(null);
@@ -157,7 +175,11 @@ export const useJobStream = (
     const onError = () => {
       if (terminal) return;
       if (receivedAny) {
-        setStatus("lost");
+        if (!streamDropTimer) {
+          streamDropTimer = setTimeout(() => {
+            if (!terminal) setStatus("lost");
+          }, streamDropGraceMs);
+        }
         return;
       }
       if (attempt < 1 && reconnectDelayMs > 0) {
@@ -198,10 +220,17 @@ export const useJobStream = (
     return () => {
       if (lateTimer) clearTimeout(lateTimer);
       if (reconnectTimer) clearTimeout(reconnectTimer);
+      clearStreamDropTimer();
       sourceRef.current?.close();
       sourceRef.current = null;
     };
-  }, [url, options.EventSourceCtor, lateSubscribeDeadlineMs, reconnectDelayMs]);
+  }, [
+    url,
+    options.EventSourceCtor,
+    lateSubscribeDeadlineMs,
+    reconnectDelayMs,
+    streamDropGraceMs,
+  ]);
 
   return { status, lines, exitCode, donePayload, failMessage };
 };

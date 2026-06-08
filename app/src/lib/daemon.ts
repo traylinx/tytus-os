@@ -32,12 +32,15 @@ import type {
   PodReadinessStage,
   SharingDefaults,
   SharedFolderProvisionPodRequest,
+  SharedFolderRemoveRequest,
+  SharedFolderUpdateAliasRequest,
   SharedFolderUpdateTargetsRequest,
   SharedFoldersList,
   StateSnapshot,
   StoreApp,
   StoreAppConfigureLlmResult,
   StoreAppCheckResponse,
+  StoreAppRuntimeResponse,
   StoreAppLlmStatus,
   StoreAppOpenResult,
   StoreAppOpenAllResult,
@@ -343,6 +346,20 @@ const isStoreAppCheckResponse = (v: unknown): v is StoreAppCheckResponse =>
         typeof r.target_label === "string"),
   );
 
+const isStoreAppRuntimeResponse = (v: unknown): v is StoreAppRuntimeResponse =>
+  isObject(v) &&
+  Array.isArray(v.results) &&
+  v.results.every(
+    (r: unknown) =>
+      isObject(r) &&
+      typeof r.id === "string" &&
+      typeof r.running === "boolean" &&
+      (r.status === undefined || typeof r.status === "string") &&
+      (r.detail === undefined ||
+        r.detail === null ||
+        typeof r.detail === "string"),
+  );
+
 const isStoreAppOpenResult = (v: unknown): v is StoreAppOpenResult =>
   isObject(v) && typeof v.ok === "boolean";
 
@@ -611,6 +628,11 @@ export interface DaemonClient {
     appIds: string[],
     signal?: AbortSignal,
   ): Promise<DaemonResult<StoreAppCheckResponse>>;
+  /** Read running/not-running process state for visible desktop apps. */
+  postAppsRuntime(
+    appIds: string[],
+    signal?: AbortSignal,
+  ): Promise<DaemonResult<StoreAppRuntimeResponse>>;
   /** Launch a single installed desktop app by catalog id. */
   postAppOpen(
     appId: string,
@@ -909,6 +931,16 @@ export interface DaemonClient {
     signal?: AbortSignal,
     idempotencyKey?: string,
   ): Promise<DaemonResult<null>>;
+  postSharedFoldersUpdateAlias(
+    payload: SharedFolderUpdateAliasRequest,
+    signal?: AbortSignal,
+    idempotencyKey?: string,
+  ): Promise<DaemonResult<null>>;
+  postSharedFoldersRemove(
+    payload: SharedFolderRemoveRequest,
+    signal?: AbortSignal,
+    idempotencyKey?: string,
+  ): Promise<DaemonResult<null>>;
   postSharingDefaults(
     payload: Partial<
       Pick<
@@ -1140,6 +1172,23 @@ export const createDaemonClient = (
           expectShape(b, isStoreAppCheckResponse, "malformed /api/apps/check"),
       ),
 
+    postAppsRuntime: (appIds, signal) =>
+      runRequest(
+        deps,
+        "/api/apps/runtime",
+        {
+          method: "POST",
+          body: { app_ids: appIds },
+          signal,
+        },
+        (b) =>
+          expectShape(
+            b,
+            isStoreAppRuntimeResponse,
+            "malformed /api/apps/runtime",
+          ),
+      ),
+
     postAppOpen: (appId, signal) =>
       runRequest(
         deps,
@@ -1162,7 +1211,11 @@ export const createDaemonClient = (
           signal,
         },
         (b) =>
-          expectShape(b, isStoreAppOpenAllResult, "malformed /api/apps/open (all)"),
+          expectShape(
+            b,
+            isStoreAppOpenAllResult,
+            "malformed /api/apps/open (all)",
+          ),
       ),
 
     postAppInstall: (appId, signal) =>
@@ -1175,7 +1228,11 @@ export const createDaemonClient = (
           signal,
         },
         (b) =>
-          expectShape(b, isStoreAppInstallResult, "malformed /api/apps/install"),
+          expectShape(
+            b,
+            isStoreAppInstallResult,
+            "malformed /api/apps/install",
+          ),
       ),
 
     getAppLlmStatus: (appId, signal) =>
@@ -1697,6 +1754,22 @@ export const createDaemonClient = (
         noBody,
       ),
 
+    postSharedFoldersUpdateAlias: (payload, signal, idempotencyKey) =>
+      runRequest(
+        deps,
+        "/api/shared-folders/update-alias",
+        { method: "POST", body: payload, signal, idempotencyKey },
+        noBody,
+      ),
+
+    postSharedFoldersRemove: (payload, signal, idempotencyKey) =>
+      runRequest(
+        deps,
+        "/api/shared-folders/remove",
+        { method: "POST", body: payload, signal, idempotencyKey },
+        noBody,
+      ),
+
     postSharingDefaults: (payload, signal, idempotencyKey) =>
       runRequest(
         deps,
@@ -1787,7 +1860,11 @@ export const createDaemonClient = (
         "/api/update/install",
         { method: "POST", signal, idempotencyKey },
         (b) =>
-          expectShape(b, isUpdateInstallResult, "malformed /api/update/install"),
+          expectShape(
+            b,
+            isUpdateInstallResult,
+            "malformed /api/update/install",
+          ),
       ),
 
     postUpdateAutomaticChecks: (enabled, signal, idempotencyKey) =>

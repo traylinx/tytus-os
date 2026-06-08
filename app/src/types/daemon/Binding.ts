@@ -7,6 +7,8 @@ export interface Binding {
   local_path: string;
   plist_label: string;
   pods_provisioned: string[];
+  /** Route-aware provision selectors, e.g. Lisa/Claus/Hermie route ids. */
+  routes_provisioned?: string[];
   runtime_status?: Record<
     string,
     {
@@ -23,6 +25,8 @@ export interface Binding {
   sync_layout?: string;
   targets?: Array<{
     runtime_id: string;
+    route_id?: string;
+    provision_selector?: string;
     kind?: string;
     labels?: string[];
     target_id?: string;
@@ -52,6 +56,8 @@ export interface SharedFolderProvisionPodRequest {
 export interface SharedFolderTargetUpdate {
   target_id: string;
   pod_id: string;
+  route_id?: string;
+  provision_selector?: string;
   label: string;
   kind: "agent" | "included";
   enabled: boolean;
@@ -62,6 +68,17 @@ export interface SharedFolderUpdateTargetsRequest {
   local_path: string;
   pods: string[];
   targets: SharedFolderTargetUpdate[];
+}
+
+export interface SharedFolderUpdateAliasRequest {
+  bucket: string;
+  local_path: string;
+  slug: string;
+}
+
+export interface SharedFolderRemoveRequest {
+  bucket: string;
+  local_path: string;
 }
 
 export interface GaragetytusHelperStatus {

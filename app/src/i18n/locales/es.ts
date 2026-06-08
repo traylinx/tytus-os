@@ -43,11 +43,11 @@ export const es: TranslationMap = {
   "settings.category.sharing": "Compartir",
   "settings.ai.title": "Perfil de memoria de IA",
   "settings.ai.subtitle":
-    "Chatea con tu pod a través del Cortex en la nube (por defecto) o un Cortex que corre en tu Mac. Local mantiene la memoria fuera de los servidores de Traylinx.",
+    "Chatea con tu pod a través del Cortex en la nube (por defecto) o un Cortex que corre en tu Mac. Local mantiene la memoria en esta Mac.",
   "settings.ai.profile.label": "Perfil de Cortex",
   "settings.ai.profile.cloud.label": "Cortex en la nube (por defecto)",
   "settings.ai.profile.cloud.desc":
-    "El chat pasa por tytus.traylinx.com. La memoria vive en Strato.",
+    "El chat pasa por Tytus Cloud. La memoria se gestiona en tu espacio privado de Tytus.",
   "settings.ai.profile.local.label": "Cortex local (opcional)",
   "settings.ai.profile.local.desc":
     "El chat pasa por 127.0.0.1:8098. La memoria vive en esta Mac. Requiere Docker Desktop y un paso en la terminal.",

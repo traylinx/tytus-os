@@ -1,6 +1,6 @@
 # Local Cortex
 
-By default, chat with your pod routes through Tytus's cloud Cortex on Strato. That works out of the box and requires no extra software. If you want chat **memory** and the Cortex database/cache to stay on your Mac, you can run Cortex locally instead.
+By default, chat with your pod routes through Tytus Cloud Cortex. That works out of the box and requires no extra software. If you want chat **memory** and the Cortex database/cache to stay on your Mac, you can run Cortex locally instead.
 
 Local Cortex is opt-in. Cloud stays the default for everyone.
 
@@ -8,10 +8,10 @@ Local Cortex is opt-in. Cloud stays the default for everyone.
 
 | Profile | Where chat goes | Where memory lives |
 |---|---|---|
-| **Cloud** (default) | `tytus.traylinx.com` → Strato Cortex → your pod | Strato Postgres |
+| **Cloud** (default) | Tytus Cloud Cortex → your pod | Private Tytus workspace |
 | **Local** (opt-in) | `127.0.0.1:8098` → local Cortex → your pod | Your Mac's Docker volumes |
 
-In both profiles, the **agent** (OpenClaw or Hermes) runs in your pod on Strato. Local Cortex only moves the "memory and routing" layer to your machine. Running agents locally is a separate, future feature.
+In both profiles, the **agent** (OpenClaw or Hermes) runs in your Tytus pod. Local Cortex only moves the "memory and routing" layer to your machine. Running agents locally is a separate, future feature.
 
 ## Requirements
 
@@ -112,7 +112,7 @@ This appears in TytusOS apps that try to call `host.ai.cortexSearch()` while the
 
 ## What's NOT supported in v1
 
-- **Running pods locally.** Agents stay in your remote Strato pod. The `chat_target=agent` path through local Cortex is intentionally disabled (DAM is not running on your Mac).
+- **Running pods locally.** Agents stay in your remote Tytus pod. The `chat_target=agent` path through local Cortex is intentionally disabled (DAM is not running on your Mac).
 - **Cortex-mediated direct memory writes.** Local Cortex consolidates memories from chats automatically; there is no `host.ai.cortexRemember()` API today. If you want explicit "save this fact" UX, use Atomek's existing **Remember** button — that writes to a separate, workbench-scoped memory store.
 - **Migrating cloud sessions to local.** The two profiles maintain separate memories. Switching does not move data either way.
 - **Multi-user local Cortex.** One Mac, one user.

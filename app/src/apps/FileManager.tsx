@@ -98,6 +98,10 @@ import { useSelection } from "@/lib/selection";
 import { registerShortcut } from "@/lib/shortcuts";
 import { serializePayload } from "@/lib/dnd";
 import { refFromDaemonPath, type FileRef } from "@/lib/files/fileRef";
+import {
+  emitSharedFoldersChanged,
+  onSharedFoldersChanged,
+} from "@/lib/sharedFoldersEvents";
 import { useI18n } from "@/i18n";
 
 type TabId = "browse" | "inbox" | "downloads" | "shared";
@@ -550,12 +554,16 @@ const FileBrowser: FC<{ agents: Agent[]; client: DaemonClient }> = ({
 
   useEffect(() => {
     let cancelled = false;
-    client.getSharedFolders().then((r) => {
+    const loadBindings = async () => {
+      const r = await client.getSharedFolders();
       if (cancelled) return;
       if (r.ok) setBindings(r.value.bindings);
-    });
+    };
+    void loadBindings();
+    const unsubscribe = onSharedFoldersChanged(() => void loadBindings());
     return () => {
       cancelled = true;
+      unsubscribe();
     };
   }, [client]);
 
@@ -1837,9 +1845,50 @@ const SharedTab: FC<{
     [client],
   );
 
+  const onRemoveBinding = useCallback(
+    async (b: Binding) => {
+      if (sharingBlocked) return;
+      const ok = window.confirm(
+        `Remove "${b.bucket}" from shared folders?\n\nThis only removes the Tytus sharing binding. It does not delete files from your Mac.`,
+      );
+      if (!ok) return;
+      setOpenErrByPath((prev) => {
+        const next = { ...prev };
+        delete next[b.local_path];
+        return next;
+      });
+      const r = await client.postSharedFoldersRemove({
+        bucket: b.bucket,
+        local_path: b.local_path,
+      });
+      if (!r.ok) {
+        setOpenErrByPath((prev) => ({
+          ...prev,
+          [b.local_path]: r.error.message,
+        }));
+        return;
+      }
+      if (settingsBinding?.bucket === b.bucket && settingsBinding.local_path === b.local_path) {
+        setSettingsBinding(null);
+      }
+      await refresh();
+      emitSharedFoldersChanged();
+      addNotification({
+        appId: "filemanager",
+        appName: "Files",
+        appIcon: "FolderSync",
+        title: "Shared folder removed",
+        message: "The folder was removed from sharing. Local files were not deleted.",
+        isRead: false,
+      });
+    },
+    [addNotification, client, refresh, settingsBinding, sharingBlocked],
+  );
+
   const onBindSuccess = useCallback(async () => {
     setBindModalOpen(false);
     await refresh();
+    emitSharedFoldersChanged();
     addNotification({
       appId: "filemanager",
       appName: "Files",
@@ -1852,6 +1901,7 @@ const SharedTab: FC<{
 
   const onSettingsSuccess = useCallback(async () => {
     const nextBindings = await refresh();
+    emitSharedFoldersChanged();
     const current = settingsBinding;
     if (current && nextBindings) {
       const updated = nextBindings.find(
@@ -2105,6 +2155,8 @@ const SharedTab: FC<{
                 binding={b}
                 onOpen={() => onOpenBinding(b)}
                 onSettings={() => setSettingsBinding(b)}
+                onRemove={() => onRemoveBinding(b)}
+                removeDisabled={sharingBlocked}
                 openErr={openErrByPath[b.local_path] ?? null}
                 targetsLabel={formatShareTargetsForPods(
                   b.pods_provisioned,
@@ -2229,9 +2281,19 @@ const BindingCard: FC<{
   binding: Binding;
   onOpen: () => void;
   onSettings: () => void;
+  onRemove: () => void;
+  removeDisabled: boolean;
   openErr: string | null;
   targetsLabel: string;
-}> = ({ binding, onOpen, onSettings, openErr, targetsLabel }) => {
+}> = ({
+  binding,
+  onOpen,
+  onSettings,
+  onRemove,
+  removeDisabled,
+  openErr,
+  targetsLabel,
+}) => {
   const { t } = useI18n();
   return (
   <div
@@ -2254,6 +2316,13 @@ const BindingCard: FC<{
       <div className="flex-1 min-w-0">
         <div className="text-sm font-semibold text-[var(--text-primary)]">
           {binding.bucket}
+        </div>
+        <div
+          className="text-[10px] mt-0.5 truncate"
+          style={{ color: "var(--text-secondary)" }}
+          title={binding.slug ?? binding.bucket}
+        >
+          alias: {binding.slug ?? binding.bucket}
         </div>
         <div
           className="font-mono text-[11px] mt-0.5 truncate"
@@ -2287,6 +2356,20 @@ const BindingCard: FC<{
         >
           <FolderOpen size={11} />
           {t('common.open')}
+        </button>
+        <button
+          onClick={onRemove}
+          disabled={removeDisabled}
+          title="Remove from shared folders without deleting local files"
+          className="flex items-center gap-1.5 px-2 py-1.5 rounded-md text-[11px] font-medium transition-colors disabled:opacity-60"
+          style={{
+            background: "rgba(244,67,54,0.08)",
+            border: "1px solid rgba(244,67,54,0.24)",
+            color: "#FFCDD2",
+          }}
+        >
+          <Trash2 size={11} />
+          Remove
         </button>
       </div>
     </div>
@@ -2329,6 +2412,17 @@ const normalizeProvisionPodId = (pod: string): string =>
 
 const normalizeBindingPath = (path: string): string =>
   path.trim().replace(/\/+$/, "");
+
+const validateSharedAlias = (alias: string): string | null => {
+  const trimmed = alias.trim();
+  if (trimmed.length < 1 || trimmed.length > 63) {
+    return "Alias must be 1–63 characters.";
+  }
+  if (!/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(trimmed)) {
+    return "Use lowercase letters, numbers, and hyphens only. Start and end with a letter or number.";
+  }
+  return null;
+};
 
 const matchesSharedBinding = (
   binding: Binding,
@@ -2373,6 +2467,39 @@ const findBindFolderConflict = (
   return null;
 };
 
+
+const provisionedSelectorsForBinding = (
+  binding: Binding,
+  shareTargets: readonly ShareTargetOption[],
+): Set<string> => {
+  const rawProvisioned = new Set([
+    ...(binding.routes_provisioned ?? []),
+    ...binding.pods_provisioned,
+  ].map(normalizeProvisionPodId));
+  const runtimeCounts = new Map<string, number>();
+  for (const target of shareTargets) {
+    const runtime = normalizeProvisionPodId(target.podId);
+    runtimeCounts.set(runtime, (runtimeCounts.get(runtime) ?? 0) + 1);
+  }
+  const out = new Set<string>();
+  for (const target of shareTargets) {
+    const selector = normalizeProvisionPodId(target.provisionSelector);
+    const runtime = normalizeProvisionPodId(target.podId);
+    if (rawProvisioned.has(selector)) {
+      out.add(selector);
+      continue;
+    }
+    // Legacy sidecars only knew numeric runtime ids. That is safe only when
+    // the runtime maps to a single visible target. If several agents report
+    // pod_id=01, require route-aware provisioning instead of assuming all are
+    // covered by wannolot-01.
+    if ((runtimeCounts.get(runtime) ?? 0) <= 1 && rawProvisioned.has(runtime)) {
+      out.add(selector);
+    }
+  }
+  return out;
+};
+
 const selectedShareTargetUpdates = (
   selectedTargets: ReadonlySet<string>,
   shareTargets: readonly ShareTargetOption[],
@@ -2384,6 +2511,8 @@ const selectedShareTargetUpdates = (
     .map((target) => ({
       target_id: target.targetId,
       pod_id: normalizeProvisionPodId(target.podId),
+      route_id: target.routeId,
+      provision_selector: normalizeProvisionPodId(target.provisionSelector),
       label: target.label,
       kind: target.kind,
       enabled: true,
@@ -2423,23 +2552,27 @@ const SharedFolderSettingsModal: FC<{
     [binding.pods_provisioned, binding.targets, shareTargets],
   );
   const provisionedPods = useMemo(
-    () =>
-      new Set(binding.pods_provisioned.map((pod) => normalizeProvisionPodId(pod))),
-    [binding.pods_provisioned],
+    () => provisionedSelectorsForBinding(binding, shareTargets),
+    [binding, shareTargets],
   );
   const [selectedTargets, setSelectedTargets] = useState<Set<string>>(
     () => new Set(provisionedTargetIds),
   );
   const [submitting, setSubmitting] = useState(false);
+  const [recovering, setRecovering] = useState(false);
   const [submitErr, setSubmitErr] = useState<string | null>(null);
   const [job, setJob] = useState<{ id: string } | null>(null);
   const [activePod, setActivePod] = useState<string | null>(null);
   const [pendingPods, setPendingPods] = useState<string[]>([]);
   const [savedAt, setSavedAt] = useState<number | null>(null);
+  const [aliasDraft, setAliasDraft] = useState(
+    binding.slug ?? binding.bucket,
+  );
 
   useEffect(() => {
     setSelectedTargets(new Set(provisionedTargetIds));
-  }, [provisionedTargetIds]);
+    setAliasDraft(binding.slug ?? binding.bucket);
+  }, [binding.bucket, binding.slug, provisionedTargetIds]);
 
   useEffect(() => {
     if (savedAt === null) return;
@@ -2448,12 +2581,18 @@ const SharedFolderSettingsModal: FC<{
   }, [savedAt]);
 
   const streamUrl = job ? client.jobStreamUrl(job.id) : null;
-  const stream = useJobStream({ url: streamUrl });
+  const stream = useJobStream({
+    url: streamUrl,
+    lateSubscribeDeadlineMs: 15000,
+    streamDropGraceMs: 30000,
+  });
   const done =
     stream.status === "success" ||
     stream.status === "failed" ||
     stream.status === "lost";
-  const inFlight = submitting || (job !== null && !done);
+  const inFlight = submitting || recovering || (job !== null && !done);
+  const aliasErr = validateSharedAlias(aliasDraft);
+  const aliasChanged = aliasDraft.trim() !== (binding.slug ?? binding.bucket);
 
   const startProvision = useCallback(
     async (pod: string) => {
@@ -2494,6 +2633,48 @@ const SharedFolderSettingsModal: FC<{
     [onSuccess, startProvision],
   );
 
+  const recoverCompletedSettingsProvision = useCallback(async (): Promise<
+    "recovered" | "not_found"
+  > => {
+    setRecovering(true);
+    for (let attempt = 0; attempt < 8; attempt += 1) {
+      const r = await client.getSharedFolders();
+      if (r.ok) {
+        const updated = r.value.bindings.find((candidate) =>
+          matchesSharedBinding(candidate, binding.bucket, binding.local_path),
+        );
+        if (updated) {
+          const selectedPods = selectedTargetPodIds(selectedTargets, shareTargets);
+          const provisioned = provisionedSelectorsForBinding(updated, shareTargets);
+          const allSelectedPodsProvisioned = selectedPods.every((pod) =>
+            provisioned.has(normalizeProvisionPodId(pod)),
+          );
+          if (allSelectedPodsProvisioned) {
+            setRecovering(false);
+            setJob(null);
+            setActivePod(null);
+            setSubmitErr(null);
+            setSavedAt(Date.now());
+            onSuccess();
+            return "recovered";
+          }
+        }
+      }
+      if (attempt < 7) {
+        await new Promise((resolve) => window.setTimeout(resolve, 800));
+      }
+    }
+    setRecovering(false);
+    return "not_found";
+  }, [
+    binding.bucket,
+    binding.local_path,
+    client,
+    onSuccess,
+    selectedTargets,
+    shareTargets,
+  ]);
+
   const lastHandledRef = useRef<string | null>(null);
   useEffect(() => {
     if (!job || !done) return;
@@ -2506,13 +2687,26 @@ const SharedFolderSettingsModal: FC<{
       startNext(pendingPods);
       return;
     }
-    setSubmitErr(
-      stream.status === "failed"
-        ? `Provision job failed${stream.exitCode !== null ? ` (exit ${stream.exitCode})` : ""}.`
-        : "Lost connection to provision job.",
-    );
-    setActivePod(null);
-  }, [done, job, pendingPods, startNext, stream.exitCode, stream.status]);
+    const code = stream.exitCode;
+    if (stream.status === "failed") {
+      setSubmitErr(`Provision job failed${code !== null ? ` (exit ${code})` : ""}.`);
+      setActivePod(null);
+      return;
+    }
+    void recoverCompletedSettingsProvision().then((result) => {
+      if (result === "recovered") return;
+      setSubmitErr("Lost connection to provision job.");
+      setActivePod(null);
+    });
+  }, [
+    done,
+    job,
+    pendingPods,
+    recoverCompletedSettingsProvision,
+    startNext,
+    stream.exitCode,
+    stream.status,
+  ]);
 
   const onToggleTarget = useCallback((target: ShareTargetOption) => {
     if (!target.shareCapable) return;
@@ -2529,9 +2723,25 @@ const SharedFolderSettingsModal: FC<{
 
   const onSave = useCallback(async () => {
     if (syncBlocked || inFlight) return;
+    if (aliasErr) {
+      setSubmitErr(aliasErr);
+      return;
+    }
     const selectedPods = selectedTargetPodIds(selectedTargets, shareTargets);
     setSubmitting(true);
     setSubmitErr(null);
+    if (aliasChanged) {
+      const aliasResult = await client.postSharedFoldersUpdateAlias({
+        bucket: binding.bucket,
+        local_path: binding.local_path,
+        slug: aliasDraft.trim(),
+      });
+      if (!aliasResult.ok) {
+        setSubmitting(false);
+        setSubmitErr(aliasResult.error.message);
+        return;
+      }
+    }
     const updateResult = await client.postSharedFoldersUpdateTargets({
       bucket: binding.bucket,
       local_path: binding.local_path,
@@ -2558,6 +2768,9 @@ const SharedFolderSettingsModal: FC<{
     lastHandledRef.current = null;
     startNext(podsNeedingProvision);
   }, [
+    aliasChanged,
+    aliasDraft,
+    aliasErr,
     inFlight,
     binding.bucket,
     binding.local_path,
@@ -2611,6 +2824,37 @@ const SharedFolderSettingsModal: FC<{
         </div>
 
         <div className="px-5 py-4 flex flex-col gap-4 overflow-y-auto custom-scrollbar">
+          <div className="flex flex-col gap-1.5">
+            <label
+              className="text-[11px] font-medium"
+              style={{ color: "var(--text-secondary)" }}
+            >
+              Shared alias
+            </label>
+            <input
+              value={aliasDraft}
+              onChange={(event) => {
+                setAliasDraft(event.target.value.trim().toLowerCase());
+                setSavedAt(null);
+              }}
+              disabled={inFlight}
+              className="px-3 py-2 rounded-md text-xs font-mono outline-none disabled:opacity-60"
+              style={{
+                background: "var(--bg-input, rgba(255,255,255,0.04))",
+                border: `1px solid ${aliasErr ? "rgba(244,67,54,0.45)" : "var(--border-default)"}`,
+                color: "var(--text-primary)",
+              }}
+              placeholder="shared"
+            />
+            <div
+              className="text-[10px]"
+              style={{ color: aliasErr ? "#FFCDD2" : "var(--text-disabled)" }}
+            >
+              {aliasErr ??
+                "Agents see this folder under the shared workspace using this alias. Renaming it does not rename or delete files on your Mac."}
+            </div>
+          </div>
+
           <div className="flex flex-col gap-1.5">
             <label
               className="text-[11px] font-medium"
@@ -2796,12 +3040,12 @@ const SharedFolderSettingsModal: FC<{
           </button>
           <button
             onClick={onSave}
-            disabled={inFlight || syncBlocked}
+            disabled={inFlight || syncBlocked || aliasErr !== null}
             className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-md text-xs font-semibold text-white transition-colors disabled:opacity-60"
             style={{ background: "var(--accent-primary)" }}
           >
             {inFlight && <Loader2 size={12} className="animate-spin" />}
-            Save settings
+            {recovering ? "Verifying…" : "Save settings"}
           </button>
         </div>
       </div>
@@ -2930,9 +3174,11 @@ const BindFolderModal: FC<BindFolderModalProps> = ({
   const findRecoveredBinding = useCallback(async (): Promise<Binding | null> => {
     if (!localPath) return null;
     // EventSource can report `lost` while the daemon-side helper is still
-    // finishing sidecar writes. Poll briefly before deciding the bind really
-    // failed; this prevents the "save settings a second time" workaround.
-    for (let attempt = 0; attempt < 5; attempt += 1) {
+    // finishing pod provisioning + sidecar writes. Route-aware shared-folder
+    // binds can legitimately take ~20s because Lisa/Claus/Hermie are
+    // provisioned as separate route selectors. Poll long enough for that
+    // background success path before telling the user the bind failed.
+    for (let attempt = 0; attempt < 20; attempt += 1) {
       const r = await client.getSharedFolders();
       if (r.ok) {
         const binding = r.value.bindings.find((candidate) =>
@@ -2940,8 +3186,8 @@ const BindFolderModal: FC<BindFolderModalProps> = ({
         );
         if (binding) return binding;
       }
-      if (attempt < 4) {
-        await new Promise((resolve) => window.setTimeout(resolve, 700));
+      if (attempt < 19) {
+        await new Promise((resolve) => window.setTimeout(resolve, 1500));
       }
     }
     return null;
@@ -2956,9 +3202,7 @@ const BindFolderModal: FC<BindFolderModalProps> = ({
       setRecovering(false);
       return "not_found";
     }
-    const provisionedPods = new Set(
-      binding.pods_provisioned.map((pod) => normalizeProvisionPodId(pod)),
-    );
+    const provisionedPods = provisionedSelectorsForBinding(binding, shareTargets);
     const allSelectedPodsProvisioned = selectedPods.every((pod) =>
       provisionedPods.has(normalizeProvisionPodId(pod)),
     );
@@ -2970,7 +3214,7 @@ const BindFolderModal: FC<BindFolderModalProps> = ({
     setRecovering(false);
     if (ok) onSuccess();
     return ok ? "recovered" : "error";
-  }, [findRecoveredBinding, onSuccess, persistTargetSelection, selectedPods]);
+  }, [findRecoveredBinding, onSuccess, persistTargetSelection, selectedPods, shareTargets]);
 
   // Close modal on stream success. If the stream reports failed/lost after the
   // helper already wrote the binding sidecar, recover by persisting the

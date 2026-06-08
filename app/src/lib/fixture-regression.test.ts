@@ -130,6 +130,65 @@ describe("fixture-regression: GET /api/launchers", () => {
   });
 });
 
+describe("fixture-regression: POST /api/apps/runtime", () => {
+  it("posts visible desktop ids and parses runtime results", async () => {
+    const { fetch, calls } = makeFakeFetch([
+      {
+        method: "POST",
+        path: "/api/apps/runtime",
+        body: {
+          results: [
+            {
+              id: "open-design",
+              running: true,
+              status: "running",
+              detail: null,
+            },
+            {
+              id: "openwork",
+              running: false,
+              status: "not_running",
+              detail: null,
+            },
+          ],
+        },
+        expect: (init) => {
+          expect(JSON.parse(String(init?.body))).toEqual({
+            app_ids: ["open-design", "openwork"],
+          });
+        },
+      },
+    ]);
+
+    const r = await createDaemonClient({ fetch }).postAppsRuntime([
+      "open-design",
+      "openwork",
+    ]);
+
+    expect(calls).toHaveLength(1);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.value.results[0].id).toBe("open-design");
+    expect(r.value.results[0].running).toBe(true);
+    expect(r.value.results[1].running).toBe(false);
+  });
+
+  it("rejects malformed runtime result shape", async () => {
+    const { fetch } = makeFakeFetch([
+      {
+        method: "POST",
+        path: "/api/apps/runtime",
+        body: { results: [{ id: "open-design", running: "yes" }] },
+      },
+    ]);
+
+    const r = await createDaemonClient({ fetch }).postAppsRuntime([
+      "open-design",
+    ]);
+    expect(r.ok).toBe(false);
+  });
+});
+
 describe("fixture-regression: GET /api/logs", () => {
   it("parses LogChunk shape (daemon + startup)", async () => {
     const { fetch } = makeFakeFetch([

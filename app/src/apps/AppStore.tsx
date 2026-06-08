@@ -49,6 +49,7 @@ import {
 import type { StoreApp, StoreAppCheckResult, StoreAppLlmStatus } from '@/types/daemon';
 import { useI18n } from '@/i18n';
 import { BRAND_LOGOS } from './brandLogos';
+import { getExternalAppLogo } from './externalAppLogos';
 import { FEATURED_APPS, type FeaturedApp, loadFeaturedApps } from './featured-apps-catalog';
 import { isHiddenLegacyApp } from './product-replacements';
 import { BrandIcon, isBrandIconName } from '@/components/BrandIcon';
@@ -69,10 +70,6 @@ interface AppStoreProps {
   onReinstall?: (appId: string) => Promise<InstalledAppRow>;
   loadFeatured?: () => Promise<FeaturedApp[]>;
 }
-
-const imageLogos: Record<string, { src: string; background?: string; scale?: number }> = {
-  ail: { src: '/brand/ail.png', background: '#6f4dff', scale: 0.78 },
-};
 
 function normalizeCategory(category: string | undefined): string {
   if (!category) return 'AI & ML';
@@ -566,7 +563,7 @@ const SourceBadge: FC<{ source: 'desktop' | 'tytus'; extra?: ReactNode }> = ({ s
 
 const AppIcon: FC<{ id: string; icon?: string; name: string; testIdPrefix?: string }> = ({ id, icon, name, testIdPrefix = 'appcard' }) => {
   const logo = BRAND_LOGOS[id];
-  const imageLogo = imageLogos[id];
+  const imageLogo = getExternalAppLogo(id);
   if (logo) {
     return (
       <div className="flex items-center justify-center rounded-lg shrink-0" style={{ width: 40, height: 40, background: logo.hex }} data-testid={`${testIdPrefix}-logo-${id}`}>

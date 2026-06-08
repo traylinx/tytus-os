@@ -1,8 +1,8 @@
 // Brand logos for the App Store Desktop catalog.
 // Glyphs from Simple Icons (CC0 1.0; brand marks are trademarks of their owners)
 // except `opencode`, whose glyph is from @lobehub/icons (MIT). viewBox is 0 0 24 24.
-// Apps with no recognizable brand logo (pi, ail, openwork) intentionally omitted
-// and fall back to the generic badge in AppStore.tsx.
+// Vector-only marks live here; image/SVG file-backed logos are registered
+// in externalAppLogos.ts and served from /brand/external.
 export interface BrandLogo {
   /** SVG path data, rendered in a 0 0 24 24 viewBox. */
   path: string;

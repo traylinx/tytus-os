@@ -960,6 +960,54 @@ describe("daemon client — POSTs", () => {
     expect(observed).toEqual({ local_path: "/Users/foo/Shared" });
   });
 
+  it("postSharedFoldersUpdateAlias sends binding identity plus alias", async () => {
+    let observed: unknown = undefined;
+    const { fetch } = makeFakeFetch([
+      {
+        method: "POST",
+        path: "/api/shared-folders/update-alias",
+        body: null,
+        expect: (init) => {
+          observed = init?.body ? JSON.parse(init.body as string) : null;
+        },
+      },
+    ]);
+    const r = await createDaemonClient({ fetch }).postSharedFoldersUpdateAlias({
+      bucket: "shared",
+      local_path: "/Users/foo/Shared",
+      slug: "team-shared",
+    });
+    expect(r.ok).toBe(true);
+    expect(observed).toEqual({
+      bucket: "shared",
+      local_path: "/Users/foo/Shared",
+      slug: "team-shared",
+    });
+  });
+
+  it("postSharedFoldersRemove sends binding identity only", async () => {
+    let observed: unknown = undefined;
+    const { fetch } = makeFakeFetch([
+      {
+        method: "POST",
+        path: "/api/shared-folders/remove",
+        body: null,
+        expect: (init) => {
+          observed = init?.body ? JSON.parse(init.body as string) : null;
+        },
+      },
+    ]);
+    const r = await createDaemonClient({ fetch }).postSharedFoldersRemove({
+      bucket: "shared",
+      local_path: "/Users/foo/Shared",
+    });
+    expect(r.ok).toBe(true);
+    expect(observed).toEqual({
+      bucket: "shared",
+      local_path: "/Users/foo/Shared",
+    });
+  });
+
   it("postChannelsAdd sends {pod, channel, token} in body, not URL", async () => {
     let observedBody: unknown = undefined;
     const { fetch, calls } = makeFakeFetch([

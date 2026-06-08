@@ -50,10 +50,13 @@ import LogPane from "@/components/LogPane";
 import { useOS } from "@/hooks/useOSStore";
 import { useDaemonClient } from "@/hooks/useDaemonClient";
 import { useDaemonStateContext } from "@/hooks/useDaemonStateContext";
+import { getDb } from "@/lib/db";
 import { useHashRoute } from "@/hooks/useHashRoute";
 import { useJobStream, type JobStatus } from "@/hooks/useJobStream";
 import { useDemoApps } from "@/hooks/useDemoApps";
 import { useNotifications } from "@/hooks/useOSStore";
+import { isHiddenLegacyApp } from "@/apps/product-replacements";
+import { listInstalledApps, type InstalledAppRow } from "@/runtime/installed-apps-repo";
 import { computePill } from "@/lib/statusPill";
 import { READY_COLORS, visualForAgentStatus } from "@/lib/agentStatus";
 import { TYTUS_WALLPAPERS, CUSTOM_WALLPAPER_SENTINEL, parseBackground } from "@/lib/brand";
@@ -76,6 +79,10 @@ import {
   buildSharedPodOptions,
   unprovisionedSharedPodOptions,
 } from "@/apps/fileManagerSharing";
+import {
+  emitSharedFoldersChanged,
+  onSharedFoldersChanged,
+} from "@/lib/sharedFoldersEvents";
 import type {
   Catalog,
   CatalogAgent,
@@ -86,6 +93,8 @@ import type {
   Binding,
   SharingDefaults,
   GaragetytusStatus,
+  StoreApp,
+  StoreAppCheckResult,
 } from "@/types/daemon";
 
 interface SettingCategory {
@@ -93,6 +102,18 @@ interface SettingCategory {
   label: string;
   icon: React.ReactNode;
 }
+
+interface DockSelectableApp {
+  id: string;
+  name: string;
+}
+
+const isDesktopDockEligible = (check?: StoreAppCheckResult): boolean =>
+  check?.installed === true &&
+  check.status !== "installed_broken" &&
+  check.status !== "unsupported" &&
+  check.health !== "broken" &&
+  check.health !== "unsupported";
 
 // Tytus-first ordering: identity + private-AI controls live above the
 // fold; OS-feel preferences (wifi, sound, etc.) follow a divider so
@@ -417,6 +438,70 @@ const Settings: React.FC = () => {
     }
   }, [dispatch, state.theme.wallpaper]);
 
+  const [dockTytusApps, setDockTytusApps] = useState<InstalledAppRow[]>([]);
+  const [dockDesktopApps, setDockDesktopApps] = useState<StoreApp[]>([]);
+  const [dockDesktopChecks, setDockDesktopChecks] = useState<Record<string, StoreAppCheckResult>>({});
+
+  const refreshDockStoreApps = useCallback(async () => {
+    try {
+      const db = getDb();
+      const rows = db ? await listInstalledApps(db) : [];
+      setDockTytusApps(
+        rows.filter((row) => row.enabled && !isHiddenLegacyApp(row.id)),
+      );
+    } catch {
+      setDockTytusApps([]);
+    }
+
+    const desktop = await client.getStoreApps();
+    if (!desktop.ok) {
+      setDockDesktopApps([]);
+      setDockDesktopChecks({});
+      return;
+    }
+    setDockDesktopApps(desktop.value);
+    const ids = desktop.value.map((app) => app.id);
+    if (ids.length === 0) {
+      setDockDesktopChecks({});
+      return;
+    }
+    const checks = await client.postStoreAppsCheck(ids);
+    if (!checks.ok) {
+      setDockDesktopChecks({});
+      return;
+    }
+    const map: Record<string, StoreAppCheckResult> = {};
+    for (const check of checks.value.results) map[check.id] = check;
+    setDockDesktopChecks(map);
+  }, [client]);
+
+  useEffect(() => {
+    void refreshDockStoreApps();
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === "visible") void refreshDockStoreApps();
+    };
+    window.addEventListener("focus", refreshDockStoreApps);
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+    const interval = window.setInterval(refreshDockStoreApps, 10_000);
+    return () => {
+      window.removeEventListener("focus", refreshDockStoreApps);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
+      window.clearInterval(interval);
+    };
+  }, [refreshDockStoreApps]);
+
+  const dockSelectableApps = useMemo<DockSelectableApp[]>(() => {
+    const byId = new Map<string, DockSelectableApp>();
+    for (const row of dockTytusApps) {
+      byId.set(row.id, { id: row.id, name: row.manifest.name });
+    }
+    for (const app of dockDesktopApps) {
+      if (!isDesktopDockEligible(dockDesktopChecks[app.id])) continue;
+      byId.set(app.id, { id: app.id, name: app.name });
+    }
+    return Array.from(byId.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }, [dockDesktopApps, dockDesktopChecks, dockTytusApps]);
+
   const dockPinnedItems = useMemo(() => {
     const pinned = state.dockItems.filter((item) => item.isPinned);
     const order = state.theme.dock.order ?? [];
@@ -429,18 +514,17 @@ const Settings: React.FC = () => {
     return [...ordered, ...tail];
   }, [state.dockItems, state.theme.dock.order]);
 
-  const dockAppById = useMemo(
-    () => new Map(state.apps.map((app) => [app.id, app])),
-    [state.apps],
-  );
+  const dockAppById = useMemo(() => {
+    const map = new Map<string, DockSelectableApp>();
+    for (const app of state.apps) map.set(app.id, { id: app.id, name: app.name });
+    for (const app of dockSelectableApps) map.set(app.id, app);
+    return map;
+  }, [dockSelectableApps, state.apps]);
 
   const dockAddableApps = useMemo(() => {
     const pinned = new Set(state.dockItems.filter((item) => item.isPinned).map((item) => item.appId));
-    return state.apps
-      .filter((app) => !pinned.has(app.id))
-      .filter((app) => showDemoApps || !app.isDemo)
-      .sort((a, b) => a.name.localeCompare(b.name));
-  }, [showDemoApps, state.apps, state.dockItems]);
+    return dockSelectableApps.filter((app) => !pinned.has(app.id));
+  }, [dockSelectableApps, state.dockItems]);
 
   const moveDockApp = useCallback((appId: string, direction: -1 | 1) => {
     const order = dockPinnedItems.map((item) => item.appId);
@@ -5435,6 +5519,23 @@ const SharingSettingsPanel: React.FC = () => {
       cancelled = true;
     };
   }, [client]);
+
+  useEffect(() => {
+    return onSharedFoldersChanged(() => void loadSharingState());
+  }, [loadSharingState]);
+
+  const lastHandledSharingJobStatusRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!activeJob || !streamDone) return;
+    const key = `${activeJob.id}:${stream.status}`;
+    if (lastHandledSharingJobStatusRef.current === key) return;
+    lastHandledSharingJobStatusRef.current = key;
+    if (stream.status === "success") {
+      /* eslint-disable-next-line react-hooks/set-state-in-effect */
+      void loadSharingState();
+      emitSharedFoldersChanged();
+    }
+  }, [activeJob, loadSharingState, stream.status, streamDone]);
 
   const runDiagnostic = useCallback(
     async (action: SharingAction) => {
