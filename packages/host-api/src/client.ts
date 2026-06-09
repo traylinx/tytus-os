@@ -175,6 +175,8 @@ export interface AgentChatRequest {
   message: string;
   /** Optional internal route id from resource metadata. Apps must not display it. */
   routeId?: string | null;
+  /** Stable selected-agent identity from daemon state. Apps pass it through, never display it. */
+  agentIdentityId?: string | null;
   sessionId?: string | null;
   mode?: AgentChatMode;
   target?: AgentChatTarget;

@@ -620,7 +620,7 @@ const FileBrowser: FC<{ agents: Agent[]; client: DaemonClient }> = ({
         label: `${podLabel} workspace`,
         detail: "/app/workspace",
         source: "pod-workspace",
-        pod: agent.pod_id,
+        pod: agent.id || agent.route_id || agent.pod_id,
         readonly: true,
       });
     }
@@ -1254,6 +1254,8 @@ const InboxTab: FC<{ agent: Agent; client: DaemonClient }> = ({
   const [submitting, setSubmitting] = useState(false);
   const [submitErr, setSubmitErr] = useState<string | null>(null);
 
+  const podSelector = agent.id || agent.route_id || agent.pod_id;
+
   const onFileContext = useCallback(
     (e: React.MouseEvent, line: string) => {
       const filename = inboxLineToFilename(line);
@@ -1268,24 +1270,24 @@ const InboxTab: FC<{ agent: Agent; client: DaemonClient }> = ({
         y: e.clientY,
         menuType: "file",
         items,
-        contextData: { file: filename, podId: agent.pod_id },
+        contextData: { file: filename, podId: podSelector },
       });
     },
-    [dispatch, agent.pod_id],
+    [dispatch, podSelector],
   );
 
   const onRefresh = useCallback(async () => {
     setSubmitting(true);
     setSubmitErr(null);
     setJob(null);
-    const r = await client.postPodRunStreamed(agent.pod_id, "ls-inbox");
+    const r = await client.postPodRunStreamed(podSelector, "ls-inbox");
     setSubmitting(false);
     if (!r.ok) {
       setSubmitErr(r.error.message);
       return;
     }
     setJob({ id: r.value.job_id });
-  }, [client, agent.pod_id]);
+  }, [client, podSelector]);
 
   // Auto-fire on tab mount + when pod changes. Reset job state so
   // a stale stream from the previous pod doesn't leak through.
@@ -1295,7 +1297,7 @@ const InboxTab: FC<{ agent: Agent; client: DaemonClient }> = ({
       setSubmitting(true);
       setSubmitErr(null);
       setJob(null);
-      const r = await client.postPodRunStreamed(agent.pod_id, "ls-inbox");
+      const r = await client.postPodRunStreamed(podSelector, "ls-inbox");
       if (cancelled) return;
       setSubmitting(false);
       if (!r.ok) {
@@ -1308,7 +1310,7 @@ const InboxTab: FC<{ agent: Agent; client: DaemonClient }> = ({
     return () => {
       cancelled = true;
     };
-  }, [client, agent.pod_id]);
+  }, [client, podSelector]);
 
   const streamUrl = job ? client.jobStreamUrl(job.id) : null;
   const stream = useJobStream({ url: streamUrl });
@@ -1528,17 +1530,19 @@ const DownloadsTab: FC<{ agent: Agent; client: DaemonClient }> = ({
     [agent.pod_id],
   );
 
+  const podSelector = agent.id || agent.route_id || agent.pod_id;
+
   const onOpen = useCallback(async () => {
     setOpening(true);
     setErr(null);
-    const r = await client.postFilesOpenDownloads(agent.pod_id);
+    const r = await client.postFilesOpenDownloads(podSelector);
     setOpening(false);
     if (!r.ok) {
       setErr(r.error.message);
       return;
     }
     setOpenedTick((t) => t + 1);
-  }, [client, agent.pod_id]);
+  }, [client, podSelector]);
 
   // Ephemeral "opened" toast — clear after 3s of the latest tick.
   const [openedVisible, setOpenedVisible] = useState(false);

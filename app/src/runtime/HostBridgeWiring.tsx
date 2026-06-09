@@ -69,9 +69,16 @@ export function HostBridgeWiring() {
       };
     });
     const agents: Agent[] = (ds.state?.agents ?? []).map((a) => ({
-      id: a.pod_id,
+      id: a.id || a.route_id || a.pod_id,
       kind: a.agent_type,
       status: a.status ?? 'unknown',
+      meta: {
+        podId: a.pod_id,
+        routeId: a.route_id,
+        agentIdentityId: a.agent_identity_id ?? null,
+        displayName: a.display_name,
+        displayLabel: a.display_label,
+      },
     }));
     return {
       agents,

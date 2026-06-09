@@ -130,6 +130,7 @@ describe('agent-chat runtime bridge', () => {
       const parsed = JSON.parse(String((init as RequestInit).body));
       expect(parsed.app_id).toBe('atomek');
       expect(parsed.route_id).toBe('route-1');
+      expect(parsed.agent_identity_id).toBe('aid-hermie');
       const headers = new Headers((init as RequestInit).headers);
       expect(headers.get('Authorization')).toBeNull();
       if (String(url).endsWith('/cortex/chat')) {
@@ -140,7 +141,7 @@ describe('agent-chat runtime bridge', () => {
 
     const events = await collect(
       streamAgentChat(
-        { podId: 'pod-1', routeId: 'route-1', message: 'status' },
+        { podId: 'pod-1', routeId: 'route-1', agentIdentityId: 'aid-hermie', message: 'status' },
         { appId: 'atomek', fetchImpl },
       ),
     );

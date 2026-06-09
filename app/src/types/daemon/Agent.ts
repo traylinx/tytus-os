@@ -27,6 +27,8 @@ export interface Agent {
   pod_id: string;
   /** Globally unique Provider route id. pod_id can repeat across droplets. */
   route_id?: string;
+  /** Stable selected-agent identity. Same agent across Tytus OS, Atomek, and web chat. */
+  agent_identity_id?: string | null;
   /** User-facing label. Prefer display_name; fall back to "Pod NN". */
   display_label?: string;
   /** Optional user-defined friendly label. Real identity remains id/route_id. */

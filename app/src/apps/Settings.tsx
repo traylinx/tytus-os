@@ -3505,13 +3505,14 @@ const PodCard: React.FC<PodCardProps> = ({ agent, refreshNonce = 0 }) => {
   const [opening, setOpening] = useState(false);
   const [openErr, setOpenErr] = useState<string | null>(null);
   const [ready, setReady] = useState<ReadyDot>(null);
+  const podSelector = agent.id || agent.route_id || agent.pod_id;
 
   // Prefer the structured readiness contract. It carries the exact failing
   // stage and the authoritative `open_enabled` gate. Fall back to legacy
   // status fields only for old daemons.
   useEffect(() => {
     let cancelled = false;
-    client.getPodReadiness(agent.pod_id).then(async (r) => {
+    client.getPodReadiness(podSelector).then(async (r) => {
       if (cancelled) return;
       if (r.ok) {
         setReady(readyDotFromReadiness(r.value));
@@ -3526,7 +3527,7 @@ const PodCard: React.FC<PodCardProps> = ({ agent, refreshNonce = 0 }) => {
         });
         return;
       }
-      const legacy = await client.getPodReady(agent.pod_id);
+      const legacy = await client.getPodReady(podSelector);
       if (cancelled) return;
       if (!legacy.ok) {
         setReady({
@@ -3551,7 +3552,7 @@ const PodCard: React.FC<PodCardProps> = ({ agent, refreshNonce = 0 }) => {
     return () => {
       cancelled = true;
     };
-  }, [client, agent.pod_id, agent.status, refreshNonce]);
+  }, [client, podSelector, agent.status, refreshNonce]);
 
   const copyToClipboard = useCallback(async (label: string, value: string) => {
     try {
@@ -3567,10 +3568,10 @@ const PodCard: React.FC<PodCardProps> = ({ agent, refreshNonce = 0 }) => {
   const openPod = useCallback(async () => {
     setOpening(true);
     setOpenErr(null);
-    const r = await client.postPodOpen(agent.pod_id);
+    const r = await client.postPodOpen(podSelector);
     setOpening(false);
     if (!r.ok) setOpenErr(r.error.message);
-  }, [client, agent.pod_id]);
+  }, [client, podSelector]);
   const openLabel =
     agent.agent_type === "hermes" ? "Open dashboard" : "Open agent UI";
 

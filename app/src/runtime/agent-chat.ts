@@ -7,6 +7,7 @@ export interface RuntimeAgentChatOptions {
 
 type AgentChatPayload = {
   route_id?: string;
+  agent_identity_id?: string;
   message: string;
   session_id?: string | null;
   agent_mode: 'operator';
@@ -173,8 +174,10 @@ const friendlyAgentError = (status: number | null, raw: string): AgentChatEvent 
 
 const buildPayload = (request: AgentChatRequest, appId: string): AgentChatPayload => {
   const routeId = request.routeId?.trim();
+  const agentIdentityId = request.agentIdentityId?.trim();
   return {
     ...(routeId ? { route_id: routeId } : {}),
+    ...(agentIdentityId ? { agent_identity_id: agentIdentityId } : {}),
     message: request.message,
     session_id: request.sessionId ?? null,
     agent_mode: request.mode ?? 'operator',

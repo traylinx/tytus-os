@@ -721,6 +721,7 @@ const AgentChatPanel: FC<AgentChatPanelProps> = ({
         {
           message: text,
           route_id: agent.route_id,
+          agent_identity_id: agent.agent_identity_id ?? null,
           session_id: sessionId,
           chat_target: "agent",
           agent_mode: "operator",
@@ -744,6 +745,7 @@ const AgentChatPanel: FC<AgentChatPanelProps> = ({
         {
           message: text,
           route_id: agent.route_id,
+          agent_identity_id: agent.agent_identity_id ?? null,
           session_id: sessionId,
           chat_target: "agent",
           agent_mode: "operator",

@@ -570,6 +570,8 @@ export interface AgentChatRequest {
   message: string;
   /** Provider route id. Required to disambiguate duplicate pod_id values. */
   route_id?: string;
+  /** Stable selected-agent identity. Provider also fills this from pod state when omitted. */
+  agent_identity_id?: string | null;
   session_id?: string | null;
   chat_target?: "agent";
   agent_mode?: "operator" | "brain";
