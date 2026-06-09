@@ -2322,7 +2322,7 @@ const BindingCard: FC<{
           style={{ color: "var(--text-secondary)" }}
           title={binding.slug ?? binding.bucket}
         >
-          alias: {binding.slug ?? binding.bucket}
+          {t('files.shared.aliasValue', { alias: binding.slug ?? binding.bucket })}
         </div>
         <div
           className="font-mono text-[11px] mt-0.5 truncate"
@@ -2360,7 +2360,7 @@ const BindingCard: FC<{
         <button
           onClick={onRemove}
           disabled={removeDisabled}
-          title="Remove from shared folders without deleting local files"
+          title={t('files.shared.removeTitle')}
           className="flex items-center gap-1.5 px-2 py-1.5 rounded-md text-[11px] font-medium transition-colors disabled:opacity-60"
           style={{
             background: "rgba(244,67,54,0.08)",
@@ -2369,7 +2369,7 @@ const BindingCard: FC<{
           }}
         >
           <Trash2 size={11} />
-          Remove
+          {t('files.shared.remove')}
         </button>
       </div>
     </div>
@@ -2380,11 +2380,11 @@ const BindingCard: FC<{
       <span className="inline-flex items-center gap-1">
         <FolderSync size={11} />
         {binding.auto_sync
-          ? `auto-sync · every ${binding.interval_sec}s`
-          : "manual sync"}
+          ? t('files.shared.autoSyncEvery', { seconds: binding.interval_sec })
+          : t('files.shared.manualSync')}
       </span>
       <span>·</span>
-      <span>Shared with: {targetsLabel}</span>
+      <span>{t('files.shared.sharedWith', { targets: targetsLabel })}</span>
     </div>
     {openErr && (
       <div
@@ -2829,7 +2829,7 @@ const SharedFolderSettingsModal: FC<{
               className="text-[11px] font-medium"
               style={{ color: "var(--text-secondary)" }}
             >
-              Shared alias
+              {t('files.shared.aliasLabel')}
             </label>
             <input
               value={aliasDraft}
