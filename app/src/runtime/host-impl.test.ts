@@ -416,6 +416,52 @@ describe('daemon state bridge', () => {
 });
 
 describe('daemon.chatAgent', () => {
+  it('allows Atomek-style numeric pod selectors when route-scoped agent identity is present', async () => {
+    const state: DaemonState = {
+      daemon_version: '0.7.44',
+      daemon_started_at: 1,
+      // Regression: Atomek can hold a route-scoped target while the host
+      // polling snapshot is briefly stale/empty. The local daemon remains
+      // the trust boundary, so route_id should still be forwarded instead
+      // of returning a false "Agent is offline" from the browser host.
+      agents: [],
+      included: [],
+    };
+    const fetchSpy = vi.fn<typeof fetch>(async () =>
+      new Response(JSON.stringify({ message: 'ok', session_id: 'sess-1' }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    );
+    vi.stubGlobal('fetch', fetchSpy);
+    setDaemonStateProvider({
+      getState: () => state,
+      getPod: () => null,
+      subscribe: () => () => {},
+    });
+
+    const host = makeHostForApp('atomek', fakeManifest, fakeEntryUrls);
+    const events = await collectAgentEvents(
+      host.daemon.chatAgent({
+        podId: '01',
+        routeId: '12gy79s7g0',
+        message: 'hello',
+      }),
+    );
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(fetchSpy.mock.calls[0][0]).toBe('/api/pods/01/cortex/chat');
+    expect(JSON.parse(String((fetchSpy.mock.calls[0][1] as RequestInit).body))).toMatchObject({
+      route_id: '12gy79s7g0',
+      app_id: 'atomek',
+    });
+    expect(events).toEqual([
+      { type: 'session', sessionId: 'sess-1' },
+      { type: 'token', text: 'ok' },
+      { type: 'done' },
+    ]);
+  });
+
   it('fails closed with an upgrade message when the tray daemon is too old for pod chat', async () => {
     const state: DaemonState = {
       daemon_version: '0.6.18',

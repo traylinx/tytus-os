@@ -551,9 +551,22 @@ function makeDaemonApi(appId: string): DaemonApi {
           };
         })();
       }
+      const selector = request.podId.trim();
+      const routeId = request.routeId?.trim() || null;
       const visible =
-        state.agents.some((agent) => agent.id === request.podId) ||
-        state.included.some((pod) => pod.id === request.podId);
+        // Route-scoped agent selectors already came from the host-projected
+        // resource graph/daemon state. Do not fail closed here if the shell
+        // polling snapshot is briefly stale; the local daemon + Provider still
+        // enforce ownership and return 404 for invalid routes. This avoids
+        // Atomek showing "offline" while Chat can reach the same agent.
+        routeId !== null ||
+        state.agents.some((agent) => {
+          const meta = (agent.meta ?? {}) as Record<string, unknown>;
+          const agentPodId =
+            typeof meta.podId === 'string' ? meta.podId.trim() : null;
+          return agent.id === selector || (agentPodId !== null && agentPodId === selector);
+        }) ||
+        state.included.some((pod) => pod.id === selector);
       if (!visible) {
         return (async function* () {
           yield {
