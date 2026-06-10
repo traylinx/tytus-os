@@ -191,7 +191,7 @@ describe('FEATURED_APPS hardcoded baseline', () => {
       'text-editor',
     ]);
     expect(FEATURED_APPS.every((a) => a.manifestUrl.startsWith('https://'))).toBe(true);
-    expect(FEATURED_APPS.find((a) => a.id === 'atomek')?.manifestUrl).toBe('https://cdn.jsdelivr.net/gh/traylinx/tytus-app-atomek@v0.4.36/tytus-app.json');
+    expect(FEATURED_APPS.find((a) => a.id === 'atomek')?.manifestUrl).toBe('https://cdn.jsdelivr.net/gh/traylinx/tytus-app-atomek@v0.4.37/tytus-app.json');
     expect(FEATURED_APPS.find((a) => a.id === 'markdown-preview')?.name).toBe('Markdown Editor');
     expect(FEATURED_APPS.find((a) => a.id === 'openhouse')?.manifestUrl).toBe('https://cdn.jsdelivr.net/gh/traylinx/tytus-app-openhouse@v1.1.5/tytus-app.json');
     expect(ids).not.toContain('code-editor');

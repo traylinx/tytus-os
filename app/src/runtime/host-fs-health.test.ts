@@ -147,6 +147,25 @@ describe('host-fs-health', () => {
     health.stopProbe();
   });
 
+  it('uses the Tytus-owned home folder for the default health probe', async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ entries: [] }), { status: 200 }));
+    const health = createHostFsHealth({
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+      documentImpl: undefined,
+    });
+    health.startProbe();
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(fetchImpl).toHaveBeenCalledWith(
+      '/api/files/list?source=tytus-home',
+      expect.objectContaining({ method: 'GET' }),
+    );
+    health.stopProbe();
+  });
+
   it('probe failure stays offline and records lastError', async () => {
     const sched = makeScheduler();
     const fetchImpl = vi.fn().mockRejectedValueOnce(new Error('econnrefused'));

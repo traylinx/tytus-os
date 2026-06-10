@@ -10,9 +10,11 @@
  * This module is a thin observer. It collects transport events from the
  * daemon FsApi (success / error / fallback) and exposes a coarse
  * status: 'unknown' | 'ok' | 'degraded' | 'offline'. A periodic probe
- * (visibility-gated) checks the `/api/files/list?source=user-documents`
+ * (visibility-gated) checks the Tytus-owned `/api/files/list?source=tytus-home`
  * endpoint so we can flip back to 'ok' once the daemon recovers without
- * waiting for the next user-driven FS call.
+ * waiting for the next user-driven FS call. Do not probe macOS user folders
+ * like Documents here: TCC may deny them until the user grants permission, and
+ * that should not make the whole shell look offline or spam the console.
  *
  * No mutation to the daemon code path: this module is read-only
  * observability. Apps consume the status via `useHostFsHealth`; the
@@ -54,7 +56,7 @@ export interface HostFsHealthOptions {
   errorWindowMs?: number;
   /** Injected fetch (tests). Defaults to globalThis.fetch. */
   fetchImpl?: typeof fetch;
-  /** Probe URL. Default `/api/files/list?source=user-documents`. */
+  /** Probe URL. Default `/api/files/list?source=tytus-home`. */
   probeUrl?: string;
   /** Injected scheduler (tests). Defaults to globalThis setTimeout/clearTimeout. */
   setTimeoutImpl?: (fn: () => void, ms: number) => unknown;
@@ -70,7 +72,7 @@ export function createHostFsHealth(opts: HostFsHealthOptions = {}): HostFsHealth
   const probeTimeoutMs = opts.probeTimeoutMs ?? 800;
   const offlineErrorThreshold = opts.offlineErrorThreshold ?? 3;
   const errorWindowMs = opts.errorWindowMs ?? 60_000;
-  const probeUrl = opts.probeUrl ?? '/api/files/list?source=user-documents';
+  const probeUrl = opts.probeUrl ?? '/api/files/list?source=tytus-home';
   const fetchImpl = opts.fetchImpl ?? (typeof fetch === 'function' ? fetch.bind(globalThis) : undefined);
   const setTimeoutImpl =
     opts.setTimeoutImpl ?? ((fn, ms) => globalThis.setTimeout(fn, ms));
