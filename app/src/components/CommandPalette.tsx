@@ -39,6 +39,12 @@ interface CommandItem {
   run: () => void;
 }
 
+const agentIdentity = (agent: { id?: string; route_id?: string; pod_id: string }) =>
+  agent.id || agent.route_id || agent.pod_id;
+
+const agentLabel = (agent: { display_label?: string; display_name?: string; pod_id: string }) =>
+  agent.display_label?.trim() || agent.display_name?.trim() || `Pod ${agent.pod_id}`;
+
 const isMac = (): boolean => {
   if (typeof navigator === 'undefined') return false;
   // Modern UA-data first, with classic platform string as a fallback for happy-dom.
@@ -111,15 +117,15 @@ const CommandPalette = memo(function CommandPalette() {
     const agents = daemon.state?.agents ?? [];
     for (const a of agents) {
       list.push({
-        id: `pod:${a.pod_id}`,
-        label: t('command.openPod', { podId: a.pod_id, agentType: resolveAgentDisplay(a.agent_type, null, t).name }),
+        id: `pod:${agentIdentity(a)}`,
+        label: t('command.openPod', { podId: agentLabel(a), agentType: resolveAgentDisplay(a.agent_type, null, t).name }),
         section: t('command.section.pods'),
         icon: Box,
         run: () => {
           dispatch({ type: 'OPEN_WINDOW', appId: 'pod-inspector' });
           navigate({
             kind: 'pod',
-            podId: a.pod_id,
+            podId: agentIdentity(a),
             action: 'overview',
             params: new URLSearchParams(),
           });

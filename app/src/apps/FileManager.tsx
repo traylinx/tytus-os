@@ -113,6 +113,9 @@ const displayAgentType = (agentType: string | null | undefined): string => {
   return agentType;
 };
 
+const agentIdentity = (agent: Pick<Agent, "id" | "route_id" | "pod_id">) =>
+  agent.id || agent.route_id || agent.pod_id;
+
 const FileManager: FC = () => {
   const { t } = useI18n();
   const { dispatch } = useOS();
@@ -139,10 +142,10 @@ const FileManager: FC = () => {
     const key = `${windowArgs?.routeNonce ?? "no-nonce"}:${filesArgs.podId}:${filesArgs.tab ?? "inbox"}`;
     if (consumedHashRef.current.has(key)) return;
     consumedHashRef.current.add(key);
-    if (
-      agents.length > 0 &&
-      !agents.some((a) => a.pod_id === filesArgs.podId)
-    ) {
+    const routeAgent = agents.find(
+      (a) => agentIdentity(a) === filesArgs.podId || a.pod_id === filesArgs.podId,
+    );
+    if (agents.length > 0 && !routeAgent) {
       addNotification({
         appId: "filemanager",
         appName: "Files",
@@ -153,7 +156,7 @@ const FileManager: FC = () => {
       });
       return;
     }
-    setSelectedPodId(filesArgs.podId);
+    setSelectedPodId(routeAgent ? agentIdentity(routeAgent) : filesArgs.podId);
     setActiveTab(filesArgs.tab ?? "browse");
   }, [addNotification, agents, filesArgs, windowArgs?.routeNonce]);
   /* eslint-enable react-hooks/set-state-in-effect */
@@ -166,14 +169,14 @@ const FileManager: FC = () => {
       if (selectedPodId !== null) setSelectedPodId(null);
       return;
     }
-    const stillThere = agents.some((a) => a.pod_id === selectedPodId);
+    const stillThere = agents.some((a) => agentIdentity(a) === selectedPodId);
     if (!stillThere) {
-      setSelectedPodId(agents[0].pod_id);
+      setSelectedPodId(agentIdentity(agents[0]));
     }
     /* eslint-enable react-hooks/set-state-in-effect */
   }, [agents, selectedPodId]);
 
-  const selectedAgent = agents.find((a) => a.pod_id === selectedPodId) ?? null;
+  const selectedAgent = agents.find((a) => agentIdentity(a) === selectedPodId) ?? null;
 
   const onAllocate = useCallback(() => {
     dispatch({ type: "OPEN_WINDOW", appId: "settings" });
@@ -346,11 +349,12 @@ const Sidebar: FC<{
       Pods
     </div>
     {agents.map((a) => {
-      const active = a.pod_id === selectedPodId && !disabled;
+      const id = agentIdentity(a);
+      const active = id === selectedPodId && !disabled;
       return (
         <button
           key={a.id || a.route_id || `${a.pod_id}-${a.agent_type}`}
-          onClick={() => onSelect(a.pod_id)}
+          onClick={() => onSelect(id)}
           disabled={disabled}
           className="flex items-center gap-2 px-4 py-2.5 text-sm transition-colors text-left"
           style={{

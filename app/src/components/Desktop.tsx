@@ -80,6 +80,9 @@ interface DragState {
 const ICON_SIZE = 64; // visual footprint used for bounds clamping
 const DRAG_THRESHOLD = 5; // px of pointer travel before we consider it a drag
 
+const agentIdentity = (agent: { id?: string; route_id?: string; pod_id: string }) =>
+  agent.id || agent.route_id || agent.pod_id;
+
 const sanitize = (s: string): string => {
   const trimmed = (s || 'untitled').trim().replace(/[\\/:*?"<>|]/g, '').slice(0, 80);
   return trimmed || 'untitled';
@@ -102,7 +105,7 @@ const Desktop = memo(function Desktop() {
   const pins = usePinnedPods();
   const daemon = useDaemonStateContext();
   const liveAgentPods = new Set(
-    (daemon.state?.agents ?? []).map((a) => a.pod_id),
+    (daemon.state?.agents ?? []).map((a) => agentIdentity(a)),
   );
   const [pinMenu, setPinMenu] = useState<PinMenu | null>(null);
 

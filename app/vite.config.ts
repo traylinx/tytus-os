@@ -1,5 +1,5 @@
 import http from 'node:http';
-import { readFileSync, statSync } from 'node:fs';
+import { readFileSync, rmSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
@@ -173,9 +173,26 @@ const externalsServerPlugin = (): Plugin => {
   };
 };
 
+
+// `app/public/dev-*` carries local override bundles for validating standalone app
+// changes with `VITE_LOCAL_ATOMEK=1` / `VITE_LOCAL_OPENHOUSE=1`. Real TytusOS
+// releases should not embed those development bundles: they are large, stale by
+// design, and the production dynamic-loader path is CDN/catalog-backed. Strip
+// them after Vite copies public/ unless the matching local override flag is set.
+const stripLocalDevAppsPlugin = (): Plugin => ({
+  name: 'tytus-strip-local-dev-apps',
+  closeBundle() {
+    const distRoot = path.resolve(__dirname, 'dist');
+    const localAtomek = process.env.VITE_LOCAL_ATOMEK === '1';
+    const localOpenHouse = process.env.VITE_LOCAL_OPENHOUSE === '1';
+    if (!localAtomek) rmSync(path.join(distRoot, 'dev-atomek'), { recursive: true, force: true });
+    if (!localOpenHouse) rmSync(path.join(distRoot, 'dev-openhouse'), { recursive: true, force: true });
+  },
+});
+
 export default defineConfig({
   base: './',
-  plugins: [react(), daemonProxyPlugin(), externalsServerPlugin()],
+  plugins: [react(), daemonProxyPlugin(), externalsServerPlugin(), stripLocalDevAppsPlugin()],
   server: {
     host: 'localhost',
     // The fixed Tytus OS origin is http://localhost:4242 — that's what
