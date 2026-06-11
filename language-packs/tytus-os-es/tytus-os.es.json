@@ -884,6 +884,11 @@
     "musiccreator.audit.play_5d12bd": "Reproducir",
     "musiccreator.audit.delete_playlist_b55b18": "Eliminar playlist",
     "musiccreator.audit.remove_from_playlist_ad3e5d": "Quitar de la playlist",
-    "musiccreator.audit.disconnect_ed28e0": "Desconectar"
+    "musiccreator.audit.disconnect_ed28e0": "Desconectar",
+    "chatCard.title": "Conoce a tus agentes en Tytus Chat",
+    "chatCard.body": "Tus pods ahora son compañeros de equipo: escríbeles por DM o menciónalos en el chat de tu equipo. Las respuestas se ejecutan en tu propio pod.",
+    "chatCard.open": "Abrir Tytus Chat",
+    "chatCard.later": "Quizás luego",
+    "chatCard.dismiss": "Descartar"
   }
 }

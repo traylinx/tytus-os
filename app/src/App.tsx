@@ -11,6 +11,7 @@ import { logLaunch } from '@/lib/repo/appLaunches';
 import DaemonOfflineBanner from '@/components/DaemonOfflineBanner';
 import UpgradeDaemonScreen from '@/components/UpgradeDaemonScreen';
 import ZeroPodsOverlay from '@/components/ZeroPodsOverlay';
+import TytusChatCard from '@/components/TytusChatCard';
 import BootSequence from '@/components/BootSequence';
 import LoginScreen from '@/components/LoginScreen';
 import LockScreen from '@/components/LockScreen';
@@ -455,6 +456,10 @@ function AppShell() {
 
           {/* Zero-pods overlay (Phase 3a §2.4) */}
           <ZeroPodsOverlay />
+
+          {/* Tytus Chat onboarding card (Open Doors P5) — the inverse gate:
+              shown once when the user HAS pods, pointing at chat.traylinx.com */}
+          <TytusChatCard />
 
           {/* Overlays */}
           <AppLauncher />
