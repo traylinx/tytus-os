@@ -35,6 +35,7 @@ export type {
   SharingDefaults,
   SharedFolderProvisionPodRequest,
   SharedFolderRemoveRequest,
+  SharedFolderTargetStatus,
   SharedFolderTargetUpdate,
   SharedFolderUpdateAliasRequest,
   SharedFolderUpdateTargetsRequest,

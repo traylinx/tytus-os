@@ -20,6 +20,7 @@ export interface Binding {
       last_error?: string | null;
     }
   >;
+  target_status?: SharedFolderTargetStatus[];
   schema_version: number;
   slug?: string;
   sync_layout?: string;
@@ -33,6 +34,19 @@ export interface Binding {
     enabled?: boolean;
   }>;
   workdir: string;
+}
+
+export interface SharedFolderTargetStatus {
+  runtime_id: string;
+  route_id?: string;
+  provision_selector?: string;
+  target_id?: string;
+  label?: string;
+  selected: boolean;
+  grant_verified: boolean;
+  state: "verified" | "grant_missing" | "verification_error" | "unselected";
+  error?: string | null;
+  checked_at?: number;
 }
 
 export interface SharedFoldersList {
@@ -50,6 +64,7 @@ export interface SharingDefaults {
 export interface SharedFolderProvisionPodRequest {
   pod: string;
   buckets?: string[];
+  all_buckets?: boolean;
   no_restart?: boolean;
 }
 

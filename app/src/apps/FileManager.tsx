@@ -84,6 +84,7 @@ import type {
   FileListEntry,
   GaragetytusStatus,
   SharingDefaults,
+  SharedFolderTargetStatus,
   SharedFolderTargetUpdate,
 } from "@/types/daemon";
 import type { DaemonClient } from "@/lib/daemon";
@@ -2508,6 +2509,57 @@ const provisionedSelectorsForBinding = (
   return out;
 };
 
+const targetStatusForBinding = (
+  binding: Binding,
+  target: ShareTargetOption,
+): SharedFolderTargetStatus | null => {
+  const statuses = binding.target_status ?? [];
+  if (statuses.length === 0) return null;
+  const targetRuntime = normalizeProvisionPodId(target.podId);
+  const targetSelector = normalizeProvisionPodId(target.provisionSelector);
+  const exact = statuses.find((status) => status.target_id === target.targetId);
+  if (exact) return exact;
+  const route = statuses.find((status) => status.route_id && status.route_id === target.routeId);
+  if (route) return route;
+  const selector = statuses.find(
+    (status) =>
+      status.provision_selector &&
+      normalizeProvisionPodId(status.provision_selector) === targetSelector,
+  );
+  if (selector) return selector;
+  const label = statuses.find(
+    (status) =>
+      status.label === target.label &&
+      normalizeProvisionPodId(status.runtime_id) === targetRuntime,
+  );
+  if (label) return label;
+  if (statuses.length === 1) {
+    const only = statuses[0]!;
+    if (normalizeProvisionPodId(only.runtime_id) === targetRuntime) return only;
+  }
+  return null;
+};
+
+const targetStatusLabel = (
+  status: SharedFolderTargetStatus | null,
+  provisioned: boolean,
+  t: (key: string, params?: Record<string, string | number>) => string,
+): string | null => {
+  if (status?.state === "verified" && status.grant_verified) {
+    return t("files.shared.status.verified");
+  }
+  if (status?.state === "grant_missing") {
+    return t("files.shared.status.grantMissing");
+  }
+  if (status?.state === "verification_error") {
+    return t("files.shared.status.needsReprovision");
+  }
+  if (provisioned) {
+    return t("files.shared.status.selected");
+  }
+  return null;
+};
+
 const selectedShareTargetUpdates = (
   selectedTargets: ReadonlySet<string>,
   shareTargets: readonly ShareTargetOption[],
@@ -2609,11 +2661,10 @@ const SharedFolderSettingsModal: FC<{
       setActivePod(pod);
       const r = await client.postSharedFoldersProvisionPod({
         pod,
-        // Provisioning rewrites the pod credentials.json. Sending only the
-        // current binding would silently remove grants for other shared
-        // folders on the same runtime. Empty bucket list means "all known
-        // shared buckets" on the daemon.
-        buckets: [],
+        // The daemon expands this current binding with other buckets selected
+        // for the same exact route/runtime. It no longer treats an empty list
+        // as "grant every cached shared folder globally".
+        buckets: [binding.bucket],
         no_restart: true,
       });
       setSubmitting(false);
@@ -2625,7 +2676,7 @@ const SharedFolderSettingsModal: FC<{
       }
       setJob({ id: r.value.job_id });
     },
-    [client],
+    [binding.bucket, client],
   );
 
   const startNext = useCallback(
@@ -2882,6 +2933,8 @@ const SharedFolderSettingsModal: FC<{
                 shareTargets.map((target) => {
                   const checked = selectedTargets.has(target.targetId);
                   const provisioned = provisionedTargetIds.has(target.targetId);
+                  const liveStatus = targetStatusForBinding(binding, target);
+                  const liveStatusLabel = targetStatusLabel(liveStatus, provisioned, t);
                   const disabled = inFlight || !target.shareCapable;
 	                  return (
 	                    <label
@@ -2907,7 +2960,7 @@ const SharedFolderSettingsModal: FC<{
                           style={{ color: "var(--text-secondary)" }}
                         >
                           {target.disabledReason ?? target.details}
-                          {provisioned ? " · active" : ""}
+                          {liveStatusLabel ? ` · ${liveStatusLabel}` : ""}
                         </span>
                       </span>
                     </label>
