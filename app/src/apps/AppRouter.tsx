@@ -20,7 +20,7 @@ import SystemMonitor from './SystemMonitor';
 import ArchiveManager from './ArchiveManager';
 
 // Internet
-import Chat from './Chat';
+import TytusChatHub from './TytusChatHub';
 import Browser from './Browser';
 import Weather from './Weather';
 import RssReader from './RssReader';
@@ -176,7 +176,7 @@ const AppRouter: FC<AppRouterProps> = ({ appId }) => {
     case 'archivemanager': return <ArchiveManager />;
 
     // Internet
-    case 'chat': return <Chat />;
+    case 'chat': return <TytusChatHub />;
     case 'browser': return <Browser />;
     case 'weather': return <Weather />;
     case 'rssreader': return <RssReader />;

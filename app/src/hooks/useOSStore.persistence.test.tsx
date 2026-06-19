@@ -103,6 +103,7 @@ describe("useOSStore window persistence", () => {
         "filemanager",
         "channels",
         "terminal",
+        "app-store",
       ]);
     });
   });
@@ -138,6 +139,7 @@ describe("useOSStore window persistence", () => {
         "filemanager",
         "channels",
         "terminal",
+        "app-store",
       ]);
     });
 
@@ -150,8 +152,9 @@ describe("useOSStore window persistence", () => {
       "filemanager",
       "channels",
       "terminal",
+      "app-store",
     ]);
-    expect(localStorage.getItem("tytus_dock_defaults_migrated_v2026_05_juli3ta")).toBe("1");
+    expect(localStorage.getItem("tytus_dock_defaults_migrated_v2026_06_appstore")).toBe("1");
   });
 
   it("rewrites legacy workspace windows to the canonical app id on restore", async () => {

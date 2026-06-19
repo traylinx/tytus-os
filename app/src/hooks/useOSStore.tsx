@@ -13,10 +13,14 @@ import { normalizeTheme } from '@/lib/theme/normalize';
 const WINDOWS_STORAGE_KEY = 'tytus_windows';
 const THEME_STORAGE_KEY = 'tytus_theme';
 const DOCK_PINS_STORAGE_KEY = 'tytus_dock_pins';
-const DOCK_DEFAULTS_MIGRATION_KEY = 'tytus_dock_defaults_migrated_v2026_05_juli3ta';
-const DEFAULT_DOCK_APPS_TO_MIGRATE = ['juli3ta'] as const;
+const DOCK_DEFAULTS_MIGRATION_KEY = 'tytus_dock_defaults_migrated_v2026_06_appstore';
+const DEFAULT_DOCK_APPS_TO_MIGRATE = ['juli3ta', 'app-store'] as const;
 const DEFAULT_DOCK_INSERT_AFTER: Partial<Record<(typeof DEFAULT_DOCK_APPS_TO_MIGRATE)[number], string>> = {
   juli3ta: 'atomek',
+  // 'app-store' intentionally omitted → appended to the end of the pinned
+  // row. juli3ta is kept in the list so any straggler who never ran the
+  // 2026_05 migration still gets it; mergeNewDefaultDockPinsOnce skips ids
+  // already pinned, so re-running is idempotent.
 };
 
 interface PersistedWindow {
