@@ -69,9 +69,9 @@ export const APP_REGISTRY: AppDefinition[] = [
   // ================================================================
   // INTERNET
   // ================================================================
-  { id: 'chat', name: 'Chat', icon: 'MessageSquare', category: 'Internet',
-    description: 'Talk to your pod AI.',
-    defaultSize: { width: 520, height: 640 }, minSize: { width: 360, height: 440 }, phase: 4 },
+  { id: 'chat', name: 'Tytus Chat', icon: 'MessageCircle', category: 'Internet',
+    description: 'Your pods are teammates — open Tytus Chat, DM or @-mention them, and manage connected channels.',
+    defaultSize: { width: 720, height: 600 }, minSize: { width: 440, height: 480 }, phase: 4 },
 
   { id: 'browser', name: 'Browser', icon: 'Globe', category: 'Internet',
     description: 'Open Tytus pod URLs, agent docs, GitHub.',
@@ -448,4 +448,5 @@ export const getDefaultDockApps = (): string[] => [
   'filemanager',
   'channels',
   'terminal',
+  'app-store',
 ];

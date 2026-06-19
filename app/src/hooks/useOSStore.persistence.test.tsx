@@ -103,6 +103,7 @@ describe("useOSStore window persistence", () => {
         "filemanager",
         "channels",
         "terminal",
+        "app-store",
       ]);
     });
   });
@@ -138,6 +139,7 @@ describe("useOSStore window persistence", () => {
         "filemanager",
         "channels",
         "terminal",
+        "app-store",
       ]);
     });
 
@@ -150,8 +152,38 @@ describe("useOSStore window persistence", () => {
       "filemanager",
       "channels",
       "terminal",
+      "app-store",
     ]);
-    expect(localStorage.getItem("tytus_dock_defaults_migrated_v2026_05_juli3ta")).toBe("1");
+    expect(localStorage.getItem("tytus_dock_defaults_migrated_v2026_06_appstore")).toBe("1");
+  });
+
+  it("does not re-pin juli3ta if the user already ran the 2026_05 migration and removed it", async () => {
+    // User ran the juli3ta migration, then deliberately removed juli3ta.
+    localStorage.setItem("tytus_dock_defaults_migrated_v2026_05_juli3ta", "1");
+    localStorage.setItem(
+      "tytus_dock_pins",
+      JSON.stringify(["atomek", "pod-inspector", "settings", "chat", "filemanager", "channels", "terminal"]),
+    );
+
+    const { OSProvider, useOS } = await import("./useOSStore");
+    let latest: unknown = null;
+    const Probe = () => {
+      latest = useOS().state;
+      return <div>probe</div>;
+    };
+    render(
+      <OSProvider>
+        <Probe />
+      </OSProvider>,
+    );
+
+    await waitFor(() => {
+      const state = latest as { dockItems: Array<{ appId: string; isPinned: boolean }> } | null;
+      const pinned = state?.dockItems.filter((d) => d.isPinned).map((d) => d.appId);
+      expect(pinned).toContain("app-store"); // new default still added
+      expect(pinned).not.toContain("juli3ta"); // explicit removal respected
+    });
+    expect(localStorage.getItem("tytus_dock_defaults_migrated_v2026_06_appstore")).toBe("1");
   });
 
   it("rewrites legacy workspace windows to the canonical app id on restore", async () => {

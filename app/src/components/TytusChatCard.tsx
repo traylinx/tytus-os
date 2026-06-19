@@ -16,8 +16,11 @@ import { MessageCircle, X } from "lucide-react";
 import { useOS } from "@/hooks/useOSStore";
 import { useDaemonStateContext } from "@/hooks/useDaemonStateContext";
 import { useI18n } from "@/i18n";
+import { TYTUS_CHAT_URL } from "@/lib/tytusChat";
 
-export const TYTUS_CHAT_URL = "https://chat.traylinx.com";
+// Re-exported for back-compat: existing importers (and TytusChatCard.test)
+// resolve TYTUS_CHAT_URL from this module. Canonical source is lib/tytusChat.
+export { TYTUS_CHAT_URL };
 const DISMISSED_KEY = "tytus.chat-card.dismissed";
 
 // localStorage-backed dismissal as an external store: stable snapshot
