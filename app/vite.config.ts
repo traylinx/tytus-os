@@ -175,7 +175,8 @@ const externalsServerPlugin = (): Plugin => {
 
 
 // `app/public/dev-*` carries local override bundles for validating standalone app
-// changes with `VITE_LOCAL_ATOMEK=1` / `VITE_LOCAL_OPENHOUSE=1`. Real TytusOS
+// changes with `VITE_LOCAL_ATOMEK=1` / `VITE_LOCAL_OPENHOUSE=1` /
+// `VITE_LOCAL_JULI3TA=1`. Real TytusOS
 // releases should not embed those development bundles: they are large, stale by
 // design, and the production dynamic-loader path is CDN/catalog-backed. Strip
 // them after Vite copies public/ unless the matching local override flag is set.
@@ -185,8 +186,10 @@ const stripLocalDevAppsPlugin = (): Plugin => ({
     const distRoot = path.resolve(__dirname, 'dist');
     const localAtomek = process.env.VITE_LOCAL_ATOMEK === '1';
     const localOpenHouse = process.env.VITE_LOCAL_OPENHOUSE === '1';
+    const localJuli3ta = process.env.VITE_LOCAL_JULI3TA === '1';
     if (!localAtomek) rmSync(path.join(distRoot, 'dev-atomek'), { recursive: true, force: true });
     if (!localOpenHouse) rmSync(path.join(distRoot, 'dev-openhouse'), { recursive: true, force: true });
+    if (!localJuli3ta) rmSync(path.join(distRoot, 'dev-juli3ta'), { recursive: true, force: true });
   },
 });
 

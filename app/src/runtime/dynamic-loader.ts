@@ -225,12 +225,15 @@ const withJuli3taGatewayFix = (row: InstalledAppRow): InstalledAppRow => {
 // tray/vite-served local bundle at `/dev-<app>/dist/index.js`, so local
 // standalone-app changes are visible in the shell before publishing to
 // the CDN catalog. Same shape as the `withJuli3taGatewayFix` row-rewrite
-// above. (Atomek 2026-05-29, OpenHouse 2026-05-31)
+// above. (Atomek 2026-05-29, OpenHouse 2026-05-31, JULI3TA 2026-06-19)
 const LOCAL_ATOMEK_OVERRIDE =
   (import.meta.env as Record<string, string | undefined>).VITE_LOCAL_ATOMEK ===
   '1';
 const LOCAL_OPENHOUSE_OVERRIDE =
   (import.meta.env as Record<string, string | undefined>).VITE_LOCAL_OPENHOUSE ===
+  '1';
+const LOCAL_JULI3TA_OVERRIDE =
+  (import.meta.env as Record<string, string | undefined>).VITE_LOCAL_JULI3TA ===
   '1';
 const LOCAL_DEV_APP_URLS: Record<string, { entryPath: string; manifestPath: string; enabled: boolean }> = {
   atomek: {
@@ -243,9 +246,14 @@ const LOCAL_DEV_APP_URLS: Record<string, { entryPath: string; manifestPath: stri
     entryPath: '/dev-openhouse/dist/index.js',
     manifestPath: '/dev-openhouse/tytus-app.json',
   },
+  juli3ta: {
+    enabled: LOCAL_JULI3TA_OVERRIDE,
+    entryPath: '/dev-juli3ta/dist/index.js',
+    manifestPath: '/dev-juli3ta/tytus-app.json',
+  },
 };
 
-const LOCAL_DEV_CACHE_BUST = '20260531-atomek-honesty';
+const LOCAL_DEV_CACHE_BUST = '20260619-juli3ta-library-tab';
 
 const localDevUrl = (path: string): string => {
   const origin =
