@@ -82,6 +82,11 @@ const TytusChatHub: FC = () => {
       return;
     }
     const controller = new AbortController();
+    // Dedupe the fetch by pod_id: /api/channels is keyed solely by pod_id
+    // (`?pod=<pod_id>`), so two agents that share a pod_id resolve to the same
+    // endpoint and the same channel set. We show a union across pods, so one
+    // request per distinct pod_id is both sufficient and minimal — deduping by
+    // the fuller route identity would only issue redundant identical requests.
     const podIds = Array.from(new Set(agents.map((a) => a.pod_id)));
     let cancelled = false;
     void Promise.all(

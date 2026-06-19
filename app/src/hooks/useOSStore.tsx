@@ -14,13 +14,18 @@ const WINDOWS_STORAGE_KEY = 'tytus_windows';
 const THEME_STORAGE_KEY = 'tytus_theme';
 const DOCK_PINS_STORAGE_KEY = 'tytus_dock_pins';
 const DOCK_DEFAULTS_MIGRATION_KEY = 'tytus_dock_defaults_migrated_v2026_06_appstore';
+// Prior migration key. We carry its state forward so the app-store migration
+// does NOT re-pin juli3ta for users who ran the 2026_05 migration and have
+// since removed juli3ta (that would override an explicit dock choice).
+const PRIOR_DOCK_DEFAULTS_MIGRATION_KEY = 'tytus_dock_defaults_migrated_v2026_05_juli3ta';
 const DEFAULT_DOCK_APPS_TO_MIGRATE = ['juli3ta', 'app-store'] as const;
 const DEFAULT_DOCK_INSERT_AFTER: Partial<Record<(typeof DEFAULT_DOCK_APPS_TO_MIGRATE)[number], string>> = {
   juli3ta: 'atomek',
-  // 'app-store' intentionally omitted → appended to the end of the pinned
-  // row. juli3ta is kept in the list so any straggler who never ran the
-  // 2026_05 migration still gets it; mergeNewDefaultDockPinsOnce skips ids
-  // already pinned, so re-running is idempotent.
+  // 'app-store' intentionally omitted → appended to the end of the pinned row.
+  // juli3ta is only migrated for stragglers who never ran the 2026_05
+  // migration (see mergeNewDefaultDockPinsOnce); for everyone else only
+  // app-store is added. mergeNewDefaultDockPinsOnce skips already-pinned ids,
+  // so re-running is idempotent.
 };
 
 interface PersistedWindow {
@@ -143,8 +148,22 @@ const mergeNewDefaultDockPinsOnce = (pins: string[]): string[] => {
     return unique;
   }
 
+  // Users who already ran the 2026_05 migration must not have juli3ta
+  // re-pinned (they may have removed it on purpose). Only stragglers who
+  // never ran it still get juli3ta carried forward.
+  let priorJuli3taApplied = false;
+  try {
+    priorJuli3taApplied =
+      localStorage.getItem(PRIOR_DOCK_DEFAULTS_MIGRATION_KEY) === '1';
+  } catch {
+    priorJuli3taApplied = false;
+  }
+  const appsToMigrate = DEFAULT_DOCK_APPS_TO_MIGRATE.filter(
+    (appId) => appId !== 'juli3ta' || !priorJuli3taApplied,
+  );
+
   const migrated = [...unique];
-  for (const appId of DEFAULT_DOCK_APPS_TO_MIGRATE) {
+  for (const appId of appsToMigrate) {
     if (migrated.includes(appId)) continue;
     const insertAfter = DEFAULT_DOCK_INSERT_AFTER[appId];
     const afterIndex = insertAfter ? migrated.indexOf(insertAfter) : -1;
