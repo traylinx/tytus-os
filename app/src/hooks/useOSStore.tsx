@@ -398,6 +398,7 @@ const defaultDesktopIcons: DesktopIcon[] = [
   { id: 'desk-browser', name: 'Browser', icon: 'Globe', appId: 'browser', position: { x: 96, y: 286 }, isSelected: false },
   { id: 'desk-channels', name: 'Channels', icon: 'Send', appId: 'channels', position: { x: 96, y: 376 }, isSelected: false },
   { id: 'desk-help', name: 'Help', icon: 'LifeBuoy', appId: 'help', position: { x: 96, y: 466 }, isSelected: false },
+  { id: 'desk-app-store', name: 'App Store', icon: 'Store', appId: 'app-store', position: { x: 176, y: 196 }, isSelected: false },
 ];
 
 const createDockItem = (appId: string, overrides: Partial<DockItem> = {}): DockItem => ({
@@ -449,11 +450,76 @@ const markDockOpened = (items: DockItem[], appId: string): DockItem[] => (
   )
 );
 
+const DESKTOP_DEFAULTS_MIGRATION_KEY = 'tytus_desktop_defaults_migrated_v2026_06_appstore';
+// New default desktop icons to backfill onto EXISTING (persisted) desktops
+// once. Fresh desktops already get these from defaultDesktopIcons; this mirrors
+// the dock's mergeNewDefaultDockPinsOnce. Gated by the migration key so an icon
+// the user later deletes is never re-added.
+const DEFAULT_DESKTOP_ICONS_TO_MIGRATE: { id: string; name: string; icon: string; appId: string }[] = [
+  { id: 'desk-app-store', name: 'App Store', icon: 'Store', appId: 'app-store' },
+];
+
+const markDesktopDefaultsMigrationApplied = (): void => {
+  try {
+    localStorage.setItem(DESKTOP_DEFAULTS_MIGRATION_KEY, '1');
+  } catch {
+    /* ignore */
+  }
+};
+
+// First free icon slot on the desktop grid (cols 80px from x=16, rows 90px
+// from y=196 — the first row below the reserved pods zone). Prefers the
+// canonical App Store slot (176,196) when free so a backfill matches a fresh
+// install; otherwise scans for any gap.
+const findFreeDesktopSlot = (icons: DesktopIcon[]): { x: number; y: number } => {
+  const occupied = new Set(icons.map((i) => `${i.position.x},${i.position.y}`));
+  if (!occupied.has('176,196')) return { x: 176, y: 196 };
+  for (let col = 0; col < 6; col += 1) {
+    for (let row = 0; row < 10; row += 1) {
+      const x = 16 + col * 80;
+      const y = 196 + row * 90;
+      if (!occupied.has(`${x},${y}`)) return { x, y };
+    }
+  }
+  return { x: 176, y: 196 };
+};
+
+// One-time backfill of new default desktop icons onto an existing desktop.
+// No-op after the first run; skips any icon the desktop already has (by id or
+// appId) so it never duplicates or fights a user removal.
+const mergeNewDefaultDesktopIconsOnce = (icons: DesktopIcon[]): DesktopIcon[] => {
+  try {
+    if (localStorage.getItem(DESKTOP_DEFAULTS_MIGRATION_KEY) === '1') return icons;
+  } catch {
+    return icons;
+  }
+  const next = [...icons];
+  for (const seed of DEFAULT_DESKTOP_ICONS_TO_MIGRATE) {
+    const present = next.some((i) => i.id === seed.id || i.appId === seed.appId);
+    if (present) continue;
+    next.push({ ...seed, position: findFreeDesktopSlot(next), isSelected: false });
+  }
+  try {
+    localStorage.setItem('tytus_desktop_icons', JSON.stringify(next));
+    // Only mark applied once the backfill actually persisted; otherwise leave
+    // the migration unmarked so it retries on the next load instead of losing
+    // the icon forever (e.g. if the icons write hit a quota error).
+    markDesktopDefaultsMigrationApplied();
+  } catch {
+    /* persist failed — do not mark applied; retry next load */
+  }
+  return next;
+};
+
 const loadDesktopIcons = (): DesktopIcon[] => {
   try {
     const saved = localStorage.getItem('tytus_desktop_icons');
-    if (saved) return JSON.parse(saved) as DesktopIcon[];
+    if (saved) {
+      const parsed = JSON.parse(saved) as DesktopIcon[];
+      if (Array.isArray(parsed)) return mergeNewDefaultDesktopIconsOnce(parsed);
+    }
   } catch { /* ignore */ }
+  markDesktopDefaultsMigrationApplied();
   return defaultDesktopIcons;
 };
 
