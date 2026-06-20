@@ -111,6 +111,29 @@ describe("TytusChatHub", () => {
     expect(screen.getByTestId("tytus-chat-hub-manage-channels")).toBeTruthy();
   });
 
+  it("surfaces configured channels even when a pod only has the unnamed proxy agent", async () => {
+    // Channels are keyed per pod_id, not per displayable teammate: a pod that
+    // exposes only the unnamed base/proxy agent can still have a messenger
+    // bound, and it must not vanish just because the roster filters it out.
+    const stateProxyOnly = {
+      ...stateFixture,
+      agents: [agent({ pod_id: "02", display_name: null, display_label: "Pod 02", route_id: "r-base" })],
+    } as unknown as typeof stateFixture;
+    render(
+      <Harness
+        state={stateProxyOnly}
+        extraRoutes={[channelRoute("02", [{ name: "telegram", label: "Telegram", secret_count: 1 }])]}
+      >
+        <TytusChatHub />
+      </Harness>,
+    );
+    // Roster is empty (no named teammates to DM)…
+    expect(await screen.findByTestId("tytus-chat-hub-pods-empty")).toBeTruthy();
+    expect(screen.queryByTestId("tytus-chat-hub-pod")).toBeNull();
+    // …but the configured channel still surfaces.
+    expect(await screen.findByText("Telegram")).toBeTruthy();
+  });
+
   it("Open Tytus Chat opens the chat URL in a new tab", async () => {
     const open = vi.spyOn(window, "open").mockReturnValue(null);
     render(

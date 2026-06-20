@@ -83,14 +83,19 @@ const TytusChatHub: FC = () => {
   const client = useDaemonClient();
   const { state } = useDaemonStateContext();
 
-  // Only NAMED agents are DM-able chat personas. An agent with no
-  // display_name is the pod's base/default entry — it routes to the raw
-  // SwitchAILocal LLM gateway, not a persona, so you can't DM it as a
-  // teammate. The named derived bots (e.g. Lisa / Claus / Hermie) show;
+  const allAgents: Agent[] = useMemo(() => state?.agents ?? [], [state]);
+  // Only NAMED agents are DM-able chat personas (the sidebar roster). An
+  // agent with no display_name is the pod's base/default entry — it routes
+  // to the raw SwitchAILocal LLM gateway, not a persona, so you can't DM it
+  // as a teammate. The named derived bots (e.g. Lisa / Claus / Hermie) show;
   // the unnamed "Pod NN" base/proxy entry is excluded from the roster.
+  //
+  // NOTE: channel aggregation below intentionally uses allAgents, not
+  // teammates — channels are keyed per pod_id, so a configured messenger on
+  // a pod must surface even if that pod only exposes the unnamed base agent.
   const teammates: Agent[] = useMemo(
-    () => (state?.agents ?? []).filter((a) => (a.display_name ?? "").trim().length > 0),
-    [state],
+    () => allAgents.filter((a) => (a.display_name ?? "").trim().length > 0),
+    [allAgents],
   );
   const loggedIn = Boolean(state?.logged_in) && osState.auth.isAuthenticated;
 
@@ -101,7 +106,7 @@ const TytusChatHub: FC = () => {
   // when several pods share it. Non-fatal: any failed pod fetch is
   // simply skipped (an empty list renders the "connect a channel" state).
   useEffect(() => {
-    if (!loggedIn || teammates.length === 0) {
+    if (!loggedIn || allAgents.length === 0) {
       setChannels([]);
       return;
     }
@@ -111,7 +116,7 @@ const TytusChatHub: FC = () => {
     // endpoint and the same channel set. We show a union across pods, so one
     // request per distinct pod_id is both sufficient and minimal — deduping by
     // the fuller route identity would only issue redundant identical requests.
-    const podIds = Array.from(new Set(teammates.map((a) => a.pod_id)));
+    const podIds = Array.from(new Set(allAgents.map((a) => a.pod_id)));
     let cancelled = false;
     void Promise.all(
       podIds.map((podId) =>
@@ -142,7 +147,7 @@ const TytusChatHub: FC = () => {
       cancelled = true;
       controller.abort();
     };
-  }, [teammates, client, loggedIn]);
+  }, [allAgents, client, loggedIn]);
 
   const openChat = () =>
     window.open(TYTUS_CHAT_URL, "_blank", "noopener,noreferrer");
