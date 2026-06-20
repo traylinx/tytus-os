@@ -66,6 +66,8 @@ interface HubChannel {
   webUrl: string | null;
 }
 
+const isNamed = (a: Agent): boolean => (a.display_name ?? "").trim().length > 0;
+
 const podLabel = (
   agent: Agent,
   t: ReturnType<typeof useI18n>["t"],
@@ -84,19 +86,22 @@ const TytusChatHub: FC = () => {
   const { state } = useDaemonStateContext();
 
   const allAgents: Agent[] = useMemo(() => state?.agents ?? [], [state]);
-  // Only NAMED agents are DM-able chat personas (the sidebar roster). An
-  // agent with no display_name is the pod's base/default entry — it routes
-  // to the raw SwitchAILocal LLM gateway, not a persona, so you can't DM it
-  // as a teammate. The named derived bots (e.g. Lisa / Claus / Hermie) show;
-  // the unnamed "Pod NN" base/proxy entry is excluded from the roster.
+  // Sidebar roster = DM-able chat personas. When a pod exposes named derived
+  // bots (e.g. Lisa / Claus / Hermie) alongside an unnamed entry, that unnamed
+  // entry is the pod's base/proxy — it routes to the raw SwitchAILocal gateway,
+  // not a persona — so it is excluded. But an unnamed agent that is the ONLY
+  // agent on its pod is a real allocated agent ("Pod NN") and stays visible;
+  // we must not blank the roster for default daemon states that omit
+  // display_name. Hence: hide an unnamed agent only when a named sibling shares
+  // its pod_id.
   //
   // NOTE: channel aggregation below intentionally uses allAgents, not
   // teammates — channels are keyed per pod_id, so a configured messenger on
   // a pod must surface even if that pod only exposes the unnamed base agent.
-  const teammates: Agent[] = useMemo(
-    () => allAgents.filter((a) => (a.display_name ?? "").trim().length > 0),
-    [allAgents],
-  );
+  const teammates: Agent[] = useMemo(() => {
+    const podsWithNamed = new Set(allAgents.filter(isNamed).map((a) => a.pod_id));
+    return allAgents.filter((a) => isNamed(a) || !podsWithNamed.has(a.pod_id));
+  }, [allAgents]);
   const loggedIn = Boolean(state?.logged_in) && osState.auth.isAuthenticated;
 
   const [channels, setChannels] = useState<HubChannel[]>([]);

@@ -111,26 +111,27 @@ describe("TytusChatHub", () => {
     expect(screen.getByTestId("tytus-chat-hub-manage-channels")).toBeTruthy();
   });
 
-  it("surfaces configured channels even when a pod only has the unnamed proxy agent", async () => {
-    // Channels are keyed per pod_id, not per displayable teammate: a pod that
-    // exposes only the unnamed base/proxy agent can still have a messenger
-    // bound, and it must not vanish just because the roster filters it out.
-    const stateProxyOnly = {
+  it("keeps a lone unnamed pod visible (real agent, not a proxy) and surfaces its channels", async () => {
+    // An unnamed agent is only the redundant base/proxy when a named sibling
+    // shares its pod. A pod whose ONLY agent is unnamed is a real allocated
+    // agent ("Pod NN") — default daemon states omit display_name — so it must
+    // stay in the roster, and its per-pod channels must surface.
+    const stateLoneUnnamed = {
       ...stateFixture,
       agents: [agent({ pod_id: "02", display_name: null, display_label: "Pod 02", route_id: "r-base" })],
     } as unknown as typeof stateFixture;
     render(
       <Harness
-        state={stateProxyOnly}
+        state={stateLoneUnnamed}
         extraRoutes={[channelRoute("02", [{ name: "telegram", label: "Telegram", secret_count: 1 }])]}
       >
         <TytusChatHub />
       </Harness>,
     );
-    // Roster is empty (no named teammates to DM)…
-    expect(await screen.findByTestId("tytus-chat-hub-pods-empty")).toBeTruthy();
-    expect(screen.queryByTestId("tytus-chat-hub-pod")).toBeNull();
-    // …but the configured channel still surfaces.
+    // The lone unnamed pod stays visible as "Pod 02"…
+    expect(await screen.findByText("Pod 02")).toBeTruthy();
+    expect(screen.getByTestId("tytus-chat-hub-pod")).toBeTruthy();
+    // …and its configured channel surfaces.
     expect(await screen.findByText("Telegram")).toBeTruthy();
   });
 
