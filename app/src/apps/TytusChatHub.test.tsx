@@ -18,6 +18,28 @@ import { I18nProvider } from "@/i18n";
 
 const stateZeroAgents = { ...stateFixture, agents: [] };
 
+// Named agents are DM-able chat personas; an agent with no display_name is
+// the pod's base/proxy entry (routes to the raw SwitchAILocal gateway) and
+// must NOT appear in the teammate roster.
+const agent = (over: Record<string, unknown>) => ({
+  agent_type: "nemoclaw",
+  api_url: "https://x/v1",
+  public_url: "https://x",
+  ui_url: "https://x/?token=REDACTED",
+  units: 1,
+  user_key: "sk-tytus-user-REDACTED",
+  ...over,
+});
+const stateNamedAgents = {
+  ...stateFixture,
+  agents: [
+    agent({ pod_id: "02", display_name: "Lisa", display_label: "Lisa", route_id: "r-lisa" }),
+    agent({ pod_id: "04", agent_type: "hermes", display_name: "Hermie", display_label: "Hermie", route_id: "r-hermie" }),
+    // Unnamed base/proxy entry — must be filtered out of the roster.
+    agent({ pod_id: "04", display_name: null, display_label: "Pod 04", route_id: "r-base" }),
+  ],
+} as unknown as typeof stateFixture;
+
 const channelRoute = (pod: string, configured: unknown[]): RouteSpec => ({
   method: "GET",
   path: `/api/channels?pod=${pod}`,
@@ -65,9 +87,10 @@ const settle = async () => {
 afterEach(() => vi.restoreAllMocks());
 
 describe("TytusChatHub", () => {
-  it("renders the hero, pods, and configured channels", async () => {
+  it("renders the hero, named teammates, and configured channels (excludes the unnamed proxy pod)", async () => {
     render(
       <Harness
+        state={stateNamedAgents}
         extraRoutes={[
           channelRoute("02", [{ name: "telegram", label: "Telegram", secret_count: 1 }]),
           channelRoute("04", []),
@@ -78,9 +101,11 @@ describe("TytusChatHub", () => {
     );
     // Hero + CTA
     expect(await screen.findByTestId("tytus-chat-hub-open")).toBeTruthy();
-    // Pods listed as teammates (fixture has pods 02 + 04, no display names)
-    expect(await screen.findByText("Pod 02")).toBeTruthy();
-    expect(screen.getByText("Pod 04")).toBeTruthy();
+    // Named teammates appear…
+    expect(await screen.findByText("Lisa")).toBeTruthy();
+    expect(screen.getByText("Hermie")).toBeTruthy();
+    // …but the unnamed base/proxy entry ("Pod 04") is filtered out.
+    expect(screen.queryByText("Pod 04")).toBeNull();
     // Configured channel surfaced (union across pods)
     expect(await screen.findByText("Telegram")).toBeTruthy();
     expect(screen.getByTestId("tytus-chat-hub-manage-channels")).toBeTruthy();
