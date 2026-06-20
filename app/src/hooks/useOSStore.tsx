@@ -398,6 +398,7 @@ const defaultDesktopIcons: DesktopIcon[] = [
   { id: 'desk-browser', name: 'Browser', icon: 'Globe', appId: 'browser', position: { x: 96, y: 286 }, isSelected: false },
   { id: 'desk-channels', name: 'Channels', icon: 'Send', appId: 'channels', position: { x: 96, y: 376 }, isSelected: false },
   { id: 'desk-help', name: 'Help', icon: 'LifeBuoy', appId: 'help', position: { x: 96, y: 466 }, isSelected: false },
+  { id: 'desk-app-store', name: 'App Store', icon: 'Store', appId: 'app-store', position: { x: 176, y: 196 }, isSelected: false },
 ];
 
 const createDockItem = (appId: string, overrides: Partial<DockItem> = {}): DockItem => ({

@@ -113,6 +113,7 @@ const DOC_ICON: Record<string, ReactNode> = {
   UsersRound: <UsersRound size={16} />,
   FolderSync: <FolderSync size={16} />,
   Workflow: <Workflow size={16} />,
+  MessageCircle: <MessageCircle size={16} />,
 };
 
 const isDocTab = (id: TabId): id is `docs:${string}` => id.startsWith('docs:');

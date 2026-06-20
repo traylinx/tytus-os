@@ -31,6 +31,19 @@ TytusOS examples:
 3. Open **Atomek** when you need editing, context, chat, or mission coordination.
 4. Keep final handoffs in the mission folder `OUTBOX.md` or `outputs/`.
 
+## Checking grant status
+
+When you share a folder with pods or agents (**Files** → a shared folder → **Share with pods and agents**), each target shows a status so you can confirm access actually landed:
+
+| Status | Meaning |
+|---|---|
+| **verified** | The pod/agent has the folder and the access grant is confirmed. |
+| **selected** | Chosen to receive the folder; provisioning has not finished verifying yet. |
+| **grant missing** | The folder is provisioned but the access grant is not in place — the agent cannot read or write it yet. |
+| **needs reprovision** | Verification failed; re-share the folder to rebuild it. |
+
+If a target shows **grant missing** or **needs reprovision**, open that folder's **Share with pods and agents** settings and re-provision the target. That re-runs the grant step without touching your files.
+
 ## Mission folder exchange
 
 Recommended convention:

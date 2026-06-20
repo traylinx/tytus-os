@@ -35,7 +35,7 @@ export const APP_REGISTRY: AppDefinition[] = [
     description: 'Inspect, restart, uninstall, revoke pods. Live job logs.',
     defaultSize: { width: 1100, height: 720 }, minSize: { width: 800, height: 480 }, phase: 3 },
 
-  { id: 'channels', name: 'Channels', icon: 'Send', category: 'Internet',
+  { id: 'channels', name: 'Channels', icon: 'Radio', category: 'Internet',
     description: 'Telegram, Slack, iMessage, Matrix bindings per pod.',
     defaultSize: { width: 760, height: 560 }, minSize: { width: 440, height: 400 }, phase: 5 },
 
