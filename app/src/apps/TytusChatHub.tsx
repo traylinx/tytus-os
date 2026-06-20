@@ -66,7 +66,16 @@ interface HubChannel {
   webUrl: string | null;
 }
 
-const isNamed = (a: Agent): boolean => (a.display_name ?? "").trim().length > 0;
+// A "named" agent is a DM-able persona. That's a non-empty display_name, OR a
+// display_label the daemon set to something other than the "Pod NN" fallback
+// (some states ship personas with only display_label populated). The base/
+// proxy entry always carries the bare "Pod <pod_id>" fallback label, so it is
+// the one case this returns false for.
+const isNamed = (a: Agent): boolean => {
+  if ((a.display_name ?? "").trim().length > 0) return true;
+  const label = (a.display_label ?? "").trim();
+  return label.length > 0 && label !== `Pod ${a.pod_id}`;
+};
 
 const podLabel = (
   agent: Agent,

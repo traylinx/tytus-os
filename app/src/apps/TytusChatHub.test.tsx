@@ -135,6 +135,26 @@ describe("TytusChatHub", () => {
     expect(await screen.findByText("Telegram")).toBeTruthy();
   });
 
+  it("treats a display_label-only persona as named and still hides the co-located proxy", async () => {
+    // Some daemon states ship personas with only display_label set. Such a
+    // row is still a named persona, so its co-located base entry ("Pod 02")
+    // must be filtered out.
+    const stateLabelOnly = {
+      ...stateFixture,
+      agents: [
+        agent({ pod_id: "02", display_name: null, display_label: "Lisa", route_id: "r-lisa" }),
+        agent({ pod_id: "02", display_name: null, display_label: "Pod 02", route_id: "r-base" }),
+      ],
+    } as unknown as typeof stateFixture;
+    render(
+      <Harness state={stateLabelOnly}>
+        <TytusChatHub />
+      </Harness>,
+    );
+    expect(await screen.findByText("Lisa")).toBeTruthy();
+    expect(screen.queryByText("Pod 02")).toBeNull();
+  });
+
   it("Open Tytus Chat opens the chat URL in a new tab", async () => {
     const open = vi.spyOn(window, "open").mockReturnValue(null);
     render(
