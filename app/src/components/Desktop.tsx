@@ -12,6 +12,7 @@ import * as Icons from 'lucide-react';
 import { Box, Star } from 'lucide-react';
 import type { LucideProps } from 'lucide-react';
 import { BrandIcon, isBrandIconName } from './BrandIcon';
+import { getAppById } from '@/apps/registry';
 import { useI18n } from '@/i18n';
 import { localizedAppName } from '@/i18n/app-name';
 import { parsePayload, type DnDPayload } from '@/lib/dnd';
@@ -616,7 +617,12 @@ const Desktop = memo(function Desktop() {
             }}
           >
             <DynamicIcon
-              name={icon.icon}
+              // Resolve the glyph LIVE from the registry for app icons, like
+              // the dock and window titlebar do — `icon.icon` is a persisted
+              // snapshot that goes stale when an app's registry icon changes
+              // (that's why the desktop Tytus Chat icon could differ from the
+              // dock). Files/folders (no appId) keep their stored icon.
+              name={(icon.appId ? getAppById(icon.appId)?.icon : undefined) ?? icon.icon}
               size={32}
               className="text-[var(--text-primary)] drop-shadow-lg"
               style={{ filter: 'drop-shadow(0 1px 3px rgba(0,0,0,0.8))' }}
