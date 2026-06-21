@@ -322,3 +322,132 @@ describe("useOSStore window persistence", () => {
     });
   });
 });
+
+describe("useOSStore desktop icon defaults", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    vi.resetModules();
+  });
+
+  it("reconciles an existing desktop: removes Browser and backfills Atomek + JULI3TA once", async () => {
+    localStorage.setItem(
+      "tytus_desktop_icons",
+      JSON.stringify([
+        { id: "desk-pods", name: "Pods", icon: "Box", appId: "pod-inspector", position: { x: 16, y: 196 }, isSelected: false },
+        { id: "desk-browser", name: "Browser", icon: "Globe", appId: "browser", position: { x: 96, y: 286 }, isSelected: false },
+      ]),
+    );
+
+    const { OSProvider, useOS } = await import("./useOSStore");
+    let latest: unknown = null;
+    const Probe = () => {
+      latest = useOS().state;
+      return <div>probe</div>;
+    };
+    render(
+      <OSProvider>
+        <Probe />
+      </OSProvider>,
+    );
+
+    await waitFor(() => {
+      const ids = ((latest as { desktopIcons: Array<{ appId?: string }> } | null)?.desktopIcons ?? []).map((d) => d.appId);
+      expect(ids).toContain("atomek");
+      expect(ids).toContain("juli3ta");
+    });
+    const ids = ((latest as { desktopIcons: Array<{ appId?: string }> } | null)?.desktopIcons ?? []).map((d) => d.appId);
+    expect(ids).not.toContain("browser"); // Browser dropped from the default desktop
+    expect(ids).toContain("pod-inspector"); // pre-existing icon untouched
+    expect(ids).toContain("app-store"); // no prior App Store migration ran → backfilled
+    expect(localStorage.getItem("tytus_desktop_defaults_migrated_v2026_06_juli3ta_atomek")).toBe("1");
+  });
+
+  it("leaves the desktop alone once the migration has already run", async () => {
+    localStorage.setItem("tytus_desktop_defaults_migrated_v2026_06_juli3ta_atomek", "1");
+    localStorage.setItem(
+      "tytus_desktop_icons",
+      JSON.stringify([
+        { id: "desk-browser", name: "Browser", icon: "Globe", appId: "browser", position: { x: 96, y: 286 }, isSelected: false },
+      ]),
+    );
+
+    const { OSProvider, useOS } = await import("./useOSStore");
+    let latest: unknown = null;
+    const Probe = () => {
+      latest = useOS().state;
+      return <div>probe</div>;
+    };
+    render(
+      <OSProvider>
+        <Probe />
+      </OSProvider>,
+    );
+
+    await waitFor(() => {
+      expect((latest as { desktopIcons: unknown[] } | null)?.desktopIcons).toBeTruthy();
+    });
+    const ids = ((latest as { desktopIcons: Array<{ appId?: string }> } | null)?.desktopIcons ?? []).map((d) => d.appId);
+    expect(ids).toContain("browser"); // gate already set → a Browser the user kept is preserved
+    expect(ids).not.toContain("atomek"); // no re-backfill after the gate
+  });
+
+  it("does not resurrect App Store for users who ran its prior migration and removed it", async () => {
+    localStorage.setItem("tytus_desktop_defaults_migrated_v2026_06_appstore", "1");
+    localStorage.setItem(
+      "tytus_desktop_icons",
+      JSON.stringify([
+        { id: "desk-pods", name: "Pods", icon: "Box", appId: "pod-inspector", position: { x: 16, y: 196 }, isSelected: false },
+        { id: "desk-browser", name: "Browser", icon: "Globe", appId: "browser", position: { x: 96, y: 286 }, isSelected: false },
+      ]),
+    );
+
+    const { OSProvider, useOS } = await import("./useOSStore");
+    let latest: unknown = null;
+    const Probe = () => {
+      latest = useOS().state;
+      return <div>probe</div>;
+    };
+    render(
+      <OSProvider>
+        <Probe />
+      </OSProvider>,
+    );
+
+    await waitFor(() => {
+      const ids = ((latest as { desktopIcons: Array<{ appId?: string }> } | null)?.desktopIcons ?? []).map((d) => d.appId);
+      expect(ids).toContain("atomek");
+    });
+    const ids = ((latest as { desktopIcons: Array<{ appId?: string }> } | null)?.desktopIcons ?? []).map((d) => d.appId);
+    expect(ids).toContain("juli3ta"); // new icons still backfilled
+    expect(ids).not.toContain("browser"); // Browser still removed
+    expect(ids).not.toContain("app-store"); // prior App Store migration respected → not re-added
+  });
+
+  it("opens JULI3TA by its canonical id even before the installed-apps cache hydrates", async () => {
+    // In the test env the installed-apps cache is empty, so getAppById('juli3ta')
+    // is undefined — the cold-boot case. Double-clicking the desktop icon must not
+    // throw, and the window must keep the canonical 'juli3ta' id so it dedups with
+    // the dock pin.
+    const { OSProvider, useOS } = await import("./useOSStore");
+    let latest: unknown = null;
+    const Harness = () => {
+      const { state, dispatch } = useOS();
+      latest = state;
+      return (
+        <button onClick={() => dispatch({ type: "OPEN_WINDOW", appId: "juli3ta" })}>open juli3ta</button>
+      );
+    };
+    const { getByText } = render(
+      <OSProvider>
+        <Harness />
+      </OSProvider>,
+    );
+
+    getByText("open juli3ta").click();
+
+    await waitFor(() => {
+      const wins = (latest as { windows: Array<{ appId: string }> } | null)?.windows ?? [];
+      expect(wins.some((w) => w.appId === "juli3ta")).toBe(true);
+    });
+  });
+});
