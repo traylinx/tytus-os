@@ -358,6 +358,7 @@ describe("useOSStore desktop icon defaults", () => {
     const ids = ((latest as { desktopIcons: Array<{ appId?: string }> } | null)?.desktopIcons ?? []).map((d) => d.appId);
     expect(ids).not.toContain("browser"); // Browser dropped from the default desktop
     expect(ids).toContain("pod-inspector"); // pre-existing icon untouched
+    expect(ids).toContain("app-store"); // no prior App Store migration ran → backfilled
     expect(localStorage.getItem("tytus_desktop_defaults_migrated_v2026_06_juli3ta_atomek")).toBe("1");
   });
 
@@ -388,5 +389,37 @@ describe("useOSStore desktop icon defaults", () => {
     const ids = ((latest as { desktopIcons: Array<{ appId?: string }> } | null)?.desktopIcons ?? []).map((d) => d.appId);
     expect(ids).toContain("browser"); // gate already set → a Browser the user kept is preserved
     expect(ids).not.toContain("atomek"); // no re-backfill after the gate
+  });
+
+  it("does not resurrect App Store for users who ran its prior migration and removed it", async () => {
+    localStorage.setItem("tytus_desktop_defaults_migrated_v2026_06_appstore", "1");
+    localStorage.setItem(
+      "tytus_desktop_icons",
+      JSON.stringify([
+        { id: "desk-pods", name: "Pods", icon: "Box", appId: "pod-inspector", position: { x: 16, y: 196 }, isSelected: false },
+        { id: "desk-browser", name: "Browser", icon: "Globe", appId: "browser", position: { x: 96, y: 286 }, isSelected: false },
+      ]),
+    );
+
+    const { OSProvider, useOS } = await import("./useOSStore");
+    let latest: unknown = null;
+    const Probe = () => {
+      latest = useOS().state;
+      return <div>probe</div>;
+    };
+    render(
+      <OSProvider>
+        <Probe />
+      </OSProvider>,
+    );
+
+    await waitFor(() => {
+      const ids = ((latest as { desktopIcons: Array<{ appId?: string }> } | null)?.desktopIcons ?? []).map((d) => d.appId);
+      expect(ids).toContain("atomek");
+    });
+    const ids = ((latest as { desktopIcons: Array<{ appId?: string }> } | null)?.desktopIcons ?? []).map((d) => d.appId);
+    expect(ids).toContain("juli3ta"); // new icons still backfilled
+    expect(ids).not.toContain("browser"); // Browser still removed
+    expect(ids).not.toContain("app-store"); // prior App Store migration respected → not re-added
   });
 });

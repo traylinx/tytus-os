@@ -466,6 +466,11 @@ const DEFAULT_DESKTOP_ICONS_TO_MIGRATE: { id: string; name: string; icon: string
 // off the default desktop). One-time, gated by the same migration key — a user
 // who re-adds Browser afterwards keeps it.
 const DEFAULT_DESKTOP_ICON_APPIDS_TO_REMOVE: string[] = ['browser'];
+// App Store shipped via its OWN earlier one-time desktop migration. Because this
+// newer reconciliation uses a fresh key it re-runs for those users too, so App
+// Store is only backfilled when that prior migration never ran — otherwise a user
+// who ran it and then deleted App Store would have the icon resurrected.
+const PRIOR_APPSTORE_DESKTOP_MIGRATION_KEY = 'tytus_desktop_defaults_migrated_v2026_06_appstore';
 
 const markDesktopDefaultsMigrationApplied = (): void => {
   try {
@@ -506,6 +511,17 @@ const mergeNewDefaultDesktopIconsOnce = (icons: DesktopIcon[]): DesktopIcon[] =>
   // Drop icons removed from the defaults (one-time, gated by the migration key).
   const next = icons.filter((i) => !(i.appId && DEFAULT_DESKTOP_ICON_APPIDS_TO_REMOVE.includes(i.appId)));
   for (const seed of DEFAULT_DESKTOP_ICONS_TO_MIGRATE) {
+    // App Store had its own prior one-time migration; don't re-add it for users who
+    // ran that one and then intentionally removed the icon.
+    if (seed.appId === 'app-store') {
+      let priorAppStoreMigrated = false;
+      try {
+        priorAppStoreMigrated = localStorage.getItem(PRIOR_APPSTORE_DESKTOP_MIGRATION_KEY) === '1';
+      } catch {
+        priorAppStoreMigrated = false;
+      }
+      if (priorAppStoreMigrated) continue;
+    }
     const present = next.some((i) => i.id === seed.id || i.appId === seed.appId);
     if (present) continue;
     next.push({ ...seed, position: findFreeDesktopSlot(next), isSelected: false });
