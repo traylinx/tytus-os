@@ -61,7 +61,22 @@ describe('markdownToHtml — security (LLM/untrusted content)', () => {
 
   it('encodes quotes so a URL cannot break out of the href attribute', () => {
     const html = markdownToHtml('[x](https://e.com" onmouseover="alert(1))');
-    expect(html).toContain('%22'); // the injected quote was percent-encoded
+    expect(html).toContain('&quot;'); // the injected quote was entity-encoded
     expect(html).not.toContain('e.com" '); // no raw breakout quote survived
+  });
+
+  it('neutralizes HTML-entity-obfuscated schemes (browser would decode them)', () => {
+    // &#x6a; decodes to "j" -> "javascript:" in the browser; escaping & defeats it.
+    const js = markdownToHtml('[click](&#x6a;avascript:alert(1))');
+    expect(js).toContain('&amp;#x6a;'); // leading & escaped -> entity inert
+    expect(js).not.toContain('&#x6a;'); // no decodable entity survives
+    const data = markdownToHtml('[x](&#x64;ata:text/html,alert)');
+    expect(data).toContain('&amp;#x64;');
+    expect(data).not.toContain('&#x64;');
+  });
+
+  it('keeps legitimate ampersands in query strings (as &amp;)', () => {
+    const html = markdownToHtml('[x](/search?a=1&b=2)');
+    expect(html).toContain('href="/search?a=1&amp;b=2"');
   });
 });

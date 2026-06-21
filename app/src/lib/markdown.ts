@@ -29,7 +29,16 @@ function safeUrl(raw: string, allowDataImage = false): string {
   ) {
     return '#';
   }
-  return raw.trim().replace(/"/g, '%22').replace(/'/g, '%27');
+  // HTML-attribute-escape the value. Escaping `&` FIRST is what defeats
+  // entity-obfuscated payloads: the browser decodes attribute entities, so a URL
+  // like "&#x6a;avascript:…" would otherwise decode back to "javascript:…" after
+  // it passed the literal-scheme check above. With `&`→`&amp;`, every entity is
+  // neutralized (and quotes can't break out of the double-quoted attribute).
+  return raw
+    .trim()
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 export function markdownToHtml(md: string): string {
@@ -76,7 +85,7 @@ export function markdownToHtml(md: string): string {
   html = html.replace(
     /!\[([^\]]*)\]\(([^)]+)\)/g,
     (_m, alt: string, url: string) =>
-      `<img src="${safeUrl(url, true)}" alt="${alt.replace(/"/g, '&quot;')}" style="max-width:100%;border-radius:8px;margin:12px 0" />`,
+      `<img src="${safeUrl(url, true)}" alt="${alt.replace(/&/g, '&amp;').replace(/"/g, '&quot;')}" style="max-width:100%;border-radius:8px;margin:12px 0" />`,
   );
 
   // Blockquotes
