@@ -9,6 +9,7 @@ export interface EventSourceLike {
   ): void;
   close(): void;
   readyState?: number;
+  onopen?: ((e: Event) => void) | null;
   onerror?: ((e: Event) => void) | null;
 }
 
@@ -98,6 +99,7 @@ export const useJobStream = (
     }
 
     let receivedAny = false;
+    let opened = false;
     let terminal = false;
     let attempt = 0;
     let lateTimer: ReturnType<typeof setTimeout> | null = null;
@@ -165,6 +167,10 @@ export const useJobStream = (
       sourceRef.current?.close();
     };
 
+    const onOpen = () => {
+      opened = true;
+    };
+
     // Connection died. If we'd already seen a terminal event, ignore — close
     // fired naturally after done/fail/exit. Otherwise:
     //   - If we'd received non-terminal events, the stream really dropped → lost.
@@ -202,16 +208,20 @@ export const useJobStream = (
       src.addEventListener("done", onDone);
       src.addEventListener("fail", onFail);
       src.addEventListener("exit", onExit);
+      src.onopen = onOpen;
       src.onerror = onError;
     };
 
     openSource();
 
-    // Late-subscribe deadline: if no events arrive within this window AND
-    // no terminal event has fired, surface as `lost` so the UI doesn't
-    // spin forever. Reset by any incoming event via `receivedAny`.
+    // Late-subscribe deadline: if the EventSource never opens and no events
+    // arrive within this window, surface as `lost` so the UI doesn't spin
+    // forever on a dead/404 stream. Once the HTTP/SSE connection is open,
+    // silence is legitimate: long bind/resync jobs can spend minutes inside
+    // rclone before the next line. Do not close a healthy open stream just
+    // because the child process is quiet.
     lateTimer = setTimeout(() => {
-      if (!receivedAny && !terminal) {
+      if (!opened && !receivedAny && !terminal) {
         setStatus("lost");
         sourceRef.current?.close();
       }

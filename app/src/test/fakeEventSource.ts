@@ -22,6 +22,7 @@ export class FakeEventSource implements EventSourceLike {
     string,
     Array<(e: { data: string }) => void>
   > = new Map();
+  onopen: ((e: Event) => void) | null = null;
   onerror: ((e: Event) => void) | null = null;
 
   constructor(url: string) {
@@ -48,6 +49,10 @@ export class FakeEventSource implements EventSourceLike {
 
   emitError(): void {
     if (this.onerror) this.onerror(new Event("error"));
+  }
+
+  emitOpen(): void {
+    if (this.onopen) this.onopen(new Event("open"));
   }
 }
 
