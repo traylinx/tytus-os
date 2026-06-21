@@ -395,10 +395,11 @@ const defaultDesktopIcons: DesktopIcon[] = [
   { id: 'desk-chat', name: 'Chat', icon: 'MessageSquare', appId: 'chat', position: { x: 16, y: 376 }, isSelected: false },
   { id: 'desk-files', name: 'Files', icon: 'Folder', appId: 'filemanager', position: { x: 16, y: 466 }, isSelected: false },
   { id: 'desk-terminal', name: 'Terminal', icon: 'Terminal', appId: 'terminal', position: { x: 96, y: 196 }, isSelected: false },
-  { id: 'desk-browser', name: 'Browser', icon: 'Globe', appId: 'browser', position: { x: 96, y: 286 }, isSelected: false },
-  { id: 'desk-channels', name: 'Channels', icon: 'Send', appId: 'channels', position: { x: 96, y: 376 }, isSelected: false },
-  { id: 'desk-help', name: 'Help', icon: 'LifeBuoy', appId: 'help', position: { x: 96, y: 466 }, isSelected: false },
-  { id: 'desk-app-store', name: 'App Store', icon: 'Store', appId: 'app-store', position: { x: 176, y: 196 }, isSelected: false },
+  { id: 'desk-channels', name: 'Channels', icon: 'Send', appId: 'channels', position: { x: 96, y: 286 }, isSelected: false },
+  { id: 'desk-help', name: 'Help', icon: 'LifeBuoy', appId: 'help', position: { x: 96, y: 376 }, isSelected: false },
+  { id: 'desk-app-store', name: 'App Store', icon: 'Store', appId: 'app-store', position: { x: 96, y: 466 }, isSelected: false },
+  { id: 'desk-atomek', name: 'Atomek', icon: 'atomek:mark', appId: 'atomek', position: { x: 176, y: 196 }, isSelected: false },
+  { id: 'desk-juli3ta', name: 'JULI3TA', icon: 'juli3ta:mark', appId: 'juli3ta', position: { x: 176, y: 286 }, isSelected: false },
 ];
 
 const createDockItem = (appId: string, overrides: Partial<DockItem> = {}): DockItem => ({
@@ -450,14 +451,21 @@ const markDockOpened = (items: DockItem[], appId: string): DockItem[] => (
   )
 );
 
-const DESKTOP_DEFAULTS_MIGRATION_KEY = 'tytus_desktop_defaults_migrated_v2026_06_appstore';
+const DESKTOP_DEFAULTS_MIGRATION_KEY = 'tytus_desktop_defaults_migrated_v2026_06_juli3ta_atomek';
 // New default desktop icons to backfill onto EXISTING (persisted) desktops
 // once. Fresh desktops already get these from defaultDesktopIcons; this mirrors
 // the dock's mergeNewDefaultDockPinsOnce. Gated by the migration key so an icon
-// the user later deletes is never re-added.
+// the user later deletes is never re-added. App Store is kept here so anyone who
+// updates straight from a pre-App-Store build still receives it.
 const DEFAULT_DESKTOP_ICONS_TO_MIGRATE: { id: string; name: string; icon: string; appId: string }[] = [
   { id: 'desk-app-store', name: 'App Store', icon: 'Store', appId: 'app-store' },
+  { id: 'desk-atomek', name: 'Atomek', icon: 'atomek:mark', appId: 'atomek' },
+  { id: 'desk-juli3ta', name: 'JULI3TA', icon: 'juli3ta:mark', appId: 'juli3ta' },
 ];
+// Default desktop icons to REMOVE from existing desktops once (Browser was moved
+// off the default desktop). One-time, gated by the same migration key — a user
+// who re-adds Browser afterwards keeps it.
+const DEFAULT_DESKTOP_ICON_APPIDS_TO_REMOVE: string[] = ['browser'];
 
 const markDesktopDefaultsMigrationApplied = (): void => {
   try {
@@ -484,16 +492,19 @@ const findFreeDesktopSlot = (icons: DesktopIcon[]): { x: number; y: number } => 
   return { x: 176, y: 196 };
 };
 
-// One-time backfill of new default desktop icons onto an existing desktop.
-// No-op after the first run; skips any icon the desktop already has (by id or
-// appId) so it never duplicates or fights a user removal.
+// One-time reconciliation of the default desktop icons onto an existing desktop:
+// removes icons dropped from the defaults (DEFAULT_DESKTOP_ICON_APPIDS_TO_REMOVE,
+// e.g. Browser) and backfills new ones (DEFAULT_DESKTOP_ICONS_TO_MIGRATE). No-op
+// after the first run; skips any icon the desktop already has (by id or appId) so
+// it never duplicates, and never fights a later user add/remove.
 const mergeNewDefaultDesktopIconsOnce = (icons: DesktopIcon[]): DesktopIcon[] => {
   try {
     if (localStorage.getItem(DESKTOP_DEFAULTS_MIGRATION_KEY) === '1') return icons;
   } catch {
     return icons;
   }
-  const next = [...icons];
+  // Drop icons removed from the defaults (one-time, gated by the migration key).
+  const next = icons.filter((i) => !(i.appId && DEFAULT_DESKTOP_ICON_APPIDS_TO_REMOVE.includes(i.appId)));
   for (const seed of DEFAULT_DESKTOP_ICONS_TO_MIGRATE) {
     const present = next.some((i) => i.id === seed.id || i.appId === seed.appId);
     if (present) continue;

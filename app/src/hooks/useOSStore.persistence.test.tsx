@@ -322,3 +322,71 @@ describe("useOSStore window persistence", () => {
     });
   });
 });
+
+describe("useOSStore desktop icon defaults", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    vi.resetModules();
+  });
+
+  it("reconciles an existing desktop: removes Browser and backfills Atomek + JULI3TA once", async () => {
+    localStorage.setItem(
+      "tytus_desktop_icons",
+      JSON.stringify([
+        { id: "desk-pods", name: "Pods", icon: "Box", appId: "pod-inspector", position: { x: 16, y: 196 }, isSelected: false },
+        { id: "desk-browser", name: "Browser", icon: "Globe", appId: "browser", position: { x: 96, y: 286 }, isSelected: false },
+      ]),
+    );
+
+    const { OSProvider, useOS } = await import("./useOSStore");
+    let latest: unknown = null;
+    const Probe = () => {
+      latest = useOS().state;
+      return <div>probe</div>;
+    };
+    render(
+      <OSProvider>
+        <Probe />
+      </OSProvider>,
+    );
+
+    await waitFor(() => {
+      const ids = ((latest as { desktopIcons: Array<{ appId?: string }> } | null)?.desktopIcons ?? []).map((d) => d.appId);
+      expect(ids).toContain("atomek");
+      expect(ids).toContain("juli3ta");
+    });
+    const ids = ((latest as { desktopIcons: Array<{ appId?: string }> } | null)?.desktopIcons ?? []).map((d) => d.appId);
+    expect(ids).not.toContain("browser"); // Browser dropped from the default desktop
+    expect(ids).toContain("pod-inspector"); // pre-existing icon untouched
+    expect(localStorage.getItem("tytus_desktop_defaults_migrated_v2026_06_juli3ta_atomek")).toBe("1");
+  });
+
+  it("leaves the desktop alone once the migration has already run", async () => {
+    localStorage.setItem("tytus_desktop_defaults_migrated_v2026_06_juli3ta_atomek", "1");
+    localStorage.setItem(
+      "tytus_desktop_icons",
+      JSON.stringify([
+        { id: "desk-browser", name: "Browser", icon: "Globe", appId: "browser", position: { x: 96, y: 286 }, isSelected: false },
+      ]),
+    );
+
+    const { OSProvider, useOS } = await import("./useOSStore");
+    let latest: unknown = null;
+    const Probe = () => {
+      latest = useOS().state;
+      return <div>probe</div>;
+    };
+    render(
+      <OSProvider>
+        <Probe />
+      </OSProvider>,
+    );
+
+    await waitFor(() => {
+      expect((latest as { desktopIcons: unknown[] } | null)?.desktopIcons).toBeTruthy();
+    });
+    const ids = ((latest as { desktopIcons: Array<{ appId?: string }> } | null)?.desktopIcons ?? []).map((d) => d.appId);
+    expect(ids).toContain("browser"); // gate already set → a Browser the user kept is preserved
+    expect(ids).not.toContain("atomek"); // no re-backfill after the gate
+  });
+});
