@@ -42,18 +42,44 @@ function safeUrl(raw: string, allowDataImage = false): string {
 }
 
 export function markdownToHtml(md: string): string {
-  let html = md;
+  // Strip NUL so the placeholder sentinels below can't be spoofed by input.
+  let html = md.replace(/\u0000/g, '');
 
   // Escape HTML
   html = html.replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
-  // Code blocks
-  html = html.replace(/```(\w*)\n([\s\S]*?)```/g, (_, _lang: string, code) => {
-    return `<pre style="background:var(--bg-code);padding:16px;border-radius:8px;overflow:auto;margin:12px 0"><code style="font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--text-primary)">${code.trim()}</code></pre>`;
+  // Code blocks - stashed as a sentinel (like inline code) so no later
+  // pass, including the <br> restore below, can rewrite their contents: a
+  // literal "<br>" or "**" inside a fenced block must survive verbatim.
+  const codeBlocks: string[] = [];
+  html = html.replace(/```(\w*)\n([\s\S]*?)```/g, (_, _lang: string, code: string) => {
+    codeBlocks.push(
+      `<pre style="background:var(--bg-code);padding:16px;border-radius:8px;overflow:auto;margin:12px 0"><code style="font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--text-primary)">${code.trim()}</code></pre>`,
+    );
+    return `\u0000B${codeBlocks.length - 1}\u0000`;
   });
 
-  // Inline code
-  html = html.replace(/`([^`]+)`/g, '<code style="background:rgba(124,77,255,0.1);padding:2px 6px;border-radius:4px;font-family:\'JetBrains Mono\',monospace;font-size:12px">$1</code>');
+  // Inline code — stashed as a sentinel BEFORE any structural pass, restored
+  // after tables. LLM/Cortex answers put inline code inside table cells, and
+  // that code can carry a literal pipe (`irm … | iex`); converting it inline
+  // now would let the pipe split the cell and mis-pair every backtick. Inline
+  // code is single-line by definition, so exclude \n to stop a stray backtick
+  // swallowing pipes across rows. Stashing also shields markdown metachars
+  // (**, [, _) inside code from the passes below.
+  const inlineCode: string[] = [];
+  html = html.replace(/`([^`\n]+)`/g, (_m, code: string) => {
+    inlineCode.push(
+      `<code style="background:rgba(124,77,255,0.1);padding:2px 6px;border-radius:4px;font-family:'JetBrains Mono',monospace;font-size:12px">${code}</code>`,
+    );
+    return `\u0000C${inlineCode.length - 1}\u0000`;
+  });
+
+  // Hard line breaks. The shared Cortex corpus uses <br> inside table cells
+  // for multi-line content; we escaped it above, so restore the void tag here.
+  // <br> has no attributes, so this re-introduces no injection surface. Runs
+  // after inline code is stashed, so a literal "<br>" inside a code span stays
+  // literal.
+  html = html.replace(/&lt;br\s*\/?&gt;/gi, '<br />');
 
   // Headings
   html = html.replace(/^###### (.*$)/gim, '<h6 style="font-size:13px;font-weight:600;margin:12px 0;color:var(--text-primary)">$1</h6>');
@@ -126,6 +152,15 @@ export function markdownToHtml(md: string): string {
     }).join('');
     return `<table style="border-collapse:collapse;margin:16px 0;width:100%;border:1px solid var(--border-default)"><thead><tr>${headers}</tr></thead><tbody>${bodyRows}</tbody></table>`;
   });
+
+  // Restore fenced code blocks before the paragraph pass so the resulting
+  // <pre> is skipped by the paragraph wrapper exactly as before this change.
+  html = html.replace(/\u0000B(\d+)\u0000/g, (_m, i: string) => codeBlocks[Number(i)] ?? '');
+
+  // Restore inline code now that structural splitting is done, but before
+  // the paragraph pass: a restored <code> starts with '<', so a code-only
+  // line is skipped by the paragraph wrapper exactly as before this change.
+  html = html.replace(/\u0000C(\d+)\u0000/g, (_m, i: string) => inlineCode[Number(i)] ?? '');
 
   // Paragraphs (remaining lines)
   html = html.replace(/^(?!<[a-z])(.+)$/gim, '<p style="line-height:1.6;margin:12px 0;color:var(--text-primary)">$1</p>');

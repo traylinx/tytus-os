@@ -360,18 +360,38 @@ const LiveDocsPanel: FC<{ onOpenDoc: (slug: string) => void }> = ({ onOpenDoc })
 
   useEffect(() => {
     const ctrl = new AbortController();
-    void getCortexDocsSources(client, ctrl.signal).then((res) => {
-      if (!res.ok) {
-        setSourcesLabel('live docs offline · bundled manual ready');
-        return;
-      }
-      setCorpusHash(res.value.corpus_hash ?? null);
-      const sources = res.value.sources?.length
-        ? res.value.sources.join(', ')
-        : 'Cortex docs';
-      setSourcesLabel(`${sources} · ${res.value.api_version ?? 'docs bridge'}`);
-    });
-    return () => ctrl.abort();
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
+    // The docs bridge can still be warming up right after the tray launches or
+    // updates, so a single mount-time failure must not stick a permanent
+    // "offline" label while the answer path is actually reachable. Retry a few
+    // times with backoff before declaring offline.
+    const probe = (attempt: number) => {
+      void getCortexDocsSources(client, ctrl.signal).then((res) => {
+        if (cancelled) return;
+        if (res.ok) {
+          setCorpusHash(res.value.corpus_hash ?? null);
+          const sources = res.value.sources?.length
+            ? res.value.sources.join(', ')
+            : 'Cortex docs';
+          setSourcesLabel(`${sources} · ${res.value.api_version ?? 'docs bridge'}`);
+          return;
+        }
+        if (attempt < 3) {
+          timer = setTimeout(() => probe(attempt + 1), 700 * (attempt + 1));
+        } else {
+          setSourcesLabel('live docs offline · bundled manual ready');
+        }
+      });
+    };
+    probe(0);
+
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+      ctrl.abort();
+    };
   }, [client]);
 
   const ask = useCallback(async () => {
@@ -396,6 +416,14 @@ const LiveDocsPanel: FC<{ onOpenDoc: (slug: string) => void }> = ({ onOpenDoc })
     setAnswer(res.value.answer || 'Cortex returned citations but no prose answer yet.');
     setCitations(res.value.citations?.length ? res.value.citations : res.value.results ?? []);
     setCorpusHash(res.value.corpus_hash ?? corpusHash);
+    // A successful answer is definitive proof the live bridge is up — clear any
+    // stale "offline" label left by a mount-time probe that lost the warm-up
+    // race. (Leave an already-online sources label untouched.)
+    setSourcesLabel((prev) =>
+      prev.startsWith('live docs offline')
+        ? `live docs online · ${res.value.api_version ?? 'docs bridge'}`
+        : prev,
+    );
   }, [client, corpusHash, query]);
 
   const drift = Boolean(corpusHash && corpusHash !== BUNDLED_DOCS_VINTAGE_HASH);
