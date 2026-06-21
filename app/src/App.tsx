@@ -24,6 +24,7 @@ import ContextMenu from '@/components/ContextMenu';
 import NotificationSystem from '@/components/NotificationSystem';
 import NotificationCenter from '@/components/NotificationCenter';
 import CommandPalette from '@/components/CommandPalette';
+import SoftwareUpdateModal from '@/components/SoftwareUpdateModal';
 import ShellRouteDispatcher from '@/components/ShellRouteDispatcher';
 import { ShellMenuProvider } from '@/hooks/useShellMenu';
 import {
@@ -467,6 +468,7 @@ function AppShell() {
           <NotificationSystem />
           <NotificationCenter />
           <CommandPalette />
+          <SoftwareUpdateModal />
 
           {/* Alt+Tab switcher */}
           {state.isAltTabbing && (
