@@ -422,4 +422,32 @@ describe("useOSStore desktop icon defaults", () => {
     expect(ids).not.toContain("browser"); // Browser still removed
     expect(ids).not.toContain("app-store"); // prior App Store migration respected → not re-added
   });
+
+  it("opens JULI3TA by its canonical id even before the installed-apps cache hydrates", async () => {
+    // In the test env the installed-apps cache is empty, so getAppById('juli3ta')
+    // is undefined — the cold-boot case. Double-clicking the desktop icon must not
+    // throw, and the window must keep the canonical 'juli3ta' id so it dedups with
+    // the dock pin.
+    const { OSProvider, useOS } = await import("./useOSStore");
+    let latest: unknown = null;
+    const Harness = () => {
+      const { state, dispatch } = useOS();
+      latest = state;
+      return (
+        <button onClick={() => dispatch({ type: "OPEN_WINDOW", appId: "juli3ta" })}>open juli3ta</button>
+      );
+    };
+    const { getByText } = render(
+      <OSProvider>
+        <Harness />
+      </OSProvider>,
+    );
+
+    getByText("open juli3ta").click();
+
+    await waitFor(() => {
+      const wins = (latest as { windows: Array<{ appId: string }> } | null)?.windows ?? [];
+      expect(wins.some((w) => w.appId === "juli3ta")).toBe(true);
+    });
+  });
 });

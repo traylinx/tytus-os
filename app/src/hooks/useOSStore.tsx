@@ -325,7 +325,15 @@ const createWindow = (
   title?: string,
   args?: WindowArgs,
 ): Window => {
-  const app = getAppById(appId);
+  let app = getAppById(appId);
+  if (!app) {
+    // Cold-boot / offline fallback: before the installed-apps cache hydrates, a
+    // canonical id (e.g. `juli3ta`) has no registry entry, but its legacy static
+    // entry (e.g. `musiccreator`) does. Open that so desktop/dock launches don't
+    // throw. The window keeps the canonical `appId`, so it still dedups against
+    // the canonical dock pin.
+    app = APP_REGISTRY.find((a) => resolveCanonicalAppId(a.id) === appId);
+  }
   if (!app) throw new Error(`Unknown app: ${appId}`);
   const id = generateId();
   const vw = window.innerWidth;
