@@ -12,6 +12,35 @@
 // (var(--text-primary), var(--accent-primary), etc.) so the output
 // follows the active dark/light theme automatically.
 
+// Neutralize a URL before it reaches an href/src attribute. markdownToHtml
+// escapes < and >, so a markdown link/image is the only injection surface left
+// — and it matters now that LLM-generated answers (Help "Ask Tytus Docs"), not
+// just trusted bundled docs, are rendered through this function. Blocks
+// script-bearing schemes (javascript:, data:, …) and percent-encodes quotes so
+// the URL can't break out of the double-quoted attribute. Ordinary http(s),
+// mailto and relative URLs pass through unchanged.
+function safeUrl(raw: string, allowDataImage = false): string {
+  // Strip control chars + whitespace the browser would ignore, to defeat
+  // obfuscation like "java\tscript:".
+  const probe = raw.replace(/[\u0000-\u0020]+/g, '').toLowerCase();
+  if (
+    !(allowDataImage && probe.startsWith('data:image/')) &&
+    /^(javascript|vbscript|data|file):/.test(probe)
+  ) {
+    return '#';
+  }
+  // HTML-attribute-escape the value. Escaping `&` FIRST is what defeats
+  // entity-obfuscated payloads: the browser decodes attribute entities, so a URL
+  // like "&#x6a;avascript:…" would otherwise decode back to "javascript:…" after
+  // it passed the literal-scheme check above. With `&`→`&amp;`, every entity is
+  // neutralized (and quotes can't break out of the double-quoted attribute).
+  return raw
+    .trim()
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 export function markdownToHtml(md: string): string {
   let html = md;
 
@@ -45,11 +74,19 @@ export function markdownToHtml(md: string): string {
   // Strikethrough
   html = html.replace(/~~(.+?)~~/g, '<del>$1</del>');
 
-  // Links
-  html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" style="color:var(--accent-primary);text-decoration:none" target="_blank" rel="noopener">$1</a>');
+  // Links (href scheme- and quote-guarded for untrusted/LLM content)
+  html = html.replace(
+    /\[([^\]]+)\]\(([^)]+)\)/g,
+    (_m, text: string, url: string) =>
+      `<a href="${safeUrl(url)}" style="color:var(--accent-primary);text-decoration:none" target="_blank" rel="noopener">${text}</a>`,
+  );
 
-  // Images
-  html = html.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1" style="max-width:100%;border-radius:8px;margin:12px 0" />');
+  // Images (src guarded; alt quote-escaped so it can't break out of the attr)
+  html = html.replace(
+    /!\[([^\]]*)\]\(([^)]+)\)/g,
+    (_m, alt: string, url: string) =>
+      `<img src="${safeUrl(url, true)}" alt="${alt.replace(/&/g, '&amp;').replace(/"/g, '&quot;')}" style="max-width:100%;border-radius:8px;margin:12px 0" />`,
+  );
 
   // Blockquotes
   html = html.replace(/^&gt; (.*$)/gim, '<blockquote style="border-left:4px solid var(--accent-primary);padding-left:16px;margin:12px 0;color:var(--text-secondary)">$1</blockquote>');

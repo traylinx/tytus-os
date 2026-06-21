@@ -475,15 +475,17 @@ const LiveDocsPanel: FC<{ onOpenDoc: (slug: string) => void }> = ({ onOpenDoc })
         )}
 
         {answer && (
-          <div
-            className="rounded-xl p-4 whitespace-pre-wrap text-sm leading-6 text-[var(--text-primary)]"
+          <article
+            className="rounded-xl p-4 text-sm leading-6 text-[var(--text-primary)]"
             style={{
               border: '1px solid var(--border-subtle)',
               background: 'var(--bg-card)',
             }}
-          >
-            {answer}
-          </div>
+            // The live answer is cortex/LLM markdown. markdownToHtml escapes raw
+            // <>, and its link/image URLs are scheme- and quote-guarded
+            // (lib/markdown safeUrl), so dangerouslySetInnerHTML is safe here.
+            dangerouslySetInnerHTML={{ __html: markdownToHtml(answer) }}
+          />
         )}
 
         {citations.length > 0 && (
