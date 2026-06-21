@@ -91,6 +91,11 @@ export function useSoftwareUpdate(opts?: { pollMs?: number }): SoftwareUpdate {
     };
   }, [client, pollMs]);
 
+  // The single source of truth for "which version is on offer" — used for
+  // display, visibility, and dismissal so they can't disagree (a release that
+  // carries only release_tag still shows and dismisses correctly).
+  const availableVersion = status?.latest_version ?? status?.release_tag ?? null;
+
   const install = useCallback(async () => {
     setInstalling(true);
     setError(null);
@@ -101,15 +106,19 @@ export function useSoftwareUpdate(opts?: { pollMs?: number }): SoftwareUpdate {
   }, [client]);
 
   const dismiss = useCallback(() => {
-    const v = status?.latest_version ?? null;
-    if (!v) return;
-    try {
-      localStorage.setItem(DISMISS_KEY, v);
-    } catch {
-      /* ignore storage failures — dismissal is best-effort */
+    if (availableVersion) {
+      try {
+        localStorage.setItem(DISMISS_KEY, availableVersion);
+      } catch {
+        /* ignore storage failures — dismissal is best-effort */
+      }
+      setDismissedVersion(availableVersion);
     }
-    setDismissedVersion(v);
-  }, [status]);
+    // Also clear any post-install result / error so Close fully dismisses the
+    // window (the result panel keeps `open` true until this runs).
+    setInstallResult(null);
+    setError(null);
+  }, [availableVersion]);
 
   const recheck = useCallback(async () => {
     setError(null);
@@ -121,8 +130,8 @@ export function useSoftwareUpdate(opts?: { pollMs?: number }): SoftwareUpdate {
   const visible =
     !!status &&
     status.status === "update_available" &&
-    !!status.latest_version &&
-    status.latest_version !== dismissedVersion &&
+    !!availableVersion &&
+    availableVersion !== dismissedVersion &&
     // Once the user has kicked off an install, keep the result panel but stop
     // treating it as a fresh prompt on the next poll.
     !installResult;

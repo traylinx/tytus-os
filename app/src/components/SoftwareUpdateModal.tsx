@@ -80,7 +80,11 @@ export default function SoftwareUpdateModal() {
         )}
 
         <DialogFooter>
-          <Button variant="ghost" onClick={dismiss}>
+          <Button
+            variant="ghost"
+            onClick={dismiss}
+            data-testid="software-update-dismiss"
+          >
             {installResult
               ? t("update.available.close")
               : t("update.available.later")}

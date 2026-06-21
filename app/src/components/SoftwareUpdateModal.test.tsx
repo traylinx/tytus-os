@@ -108,6 +108,29 @@ describe('SoftwareUpdateModal', () => {
     expect(screen.queryByText('Update available')).toBeNull();
   });
 
+  it('"Close" fully dismisses the window after an install has started', async () => {
+    const client = makeClient(makeStatus());
+    renderModal(client);
+
+    fireEvent.click(await screen.findByRole('button', { name: /update now/i }));
+    await screen.findByText(/Update started\. Tytus will restart\./);
+
+    // After install the action becomes "Close" — it must actually close.
+    fireEvent.click(screen.getByTestId('software-update-dismiss'));
+    await waitFor(() => expect(screen.queryByText('Update available')).toBeNull());
+  });
+
+  it('shows and dismisses using release_tag when latest_version is absent', async () => {
+    const client = makeClient(makeStatus({ latest_version: null }));
+    renderModal(client);
+
+    expect(await screen.findByText('Update available')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: /later/i }));
+
+    await waitFor(() => expect(screen.queryByText('Update available')).toBeNull());
+    expect(localStorage.getItem('tytus.update.dismissedVersion')).toBe('v0.7.66');
+  });
+
   it('shows the install command (no Update button) when the daemon cannot self-install', async () => {
     const client = makeClient(makeStatus({ can_install: false }));
     renderModal(client);
