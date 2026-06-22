@@ -33,6 +33,7 @@ import type {
   SharingDefaults,
   SharedFolderProvisionPodRequest,
   SharedFolderRemoveRequest,
+  SharedFolderSyncNowRequest,
   SharedFolderUpdateAliasRequest,
   SharedFolderUpdateTargetsRequest,
   SharedFoldersList,
@@ -943,6 +944,11 @@ export interface DaemonClient {
     signal?: AbortSignal,
     idempotencyKey?: string,
   ): Promise<DaemonResult<null>>;
+  postSharedFoldersSyncNow(
+    payload: SharedFolderSyncNowRequest,
+    signal?: AbortSignal,
+    idempotencyKey?: string,
+  ): Promise<DaemonResult<JobResponse>>;
   postSharingDefaults(
     payload: Partial<
       Pick<
@@ -1770,6 +1776,14 @@ export const createDaemonClient = (
         "/api/shared-folders/remove",
         { method: "POST", body: payload, signal, idempotencyKey },
         noBody,
+      ),
+
+    postSharedFoldersSyncNow: (payload, signal, idempotencyKey) =>
+      runRequest(
+        deps,
+        "/api/shared-folders/sync-now",
+        { method: "POST", body: payload, signal, idempotencyKey },
+        (b) => expectShape(b, isJobResponse, "malformed /api/shared-folders/sync-now"),
       ),
 
     postSharingDefaults: (payload, signal, idempotencyKey) =>

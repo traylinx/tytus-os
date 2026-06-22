@@ -1670,6 +1670,9 @@ const bucketNameFromLocalPath = (path: string): string => {
   return "shared";
 };
 
+const sharedBindingKey = (binding: Pick<Binding, "bucket" | "local_path">): string =>
+  `${binding.bucket}\u0000${binding.local_path}`;
+
 const SharedTab: FC<{
   agents: Agent[];
   included: IncludedPod[];
@@ -1700,6 +1703,7 @@ const SharedTab: FC<{
   // Sync-now job (single-flight with bind-stream — only one
   // shared-folders job at a time per the task spec).
   const [syncJob, setSyncJob] = useState<{ id: string } | null>(null);
+  const [syncBindingKey, setSyncBindingKey] = useState<string | null>(null);
   const [syncErr, setSyncErr] = useState<string | null>(null);
   const [syncSubmitting, setSyncSubmitting] = useState(false);
   const syncStreamUrl = syncJob ? client.jobStreamUrl(syncJob.id) : null;
@@ -1792,6 +1796,7 @@ const SharedTab: FC<{
       if (syncStream.status === "success") {
         /* eslint-disable-next-line react-hooks/set-state-in-effect */
         void refresh();
+        window.setTimeout(() => void refresh(), 1500);
       }
     }
   }, [syncJob, syncStream.status, syncDone, refresh]);
@@ -1801,6 +1806,7 @@ const SharedTab: FC<{
     setSyncSubmitting(true);
     setSyncErr(null);
     setSyncJob(null);
+    setSyncBindingKey(null);
     lastHandledSyncStatusRef.current = null;
     const r = await client.postSharedFoldersRunStreamed("refresh-all");
     setSyncSubmitting(false);
@@ -1810,6 +1816,31 @@ const SharedTab: FC<{
     }
     setSyncJob({ id: r.value.job_id });
   }, [client, sharingBlocked]);
+
+  const onSyncBindingNow = useCallback(
+    async (binding: Binding) => {
+      if (sharingBlocked || binding.sync_status?.active) return;
+      const key = sharedBindingKey(binding);
+      setSyncSubmitting(true);
+      setSyncErr(null);
+      setSyncJob(null);
+      setSyncBindingKey(key);
+      lastHandledSyncStatusRef.current = null;
+      const r = await client.postSharedFoldersSyncNow({
+        bucket: binding.bucket,
+        local_path: binding.local_path,
+      });
+      setSyncSubmitting(false);
+      if (!r.ok) {
+        setSyncErr(r.error.message);
+        void refresh();
+        return;
+      }
+      setSyncJob({ id: r.value.job_id });
+      void refresh();
+    },
+    [client, refresh, sharingBlocked],
+  );
 
   const onConnectTunnel = useCallback(async () => {
     if (tunnelConnecting) return;
@@ -2164,6 +2195,12 @@ const SharedTab: FC<{
                 binding={b}
                 onOpen={() => onOpenBinding(b)}
                 onSettings={() => setSettingsBinding(b)}
+                onSyncNow={() => onSyncBindingNow(b)}
+                syncDisabled={
+                  sharingBlocked || Boolean(b.sync_status?.active) ||
+                  (syncInFlight && syncBindingKey !== sharedBindingKey(b))
+                }
+                syncInFlight={syncInFlight && syncBindingKey === sharedBindingKey(b)}
                 onRemove={() => onRemoveBinding(b)}
                 removeDisabled={sharingBlocked}
                 openErr={openErrByPath[b.local_path] ?? null}
@@ -2286,10 +2323,36 @@ const SyncStreamPane: FC<{
 // BindingCard — one card per binding
 // ============================================================
 
+const sharedFolderSyncStatusLabel = (
+  binding: Binding,
+  t: (key: string, params?: Record<string, string | number>) => string,
+): string | null => {
+  const status = binding.sync_status;
+  if (!status) return null;
+  if (status.state === "syncing" && status.phase === "initial_resync") {
+    return t("files.shared.syncStatus.initialSyncing");
+  }
+  if (status.state === "syncing") return t("files.shared.syncStatus.syncing");
+  if (status.state === "synced") return t("files.shared.syncStatus.synced");
+  if (status.state === "attention") return t("files.shared.syncStatus.attention");
+  return t("files.shared.syncStatus.pending");
+};
+
+const sharedFolderSyncStatusColor = (binding: Binding): string => {
+  const state = binding.sync_status?.state;
+  if (state === "synced") return "#A5D6A7";
+  if (state === "attention") return "#FFB74D";
+  if (state === "syncing") return "#B39DDB";
+  return "#9E9E9E";
+};
+
 const BindingCard: FC<{
   binding: Binding;
   onOpen: () => void;
   onSettings: () => void;
+  onSyncNow: () => void;
+  syncDisabled: boolean;
+  syncInFlight: boolean;
   onRemove: () => void;
   removeDisabled: boolean;
   openErr: string | null;
@@ -2298,12 +2361,18 @@ const BindingCard: FC<{
   binding,
   onOpen,
   onSettings,
+  onSyncNow,
+  syncDisabled,
+  syncInFlight,
   onRemove,
   removeDisabled,
   openErr,
   targetsLabel,
 }) => {
   const { t } = useI18n();
+  const syncLabel = sharedFolderSyncStatusLabel(binding, t);
+  const syncColor = sharedFolderSyncStatusColor(binding);
+  const syncState = binding.sync_status?.state;
   return (
   <div
     className="rounded-lg p-4 flex flex-col gap-2"
@@ -2342,6 +2411,39 @@ const BindingCard: FC<{
         </div>
       </div>
       <div className="flex items-center gap-2">
+        <button
+          onClick={onSyncNow}
+          disabled={syncDisabled}
+          title={
+            binding.sync_status?.active
+              ? t("files.shared.syncAlreadyRunningTitle")
+              : undefined
+          }
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[11px] font-medium transition-colors disabled:opacity-60"
+          style={{
+            background:
+              binding.sync_status?.state === "attention"
+                ? "rgba(255,183,77,0.10)"
+                : "var(--bg-hover, rgba(255,255,255,0.04))",
+            border:
+              binding.sync_status?.state === "attention"
+                ? "1px solid rgba(255,183,77,0.30)"
+                : "1px solid var(--border-default)",
+            color:
+              binding.sync_status?.state === "attention"
+                ? "#FFE082"
+                : "var(--text-primary)",
+          }}
+        >
+          {syncInFlight ? (
+            <Loader2 size={11} className="animate-spin" />
+          ) : (
+            <FolderSync size={11} />
+          )}
+          {binding.sync_status?.state === "attention"
+            ? t("files.shared.retrySync")
+            : t("files.shared.syncNow")}
+        </button>
         <button
           onClick={onSettings}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[11px] font-medium transition-colors"
@@ -2392,6 +2494,31 @@ const BindingCard: FC<{
           ? t('files.shared.autoSyncEvery', { seconds: binding.interval_sec })
           : t('files.shared.manualSync')}
       </span>
+      {syncLabel && (
+        <>
+          <span>·</span>
+          <span
+            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full"
+            title={syncLabel}
+            style={{
+              color: syncColor,
+              background: "rgba(124,77,255,0.08)",
+              border: `1px solid ${syncColor}44`,
+            }}
+          >
+            {syncState === "syncing" ? (
+              <Loader2 size={10} className="animate-spin" />
+            ) : syncState === "attention" ? (
+              <AlertTriangle size={10} />
+            ) : syncState === "synced" ? (
+              <Check size={10} />
+            ) : (
+              <FolderSync size={10} />
+            )}
+            {syncLabel}
+          </span>
+        </>
+      )}
       <span>·</span>
       <span>{t('files.shared.sharedWith', { targets: targetsLabel })}</span>
     </div>
@@ -2577,6 +2704,27 @@ const selectedShareTargetUpdates = (
       kind: target.kind,
       enabled: true,
     }));
+
+const selectedProvisionSelectorsNeedingProvision = (
+  selectedTargets: ReadonlySet<string>,
+  shareTargets: readonly ShareTargetOption[],
+  binding: Binding,
+  provisionedPods: ReadonlySet<string>,
+): string[] => {
+  const out = new Set<string>();
+  for (const target of shareTargets) {
+    if (!target.shareCapable || !selectedTargets.has(target.targetId)) continue;
+    const selector = normalizeProvisionPodId(target.provisionSelector);
+    const status = targetStatusForBinding(binding, target);
+    const sidecarProvisioned = provisionedPods.has(selector);
+    const liveGrantVerified = status?.state === "verified" && status.grant_verified;
+    const liveGrantNeedsRepair = status !== null && !liveGrantVerified;
+    if (!sidecarProvisioned || liveGrantNeedsRepair) out.add(selector);
+  }
+  return Array.from(out).sort((a, b) =>
+    a.localeCompare(b, undefined, { numeric: true }),
+  );
+};
 
 const SharedFolderSettingsModal: FC<{
   binding: Binding;
@@ -2813,12 +2961,16 @@ const SharedFolderSettingsModal: FC<{
       return;
     }
     setSavedAt(Date.now());
-    // Agent selection is policy, while the mounted filesystem is per runtime
-    // pod. If this pod already has the shared-folder mount, changing Claus /
-    // Hermie / Lisa checkboxes must not rotate Garage keys or re-run
-    // provisioning. Only newly selected runtime pods need provisioning.
-    const podsNeedingProvision = selectedPods.filter(
-      (pod) => !provisionedPods.has(normalizeProvisionPodId(pod)),
+    // Agent selection is policy, while pod-side Garage credentials are live
+    // state. Re-provision if the sidecar has never recorded this route OR the
+    // live verifier says the selected route has grant_missing / verification_error.
+    // This repairs old bindings whose sidecar looked provisioned but agents
+    // could not actually access the bucket.
+    const podsNeedingProvision = selectedProvisionSelectorsNeedingProvision(
+      selectedTargets,
+      shareTargets,
+      binding,
+      provisionedPods,
     );
     if (podsNeedingProvision.length === 0) {
       onSuccess();
@@ -3263,25 +3415,30 @@ const BindFolderModal: FC<BindFolderModalProps> = ({
       setRecovering(false);
       return "not_found";
     }
-    const provisionedPods = provisionedSelectorsForBinding(binding, shareTargets);
-    const allSelectedPodsProvisioned = selectedPods.every((pod) =>
-      provisionedPods.has(normalizeProvisionPodId(pod)),
-    );
-    if (!allSelectedPodsProvisioned) {
-      setRecovering(false);
-      return "not_found";
-    }
+    // Binding registration is the user-visible completion boundary. Initial
+    // file sync and route grant verification can continue in the background and
+    // are reflected on the Shared Folders card via sync_status/target_status.
+    // Waiting for every selected pod to verify here is what left the dialog
+    // stuck on "bind · streaming" even though refresh already showed the folder.
     const ok = await persistTargetSelection();
     setRecovering(false);
     if (ok) onSuccess();
     return ok ? "recovered" : "error";
-  }, [findRecoveredBinding, onSuccess, persistTargetSelection, selectedPods, shareTargets]);
+  }, [findRecoveredBinding, onSuccess, persistTargetSelection]);
 
   // Close modal on stream success. If the stream reports failed/lost after the
   // helper already wrote the binding sidecar, recover by persisting the
   // per-agent target policy instead of forcing the user to reopen Settings and
   // save a second time.
   const lastHandledRef = useRef<string | null>(null);
+  const bindRegistrationRecoveryStartedRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!job) return;
+    if (bindRegistrationRecoveryStartedRef.current === job.id) return;
+    bindRegistrationRecoveryStartedRef.current = job.id;
+    void recoverCompletedBind();
+  }, [job, recoverCompletedBind]);
   useEffect(() => {
     if (!job) return;
     if (lastHandledRef.current === stream.status) return;

@@ -21,6 +21,7 @@ export interface Binding {
     }
   >;
   target_status?: SharedFolderTargetStatus[];
+  sync_status?: SharedFolderSyncStatus;
   schema_version: number;
   slug?: string;
   sync_layout?: string;
@@ -34,6 +35,19 @@ export interface Binding {
     enabled?: boolean;
   }>;
   workdir: string;
+}
+
+export interface SharedFolderSyncStatus {
+  state: "pending" | "syncing" | "synced" | "attention";
+  phase?: "initial_resync" | "incremental" | "idle" | "stale_lock" | string;
+  active?: boolean;
+  baseline_ready?: boolean;
+  checked_at?: number | string;
+  workdir?: string;
+  lock_file?: string;
+  lock_pid?: number;
+  lock_active?: boolean;
+  lock_expires?: string;
 }
 
 export interface SharedFolderTargetStatus {
@@ -92,6 +106,11 @@ export interface SharedFolderUpdateAliasRequest {
 }
 
 export interface SharedFolderRemoveRequest {
+  bucket: string;
+  local_path: string;
+}
+
+export interface SharedFolderSyncNowRequest {
   bucket: string;
   local_path: string;
 }

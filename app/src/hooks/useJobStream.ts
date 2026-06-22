@@ -169,6 +169,11 @@ export const useJobStream = (
 
     const onOpen = () => {
       opened = true;
+      // Native EventSource fires `open` as soon as the HTTP/SSE response is
+      // established. Long shared-folder binds can then sit inside rclone for
+      // minutes before the next log line, so surface this as an active stream
+      // instead of leaving the UI stuck on "subscribing".
+      if (!terminal) setStatus("streaming");
     };
 
     // Connection died. If we'd already seen a terminal event, ignore — close

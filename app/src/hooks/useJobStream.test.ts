@@ -123,7 +123,7 @@ describe("useJobStream", () => {
     expect(result.current.lines).toEqual([]);
   });
 
-  it("keeps an opened but quiet stream alive past the late-subscribe deadline", async () => {
+  it("marks an opened quiet stream as active and keeps it alive past the late-subscribe deadline", async () => {
     const url = "/api/jobs/quiet-bind/stream";
     const { Ctor, instances } = makeFakeEventSource({}, { autoEmit: false });
     const { result } = renderHook(() =>
@@ -136,9 +136,10 @@ describe("useJobStream", () => {
 
     await waitFor(() => expect(instances[0]).toBeDefined());
     instances[0].emitOpen();
+    await waitFor(() => expect(result.current.status).toBe("streaming"));
     await new Promise((resolve) => window.setTimeout(resolve, 100));
 
-    expect(result.current.status).toBe("subscribing");
+    expect(result.current.status).toBe("streaming");
     instances[0].emit("exit", '{"code":0}');
     await waitFor(() => expect(result.current.status).toBe("success"));
   });
