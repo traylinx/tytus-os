@@ -777,6 +777,7 @@ export const en: TranslationMap = {
   "appStore.card.install.runningTerminal": "Running install in Terminal — follow the prompts there",
   "appStore.card.install.installing": "Installing…",
   "appStore.card.install.checking": "Installing — checking status…",
+  "appStore.card.downloadDesktop": "Download desktop app",
   "appStore.card.llm.button": "Use Tytus AIL",
   "appStore.card.llm.configuring": "Configuring…",
   "appStore.card.llm.ready": "Tytus AIL ready",

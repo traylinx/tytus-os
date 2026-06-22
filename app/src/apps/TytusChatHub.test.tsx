@@ -7,7 +7,7 @@ import { DaemonStateProvider } from "@/hooks/useDaemonStateContext";
 import { createDaemonClient } from "@/lib/daemon";
 import { makeFakeFetch, type RouteSpec } from "@/test/fakeFetch";
 import { stateFixture } from "@/test/fixtures";
-import { TYTUS_CHAT_URL } from "@/lib/tytusChat";
+import { TYTUS_CHAT_DESKTOP_DOWNLOAD_URL, TYTUS_CHAT_URL } from "@/lib/tytusChat";
 import type { FC, ReactNode } from "react";
 import { useEffect } from "react";
 import { I18nProvider } from "@/i18n";
@@ -165,6 +165,18 @@ describe("TytusChatHub", () => {
     const cta = await screen.findByTestId("tytus-chat-hub-open");
     act(() => fireEvent.click(cta));
     expect(open).toHaveBeenCalledWith(TYTUS_CHAT_URL, "_blank", "noopener,noreferrer");
+  });
+
+  it("Get desktop app opens the desktop release downloads directly", async () => {
+    const open = vi.spyOn(window, "open").mockReturnValue(null);
+    render(
+      <Harness>
+        <TytusChatHub />
+      </Harness>,
+    );
+    const cta = await screen.findByTestId("tytus-chat-hub-get-desktop");
+    act(() => fireEvent.click(cta));
+    expect(open).toHaveBeenCalledWith(TYTUS_CHAT_DESKTOP_DOWNLOAD_URL, "_blank", "noopener,noreferrer");
   });
 
   it("shows empty states (allocate a pod / connect a channel) with zero pods", async () => {

@@ -54,6 +54,7 @@ import { getExternalAppLogo } from './externalAppLogos';
 import { FEATURED_APPS, type FeaturedApp, loadFeaturedApps } from './featured-apps-catalog';
 import { isHiddenLegacyApp } from './product-replacements';
 import { BrandIcon, isBrandIconName } from '@/components/BrandIcon';
+import { TYTUS_CHAT_DESKTOP_DOWNLOAD_URL } from '@/lib/tytusChat';
 
 type SourceFilter = 'all' | 'desktop' | 'tytus' | 'installed' | 'available';
 
@@ -793,6 +794,7 @@ const TytusInstalledCard: FC<{
   const reinstallAvailable = row.kind === 'installed' && Boolean(row.manifestUrl);
   const removable = row.kind === 'installed' && !row.builtinProtected;
   const title = row.builtinProtected ? t('appStore.card.uninstallDisabled.system') : undefined;
+  const showTytusChatDesktopDownload = row.id === 'chat';
   return (
     <CardShell testId={`tytus-app-card-${row.id}`}>
       <div className="flex items-start gap-3">
@@ -811,6 +813,11 @@ const TytusInstalledCard: FC<{
       {kind === 'bundled' && <MonoHint>{t('appStore.card.uninstallDisabled.bundled')}</MonoHint>}
       <div className="flex gap-2 mt-auto items-center flex-wrap">
         <PrimaryButton testId={`tytus-app-open-${row.id}`} onClick={onOpen} icon={<AppWindow size={13} />}>{t('common.open')}</PrimaryButton>
+        {showTytusChatDesktopDownload && (
+          <SecondaryLink testId="tytus-chat-desktop-download" href={TYTUS_CHAT_DESKTOP_DOWNLOAD_URL}>
+            <Download size={13} /> {t('appStore.card.downloadDesktop')}
+          </SecondaryLink>
+        )}
         {removable && (
           <SecondaryButton testId={confirming ? `tytus-app-uninstall-confirm-${row.id}` : `tytus-app-uninstall-${row.id}`} onClick={onUninstall} disabled={busy} danger>
             {busy ? <Loader2 size={13} className="animate-spin" /> : <X size={13} />}

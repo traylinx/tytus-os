@@ -13,9 +13,11 @@ import AppStore from './AppStore';
 import { DaemonClientProvider } from '@/hooks/useDaemonClient';
 import { OSProvider } from '@/hooks/useOSStore';
 import { createDaemonClient } from '@/lib/daemon';
+import { TYTUS_CHAT_DESKTOP_DOWNLOAD_URL } from '@/lib/tytusChat';
 import { I18nProvider } from '@/i18n';
 import { makeFakeFetch, type RouteSpec, type FakeFetchHandle } from '@/test/fakeFetch';
 import type { StoreApp } from '@/types/daemon';
+import type { InstalledAppRow } from '@/runtime/installed-apps-repo';
 
 const discord: StoreApp = {
   id: 'discord',
@@ -114,14 +116,37 @@ const defaultRoutes: RouteSpec[] = [
   { method: 'POST', path: '/api/apps/open', body: { ok: true, opened: ['discord'], skipped: [] } },
 ];
 
-function renderStore(routes: RouteSpec[] = defaultRoutes): FakeFetchHandle {
+const chatRow: InstalledAppRow = {
+  id: 'chat',
+  kind: 'bundled',
+  manifest: {
+    id: 'chat',
+    name: 'Tytus Chat',
+    description: 'Your pods are teammates.',
+    category: 'Internet',
+    icon: 'MessageCircle',
+    version: '1.0.0',
+    window: {
+      defaultSize: { width: 720, height: 600 },
+      minSize: { width: 440, height: 480 },
+    },
+  } as unknown as InstalledAppRow['manifest'],
+  entryUrl: null,
+  assetsUrl: null,
+  manifestUrl: null,
+  installedAt: 0,
+  enabled: true,
+  builtinProtected: true,
+};
+
+function renderStore(routes: RouteSpec[] = defaultRoutes, installedApps: InstalledAppRow[] = []): FakeFetchHandle {
   const handle = makeFakeFetch(routes);
   const client = createDaemonClient({ fetch: handle.fetch });
   render(
     <I18nProvider>
       <DaemonClientProvider client={client}>
         <OSProvider>
-          <AppStore loadInstalledApps={async () => []} loadFeatured={async () => []} />
+          <AppStore loadInstalledApps={async () => installedApps} loadFeatured={async () => []} />
         </OSProvider>
       </DaemonClientProvider>
     </I18nProvider>,
@@ -292,5 +317,17 @@ describe('AppStore — Desktop tab actions', () => {
     expect(screen.queryByTestId('appcard-open-openwork')).toBeNull();
     expect(screen.queryByTestId('appcard-llm-openwork')).toBeNull();
     expect(screen.getByTestId('appcard-health-openwork').textContent).toContain('native package');
+  });
+
+  it('surfaces a direct Tytus Chat Desktop download link on the Chat app card', async () => {
+    renderStore([
+      { method: 'GET', path: '/api/apps', body: [] },
+      { method: 'POST', path: '/api/apps/check', body: { results: [] } },
+    ], [chatRow]);
+    await gotoDesktopTab();
+
+    const link = await screen.findByTestId('tytus-chat-desktop-download') as HTMLAnchorElement;
+    expect(link.getAttribute('href')).toBe(TYTUS_CHAT_DESKTOP_DOWNLOAD_URL);
+    expect(link.textContent).toContain('Download desktop app');
   });
 });

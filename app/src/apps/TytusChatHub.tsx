@@ -19,8 +19,8 @@
 //     as the Channels / Pod Inspector pod lists). Clicking one opens
 //     Tytus Chat.
 //   • Hero card: the brand + primary CTA (open web; "Get the desktop
-//     app" jumps to the App Store; the desktop client is a thin Electron
-//     shell over the same URL).
+//     app" opens the desktop release downloads; the desktop client is a thin
+//     Electron shell over the same URL).
 //   • Connected channels: messengers already bound to any pod, with a
 //     link to manage them in the Channels app.
 //   • How-it-works: a short explainer card.
@@ -44,7 +44,7 @@ import { useOS, useWindows } from "@/hooks/useOSStore";
 import { useDaemonClient } from "@/hooks/useDaemonClient";
 import { useDaemonStateContext } from "@/hooks/useDaemonStateContext";
 import { useI18n } from "@/i18n";
-import { TYTUS_CHAT_URL } from "@/lib/tytusChat";
+import { TYTUS_CHAT_DESKTOP_DOWNLOAD_URL, TYTUS_CHAT_URL } from "@/lib/tytusChat";
 import { resolveAgentDisplay } from "@/lib/agentCatalog";
 import { getChannelLauncher } from "@/lib/chatChannelLaunchers";
 import type { Agent } from "@/types/daemon";
@@ -165,6 +165,8 @@ const TytusChatHub: FC = () => {
 
   const openChat = () =>
     window.open(TYTUS_CHAT_URL, "_blank", "noopener,noreferrer");
+  const openDesktopDownload = () =>
+    window.open(TYTUS_CHAT_DESKTOP_DOWNLOAD_URL, "_blank", "noopener,noreferrer");
 
   return (
     <div
@@ -292,7 +294,7 @@ const TytusChatHub: FC = () => {
               <button
                 type="button"
                 data-testid="tytus-chat-hub-get-desktop"
-                onClick={() => openWindow("app-store")}
+                onClick={openDesktopDownload}
                 className="inline-flex items-center gap-1.5 px-3 py-2 rounded-md text-sm transition-colors"
                 style={{
                   background: "var(--bg-hover, rgba(255,255,255,0.04))",
