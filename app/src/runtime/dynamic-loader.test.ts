@@ -362,13 +362,13 @@ describe('loadAppById', () => {
     });
 
     expect(importModule).toHaveBeenCalledWith(
-      'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-juli3ta@juli3ta-0.3.24/dist/index.js',
+      'https://cdn.jsdelivr.net/gh/traylinx/tytus-app-juli3ta@juli3ta-0.3.26/dist/index.js',
     );
     expect(makeEnv).toHaveBeenCalledWith(
       'juli3ta',
-      expect.objectContaining({ version: '0.3.24' }),
+      expect.objectContaining({ version: '0.3.26' }),
     );
-    expect(result.manifest.version).toBe('0.3.24');
+    expect(result.manifest.version).toBe('0.3.26');
   });
 
   it('coerces legacy workspace rows before loading so restored windows do not import retired app tags', async () => {
