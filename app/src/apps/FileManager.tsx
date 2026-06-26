@@ -2323,27 +2323,90 @@ const SyncStreamPane: FC<{
 // BindingCard — one card per binding
 // ============================================================
 
+export type SharedFolderSyncCategory =
+  | "synced"
+  | "syncedExcludes"
+  | "failed"
+  | "degraded"
+  | "syncing"
+  | "initialSyncing"
+  | "pending"
+  | "unknown";
+
+const SYNC_CATEGORY_I18N: Record<SharedFolderSyncCategory, string> = {
+  synced: "files.shared.syncStatus.synced",
+  syncedExcludes: "files.shared.syncStatus.syncedExcludesApplied",
+  failed: "files.shared.syncStatus.failed",
+  degraded: "files.shared.syncStatus.degraded",
+  syncing: "files.shared.syncStatus.syncing",
+  initialSyncing: "files.shared.syncStatus.initialSyncing",
+  pending: "files.shared.syncStatus.pending",
+  unknown: "files.shared.syncStatus.unknown",
+};
+
+const hasExcludedDeps = (excluded: unknown): boolean =>
+  !!excluded &&
+  typeof excluded === "object" &&
+  Object.values(excluded as Record<string, unknown>).some(
+    (n) => typeof n === "number" && n > 0,
+  );
+
+/**
+ * Truthful sync state (sprint 2026-06-26, Phase 4). A live in-flight sync wins;
+ * otherwise we prefer the VERIFIED garagetytus endpoint health (endpoint_health)
+ * over the local bisync-baseline heuristic — baseline `.lst` files persist even
+ * when every sync since has failed against a dead/stale endpoint. Missing,
+ * unknown, or stale health is never rendered as "synced".
+ */
+export const sharedFolderSyncCategory = (
+  binding: Binding,
+): SharedFolderSyncCategory | null => {
+  const status = binding.sync_status;
+  if (!status) return null;
+  // Live, in-flight sync is the most informative immediate state.
+  if (status.state === "syncing") {
+    return status.phase === "initial_resync" ? "initialSyncing" : "syncing";
+  }
+  const eh = status.endpoint_health;
+  const ehTrusted = !!eh && eh.state !== "unknown" && eh.stale !== true;
+  if (ehTrusted && eh) {
+    if (eh.reachable === false || (eh.consecutive_failures ?? 0) >= 3) return "failed";
+    if (eh.state === "failed") return "failed";
+    if (eh.state === "degraded") return "degraded";
+    if (eh.state === "ok") return hasExcludedDeps(eh.excluded) ? "syncedExcludes" : "synced";
+    return "degraded";
+  }
+  if (status.state === "pending") return "pending";
+  // Endpoint health missing/unknown/stale: a legacy "synced"/"attention" cannot
+  // be verified, so never claim synced — surface "degraded" or "unknown".
+  if (status.state === "attention") return "degraded";
+  return "unknown";
+};
+
 const sharedFolderSyncStatusLabel = (
   binding: Binding,
   t: (key: string, params?: Record<string, string | number>) => string,
 ): string | null => {
-  const status = binding.sync_status;
-  if (!status) return null;
-  if (status.state === "syncing" && status.phase === "initial_resync") {
-    return t("files.shared.syncStatus.initialSyncing");
-  }
-  if (status.state === "syncing") return t("files.shared.syncStatus.syncing");
-  if (status.state === "synced") return t("files.shared.syncStatus.synced");
-  if (status.state === "attention") return t("files.shared.syncStatus.attention");
-  return t("files.shared.syncStatus.pending");
+  const cat = sharedFolderSyncCategory(binding);
+  if (!cat) return null;
+  return t(SYNC_CATEGORY_I18N[cat]);
 };
 
 const sharedFolderSyncStatusColor = (binding: Binding): string => {
-  const state = binding.sync_status?.state;
-  if (state === "synced") return "#A5D6A7";
-  if (state === "attention") return "#FFB74D";
-  if (state === "syncing") return "#B39DDB";
-  return "#9E9E9E";
+  switch (sharedFolderSyncCategory(binding)) {
+    case "synced":
+    case "syncedExcludes":
+      return "#A5D6A7";
+    case "syncing":
+    case "initialSyncing":
+      return "#B39DDB";
+    case "failed":
+      return "#E57373";
+    case "degraded":
+      return "#FFB74D";
+    default:
+      return "#9E9E9E"; // pending / unknown
+  }
 };
 
 const BindingCard: FC<{
@@ -2372,7 +2435,7 @@ const BindingCard: FC<{
   const { t } = useI18n();
   const syncLabel = sharedFolderSyncStatusLabel(binding, t);
   const syncColor = sharedFolderSyncStatusColor(binding);
-  const syncState = binding.sync_status?.state;
+  const syncCategory = sharedFolderSyncCategory(binding);
   return (
   <div
     className="rounded-lg p-4 flex flex-col gap-2"
@@ -2506,11 +2569,11 @@ const BindingCard: FC<{
               border: `1px solid ${syncColor}44`,
             }}
           >
-            {syncState === "syncing" ? (
+            {syncCategory === "syncing" || syncCategory === "initialSyncing" ? (
               <Loader2 size={10} className="animate-spin" />
-            ) : syncState === "attention" ? (
+            ) : syncCategory === "failed" || syncCategory === "degraded" ? (
               <AlertTriangle size={10} />
-            ) : syncState === "synced" ? (
+            ) : syncCategory === "synced" || syncCategory === "syncedExcludes" ? (
               <Check size={10} />
             ) : (
               <FolderSync size={10} />
