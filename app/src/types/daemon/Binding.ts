@@ -37,9 +37,39 @@ export interface Binding {
   workdir: string;
 }
 
+/**
+ * Verified Mac-side endpoint health (mac-sync-health-v1), produced by
+ * `garagetytus sync health` and attached per-binding by the tytus-cli daemon.
+ * Shared across bindings (one rclone endpoint). The UI prefers this over the
+ * local bisync-baseline heuristic: a green "synced" derived only from baseline
+ * files is a lie when the endpoint is unreachable. All fields optional so an
+ * older daemon (no endpoint_health) degrades gracefully to "unknown".
+ */
+export interface SharedFolderEndpointHealth {
+  schema_version?: string;
+  state?: "ok" | "degraded" | "failed" | "unknown" | string;
+  reachable?: boolean | null;
+  consecutive_failures?: number;
+  last_success_ts?: string | null;
+  last_error?: string | null;
+  endpoint_checked?: string;
+  updated_at?: string;
+  stale_after_seconds?: number;
+  /** True when the daemon found the health file older than stale_after_seconds. */
+  stale?: boolean;
+  /** dependency/control upload-exclude counts by reason (e.g. {dependency: 124}). */
+  excluded?: Record<string, number>;
+}
+
 export interface SharedFolderSyncStatus {
   state: "pending" | "syncing" | "synced" | "attention";
-  phase?: "initial_resync" | "incremental" | "idle" | "stale_lock" | string;
+  phase?:
+    | "initial_resync"
+    | "incremental"
+    | "idle"
+    | "stale_lock"
+    | "endpoint_unreachable"
+    | string;
   active?: boolean;
   baseline_ready?: boolean;
   checked_at?: number | string;
@@ -48,6 +78,8 @@ export interface SharedFolderSyncStatus {
   lock_pid?: number;
   lock_active?: boolean;
   lock_expires?: string;
+  /** Verified endpoint health overlaid by the daemon (Phase 4). */
+  endpoint_health?: SharedFolderEndpointHealth;
 }
 
 export interface SharedFolderTargetStatus {
